@@ -434,3 +434,18 @@ def test_chat_gate_thread_endpoints(tmp_path: Path) -> None:
         server.shutdown()
         server.server_close()
         worker.join()
+
+
+def test_dispatcher_orchestrator_prompt_names_gates_awaiting_it(tmp_path: Path) -> None:
+    from loopx.dispatch.prompts import dispatch_prompt_addendum
+
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    reply_to_gate(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=gate_id, text="Why?")
+    prompt = dispatch_prompt_addendum(goal_id=GOAL, agent_id=ORCH, role="orchestrator", todo_id=None,
+                                      workspace_repos=None,
+                                      awaiting_gates=gates_awaiting_orchestrator(runtime, GOAL))
+    assert f"`{gate_id}`" in prompt and "loopx gate show|reply" in prompt
+    developer = dispatch_prompt_addendum(goal_id=GOAL, agent_id=DEV, role="developer", todo_id=None,
+                                         workspace_repos=None)
+    assert "loopx gate" not in developer

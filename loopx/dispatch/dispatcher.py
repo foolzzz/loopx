@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from . import policy
+from ..gate_threads import gates_awaiting_orchestrator
 from .prompts import compose_system_prompt, dispatch_prompt_addendum, replace_system_prompt_argument
 from .state import (
     DispatchLock,
@@ -507,6 +508,10 @@ class Dispatcher:
                     role=role,
                     todo_id=str(todo_id) if todo_id else None,
                     workspace_repos=repo_paths,
+                    awaiting_gates=(
+                        gates_awaiting_orchestrator(self.runtime_root, goal_id)
+                        if role == "orchestrator" else None
+                    ),
                 ),
             )
             host_args = replace_system_prompt_argument(host_args, prompt_path)

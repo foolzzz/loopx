@@ -54,6 +54,11 @@ The thread state is durable under the runtime root:
 When a gate closes through any path that uses `complete_goal_todo` (the CLI, the
 dashboard or any library caller), its index entry is marked `closed`.
 
+The S4 dispatcher fingerprints the files directly under `goals/<G>/`, including
+the rollout log and the `gates/` directory, so a user reply wakes the
+orchestrator. The orchestrator's system-prompt addendum explains the gate and
+plan commands and names the gates that are `awaiting_orchestrator`.
+
 ### Web
 
 The dashboard context drawer shows a **Discussion** panel for every user gate.
