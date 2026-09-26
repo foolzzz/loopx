@@ -36,7 +36,10 @@ from .registry_admin_lifecycle import (
     handle_registry_lifecycle_command,
     register_registry_lifecycle_commands,
 )
-from .registry_admin_peer import render_register_agent_markdown
+from .registry_admin_peer import (
+    parse_agent_role_arguments,
+    render_register_agent_markdown,
+)
 from .registry_admin_thread_resolution import (
     REGISTRY_THREAD_RESOLUTION_COMMANDS,
     handle_registry_thread_resolution_command,
@@ -143,6 +146,7 @@ def register_agent_via_source_registry(
     agent_ids: list[str],
     execute: bool,
     require_new: bool = False,
+    role: str | None = None,
 ) -> dict[str, object]:
     global_path = explicit_global_registry(runtime_root_arg)
     if not global_path.exists():
@@ -161,6 +165,9 @@ def register_agent_via_source_registry(
     source_goal = _registry_goal(source_registry_path, goal_id)
     existing_agents = _goal_registered_agents(source_goal)
     requested_agents = normalize_registered_agents(agent_ids)
+    role_assignments: dict[str, str] | None = None
+    if role is not None:
+        role_assignments = {agent_id: role for agent_id in requested_agents}
     collisions = [agent_id for agent_id in requested_agents if agent_id in existing_agents]
     if require_new and collisions:
         return _fresh_agent_collision_payload(
@@ -254,7 +261,7 @@ def register_agent_via_source_registry(
                 registry_path=source_registry_path,
                 goal_id=goal_id,
                 registered_agents=merged_agents,
-                agent_model="peer_v1",
+                agent_roles=role_assignments,
                 execute=True,
                 _registry_transaction=registry_transaction,
             )
@@ -278,7 +285,7 @@ def register_agent_via_source_registry(
             registry_path=source_registry_path,
             goal_id=goal_id,
             registered_agents=merged_agents,
-            agent_model="peer_v1",
+            agent_roles=role_assignments,
             execute=False,
         )
     sync_ok = bool(sync_payload.get("ok", True)) if isinstance(sync_payload, dict) else True
@@ -298,6 +305,8 @@ def register_agent_via_source_registry(
         "existing_agents": existing_agents,
         "requested_agents": requested_agents,
         "registered_agents": merged_agents,
+        "role": role,
+        "agent_roles": ((configure_payload.get("after") or {}).get("agent_roles") or {}),
         "changed": configure_payload.get("changed"),
         "written": configure_payload.get("written"),
         "configure_goal": configure_payload,
@@ -356,6 +365,15 @@ def register_registry_admin_commands(subparsers: argparse._SubParsersAction) -> 
             "Fail when any requested id is already registered. Fresh-agent onboarding "
             "uses this to prevent accidental takeover; ordinary registration remains "
             "idempotent without the flag."
+        ),
+    )
+    register_agent_parser.add_argument(
+        "--role",
+        choices=("orchestrator", "developer", "acceptor"),
+        default=None,
+        help=(
+            "role_v1 role for the registered agent(s). At most one orchestrator "
+            "per goal."
         ),
     )
     register_agent_parser.add_argument(
@@ -497,6 +515,8 @@ def handle_registry_admin_command(
                 clear_agent_profiles=args.clear_agent_profiles,
                 agent_work_modes=agent_work_modes or None,
                 clear_agent_work_modes=args.clear_agent_work_modes,
+                agent_roles=parse_agent_role_arguments(args.agent_roles) or None,
+                clear_agent_roles=args.clear_agent_roles,
                 todo_lifecycle_authority=todo_lifecycle_authority,
                 clear_todo_lifecycle_authority=(
                     args.clear_todo_lifecycle_authority
@@ -573,6 +593,7 @@ def handle_registry_admin_command(
                 agent_ids=args.agent_id,
                 execute=bool(args.execute),
                 require_new=bool(args.require_new),
+                role=args.role,
             )
         except Exception as exc:
             payload = {

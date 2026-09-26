@@ -48,6 +48,7 @@ from ..todos import (
 from .todo_argument_validation import (
     validate_capability_gap_options,
     validate_shared_todo_options,
+    todo_role_contract_from_args,
     validate_todo_add_options,
     validate_todo_archive_completed_options,
     validate_todo_claim_options,
@@ -340,6 +341,7 @@ def handle_todo_command(
                 validation_command_json=args.validation_command_json,
                 validation_label=args.validation_label,
                 validation_timeout_seconds=args.validation_timeout_seconds,
+                role_contract=todo_role_contract_from_args(args),
                 monitor_metadata={
                     key: value
                     for key, value in {
@@ -432,6 +434,7 @@ def handle_todo_command(
                 resume_when=args.resume_when,
                 clear_resume_when=bool(args.clear_resume_when),
                 no_followup=True if args.no_follow_up else None,
+                role_contract=todo_role_contract_from_args(args),
                 monitor_metadata={
                     key: value
                     for key, value in {

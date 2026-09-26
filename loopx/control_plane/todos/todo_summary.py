@@ -27,6 +27,10 @@ from .contract import (
     normalize_todo_decision_scope_outcomes,
     normalize_todo_excluded_agents,
     normalize_todo_global_gate,
+    normalize_todo_reject_count,
+    normalize_todo_required_role,
+    normalize_todo_requires_acceptance,
+    normalize_todo_task_repositories,
     normalize_todo_generation,
     normalize_todo_goal_bound,
     normalize_todo_id,
@@ -295,6 +299,26 @@ def todo_priority_parts(text: str) -> tuple[str | None, str]:
     return projection_todo_priority_parts(text)
 
 
+_ROLE_CONTRACT_NORMALIZERS = (
+    ("required_role", normalize_todo_required_role),
+    ("requires_acceptance", normalize_todo_requires_acceptance),
+    ("acceptor_agent", normalize_todo_claimed_by),
+    ("reject_count", normalize_todo_reject_count),
+    ("task_repositories", normalize_todo_task_repositories),
+)
+
+
+def _attach_role_contract_fields(normalized: dict[str, Any], item: dict[str, Any]) -> None:
+    """Copy the role_v1 todo fields in canonical form; drop implicit defaults."""
+
+    for field, normalizer in _ROLE_CONTRACT_NORMALIZERS:
+        value = normalizer(item.get(field))
+        if value is None or value == []:
+            normalized.pop(field, None)
+        else:
+            normalized[field] = value
+
+
 def structured_todo_item(
     item: dict[str, Any],
     *,
@@ -404,6 +428,7 @@ def structured_todo_item(
     global_gate = normalize_todo_global_gate(item.get("global_gate"))
     if global_gate is not None:
         normalized["global_gate"] = global_gate
+    _attach_role_contract_fields(normalized, item)
     unblocks_todo_id = normalize_todo_id(item.get("unblocks_todo_id"))
     if unblocks_todo_id:
         normalized["unblocks_todo_id"] = unblocks_todo_id

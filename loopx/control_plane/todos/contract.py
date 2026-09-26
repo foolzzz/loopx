@@ -4,7 +4,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 from urllib.parse import quote, unquote
 
 from ...repository_identity import normalize_repository_identity
@@ -157,6 +157,12 @@ TODO_ACTION_KIND_ADVANCEMENT_VALUES = {
     "test",
     "validate",
     "writeback",
+}
+TODO_PLANNING_ACTION_KINDS = {
+    "decompose",
+    "plan",
+    "replan",
+    "triage",
 }
 TODO_ACTION_KIND_MONITOR_VALUES = {
     "external_evidence",
@@ -478,6 +484,140 @@ def normalize_required_capabilities(value: Any) -> list[str]:
 
 def normalize_target_capabilities(value: Any) -> list[str]:
     return normalize_required_capabilities(value)
+
+
+TODO_REQUIRED_ROLE_VALUES = ("orchestrator", "developer", "acceptor")
+# Same shape as a Goal ``repos`` entry name (loopx.workspace.repos).
+TODO_REPOSITORY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+TODO_TASK_REPOSITORIES_LIMIT = 8
+
+
+def normalize_todo_required_role(value: Any) -> str | None:
+    """Return the role_v1 role a todo is routed to, if explicitly declared."""
+
+    candidate = compact_todo_text(value).lower()
+    return candidate if candidate in TODO_REQUIRED_ROLE_VALUES else None
+
+
+def normalize_todo_requires_acceptance(value: Any) -> bool | None:
+    if value is True or value is False:
+        return value
+    candidate = compact_todo_text(value).lower()
+    if candidate in {"true", "1", "yes"}:
+        return True
+    if candidate in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def normalize_todo_reject_count(value: Any) -> int | None:
+    """Return a positive rejection count; zero is the implicit default."""
+
+    if value is None or value is True or value is False:
+        return None
+    try:
+        count = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return count if count > 0 else None
+
+
+def require_todo_reject_count(value: Any) -> int | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        count = int(str(value).strip())
+    except (TypeError, ValueError):
+        raise ValueError("reject_count must be a non-negative integer") from None
+    if count < 0 or value is True or value is False:
+        raise ValueError("reject_count must be a non-negative integer")
+    return count if count > 0 else None
+
+
+def normalize_todo_task_repositories(value: Any) -> list[str]:
+    """Normalize the named repositories (goal ``repos`` keys) a todo targets."""
+
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_values = [str(item or "") for item in value]
+    else:
+        raw_values = re.split(r"[,;|]", str(value or ""))
+    names: list[str] = []
+    for raw in raw_values:
+        name = compact_todo_text(raw)
+        if not name or not TODO_REPOSITORY_NAME_PATTERN.match(name):
+            continue
+        if name not in names:
+            names.append(name)
+        if len(names) >= TODO_TASK_REPOSITORIES_LIMIT:
+            break
+    return names
+
+
+def require_todo_task_repositories(value: Any) -> list[str]:
+    if value is None:
+        return []
+    raw_values = (
+        [str(item or "") for item in value]
+        if isinstance(value, (list, tuple, set))
+        else [part for part in re.split(r"[,;|]", str(value or ""))]
+    )
+    raw_values = [compact_todo_text(item) for item in raw_values if compact_todo_text(item)]
+    normalized = normalize_todo_task_repositories(raw_values)
+    if len(normalized) != len(set(raw_values)):
+        raise ValueError(
+            "task_repositories must contain at most "
+            f"{TODO_TASK_REPOSITORIES_LIMIT} Goal repo names "
+            "(letters, digits, '_', '-', '.')"
+        )
+    return normalized
+
+
+def todo_effective_required_role(item: Mapping[str, Any] | None) -> str:
+    """Return the role_v1 role that owns a todo.
+
+    An explicit ``required_role`` wins. Otherwise user gates, user actions,
+    blockers and planning/replan work belong to the orchestrator, and all
+    other agent work defaults to the developer.
+    """
+
+    if not isinstance(item, Mapping):
+        return "developer"
+    explicit = normalize_todo_required_role(item.get("required_role"))
+    if explicit:
+        return explicit
+    task_class = normalize_explicit_todo_task_class(item.get("task_class"))
+    if item.get("role") == "user" or task_class in {
+        TODO_TASK_CLASS_USER_GATE,
+        TODO_TASK_CLASS_USER_ACTION,
+        TODO_TASK_CLASS_BLOCKER,
+    }:
+        return "orchestrator"
+    if normalize_todo_replan_obligation_id(item.get("replan_obligation_id")):
+        return "orchestrator"
+    if normalize_todo_action_kind(item.get("action_kind")) in TODO_PLANNING_ACTION_KINDS:
+        return "orchestrator"
+    return "developer"
+
+
+def todo_requires_acceptance(item: Mapping[str, Any] | None) -> bool:
+    """Whether completing this todo must pass an acceptor (role_v1).
+
+    Defaults to true for developer implementation (advancement) todos and
+    false otherwise; an explicit ``requires_acceptance`` wins.
+    """
+
+    if not isinstance(item, Mapping):
+        return False
+    explicit = normalize_todo_requires_acceptance(item.get("requires_acceptance"))
+    if explicit is not None:
+        return explicit
+    task_class = normalize_explicit_todo_task_class(item.get("task_class"))
+    return (
+        todo_effective_required_role(item) == "developer"
+        and task_class in {None, TODO_TASK_CLASS_ADVANCEMENT}
+    )
 
 
 def normalize_explore_result_node_refs(value: Any) -> list[str]:
@@ -1048,6 +1188,38 @@ _TODO_METADATA_FIELD_SCHEMA = (
         invalid_when=lambda value: value is not None,
     ),
     _TodoMetadataField(
+        "required_role",
+        normalize_todo_required_role,
+        invalid_message=(
+            "required_role must be one of: " + ", ".join(TODO_REQUIRED_ROLE_VALUES)
+        ),
+    ),
+    _TodoMetadataField(
+        "requires_acceptance",
+        normalize_todo_requires_acceptance,
+        encoder=_metadata_bool_text,
+        invalid_when=lambda value: value is not None and value != "",
+        invalid_message="requires_acceptance must be true or false",
+    ),
+    _TodoMetadataField(
+        "acceptor_agent",
+        normalize_todo_claimed_by,
+        invalid_message=(
+            "acceptor_agent must be a public-safe agent token such as codex-acceptor"
+        ),
+    ),
+    _TodoMetadataField(
+        "reject_count",
+        normalize_todo_reject_count,
+        write_normalizer=require_todo_reject_count,
+    ),
+    _TodoMetadataField(
+        "task_repositories",
+        normalize_todo_task_repositories,
+        write_normalizer=require_todo_task_repositories,
+        encoder=_metadata_csv,
+    ),
+    _TodoMetadataField(
         "unblocks_todo_id",
         normalize_todo_id,
         invalid_message=(
@@ -1220,6 +1392,42 @@ def _normalize_todo_metadata_for_write(values: dict[str, Any]) -> dict[str, Any]
     return normalized
 
 
+TODO_ROLE_CONTRACT_FIELDS = (
+    "required_role",
+    "requires_acceptance",
+    "acceptor_agent",
+    "reject_count",
+    "task_repositories",
+)
+
+
+def normalize_todo_role_contract(
+    patch: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Validate a role_v1 todo field patch.
+
+    Keys that are present are kept; ``None`` (or a value that normalizes to
+    the implicit default) means "clear". Unknown keys are rejected.
+    """
+
+    if not patch:
+        return {}
+    unknown = sorted(set(patch) - set(TODO_ROLE_CONTRACT_FIELDS))
+    if unknown:
+        raise ValueError("unknown todo role field(s): " + ", ".join(unknown))
+    normalized: dict[str, Any] = {}
+    for key in TODO_ROLE_CONTRACT_FIELDS:
+        if key not in patch:
+            continue
+        value = patch[key]
+        if value is None:
+            normalized[key] = None
+            continue
+        written = _TODO_METADATA_FIELD_BY_TOKEN[key].normalize_for_write(value)
+        normalized[key] = written if _metadata_value_is_present(written) else None
+    return normalized
+
+
 def normalize_todo_metadata_for_write(values: dict[str, Any]) -> dict[str, Any]:
     """Return canonical typed Todo metadata without Markdown encoding."""
 
@@ -1264,6 +1472,11 @@ def format_todo_metadata_line(
     blocks_agent: str | None = None,
     excluded_agents: Any = None,
     global_gate: bool | None = None,
+    required_role: str | None = None,
+    requires_acceptance: bool | None = None,
+    acceptor_agent: str | None = None,
+    reject_count: int | str | None = None,
+    task_repositories: Any = None,
     unblocks_todo_id: str | None = None,
     successor_todo_ids: Any = None,
     completion_continuation: str | None = None,
@@ -1321,6 +1534,16 @@ def todo_block_metadata(block: dict[str, Any]) -> dict[str, Any]:
             normalized = normalize_todo_excluded_agents(value)
         elif key == "explore_result_node_refs":
             normalized = normalize_explore_result_node_refs(value)
+        elif key == "task_repositories":
+            normalized = normalize_todo_task_repositories(value)
+        elif key == "requires_acceptance":
+            normalized = normalize_todo_requires_acceptance(value)
+        elif key == "reject_count":
+            normalized = normalize_todo_reject_count(value)
+        elif key == "required_role":
+            normalized = normalize_todo_required_role(value)
+        elif key == "acceptor_agent":
+            normalized = normalize_todo_claimed_by(value)
         elif key == "continuation_policy":
             normalized = normalize_todo_continuation_policy(value)
         elif key == "decision_scope":
@@ -1344,6 +1567,14 @@ def todo_block_metadata(block: dict[str, Any]) -> dict[str, Any]:
         if normalized is not None and normalized != [] and normalized != "":
             metadata[key] = normalized
     return metadata
+
+
+def _apply_role_contract_metadata(metadata: dict[str, Any], key: str, value: Any) -> None:
+    normalized = _TODO_METADATA_FIELD_BY_TOKEN[key].normalize_for_write(value)
+    if _metadata_value_is_present(normalized):
+        metadata[key] = normalized
+    else:
+        metadata.pop(key, None)
 
 
 def metadata_line_for_todo_block(
@@ -1396,6 +1627,8 @@ def metadata_line_for_todo_block(
                 metadata[key] = normalized
             else:
                 metadata.pop(key, None)
+        elif key in TODO_ROLE_CONTRACT_FIELDS:
+            _apply_role_contract_metadata(metadata, key, value)
         elif key == "continuation_policy":
             normalized_continuation_policy = normalize_todo_continuation_policy(value)
             if normalized_continuation_policy:

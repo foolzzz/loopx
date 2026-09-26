@@ -192,6 +192,7 @@ class _QuotaTodoLanes:
     active_next_action_items: list[dict[str, Any]]
     active_next_action_executable_items: list[dict[str, Any]]
     open_count: Any
+    role_scope: dict[str, Any] | None = None
 
 
 def _strict_non_negative_int(value: Any) -> int | None:
@@ -490,6 +491,8 @@ def summarize_user_todos_for_quota(
         )
     if lanes.claim_scope:
         summary["claim_scope"] = lanes.claim_scope
+    if lanes.role_scope:
+        summary["role_scope"] = lanes.role_scope
     if filter_user_gate_blocks_agent:
         summary["all_open_count"] = value.get("open_count", len(all_open_items))
     if lanes.agent_scope_filter:
@@ -881,6 +884,8 @@ def summarize_project_asset_todos_for_quota(
         )
     if lanes.claim_scope:
         summary["claim_scope"] = lanes.claim_scope
+    if lanes.role_scope:
+        summary["role_scope"] = lanes.role_scope
     if lanes.agent_scope_filter:
         summary["agent_scope_filter"] = lanes.agent_scope_filter
         summary["all_open_count"] = value.get("open", value.get("open_count", len(all_open_items)))

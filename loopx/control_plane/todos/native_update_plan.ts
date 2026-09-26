@@ -17,12 +17,13 @@ import {
 } from "./decision_metadata.ts";
 
 import { normalizeMonitorConfiguration, type MonitorPollObservation } from "./monitor_metadata.ts";
+import { normalizeTodoRoleContract } from "./field_update.ts";
 
 const STRINGS = new Set(["status", "evidence", "reason", "task_class", "continuation_policy",
   "resume_when", "unblocks_todo_id", "bound_agent", "blocks_agent"]);
 const BOOLEANS = new Set(["clear_priority", "clear_resume_when", "no_followup", "goal_bound", "clear_blocks_agent",
   "global_gate", "clear_global_gate"]);
-const FIELDS = new Set(["priority", ...STRINGS, ...BOOLEANS, "successor_todo_ids", "monitor_metadata",
+const FIELDS = new Set(["priority", ...STRINGS, ...BOOLEANS, "successor_todo_ids", "monitor_metadata", "role_contract",
   ...TODO_WORK_REQUIREMENT_FIELDS, ...TODO_OWNERSHIP_INTENT_FIELDS, ...TODO_DECISION_METADATA_FIELDS]);
 
 /** A separate intent namespace preserves the shipped text/note patch and its
@@ -42,6 +43,10 @@ export function normalizeNativePlanningIntent(value: unknown): JsonObject {
     }
     if (field === "monitor_metadata") {
       if (value != null) intent[field] = normalizeMonitorConfiguration(value);
+      continue;
+    }
+    if (field === "role_contract") {
+      if (value != null) intent[field] = normalizeTodoRoleContract(value);
       continue;
     }
     if (field === "decision_scope") {

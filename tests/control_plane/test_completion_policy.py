@@ -78,5 +78,5 @@ def test_completion_rejects_unknown_runtime_model_before_write(
     )
 
     assert returncode == 1
-    assert "coordination.agent_model must be peer_v1" in result["error"]
+    assert "coordination.agent_model must be role_v1 or peer_v1" in result["error"]
     assert state_file.read_text(encoding="utf-8") == before

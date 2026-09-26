@@ -13,6 +13,7 @@ from .rollout_event_log import load_rollout_events, rollout_event_log_path
 from .state_refresh import now_local, resolve_goal_state
 from .status import MAX_ACTIVE_DONE_TODOS_BEFORE_ARCHIVE
 from .control_plane.todos.contract import (
+    TODO_ROLE_CONTRACT_FIELDS,
     TODO_STATUS_DEFERRED,
     TODO_STATUS_DONE,
     TODO_STATUS_OPEN,
@@ -38,6 +39,7 @@ from .control_plane.todos.contract import (
     normalize_todo_required_decision_scopes,
     normalize_todo_replan_obligation_id,
     normalize_todo_resume_when,
+    normalize_todo_role_contract,
     normalize_todo_status,
     normalize_todo_task_domain,
     normalize_todo_task_repository,
@@ -429,7 +431,11 @@ def add_todo_to_lines(
     note: str | None = None,
     evidence: str | None = None,
     updated_at: str | None = None,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    role_contract = normalize_todo_role_contract(role_contract)
+    if role != "agent" and role_contract.get("task_repositories"):
+        raise ValueError("task_repositories is only valid for agent todos")
     if validation_command and validation_command_json:
         raise ValueError(
             "--validation-command and --validation-command-json are mutually "
@@ -544,6 +550,7 @@ def add_todo_to_lines(
                 else None
             ),
             **normalized_monitor_metadata,
+            **{key: value for key, value in role_contract.items() if value is not None},
             note=note,
             evidence=evidence,
             updated_at=updated_at,
@@ -625,6 +632,7 @@ def add_todo_to_lines(
         if normalized_resume_when:
             updates["resume_when"] = normalized_resume_when
         updates.update(normalized_monitor_metadata)
+        updates.update(role_contract)
         if updated_at and not block.get("updated_at"):
             updates["updated_at"] = updated_at
         metadata_line = metadata_line_for_todo_block(block, updates)
@@ -688,6 +696,11 @@ def add_todo_to_lines(
             effective_metadata.get("replan_obligation_id")
         ),
         "resume_when": normalize_todo_resume_when(effective_metadata.get("resume_when")),
+        **{
+            key: effective_metadata.get(key)
+            for key in TODO_ROLE_CONTRACT_FIELDS
+            if effective_metadata.get(key) is not None
+        },
         "target_key": effective_metadata.get("target_key"),
         "cadence": effective_metadata.get("cadence"),
         "next_due_at": effective_metadata.get("next_due_at"),
@@ -697,6 +710,27 @@ def add_todo_to_lines(
         "evidence": effective_metadata.get("evidence") or evidence,
         "updated_at": effective_metadata.get("updated_at") or updated_at,
     }
+
+
+def _require_goal_task_repositories(
+    registry_path: Path, goal_id: str, role_contract: dict[str, Any] | None,
+) -> None:
+    """Named task repositories must be repos the Goal declares (S5 ``repos``)."""
+
+    names = (role_contract or {}).get("task_repositories") or []
+    if not names:
+        return
+    from .agent_registry import load_goal_from_registry
+    from .workspace.repos import goal_repos
+
+    known = [repo["name"] for repo in goal_repos(load_goal_from_registry(registry_path, goal_id))]
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        raise ValueError(
+            f"task_repositories names unknown Goal repos: {', '.join(unknown)}; "
+            f"declared repos: {', '.join(known) or '(none)'}. "
+            "Declare them with `loopx configure-goal --repo NAME=PATH`."
+        )
 
 
 def add_goal_todo(
@@ -740,8 +774,22 @@ def add_goal_todo(
     state_file: Path | None = None,
     dry_run: bool = False,
     operation_id: str | None = None,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     shadow_runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
+    role_contract = {
+        key: value
+        for key, value in normalize_todo_role_contract(role_contract).items()
+        if value is not None
+    }
+    if role_contract.get("task_repositories") and role != "agent":
+        raise ValueError("task_repositories is only valid for agent todos")
+    if role_contract.get("acceptor_agent"):
+        role_contract["acceptor_agent"] = require_registered_agent_id(
+            registry_path=registry_path, goal_id=goal_id,
+            agent_id=role_contract["acceptor_agent"], field="acceptor_agent",
+        )
+    _require_goal_task_repositories(registry_path, goal_id, role_contract)
     if role not in TODO_SECTION_HEADINGS:
         raise ValueError("todo role must be one of: user, agent")
     require_user_todo_task_class(
@@ -890,6 +938,7 @@ def add_goal_todo(
             "validation_label": validation_label,
             "validation_timeout_seconds": validation_timeout_seconds,
             **normalized_monitor_metadata,
+            **role_contract,
             "note": note,
             "updated_at": updated_at,
         },
@@ -966,6 +1015,7 @@ def add_goal_todo(
             monitor_metadata=normalized_monitor_metadata,
             note=note,
             updated_at=updated_at,
+            role_contract=role_contract,
         )
         added = bool(add_result["added"])
         metadata_updated = bool(add_result["metadata_updated"])
@@ -1012,6 +1062,11 @@ def add_goal_todo(
         "unblocks_todo_id": add_result.get("unblocks_todo_id"),
         "replan_obligation_id": add_result.get("replan_obligation_id"),
         "resume_when": add_result.get("resume_when"),
+        **{
+            key: add_result[key]
+            for key in TODO_ROLE_CONTRACT_FIELDS
+            if add_result.get(key) is not None
+        },
         "target_key": add_result.get("target_key"),
         "cadence": add_result.get("cadence"),
         "next_due_at": add_result.get("next_due_at"),
@@ -1108,9 +1163,17 @@ def update_goal_todo(
     project: Path | None = None,
     state_file: Path | None = None,
     dry_run: bool = False,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if priority is not None and clear_priority:
         raise ValueError("provide either priority or clear_priority, not both")
+    role_contract = normalize_todo_role_contract(role_contract) or None
+    if role_contract and role_contract.get("acceptor_agent"):
+        role_contract["acceptor_agent"] = require_registered_agent_id(
+            registry_path=registry_path, goal_id=goal_id,
+            agent_id=role_contract["acceptor_agent"], field="acceptor_agent",
+        )
+    _require_goal_task_repositories(registry_path, goal_id, role_contract)
     shadow_runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     if validation_command and validation_command_json:
         raise ValueError(
@@ -1201,6 +1264,7 @@ def update_goal_todo(
             explore_result_node_refs, decision_scope, required_decision_scopes,
             bound_agent, blocks_agent, excluded_agents, unblocks_todo_id,
             successor_todo_ids, resume_when, no_followup, monitor_metadata,
+            role_contract,
         )
         if (
             any(value is not None and value is not False for value in unsupported_claim_values)
@@ -1255,7 +1319,7 @@ def update_goal_todo(
         unblocks_todo_id=unblocks_todo_id,
         successor_todo_ids=successor_todo_ids, resume_when=resume_when,
         clear_resume_when=clear_resume_when, no_followup=no_followup,
-        clear_claim=clear_claim,
+        clear_claim=clear_claim, role_contract=role_contract,
     )
     if priority is not None:
         planning_intent["priority"] = priority
@@ -1391,7 +1455,7 @@ def update_goal_todo(
                 bound_agent, goal_bound,
                 excluded_agents, clear_excluded_agents, global_gate,
                 clear_global_gate, unblocks_todo_id, successor_todo_ids,
-                resume_when, clear_resume_when, no_followup,
+                resume_when, clear_resume_when, no_followup, role_contract,
             ),
             monitor_metadata=monitor_intent["observation"] or monitor_intent["metadata"],
         )
@@ -1508,6 +1572,7 @@ def update_goal_todo(
             clear_claim=clear_claim,
             claim_only=claim_only,
             updated_at=updated_at,
+            role_contract=role_contract,
         )
         changed = bool(update_result["changed"])
         new_text = "\n".join(lines) + ("\n" if original.endswith("\n") else "")
