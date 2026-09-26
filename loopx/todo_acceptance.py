@@ -20,6 +20,7 @@ Markdown and promoted canonical authority paths share one lifecycle.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -46,9 +47,20 @@ from .control_plane.todos.contract import (
 )
 
 TODO_ACCEPTANCE_SCHEMA_VERSION = "loopx_todo_acceptance_v0"
+ESCALATION_TEXT_PREFIX = "Escalation: "
+_ESCALATED_TODO = re.compile(r"^Escalation: (todo_[A-Za-z0-9_-]+) was rejected \d+ times by ")
 # Design decision 6: the second rejection of the same todo escalates.
 REJECT_ESCALATION_THRESHOLD = 2
 _EVIDENCE_LIMIT = 900
+
+
+def escalated_todo_id(escalation: Mapping[str, Any] | None) -> str | None:
+    """The todo an S2 escalation todo was opened for, from its own text template."""
+
+    if not isinstance(escalation, Mapping) or str(escalation.get("action_kind") or "") != "replan":
+        return None
+    match = _ESCALATED_TODO.match(str(escalation.get("text") or escalation.get("title") or ""))
+    return match.group(1) if match else None
 
 
 def goal_uses_role_v1(goal: Mapping[str, Any] | None) -> bool:
@@ -603,7 +615,7 @@ def reject_goal_todo(
             project=project, state_file=state_file, dry_run=dry_run,
         )
         escalation_text = (
-            f"Escalation: {todo_id} was rejected {count} times by {actor}. Decide: reassign, "
+            f"{ESCALATION_TEXT_PREFIX}{todo_id} was rejected {count} times by {actor}. Decide: reassign, "
             f"split, revise the acceptance criteria, or open a user gate. Latest feedback: {feedback}"
         )
         escalation = add_goal_todo(

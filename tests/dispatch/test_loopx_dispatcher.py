@@ -632,3 +632,33 @@ def test_a_second_slot_takes_the_lanes_next_executable_todo(tmp_path: Path) -> N
     assert pinned == ["todo_bbb"]
     assert policy.alternate_todo({"agent_todo_summary": {"first_executable_items": [
         {"todo_id": "todo_aaa"}, {"todo_id": "todo_ccc", "status": "done"}]}}, exclude={"todo_aaa"}) is None
+
+
+def test_orchestrator_escalation_todo_is_validated_by_the_escalated_todo_status(tmp_path: Path) -> None:
+    """E2E pilot: an escalation todo had no validator, so the orchestrator could not settle it."""
+
+    from loopx.dispatch.checks import main as check
+
+    fixture = write_fixture(tmp_path, agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}})
+    rejected = add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text="Build the web UI", task_class="advancement_task", action_kind="fixture",
+    )["todo_id"]
+    escalation = add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text=f"Escalation: {rejected} was rejected 2 times by acc. Decide: reassign.",
+        task_class="advancement_task", action_kind="replan", claimed_by="orch",
+        role_contract={"required_role": "orchestrator", "requires_acceptance": False},
+    )["todo_id"]
+    dispatcher = _dispatcher(fixture, should_run=ScriptedShouldRun({"orch": [escalation], "dev": []}))
+    dispatcher.run_once()
+    argv = {row["agent"]: row["argv"] for row in read_jsonl(fixture["turn_log"])}["orch"]
+    validator = json.loads(argv[argv.index("--validation-command-json") + 1])
+    assert validator[1:4] == ["-m", "loopx.dispatch.checks", "todo-not-status"]
+    assert validator[validator.index("--todo-id") + 1] == rejected
+    base = ["todo-not-status", "--registry", str(fixture["registry"]), "--runtime-root", str(fixture["runtime"]),
+            "--goal-id", GOAL_ID, "--todo-id", rejected]
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert check([*base, "--status", "blocked"]) == 0  # the rejected todo is open
+        assert check([*base, "--status", "open"]) == 1
+        assert check([*base[:-1], "todo_000000000000", "--status", "blocked"]) == 1

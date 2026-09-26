@@ -623,6 +623,18 @@ class Dispatcher:
             # The intake planning todo is done once its plan card is applied;
             # that is the orchestrator Turn's independent validator.
             validation_argv = self._plan_applied_validator(goal_id)
+        if not validation_argv and role == "orchestrator" and todo_id:
+            from ..todo_acceptance import escalated_todo_id
+
+            escalated = escalated_todo_id(todo)
+            if escalated:
+                # An escalation is resolved once the escalated todo is no longer
+                # blocked: reopened, reassigned, split or superseded.
+                validation_argv = [
+                    self.config.loopx_argv[0], "-m", "loopx.dispatch.checks", "todo-not-status",
+                    "--registry", str(self.registry_path), "--runtime-root", str(self.runtime_root),
+                    "--goal-id", goal_id, "--todo-id", escalated, "--status", "blocked",
+                ]
         if not validation_argv and self.config.default_validation_argv:
             validation_argv = list(self.config.default_validation_argv)
         if validation_argv:

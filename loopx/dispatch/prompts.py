@@ -97,6 +97,11 @@ def dispatch_prompt_addendum(
             "return result_kind `user_action_required` and name the gate in summary. Return "
             "`validated_completion` for a planning todo only once its plan card is approved and "
             "applied; LoopX verifies that with `loopx plan list --require-status applied`.",
+            "- An escalation todo names a todo the acceptor rejected twice (now blocked). Resolve "
+            "it by reopening it with clearer instructions (`loopx todo update --goal-id "
+            f"{goal_id} --todo-id T --status open --reject-count 0 --agent-id <its developer> "
+            "--note ...`), reassigning, splitting or superseding it, or open a user gate. Then "
+            "return validated_completion; LoopX checks that the todo is no longer blocked.",
         ]
         if awaiting_gates:
             lines.append(
