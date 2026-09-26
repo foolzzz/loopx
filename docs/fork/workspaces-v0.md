@@ -56,4 +56,41 @@ rejection. A todo's declared validation runs in this workspace too, and fails
 closed (`workspace_unverified`) when the workspace is missing (see
 [role-v1-protocol](role-v1-protocol.md)).
 
+## Delivery identity (decision 29)
+
+A Turn for a one-repo Todo runs in that repo's worktree. A Turn for a multi-repo
+Todo runs from the workspace root `<runtime_root>/goals/G/workspaces/T/`, which
+holds the worktrees but is not itself a git worktree. The Turn's delivery then
+binds to a **todo workspace identity** instead of one repository:
+
+| field | value |
+|---|---|
+| `identity_kind` / `workspace_kind` | `todo_workspace` / `todo_workspace_root` |
+| `workspace_identity` | `todo-workspace:<goal>/<todo>` |
+| `todo_workspace.goal_id`, `.todo_id`, `.branch` | the goal, the todo and `loopx/G/T` |
+| `todo_workspace.repos[]` | per repo: `name`, `path` (relative to the root), `head_sha`, `repo_id` |
+
+The field is optional and additive. A one-repo delivery, a legacy snapshot and
+a non-role_v1 goal keep the previous single-repository shape.
+
+In a multi-agent goal, the refresh after a Turn requires an independent
+workspace. It accepts this root only when all of the following hold:
+
+- the path is the registered root of exactly the settling goal and todo;
+- every repo in it is a linked worktree of the repo the Goal declares under
+  that name;
+- every repo is checked out on the todo branch.
+
+The root of another todo, a repo off the todo branch (detached or on another
+branch), or a worktree of an undeclared repository is rejected, as before.
+Quota for the Turn is then spent only from the same root with the same repos.
+The `quota should-run` workspace guard accepts the same root. For a one-repo
+todo it also accepts that repo's worktree inside the root.
+
+**`repo_id`.** This is the canonical `remote.origin.url` identity
+(`git:host/path`) when the repo has a usable origin. Without one it is
+`local:` + sha256 of the realpath of `git rev-parse --git-common-dir`, so a
+checkout and all of its worktrees share it. It never records a local path.
+Local-only repos therefore deliver without a fake origin.
+
 Nothing fetches or pushes. Pushing is a user gate.
