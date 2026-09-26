@@ -20,10 +20,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from ..reasoning_effort import REASONING_EFFORTS
 from .codex_config import normalize_codex_config_override
+from ._yaml import load_yaml_file
 from .errors import AgentConfigError
 from .providers import Provider, load_providers
 
@@ -117,11 +116,9 @@ def _read_layer(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
     """Read one agent file into raw fields with its paths already resolved."""
 
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        return None, [f"{path}: invalid YAML: {exc}"]
-    except OSError as exc:
-        return None, [f"{path}: unreadable: {exc.strerror or exc}"]
+        data = load_yaml_file(path)
+    except AgentConfigError as exc:
+        return None, exc.issues
     if data is None:
         data = {}
     if not isinstance(data, Mapping):

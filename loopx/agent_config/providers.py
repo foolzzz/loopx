@@ -25,8 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from ._yaml import load_yaml_file
 from .errors import AgentConfigError
 
 PROVIDERS_FILENAME = "providers.yaml"
@@ -308,15 +307,6 @@ def parse_provider(
     )
 
 
-def _load_yaml(path: Path) -> Any:
-    try:
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        raise AgentConfigError([f"{path}: invalid YAML: {exc}"]) from exc
-    except OSError as exc:
-        raise AgentConfigError([f"{path}: unreadable: {exc.strerror or exc}"]) from exc
-
-
 def load_providers(runtime_root: Path) -> dict[str, Provider]:
     """Load and validate every provider; raise one error listing all issues.
 
@@ -326,7 +316,7 @@ def load_providers(runtime_root: Path) -> dict[str, Provider]:
     path = providers_path(runtime_root)
     if not path.exists():
         return {}
-    data = _load_yaml(path)
+    data = load_yaml_file(path)
     if data is None:
         return {}
     if not isinstance(data, Mapping) or "providers" not in data:
