@@ -165,6 +165,7 @@ def run_delivery_validation(
 
     from .control_plane.todos.completion_validation import _run_declared_completion_validation
     from .control_plane.todos.completion_validation import normalize_validation_command_json
+    from .control_plane.todos.completion_validation import todo_workspace_for_validation
 
     todo_id = str(todo.get("todo_id") or "")
     declaration = _validation_source(
@@ -187,6 +188,9 @@ def run_delivery_validation(
         task_repository=str(todo["task_repository"]) if todo.get("task_repository") else None,
         delivery_workspace=delivery_workspace,
         validation_workspace_path=validation_workspace_path,
+        todo_workspace_path=todo_workspace_for_validation(
+            registry_path=registry_path, goal_id=goal_id, todo=todo,
+        ),
     )
 
 

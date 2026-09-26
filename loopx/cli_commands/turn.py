@@ -628,6 +628,17 @@ def handle_turn_command(
                 # never a host-normalized continuation. Contradictory or
                 # dangling durable state fails closed before any further
                 # writeback so the typed settlement sees the truthful outcome.
+                if completion.get("validation_blocked_completion") is True:
+                    receipt = completion.get("validation")
+                    exit_code = receipt.get("exit_code") if isinstance(receipt, dict) else None
+                    return {
+                        "ok": False,
+                        "appended": False,
+                        "reason": (
+                            "the Todo's declared completion validation did not pass"
+                            + (f" (exit code {exit_code})" if exit_code is not None else "")
+                        ),
+                    }
                 state_file = completion.get("state_file")
                 if not isinstance(state_file, str) or not state_file:
                     return {
