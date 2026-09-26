@@ -11,10 +11,14 @@ import signal
 import subprocess
 import tempfile
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ...agent_config.codex_config import (
+    codex_config_arguments,
+    normalize_codex_config_override,
+)
 from ...runtime import validate_goal_id_path_segment
 from .subagent_execution_topology import (
     child_execution_receipts_json_schema,
@@ -728,6 +732,7 @@ def _codex_command(
     reasoning_effort: str | None,
     session_id: str | None,
     mcp_server: Mapping[str, Any] | None,
+    config_overrides: Sequence[str] = (),
 ) -> list[str]:
     if session_id:
         command = [
@@ -770,6 +775,10 @@ def _codex_command(
             ]
         )
     command.extend(_codex_mcp_config_arguments(mcp_server))
+    # Operator-bound host config (for example an explicit CPA model provider)
+    # is passed on every fresh and resumed launch without touching the user's
+    # Codex config file.
+    command.extend(codex_config_arguments(config_overrides))
     if session_id:
         command.append(session_id)
     command.append("-")
@@ -786,10 +795,14 @@ def run_codex_cli_host(
     model: str | None = None,
     reasoning_effort: str | None = None,
     mcp_server: Mapping[str, Any] | None = None,
+    config_overrides: Sequence[str] = (),
     timeout_seconds: float = 115.0,
 ) -> dict[str, Any]:
     if request.get("schema_version") != LOOPX_TURN_HOST_REQUEST_SCHEMA_VERSION:
         raise ValueError("unsupported LoopX Turn host request schema")
+    config_overrides = [
+        normalize_codex_config_override(item) for item in config_overrides
+    ]
     if sandbox not in CODEX_CLI_SANDBOXES:
         raise ValueError(f"Codex CLI sandbox must be one of {CODEX_CLI_SANDBOXES}")
     if reasoning_effort is not None:
@@ -838,6 +851,7 @@ def run_codex_cli_host(
             reasoning_effort=reasoning_effort,
             session_id=session_id,
             mcp_server=mcp_server,
+            config_overrides=config_overrides,
         )
         proc = subprocess.Popen(
             command,

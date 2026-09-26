@@ -270,6 +270,14 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "command": "loopx workspace",
                 "purpose": "Prepare, inspect, atomically merge and clean up a todo's git worktrees across the Goal's repos.",
             },
+            {
+                "command": "loopx agent list|show|validate",
+                "purpose": "Inspect global and project agent definition files (role, runtime, provider, model).",
+            },
+            {
+                "command": "loopx provider list|check",
+                "purpose": "List providers and run the auth preflight without printing secrets.",
+            },
             {"command": "loopx lark-kanban", "purpose": "Project LoopX state into a Feishu/Lark Base board."},
             {
                 "command": "loopx presentation",

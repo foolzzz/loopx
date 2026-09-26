@@ -11,13 +11,18 @@ from ..control_plane.turn_driver.host_binding import (
     MANAGED_TURN_HOST,
     resolve_default_turn_host,
 )
+from ..control_plane.turn_driver.claude_code import (
+    CLAUDE_CODE_EFFORTS,
+    CLAUDE_CODE_PERMISSION_MODES,
+    DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
+)
 from ..control_plane.turn_driver.execution_profile import REASONING_EFFORTS
 from ..paths import default_public_scan_root
 
 # Explicit host choices stay per-command: planning may name any host the Turn
-# driver routes, while run-once only ships built-in adapters for these three.
+# driver routes, while run-once only ships built-in adapters for these hosts.
 PLANNED_TURN_HOST_CHOICES = ["codex-cli", "claude-code", "dsh", "generic-cli"]
-RUN_ONCE_TURN_HOST_CHOICES = ["codex-cli", "dsh", "generic-cli"]
+RUN_ONCE_TURN_HOST_CHOICES = ["codex-cli", "claude-code", "dsh", "generic-cli"]
 
 AddFormat = Callable[[argparse.ArgumentParser], None]
 
@@ -243,6 +248,67 @@ def register_turn_commands(
             "Trusted codex_stdio_mcp_server_v0 JSON for one invocation-scoped "
             "stdio MCP server. The command is passed to fresh and resumed Codex "
             "sessions without modifying user configuration."
+        ),
+    )
+    run_once.add_argument(
+        "--codex-config",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Repeatable Codex config override passed as `-c KEY=VALUE` to fresh "
+            "and resumed codex-cli launches (VALUE is TOML, for example "
+            'model_provider="cpa"). Never modifies ~/.codex/config.toml.'
+        ),
+    )
+    run_once.add_argument(
+        "--codex-provider",
+        help=(
+            "Provider name from <runtime-root>/providers.yaml whose codex-cpa or "
+            "openai-compatible definition expands to explicit --codex-config "
+            "overrides before any --codex-config given here."
+        ),
+    )
+    run_once.add_argument(
+        "--claude-bin",
+        default="claude",
+        help="Claude Code executable used by the built-in claude-code host.",
+    )
+    run_once.add_argument("--claude-model", help="Model for the claude-code host.")
+    run_once.add_argument(
+        "--claude-permission-mode",
+        choices=list(CLAUDE_CODE_PERMISSION_MODES),
+        default=DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
+        help=(
+            "Claude Code permission mode (default: dontAsk, which denies any "
+            "tool not pre-approved by settings). Use acceptEdits for "
+            "development Turns; bypassPermissions needs external isolation."
+        ),
+    )
+    run_once.add_argument(
+        "--claude-effort",
+        choices=list(CLAUDE_CODE_EFFORTS),
+        help="Claude Code effort level for the Turn.",
+    )
+    run_once.add_argument(
+        "--claude-system-prompt-file",
+        help="File appended to Claude Code's system prompt for this Turn.",
+    )
+    run_once.add_argument(
+        "--claude-extra-arg",
+        action="append",
+        default=[],
+        help=(
+            "Repeatable raw Claude Code argument (use --claude-extra-arg=--flag). "
+            "Flags that own the prompt/result channel are rejected."
+        ),
+    )
+    run_once.add_argument(
+        "--claude-provider",
+        help=(
+            "Provider name from <runtime-root>/providers.yaml; api_key and "
+            "oauth_token credentials are resolved into the child environment "
+            "only (never printed or stored)."
         ),
     )
     run_once.add_argument(

@@ -63,6 +63,10 @@ from .turn_decision import (
     build_fresh_turn_decision_owner,
     collect_turn_status_payload,
 )
+from .turn_claude_host import (
+    build_claude_code_host_runner,
+    resolve_codex_config_overrides,
+)
 from .turn_dsh_host import build_dsh_host_runner
 from .turn_registration import register_turn_commands as register_turn_commands
 from .turn_inspection import handle_turn_journal_inspection
@@ -210,6 +214,8 @@ def handle_turn_command(
                 if args.host == "dsh"
                 else getattr(args, "codex_model", None)
                 if args.host == "codex-cli"
+                else getattr(args, "claude_model", None)
+                if args.host == "claude-code"
                 else None
             ),
             reasoning_effort=(
@@ -217,6 +223,8 @@ def handle_turn_command(
                 if args.host == "dsh"
                 else getattr(args, "codex_reasoning_effort", None)
                 if args.host == "codex-cli"
+                else getattr(args, "claude_effort", None)
+                if args.host == "claude-code"
                 else None
             ),
             max_tokens=(
@@ -990,6 +998,9 @@ def handle_turn_command(
             host_runner: Callable[[Mapping[str, Any]], dict[str, Any]] | None = None
             session_binding_resolver = None
             if args.host == "codex-cli":
+                codex_config_overrides = resolve_codex_config_overrides(
+                    args, runtime_root=runtime_root
+                )
 
                 def run_built_in_host(
                     request: Mapping[str, Any],
@@ -1003,6 +1014,7 @@ def handle_turn_command(
                         model=args.codex_model,
                         reasoning_effort=args.codex_reasoning_effort,
                         mcp_server=args.codex_mcp_server_json,
+                        config_overrides=codex_config_overrides,
                         timeout_seconds=max(1.0, args.timeout_seconds - 5.0),
                     )
 
@@ -1014,6 +1026,12 @@ def handle_turn_command(
                     return codex_cli_session_binding(runtime_root, turn_envelope)
 
                 session_binding_resolver = resolve_built_in_session_binding
+            elif args.host == "claude-code":
+                host_runner = build_claude_code_host_runner(
+                    args,
+                    project=project,
+                    runtime_root=runtime_root,
+                )
             elif args.host == "dsh":
                 host_runner = build_dsh_host_runner(
                     args,
@@ -1081,7 +1099,7 @@ def handle_turn_command(
                 scheduler=scheduler if args.execute else None,
                 post_settlement=(
                     post_settlement_reward_memory
-                    if args.execute and args.host == "codex-cli"
+                    if args.execute and args.host in {"codex-cli", "claude-code"}
                     else None
                 ),
                 admit_start=managed_cadence.admit if args.execute else None,
