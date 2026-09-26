@@ -1030,6 +1030,15 @@ def refresh_state_run(
             explicit_peer_worktree_requirement is None
             or explicit_peer_worktree_requirement is True
         )
+        if (
+            peer_independent_worktree_required
+            and explicit_peer_worktree_requirement is None
+            and _role_v1_orchestrator(registry_goal, normalized_agent_id)
+        ):
+            # Fork role_v1: the orchestrator plans from the goal's state home
+            # and delivers no code; its only writes are gates and plan cards.
+            # Developer and acceptor Turns still run in per-todo worktrees.
+            peer_independent_worktree_required = False
         if normalized_agent_id and known_agents and normalized_agent_id not in known_agents:
             raise ValueError(
                 f"agent_id {normalized_agent_id!r} is not registered for goal {safe_goal_id!r}"
@@ -1613,3 +1622,16 @@ def refresh_state_run(
             project=resolved_project, state_file=resolved_state_file,
             canonical_snapshot=planning_source.canonical_snapshot,
         )
+
+
+def _role_v1_orchestrator(goal: Any, agent_id: str | None) -> bool:
+    if not agent_id or not isinstance(goal, dict):
+        return False
+    from .agent_registry import agent_role_for_goal
+    from .control_plane.agents.runtime_model import AgentRuntimeModel, agent_runtime_model_for_goal
+
+    try:
+        role_v1 = agent_runtime_model_for_goal(goal) is AgentRuntimeModel.ROLE_V1
+    except ValueError:
+        return False
+    return role_v1 and agent_role_for_goal(goal, agent_id) == "orchestrator"
