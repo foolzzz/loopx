@@ -471,6 +471,22 @@ def register_configure_goal_command(subparsers: argparse._SubParsersAction) -> N
         help="Disable the Reward Memory experiment and clear its agent allowlist.",
     )
     configure_goal_parser.add_argument(
+        "--repo",
+        dest="repos",
+        action="append",
+        default=None,
+        metavar="NAME=/abs/path[,default_branch=B][,merge_target=main|task_branch][,task_branch=B]",
+        help=(
+            "Declare or update (by name) one repo of this Goal's named repo list. "
+            "Repeatable. merge_target picks where accepted todo work merges."
+        ),
+    )
+    configure_goal_parser.add_argument(
+        "--clear-repos",
+        action="store_true",
+        help="Remove the Goal's named repo list (the legacy single repo field is kept).",
+    )
+    configure_goal_parser.add_argument(
         "--execute",
         action="store_true",
         help="Write the registry. Without this flag, configure-goal is a dry-run preview.",
