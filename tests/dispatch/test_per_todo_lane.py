@@ -214,6 +214,8 @@ def test_one_developer_runs_two_todos_of_one_goal_concurrently_end_to_end(
             role="agent", text=f"Build the {repo} fixture", priority="P0",
             task_class="advancement_task", action_kind="fixture",
             role_contract={"task_repositories": [repo]},
+            # One developer holds soft claims on both todos of the goal.
+            claimed_by="dev",
         )
         todo_ids[repo] = added["todo_id"]
     barrier = tmp_path / "barrier"
@@ -276,6 +278,8 @@ def test_one_developer_runs_two_todos_of_one_goal_concurrently_end_to_end(
     for todo_id in todo_ids.values():
         assert rows[todo_id]["status"] == "in_review", rows[todo_id]
         assert rows[todo_id].get("delivered_by") == "dev"
+        # Both claims are kept through delivery.
+        assert rows[todo_id].get("claimed_by") == "dev"
     events = read_jsonl(fixture["runtime"] / "goals" / GOAL_ID / "rollout-event-log.jsonl")
     spends = [event for event in events if event.get("event_kind") == "quota_spend"]
     assert sorted(event.get("todo_id") for event in spends) == sorted(todo_ids.values())

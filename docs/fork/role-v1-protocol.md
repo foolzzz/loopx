@@ -110,6 +110,26 @@ The following behaviour is unchanged:
 - `peer_v1` goals are never role-filtered.
 - Explicit User gate *blocking* scope (`user_gate_scope`) is unchanged.
 
+## Turn lanes (decision 32)
+
+`turn run-once` admits one executing Turn per lane. Under role_v1 the lane of
+a registered developer or acceptor Turn with a selected todo is the todo:
+(goal, todo). One agent may run several todos of a goal at once (the
+dispatcher bounds it by `max_concurrency` and the machine cap), while any one
+todo never has more than one executing Turn, whichever agent runs it. A second
+Turn on the same todo is refused with `turn_lane_in_flight` and
+`turn_lane: {scope: todo, todo_id}`.
+
+The orchestrator stays strictly serial per goal (decision 19): its lane is
+(agent, goal). peer_v1 goals, agents without a registered role and Turns
+without a selected todo keep the (agent, goal) lane unchanged
+(`turn_lane: {scope: agent}`).
+
+Claims are unaffected: a soft claim is per todo, and nothing limits an agent
+to one claim per goal, so a developer holding two claimed todos of one goal
+is already valid. Canonical `hard_lease` goals are out of scope; their lease
+semantics are unchanged.
+
 ## Replan routing
 
 When a role_v1 goal has a registered orchestrator:
@@ -285,7 +305,8 @@ directly, as before.
 - Canonical `hard_lease` goals: the kernel changes a leased todo's status
   only through an atomic lifecycle operation, and none exists yet for
   `in_review`. A delivery on such a goal is rejected by the lease fence and
-  the todo stays open. The default `soft_claim` mode works.
+  the todo stays open. The default `soft_claim` mode works, and covers the
+  MVP; this stays unsupported for now (decision 33).
 - Accept completes directly from `in_review` through the terminal
   transaction, attributed to the claim owner.
 - A todo with S5 `task_repositories` validates in its prepared per-todo
