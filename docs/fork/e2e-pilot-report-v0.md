@@ -199,6 +199,25 @@ Each commit has regression tests.
 - `scripts/generate_project_registry_io_manifest.py`: no diff.
 - `examples/semantic-vocabulary-drift-smoke.py`: exit 0.
 
+## Review fixes
+
+Fixes from the PR review, one commit each, with regression tests.
+
+| # | commit | fix |
+|---|---|---|
+| R1 | `c4b09f6c7` | Accept runs the real merge **before** it completes the todo. Before, the todo became `done` first. A merge that then failed (for example because another accept moved the task branch in between) left a done todo without its merge, and its dependents resumed. Now any failed merge (`merge_blocked`, `merge_apply_failed`) maps to the `merge_blocked` transition, which returns the todo to its developer, and dependents resume only after a completed accept. If the merge lands but the re-run validation then refuses completion, the todo stays `in_review` (transition `completion_blocked`, the merge is in the result). The merge is idempotent, so the accept can be retried, or the acceptor can reject. |
+| R2 | `64ae603d7` | A `task_repositories` todo whose per-todo workspace is missing or off the todo branch fails validation with `workspace_unverified`. Before, it fell back to the Goal repo, which lacks the todo's commits, and passed spuriously. The workspace lookup now uses the caller's `--runtime-root` (the dispatcher's). Accept keys merge eligibility on the todo branch existing in the todo's repos, not on worktree directories, so an accept after the worktree was removed still merges, and a repo that lacks the branch blocks the merge. |
+| R3 | `9823bd007` | An orchestrator with work that no todo carries gets a todo. This covers an `orchestrator_action_without_todo` (for example an S1-routed replan obligation) and open gates whose threads await it. The dispatcher opens one "Orchestrator action" todo (idempotent, one at a time), so the next pass launches a real Turn. Its validator is `checks gates-not-awaiting` or `checks todos-changed-since`. After two action todos for the same subject, a user gate opens instead of a third. This also closes most of G7. |
+| R4 | `37199ff52` | The durable todo-note read in the Turn decision runs only on role_v1 goals. peer_v1 goals get no extra read and no envelope change. |
+
+**Verification.**
+
+- `pytest -q -n 8` (the full Python suite): 12619 passed, 61 skipped, 106 subtests passed.
+- `npm run test:control-plane`: 3124 tests, 3093 passed, 30 skipped, 1 failed. The failure is the environment-dependent `a worktree venv wins over an unusable system python3` (G11).
+- `scripts/generate_project_registry_io_manifest.py`: no diff.
+- `examples/semantic-vocabulary-drift-smoke.py`: exit 0.
+- The `loopx/todos.py` module ceiling rose by one line (2308 to 2309) for the runtime-root plumbing.
+
 ## Workarounds used (manual, labelled)
 
 - **W1.** The pilot repos had no `origin`, and the kernel's delivery-workspace
@@ -260,8 +279,11 @@ schema, or the lease or guard semantics. None of these was changed.
     from a stale task branch, which caused the merge conflict above.
   - Dependency resume should require accepted and merged work, or the
     orchestrator should use `todo supersede`, which the prompt should say.
-- **G7 (P2). Gate replies wake the orchestrator only if it has an open todo.** A
-  gate reply could create an orchestrator todo when the orchestrator has none.
+- **G7 (P2, mostly fixed by R3). Gate replies wake the orchestrator only if it has an open todo.**
+  The dispatcher now opens an orchestrator action todo for them. Whether that
+  Turn clears an upstream replan obligation is still the kernel's decision (G4).
+  The `todos-changed-since` validator is coarse: a concurrent todo write by
+  another agent also satisfies it.
 - **G8 (P2). No push flow.** Nothing opens the push gate when a goal's work is
   merged, and approving it does not push. Both should be orchestrator or
   dispatcher steps.
@@ -277,6 +299,10 @@ schema, or the lease or guard semantics. None of these was changed.
     to persist; the frontend todo still escalated at the next rejection.
 - **G11 (P3). One pre-existing TS test depends on the environment:** `a worktree
   venv wins over an unusable system python3`.
+- **G12 (P2, not changed). An acceptor's `repair_required` counts as a reject.**
+  An acceptor Turn that returns `repair_required` for its own reasons (for
+  example broken tooling) is recorded as a reject verdict, so it increments
+  `reject_count` and can escalate a todo whose delivery was not at fault.
 
 ## Evidence
 
