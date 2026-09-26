@@ -80,6 +80,20 @@ test("field planner accepts in_review and the delivery/verdict fields", () => {
   assert.equal((normalizeTodoRoleContract({review_feedback: "x".repeat(900)}).review_feedback as string).length, 600);
 });
 
+test("field planner writes and clears the orchestrator-owned acceptance criteria (G2)", () => {
+  const plan = planTodoFieldUpdate({schema_version: TODO_FIELD_UPDATE_REQUEST_SCHEMA,
+    todo: {todo_id: "todo_criteria1", status: "open"},
+    intent: {role_contract: {acceptance_criteria: "  GET /orders\n returns 200 "}},
+    updated_at: "2026-09-26T00:00:00Z"});
+  assert.equal(plan.metadata_updates.acceptance_criteria, "GET /orders returns 200");
+  assert.equal(normalizeTodoRoleContract({acceptance_criteria: null}).acceptance_criteria, null);
+  assert.equal(normalizeTodoRoleContract({acceptance_criteria: "  "}).acceptance_criteria, null);
+  assert.throws(() => normalizeTodoRoleContract({acceptance_criteria: ["a"]}), /acceptance_criteria must be a string/);
+  const long = normalizeTodoRoleContract({acceptance_criteria: "x".repeat(1500)}).acceptance_criteria as string;
+  assert.equal(long.length, 1000);
+  assert.equal(long.endsWith("..."), true);
+});
+
 test("event replay folds in_review and reopen transitions", () => {
   const event = (kind: string, n: number): JsonObject => ({event_id: `event-${n}`, goal_id: "sample",
     event_type: kind, append_sequence: n, recorded_at: "2026-09-26T00:00:00Z", todo_id: "todo_alpha",

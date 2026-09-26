@@ -94,6 +94,8 @@ const TODO_CONTRACT_REVISION_FIELDS: readonly (readonly string[])[] = [
   ["required_role", "requires_acceptance", "acceptor_agent", "reject_count", "task_repositories"],
   // Fork slice S2 (acceptance flow): delivery author and latest verdict.
   ["delivered_by", "review_feedback"],
+  // Fork G2: orchestrator-owned per-todo acceptance criteria.
+  ["acceptance_criteria"],
 ];
 
 interface HistoricalTodoContract {

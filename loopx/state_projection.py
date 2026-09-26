@@ -93,6 +93,7 @@ TODO_METADATA_KEYS = (
     "task_repositories",
     "delivered_by",
     "review_feedback",
+    "acceptance_criteria",
     "unblocks_todo_id",
     "successor_todo_ids",
     "completion_continuation",

@@ -35,6 +35,7 @@ from .control_plane.todos.contract import (
     normalize_todo_id,
     normalize_todo_id_list,
     normalize_todo_reject_count,
+    normalize_todo_acceptance_criteria,
     normalize_todo_status,
     normalize_todo_task_domain,
     normalize_todo_task_repository,
@@ -358,6 +359,11 @@ def backfill_todo_events_from_markdown(
             payload["global_gate"] = global_gate
         if excluded_agents:
             payload["excluded_agents"] = excluded_agents
+        acceptance_criteria = normalize_todo_acceptance_criteria(record.get("acceptance_criteria"))
+        if acceptance_criteria:
+            payload["acceptance_criteria"] = _redact_public_backfill_text(
+                acceptance_criteria, privacy=privacy
+            )
         _copy_todo_added_validation_fields(record, payload)
         if privacy == PUBLIC_PRIVACY:
             for key in (
@@ -842,6 +848,10 @@ def _decode_added_todo_content(event: dict[str, Any]) -> dict[str, Any]:
         todo["claimed_by"] = claimed_by
     if actor_agent_id:
         todo["created_by"] = actor_agent_id
+    # Fork G2: orchestrator-owned per-todo acceptance criteria.
+    acceptance_criteria = normalize_todo_acceptance_criteria(payload.get("acceptance_criteria"))
+    if acceptance_criteria:
+        todo["acceptance_criteria"] = acceptance_criteria
     _copy_todo_added_validation_fields(payload, todo)
     return todo
 
@@ -920,6 +930,9 @@ def _decode_todo_event_content(event: dict[str, Any]) -> dict[str, Any]:
         for key in TODO_MONITOR_METADATA_FIELDS:
             if payload.get(key):
                 todo[key] = compact_text(payload[key])
+        acceptance_criteria = normalize_todo_acceptance_criteria(payload.get("acceptance_criteria"))
+        if acceptance_criteria:
+            todo["acceptance_criteria"] = acceptance_criteria
         if payload.get("text") or payload.get("title"):
             title = compact_text(payload.get("text") or payload.get("title"))
             todo["title"] = title
