@@ -51,7 +51,7 @@ def handle_workspace(args, registry_path, runtime_root, print_payload, output_fo
     if not goal:
         payload = {
             "ok": False,
-            "schema_version": git_workspace.SCHEMA_VERSION,
+            "schema_version": git_workspace.GIT_WORKSPACE_SCHEMA_VERSION,
             "action": action,
             "goal_id": args.goal_id,
             "todo_id": args.todo_id,

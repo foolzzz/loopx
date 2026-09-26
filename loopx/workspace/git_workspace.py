@@ -23,7 +23,7 @@ from typing import Any
 
 from .repos import goal_repos
 
-SCHEMA_VERSION = "loopx_git_workspace_v0"
+GIT_WORKSPACE_SCHEMA_VERSION = "loopx_git_workspace_v0"
 BRANCH_PREFIX = "loopx"
 DEFAULT_TASK_BRANCH_PREFIX = "loopx-task"
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -324,7 +324,7 @@ def _goal_lock(runtime_root: str | Path, goal_id: str) -> Iterator[None]:
 
 def _envelope(action: str, goal_id: str, todo_id: str, *, dry_run: bool) -> dict[str, Any]:
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": GIT_WORKSPACE_SCHEMA_VERSION,
         "action": action,
         "goal_id": goal_id,
         "todo_id": todo_id,
@@ -335,7 +335,7 @@ def _envelope(action: str, goal_id: str, todo_id: str, *, dry_run: bool) -> dict
 
 def _error_payload(action: str, goal: Mapping[str, Any], todo_id: Any, exc: WorkspaceError, dry_run: bool) -> dict[str, Any]:
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": GIT_WORKSPACE_SCHEMA_VERSION,
         "action": action,
         "goal_id": str((goal or {}).get("id") or ""),
         "todo_id": str(todo_id or ""),
