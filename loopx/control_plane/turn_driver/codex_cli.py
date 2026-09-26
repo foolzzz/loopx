@@ -478,6 +478,26 @@ RESULT_PATH_HYGIENE_INSTRUCTION = (
 )
 
 
+# Fork decision 31: a role_v1 goal records no per-agent vision; the
+# orchestrator plans through todos, plan cards and gates.
+ROLE_V1_NO_VISION_INSTRUCTION = (
+    "This goal records no per-agent vision: leave path_delta_mode, agent_vision_json and "
+    "vision_unchanged_reason empty. Planning changes go through todos, plan cards and gates "
+    "(the orchestrator's job); developers and acceptors raise them to the orchestrator."
+)
+
+
+def _vision_instructions(request: Mapping[str, Any]) -> list[str]:
+    from .executor import turn_plan_requires_vision_checkpoint
+
+    if not turn_plan_requires_vision_checkpoint(request):
+        return [ROLE_V1_NO_VISION_INSTRUCTION]
+    return [
+        "For those material results, set path_delta_mode=material_replan only when this Turn changes a prior assumption, route, scope, acceptance rule, or stops prior work; then provide a complete bounded agent vision packet with goal_path_delta_v0 in agent_vision_json and leave vision_unchanged_reason empty.",
+        "For routine continuation, retry, successor creation, or no-change replanning, set path_delta_mode=unchanged, leave agent_vision_json empty, and provide vision_unchanged_reason.",
+    ]
+
+
 def _prompt(request: Mapping[str, Any]) -> str:
     request_json = json.dumps(
         request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -489,8 +509,7 @@ def _prompt(request: Mapping[str, Any]) -> str:
         "Set reward_memory_reflection_json to an empty string unless independent task evidence established a reusable experience. For eligible evidence, return one compact JSON object using schema_version=turn_reward_memory_reflection_v1, status=eligible, a configured surface_id, outcome_kind in research|simulation|real|engineering, content_summary, reasoning_summary, confidence in low|medium|high, and 1-5 opaque evidence_refs. Also include experience using schema_version=procedural_experience_contract_v0 with non-empty applicability and limitations lists, observed_outcome, attribution, the same evidence_refs, and future_behavior containing trigger, action, validation, and stop_condition. A fact recap without a future behavior change and non-generalization boundary is not eligible memory. Legacy v0 reflections are audit-only and cannot become durable memory. Never use your own summary as evidence. Settlement may ingest it only when the caller-declared Todo validator attests the exact reflection digest and evidence; ordinary validator success remains awaiting and makes no provider write.",
         "Do not write LoopX state, spend quota, or apply scheduler changes; the adapter owns those effects.",
         "Return only the schema-constrained result. For validated_progress, validated_completion, repair_required, or replan_required, fill every material field with public-safe evidence.",
-        "For those material results, set path_delta_mode=material_replan only when this Turn changes a prior assumption, route, scope, acceptance rule, or stops prior work; then provide a complete bounded agent vision packet with goal_path_delta_v0 in agent_vision_json and leave vision_unchanged_reason empty.",
-        "For routine continuation, retry, successor creation, or no-change replanning, set path_delta_mode=unchanged, leave agent_vision_json empty, and provide vision_unchanged_reason.",
+        *_vision_instructions(request),
         "For user_action_required, wait, or iteration_failed, leave material-only fields empty and explain the stop in summary. iteration_failed ends only this iteration and never requests a retry or successor.",
         RESULT_PATH_HYGIENE_INSTRUCTION,
         'completed_phases must be exactly ["host_execute","typed_result"], and turn_key must match the request.',

@@ -52,6 +52,7 @@ from ..control_plane.turn_driver import (
     run_loopx_turn_once,
     selected_turn_todo,
 )
+from ..control_plane.turn_driver.executor import mark_turn_plan_vision_checkpoint_not_required
 from ..control_plane.turn_driver.host_binding import managed_executor_binding
 from ..control_plane.operator_provider import operator_provider_environ
 from ..control_plane.quota.spend_commit import retry_quota_spend_index_conflicts
@@ -63,6 +64,7 @@ from .turn_cadence import managed_cadence_start
 from .turn_decision import (
     build_fresh_turn_decision_owner,
     collect_turn_status_payload,
+    registry_goal_uses_role_v1,
     turn_lane_todo_id,
 )
 from .turn_claude_host import (
@@ -191,6 +193,9 @@ def handle_turn_command(
             turn_instance_id=args.turn_instance_id,
             iteration_context_policy=args.iteration_context.replace("-", "_"),
         )
+        if registry_goal_uses_role_v1(registry_path, args.goal_id):
+            # Fork decision 31: role_v1 Turns owe no per-agent vision decision.
+            mark_turn_plan_vision_checkpoint_not_required(payload)
         # The executor readback names where this Turn's model work runs and
         # whether that host can launch here, so a caller never has to infer it
         # from the host id. The explicit runner hook is the one launchability
