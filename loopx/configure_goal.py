@@ -76,6 +76,7 @@ from .orchestration import (
 )
 from .quota import goal_quota_config
 from .registry import registry_goals
+from .workspace.repos import declared_goal_repos, merge_goal_repos
 
 WAITING_ON_CHOICES = (
     "codex",
@@ -237,6 +238,13 @@ def _clean_registered_agents(values: list[str] | None) -> list[str] | None:
     return agents
 
 
+def _declared_repos_summary(goal: dict[str, Any]) -> list[dict[str, Any]]:
+    try:
+        return declared_goal_repos(goal)
+    except ValueError:
+        return deepcopy(goal.get("repos") or [])
+
+
 def _settings_summary(goal: dict[str, Any]) -> dict[str, Any]:
     quota = goal_quota_config(goal)
     control_plane = compact_control_plane_policy(goal.get("control_plane"))
@@ -268,6 +276,7 @@ def _settings_summary(goal: dict[str, Any]) -> dict[str, Any]:
         "waiting_on": goal.get("waiting_on"),
         "write_scope": normalize_goal_write_scope(coordination.get("write_scope") or [])
         or [],
+        "repos": _declared_repos_summary(goal),
         **shadow.coordination_shadow_summaries(goal),
         "checkpointed_boundary_authority": checkpointed_boundary_authority_summary(
             coordination
@@ -507,6 +516,8 @@ def configure_goal(
     reward_memory_config: str | None = None,
     reward_memory_agents: list[str] | None = None,
     clear_reward_memory_config: bool = False,
+    repos: list[Mapping[str, Any]] | None = None,
+    clear_repos: bool = False,
     execute: bool = False,
     _registry_transaction: ProjectRegistryTransaction | None = None,
 ) -> dict[str, Any]:
@@ -1021,6 +1032,14 @@ def configure_goal(
                 spawn_policy.pop("explore_harness", None)
         goal["spawn_policy"] = spawn_policy
 
+    if clear_repos:
+        goal.pop("repos", None)
+    if repos:
+        goal["repos"] = merge_goal_repos(
+            [] if clear_repos else goal.get("repos") if isinstance(goal.get("repos"), list) else [],
+            repos,
+        )
+
     if waiting_on is not None:
         goal["waiting_on"] = waiting_on
     elif clear_waiting_on:
@@ -1384,6 +1403,16 @@ def render_configure_goal_markdown(payload: dict[str, Any]) -> str:
         return "\n".join(lines)
     fields = payload.get("changed_fields") or []
     lines.append(f"- changed_fields: `{', '.join(fields) if fields else 'none'}`")
+    after_repos = (payload.get("after") or {}).get("repos") or []
+    if after_repos:
+        lines.append(
+            "- repos: "
+            + ", ".join(
+                f"`{repo.get('name')}`={repo.get('path')} -> {repo.get('merge_target')}"
+                for repo in after_repos
+                if isinstance(repo, dict)
+            )
+        )
     lines.extend(
         reward_memory_preflight_markdown_lines(
             payload.get("reward_memory_enablement_preflight")

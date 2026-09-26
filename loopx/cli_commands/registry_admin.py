@@ -48,6 +48,7 @@ from .registry_authority import (
     register_registry_authority_commands,
 )
 from .support_control_registry import explicit_global_registry
+from ..workspace.repos import parse_repo_spec
 
 PrintPayload = Callable[
     [dict[str, object], str, Callable[[dict[str, object]], str]],
@@ -544,6 +545,8 @@ def handle_registry_admin_command(
                 clear_reward_memory_config=bool(
                     args.clear_reward_memory_config
                 ),
+                repos=[parse_repo_spec(spec) for spec in (args.repos or [])] or None,
+                clear_repos=bool(args.clear_repos),
                 execute=bool(args.execute),
             )
             if payload.get("ok"):
