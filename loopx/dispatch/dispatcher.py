@@ -302,6 +302,17 @@ class Dispatcher:
                     for run in runs.values()
                     if run.get("goal_id") == goal_id and run.get("todo_id")
                 }
+                cooling = {
+                    key.split("/", 1)[1]
+                    for key, value in (self.state.get("todo_cooldowns") or {}).items()
+                    if key.startswith(f"{goal_id}/") and (value or {}).get("until", 0) > now
+                }
+                if todo_id and (todo_id in in_flight or todo_id in cooling) and role != policy.ROLE_ORCHESTRATOR:
+                    # Fill a free slot of this agent with its next executable todo.
+                    alternate = policy.alternate_todo(payload, exclude=in_flight | cooling)
+                    if alternate:
+                        decision = {**decision, "todo_id": alternate, "reason": "alternate_todo", "pinned": True}
+                        todo_id = alternate
                 if todo_id and todo_id in in_flight:
                     skip("todo_in_flight", todo_id=todo_id)
                     break
@@ -606,7 +617,7 @@ class Dispatcher:
             argv.extend(["--resume-turn-key", resume_turn_key, "--retry-failed-turn"])
         else:
             argv.extend(["--turn-instance-id", turn_instance_id])
-            if cwd is not None and todo_id:
+            if todo_id and (cwd is not None or decision.get("pinned")):
                 argv.extend(["--todo-id", str(todo_id)])
         if not validation_argv and role == "orchestrator" and todo_id and _is_plan_todo(todo):
             # The intake planning todo is done once its plan card is applied;

@@ -85,6 +85,33 @@ def decide_turn(
     return {"launch": False, "reason": "orchestrator_idle"}
 
 
+def alternate_todo(
+    payload: Mapping[str, Any] | None, *, exclude: set[str] | frozenset[str],
+) -> str | None:
+    """Another executable todo from the same should-run lane, for a free slot.
+
+    ``should-run`` always selects the lane's first executable todo, so a
+    second slot of the same agent would get the in-flight todo again. The
+    lane's ``first_executable_items`` is already role- and claim-filtered by
+    LoopX; the Turn is pinned with ``--todo-id`` and run-once re-checks it.
+    """
+
+    summary = (payload or {}).get("agent_todo_summary") if isinstance(payload, Mapping) else None
+    items = summary.get("first_executable_items") if isinstance(summary, Mapping) else None
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, Mapping):
+            continue
+        todo_id = str(item.get("todo_id") or "")
+        if not todo_id or todo_id in exclude:
+            continue
+        if str(item.get("status") or "open") not in {"open", "in_review"}:
+            continue
+        if str(item.get("role") or "agent") != "agent":
+            continue
+        return todo_id
+    return None
+
+
 def classify_outcome(returncode: int | None, stdout_text: str) -> dict[str, Any]:
     """Classify one finished ``turn run-once`` child from its exit and JSON output."""
 

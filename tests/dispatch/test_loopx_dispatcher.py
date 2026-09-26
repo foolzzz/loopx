@@ -607,3 +607,28 @@ def test_orchestrator_plan_todo_is_validated_by_an_applied_plan_card(tmp_path: P
     plans.mkdir(parents=True)
     (plans / "plan_aaaa.json").write_text(json.dumps({"plan_id": "plan_aaaa", "status": "applied"}))
     assert plan_list() == 0
+
+
+def test_a_second_slot_takes_the_lanes_next_executable_todo(tmp_path: Path) -> None:
+    """E2E pilot: should-run always selects the first todo, so max_concurrency=2 ran one Turn."""
+
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer", "max_concurrency": 2}})
+    set_modes(fixture, {"dev": ["hold"]})
+
+    def should_run(goal_id: str, agent_id: str) -> dict[str, Any]:
+        items = [{"todo_id": "todo_aaa", "status": "open"}, {"todo_id": "todo_bbb", "status": "open"},
+                 {"todo_id": "todo_ccc", "status": "done"}]
+        return {"should_run": True, "effective_action": "normal_run",
+                "selected_todo": {"todo_id": "todo_aaa", "role": "agent"},
+                "agent_todo_summary": {"first_executable_items": items}}
+
+    dispatcher = _dispatcher(fixture, should_run=should_run)
+    report = dispatcher.reconcile()
+    assert [(item["agent_id"], item["todo_id"], item["reason"]) for item in report["launched"]] == [
+        ("dev", "todo_aaa", "selected_todo"), ("dev", "todo_bbb", "alternate_todo")]
+    _release_and_wait(fixture, dispatcher)
+    rows = [row["argv"] for row in read_jsonl(fixture["turn_log"])]
+    pinned = [argv[argv.index("--todo-id") + 1] for argv in rows if "--todo-id" in argv]
+    assert pinned == ["todo_bbb"]
+    assert policy.alternate_todo({"agent_todo_summary": {"first_executable_items": [
+        {"todo_id": "todo_aaa"}, {"todo_id": "todo_ccc", "status": "done"}]}}, exclude={"todo_aaa"}) is None
