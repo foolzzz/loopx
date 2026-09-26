@@ -1665,9 +1665,7 @@ def complete_goal_todo(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
         todo_id=todo_id, decision=decision_outcome,
     )
-    # Fork S2: under role_v1 a developer completion of a todo that requires
-    # acceptance is delivered to ``in_review`` (``loopx.todo_acceptance``).
-    from .todo_acceptance import route_role_v1_completion
+    from .todo_acceptance import route_role_v1_completion  # S2: may deliver to in_review
 
     payload = route_role_v1_completion(_complete_goal_todo_unsettled, dict(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
@@ -2079,9 +2077,7 @@ def _complete_goal_todo_unsettled(
     )
 
 
-# The terminal completion without the role_v1 delivery routing; the acceptor's
-# accept verdict completes an in_review todo through it (loopx.todo_acceptance).
-terminal_complete_goal_todo = _complete_goal_todo_unsettled
+terminal_complete_goal_todo = _complete_goal_todo_unsettled  # no S2 routing (accept verdict)
 
 
 @_next_user_todo_author_guard
