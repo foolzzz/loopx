@@ -421,3 +421,33 @@ def test_role_board_flags_a_modified_review_checkout_and_the_blocked_gate(tmp_pa
     gate = next(gate for gate in board["gates"] if gate["todo_id"] == gate_id)
     assert gate["kind"] == "acceptor_blocked" and gate["review_todo_id"] == todo_id
     assert gate["options"] == list(REVIEW_GATE_OPTIONS)
+
+
+# --- promoted canonical authority -----------------------------------------------------
+
+
+@pytest.mark.parametrize("option", REVIEW_GATE_OPTIONS)
+def test_blocked_verdict_and_gate_options_on_canonical_authority(tmp_path, option: str) -> None:
+    from tests.control_plane.test_role_v1_acceptance import ACC, DEV, GOAL_ID, _api, _deliver, _setup, _todo
+
+    registry, runtime = _setup(tmp_path, promoted=True)
+    _deliver(registry, runtime)
+    blocked = block_goal_todo_review(**_api(registry, runtime), todo_id="todo_orders_api", agent_id=ACC,
+                                     reason="the review sandbox has no network")
+    gate_id = blocked["acceptance"]["gate_todo_id"]
+    assert _todo(registry, runtime, "todo_orders_api")["status"] == "in_review"
+    assert blocked_review_todo_ids(registry, runtime, GOAL_ID) == {"todo_orders_api"}
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        code = cli_main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json",
+                         "gate", "resolve", "--goal-id", GOAL_ID, "--todo-id", gate_id, "--option", option,
+                         "--note", "network restored"])
+    payload = json.loads(buffer.getvalue())
+    assert code == 0 and payload["review_gate"]["applied"] is True, payload
+    todo = _todo(registry, runtime, "todo_orders_api")
+    expected = {"retry_acceptance": "in_review", "accept_manually": "done",
+                "return_to_developer": "open", "cancel_todo": "done"}[option]
+    assert todo["status"] == expected and not todo.get("reject_count")
+    assert todo["claimed_by"] == DEV
+    assert _todo(registry, runtime, gate_id)["status"] == "done"
+    assert blocked_review_todo_ids(registry, runtime, GOAL_ID) == set()
