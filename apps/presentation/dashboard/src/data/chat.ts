@@ -1278,6 +1278,9 @@ const gateThreadViewSchema = z.object({
   kind: z.string(),
   awaiting: z.enum(["awaiting_user", "awaiting_orchestrator", "closed"]),
   plan_id: z.string().optional(),
+  // G12: an acceptor_blocked gate names the review todo and its resolution options.
+  review_todo_id: z.string().optional(),
+  options: z.array(z.string()).optional(),
   messages: z.array(gateThreadMessageSchema),
 });
 

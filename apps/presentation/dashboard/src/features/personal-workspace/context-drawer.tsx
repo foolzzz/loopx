@@ -38,7 +38,7 @@ import type {
   WorkspaceRun,
   WorkspaceTodo,
 } from "./personal-workspace-model";
-import type { LarkGoalConnection } from "../../data/chat";
+import type { GateThreadView, LarkGoalConnection } from "../../data/chat";
 import { localizedAttentionAge, localizedGoalState, localizedSessionStatus, useWorkspaceI18n } from "./i18n";
 import { formatCostUsd, formatDurationMs, formatTokenCount, formatUsageValue } from "./personal-workspace-model";
 import { TeamPlanResult } from "./team-plan-result";
@@ -85,6 +85,13 @@ const decisionTransitions = [
   { key: "drawer.decisionCancel", resolution: "cancel" },
   { key: "drawer.decisionDefer", resolution: "defer" },
 ] as const;
+// G12: resolution options of an acceptor_blocked gate (each implies its decision).
+const reviewGateOptions = [
+  { key: "drawer.reviewOption.retryAcceptance", option: "retry_acceptance", resolution: "approve" },
+  { key: "drawer.reviewOption.acceptManually", option: "accept_manually", resolution: "approve" },
+  { key: "drawer.reviewOption.returnToDeveloper", option: "return_to_developer", resolution: "reject" },
+  { key: "drawer.reviewOption.cancelTodo", option: "cancel_todo", resolution: "cancel" },
+] as const;
 const DECISION_NOTE_LIMIT = 600;
 
 const subagentChildLimits = Array.from({ length: 32 }, (_, index) => index + 1);
@@ -127,6 +134,8 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
   const { locale, t } = useWorkspaceI18n();
   const [correction, setCorrection] = useState("");
   const [decisionNote, setDecisionNote] = useState("");
+  const [gateKind, setGateKind] = useState<string | null>(null);
+  const onGateView = useCallback((view: GateThreadView | null) => setGateKind(view?.kind ?? null), []);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [repositoryCopyState, setRepositoryCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [runDrawerTab, setRunDrawerTab] = useState<"record" | "details">("record");
@@ -162,6 +171,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
     setRunDrawerTab("record");
     setTodoResumeWhen("");
     setDecisionNote("");
+    setGateKind(null);
     const configuration = selection.kind === "goal" ? selection.item.subagentExecution : undefined;
     setSubagentAllowedDomains(configuration?.allowedDomains ?? []);
     setSubagentModel(configuration?.modelConfig?.model ?? "");
@@ -338,16 +348,17 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
     });
   }
 
-  async function previewDecision(attention: WorkspaceAttention, decision: "approve" | typeof decisionTransitions[number]["resolution"], label: string) {
+  async function previewDecision(attention: WorkspaceAttention, decision: "approve" | typeof decisionTransitions[number]["resolution"], label: string, option?: string) {
     if (readOnly || !canReviewAttention(attention)) return;
     const note = decisionNote.trim().slice(0, DECISION_NOTE_LIMIT);
     await callbacks.onPreviewAction?.({
       actionKind: "gate.resolve",
       context: { goal_id: attention.goalId, kind: "todo", todo_id: attention.todoId },
-      idempotencyKey: `workspace-decision-${attention.todoId}-${decision}-${Date.now().toString(36)}`,
+      idempotencyKey: `workspace-decision-${attention.todoId}-${option ?? decision}-${Date.now().toString(36)}`,
       normalizedParameters: {
         goal_id: attention.goalId,
         decision,
+        ...(option ? { option } : {}),
         ...(note ? { note } : {}),
         todo_id: attention.todoId,
       },
@@ -557,7 +568,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
               </dl>
             </section>
             <AttentionDetailCard item={selection.item} onSelect={onSelectAttention} successor={attentionSuccessor(selection.item, attentionHistory)} />
-            <GateThreadPanel goalId={selection.item.goalId} readOnly={readOnly} todoId={selection.item.todoId} />
+            <GateThreadPanel goalId={selection.item.goalId} onView={onGateView} readOnly={readOnly} todoId={selection.item.todoId} />
             {!readOnly && canReviewAttention(selection.item) ? <>
               <label className="personal-decision-note">
                 <span>{t("drawer.decisionNote")}</span>
@@ -576,9 +587,13 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 <summary><MoreHorizontal size={17} />{t("drawer.decisionMore")}</summary>
                 <div>
                   <button onClick={() => void callbacks.onExplainDecision?.(selection.item)} type="button"><MessageCircleQuestion size={16} />{t("drawer.explainDecision")}</button>
-                  {decisionTransitions.map((transition) => (
-                    <button key={transition.resolution} onClick={() => void previewDecision(selection.item, transition.resolution, t(transition.key))} type="button">{t(transition.key)}</button>
-                  ))}
+                  {gateKind === "acceptor_blocked"
+                    ? reviewGateOptions.map((choice) => (
+                      <button key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
+                    ))
+                    : decisionTransitions.map((transition) => (
+                      <button key={transition.resolution} onClick={() => void previewDecision(selection.item, transition.resolution, t(transition.key))} type="button">{t(transition.key)}</button>
+                    ))}
                 </div>
               </details>
             </> : null}
