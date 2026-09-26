@@ -52,6 +52,9 @@ const board = roleBoardFromProjection(parsed);
 equal(board.cards.find((card) => card.todoId === "todo_rb_review")?.acceptanceCriteria, "GET /todos returns 200; tests pass",
   "G2: the card carries the todo's acceptance criteria");
 equal(board.cards.find((card) => card.todoId === "todo_rb_running")?.acceptanceCriteria, null, "cards without criteria stay empty");
+equal(board.cards.find((card) => card.todoId === "todo_rb_planned")?.dependencyWait,
+  "waiting for dependency todo_rb_review (status in_review)", "G6: the card carries its dependency wait");
+equal(board.cards.find((card) => card.todoId === "todo_rb_running")?.dependencyWait, null, "cards without a wait stay empty");
 equal(board.omittedCardCount, 3, "omitted card count is surfaced");
 const stages = Object.fromEntries(board.cards.map((card) => [card.todoId, roleBoardStage(card)]));
 equal(stages, {

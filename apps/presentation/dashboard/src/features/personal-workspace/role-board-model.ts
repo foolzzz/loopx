@@ -26,6 +26,7 @@ export type WorkspaceRoleBoardCard = {
   acceptanceCriteria?: string | null;
   acceptorAgent?: string | null;
   claimedBy?: string | null;
+  dependencyWait?: string | null;
   planGateTodoId?: string | null;
   planId?: string | null;
   priority?: string | null;
@@ -97,6 +98,7 @@ export type RoleBoardProjectionInput = {
     acceptance_criteria?: string | null;
     acceptor_agent?: string | null;
     claimed_by?: string | null;
+    dependency_wait?: string | null;
     effective_role: RoleBoardRole;
     plan_gate_todo_id?: string | null;
     plan_id?: string | null;
@@ -129,6 +131,7 @@ export function roleBoardFromProjection(projection: RoleBoardProjectionInput): W
       acceptanceCriteria: todo.acceptance_criteria ?? null,
       acceptorAgent: todo.acceptor_agent ?? null,
       claimedBy: todo.claimed_by ?? null,
+      dependencyWait: todo.dependency_wait ?? null,
       planGateTodoId: todo.plan_gate_todo_id ?? null,
       planId: todo.plan_id ?? null,
       priority: todo.priority ?? null,

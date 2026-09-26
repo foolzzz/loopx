@@ -201,6 +201,11 @@ export function GoalRoleBoardView({
                               {t("roles.criteria", { criteria: card.acceptanceCriteria })}
                             </small>
                           ) : null}
+                          {card.dependencyWait ? (
+                            <small className="personal-role-card-criteria" title={card.dependencyWait}>
+                              {t("roles.dependencyWait", { reason: card.dependencyWait })}
+                            </small>
+                          ) : null}
                         </button>
                         {card.planId ? (
                           planGate ? (
