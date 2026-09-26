@@ -712,6 +712,27 @@ def add_todo_to_lines(
     }
 
 
+def _require_goal_task_repositories(
+    registry_path: Path, goal_id: str, role_contract: dict[str, Any] | None,
+) -> None:
+    """Named task repositories must be repos the Goal declares (S5 ``repos``)."""
+
+    names = (role_contract or {}).get("task_repositories") or []
+    if not names:
+        return
+    from .agent_registry import load_goal_from_registry
+    from .workspace.repos import goal_repos
+
+    known = [repo["name"] for repo in goal_repos(load_goal_from_registry(registry_path, goal_id))]
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        raise ValueError(
+            f"task_repositories names unknown Goal repos: {', '.join(unknown)}; "
+            f"declared repos: {', '.join(known) or '(none)'}. "
+            "Declare them with `loopx configure-goal --repo NAME=PATH`."
+        )
+
+
 def add_goal_todo(
     *,
     registry_path: Path,
@@ -768,6 +789,7 @@ def add_goal_todo(
             registry_path=registry_path, goal_id=goal_id,
             agent_id=role_contract["acceptor_agent"], field="acceptor_agent",
         )
+    _require_goal_task_repositories(registry_path, goal_id, role_contract)
     if role not in TODO_SECTION_HEADINGS:
         raise ValueError("todo role must be one of: user, agent")
     require_user_todo_task_class(
@@ -1151,6 +1173,7 @@ def update_goal_todo(
             registry_path=registry_path, goal_id=goal_id,
             agent_id=role_contract["acceptor_agent"], field="acceptor_agent",
         )
+    _require_goal_task_repositories(registry_path, goal_id, role_contract)
     shadow_runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     if validation_command and validation_command_json:
         raise ValueError(

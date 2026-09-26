@@ -487,7 +487,8 @@ def normalize_target_capabilities(value: Any) -> list[str]:
 
 
 TODO_REQUIRED_ROLE_VALUES = ("orchestrator", "developer", "acceptor")
-TODO_REPOSITORY_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
+# Same shape as a Goal ``repos`` entry name (loopx.workspace.repos).
+TODO_REPOSITORY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 TODO_TASK_REPOSITORIES_LIMIT = 8
 
 
@@ -544,7 +545,7 @@ def normalize_todo_task_repositories(value: Any) -> list[str]:
         raw_values = re.split(r"[,;|]", str(value or ""))
     names: list[str] = []
     for raw in raw_values:
-        name = compact_todo_text(raw).lower()
+        name = compact_todo_text(raw)
         if not name or not TODO_REPOSITORY_NAME_PATTERN.match(name):
             continue
         if name not in names:
@@ -564,11 +565,11 @@ def require_todo_task_repositories(value: Any) -> list[str]:
     )
     raw_values = [compact_todo_text(item) for item in raw_values if compact_todo_text(item)]
     normalized = normalize_todo_task_repositories(raw_values)
-    if len(normalized) != len({item.lower() for item in raw_values}):
+    if len(normalized) != len(set(raw_values)):
         raise ValueError(
             "task_repositories must contain at most "
-            f"{TODO_TASK_REPOSITORIES_LIMIT} repository names "
-            "(lowercase letters, digits, '_', '-', '.')"
+            f"{TODO_TASK_REPOSITORIES_LIMIT} Goal repo names "
+            "(letters, digits, '_', '-', '.')"
         )
     return normalized
 

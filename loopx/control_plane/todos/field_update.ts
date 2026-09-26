@@ -78,8 +78,8 @@ export function normalizeTodoRoleContract(value: unknown): JsonObject {
       if (!Array.isArray(raw)) throw new EffectRuntimeRequestError("task_repositories must be a list");
       const names: string[] = [];
       for (const item of raw) {
-        const name = typeof item === "string" ? stripPythonWhitespace(item).toLowerCase() : "";
-        if (!/^[a-z0-9][a-z0-9_.-]{0,63}$/.test(name)) {
+        const name = typeof item === "string" ? stripPythonWhitespace(item) : "";
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)) {
           throw new EffectRuntimeRequestError("task_repositories must contain repository names");
         }
         if (!names.includes(name)) names.push(name);
