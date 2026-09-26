@@ -534,9 +534,21 @@ def accept_goal_todo(
         merge_payload = _public_merge(git_workspace.merge(
             goal, todo_id, workspace["repos"], workspace["runtime_root"],
         ))
+    resumed: list[str] = []
+    if not dry_run and result.get("ok") is not False:
+        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .plan_cards import resume_ready_plan_todos
+
+        # Dependents of this todo in an applied plan card become workable.
+        resumed = resume_ready_plan_todos(
+            registry_path=registry_path, goal_id=goal_id,
+            runtime_root=effective_runtime_root(registry_path, runtime_root_arg),
+            runtime_root_arg=runtime_root_arg,
+        )
     return {
         **result,
         **({"merge": merge_payload} if merge_payload is not None else {}),
+        **({"resumed_todo_ids": resumed} if resumed else {}),
         "acceptance": {
             "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
             "transition": "accepted", "verdict": "accept", "acceptor": actor,

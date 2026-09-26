@@ -629,3 +629,51 @@ def render_plan_markdown(payload: Mapping[str, Any]) -> str:
                 f"validation: `{todo.get('validation_command') or '-'}`"
             )
     return "\n".join(lines) + "\n"
+
+
+# --- dependency resume -----------------------------------------------------------
+
+
+def resume_ready_plan_todos(
+    *, registry_path: Path, goal_id: str, runtime_root: Path, runtime_root_arg: str | None = None,
+) -> list[str]:
+    """Reopen deferred plan todos whose plan dependencies are all ``done``.
+
+    Plan apply creates a dependent todo ``deferred`` with one ``resume_when``
+    condition (its last listed dependency). Nothing reopened it once that
+    condition held, and a todo with several dependencies could only name one.
+    This reads the full ``depends_on`` list from each applied plan card and
+    reopens the todo through the ordinary Todo update, attributed to its
+    claim owner (else the plan's orchestrator). Idempotent: an open or finished todo is left alone.
+    """
+
+    from .todos import list_goal_todos, update_goal_todo
+
+    plans = [plan for plan in list_plans(runtime_root, goal_id) if plan.get("status") == "applied"]
+    if not plans:
+        return []
+    listed = list_goal_todos(registry_path=registry_path, goal_id=goal_id, runtime_root_arg=runtime_root_arg)
+    rows = {str(row.get("todo_id")): row for row in listed.get("todos") or [] if isinstance(row, Mapping)}
+    resumed: list[str] = []
+    for plan in plans:
+        ids = plan.get("todo_id_map") if isinstance(plan.get("todo_id_map"), Mapping) else {}
+        body = plan.get("plan") if isinstance(plan.get("plan"), Mapping) else {}
+        for item in body.get("todos") or []:
+            if not isinstance(item, Mapping):
+                continue
+            todo_id = str(ids.get(item.get("key")) or "")
+            row = rows.get(todo_id)
+            if row is None or row.get("status") != "deferred":
+                continue
+            deps = [str(ids.get(key) or "") for key in item.get("depends_on") or []]
+            if not deps or not all(rows.get(dep, {}).get("status") == "done" for dep in deps):
+                continue
+            result = update_goal_todo(
+                registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, role="agent",
+                runtime_root_arg=runtime_root_arg, status="open", clear_resume_when=True,
+                # The claim owner, or for an unclaimed todo the proposing orchestrator.
+                agent_id=row.get("claimed_by") or plan.get("proposed_by") or None,
+            )
+            if result.get("ok", True):
+                resumed.append(todo_id)
+    return resumed

@@ -500,3 +500,44 @@ def test_user_reply_unblocks_the_orchestrator_lane_until_it_answers(tmp_path: Pa
     reply_to_gate(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=gate_id,
                   text="Noted.", author="orchestrator", agent_id=ORCH)
     assert should_run(ORCH)["state"] == "operator_gate"
+
+
+def test_plan_dependents_resume_only_when_every_dependency_is_done(tmp_path: Path) -> None:
+    """E2E pilot: applied plan todos stayed deferred after their dependency finished."""
+
+    from loopx.plan_cards import resume_ready_plan_todos
+
+    registry, runtime = fixture(tmp_path)
+    proposed = propose_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, agent_id=ORCH, plan=PLAN)
+    plan_id = proposed["plan"]["plan_id"]
+    complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=proposed["plan"]["gate_todo_id"], role="user",
+                       decision_outcome="approve", note="Go", no_followup=True, agent_id=ORCH)
+    ids = read_plan(runtime, GOAL, plan_id)["todo_id_map"]
+
+    def status(key: str) -> str:
+        return rows(registry)[ids[key]]["status"]
+
+    (tmp_path / "project" / "openapi.yaml").write_text("openapi: 3.1.0\n", encoding="utf-8")
+
+    def finish(key: str) -> None:
+        from loopx.todo_acceptance import accept_goal_todo
+
+        todo_id = ids[key]
+        owner = rows(registry)[todo_id].get("claimed_by") or DEV
+        delivered = complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, role="agent",
+                                       evidence="built", agent_id=owner)
+        if delivered.get("in_review"):
+            accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id=ACC)
+        assert rows(registry)[todo_id]["status"] == "done"
+
+    def resume() -> list[str]:
+        return resume_ready_plan_todos(registry_path=registry, goal_id=GOAL, runtime_root=runtime)
+
+    assert resume() == []
+    assert status("api") == "deferred"
+    finish("contract")  # the accept verdict resumes the dependents
+    assert status("api") == "open" and status("web") == "open" and status("integrate") == "deferred"
+    finish("web")  # integrate's resume_when names web, but api is still open
+    assert resume() == [] and status("integrate") == "deferred"
+    finish("api")
+    assert status("integrate") == "open" and resume() == []

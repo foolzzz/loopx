@@ -232,6 +232,7 @@ class Dispatcher:
             report["errors"].append({"goal_id": goal_id, "error": "goal_not_registered"})
             return
         project = self._goal_project(goal)
+        self._resume_plan_dependents(goal_id, report)
         for agent_id, registry_role in self._agents_for_goal(goal):
             skip = lambda reason, **extra: report["skipped"].append(  # noqa: E731
                 {"goal_id": goal_id, "agent_id": agent_id, "reason": reason, **extra}
@@ -444,6 +445,27 @@ class Dispatcher:
         if len(paths) == 1:
             return True, Path(next(iter(paths.values()))), paths
         return True, Path(str(prepared["workspace_root"])), paths
+
+    def _resume_plan_dependents(self, goal_id: str, report: dict[str, Any]) -> None:
+        """Reopen plan todos whose dependencies are done, through the Todo API.
+
+        Like opening a gate this is an ordinary Todo write, not dispatcher
+        state; it covers completions that did not pass through an accept
+        verdict (for example todos that need no acceptance).
+        """
+
+        from ..plan_cards import resume_ready_plan_todos
+
+        try:
+            resumed = resume_ready_plan_todos(
+                registry_path=self.registry_path, goal_id=goal_id, runtime_root=self.runtime_root,
+                runtime_root_arg=str(self.runtime_root),
+            )
+        except (OSError, ValueError) as exc:
+            report["errors"].append({"goal_id": goal_id, "error": f"plan_resume: {exc}"[:300]})
+            return
+        if resumed:
+            report.setdefault("resumed", []).extend({"goal_id": goal_id, "todo_id": todo_id} for todo_id in resumed)
 
     def _loopx_command(self) -> str:
         """The CLI prefix a launched agent must use to reach this state home."""
