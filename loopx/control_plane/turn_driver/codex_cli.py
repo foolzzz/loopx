@@ -313,6 +313,31 @@ def _has_subagent_topology(request: Mapping[str, Any] | None) -> bool:
     )
 
 
+def turn_completion_todo_id(request: Mapping[str, Any] | None) -> str | None:
+    """Return the Todo a todo-scoped Turn may complete, if any.
+
+    Built-in hosts are offered ``validated_completion`` only for a Turn that
+    selected a Todo. The executor still requires a lifecycle adapter and the
+    independent validator; the Todo lifecycle then runs the Todo's own
+    declared validation and completes it, or under role_v1 delivers it to
+    ``in_review`` for the acceptor.
+    """
+
+    if not isinstance(request, Mapping) or not isinstance(request.get("turn_envelope"), Mapping):
+        return None
+    from .driver import selected_turn_todo
+
+    todo_id = str(selected_turn_todo(request["turn_envelope"]).get("todo_id") or "").strip()
+    return todo_id or None
+
+
+def codex_cli_result_kinds(request: Mapping[str, Any] | None = None) -> list[str]:
+    kinds = list(CODEX_CLI_RESULT_KINDS)
+    if turn_completion_todo_id(request):
+        kinds.insert(1, "validated_completion")
+    return kinds
+
+
 def codex_cli_result_schema(
     request: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -323,7 +348,7 @@ def codex_cli_result_schema(
             "enum": [LOOPX_TURN_RESULT_SCHEMA_VERSION],
         },
         "turn_key": {"type": "string"},
-        "result_kind": {"type": "string", "enum": list(CODEX_CLI_RESULT_KINDS)},
+        "result_kind": {"type": "string", "enum": codex_cli_result_kinds(request)},
         "completed_phases": {
             "type": "array",
             "items": {"type": "string", "enum": list(TRANSACTION_PHASES[:2])},
@@ -414,7 +439,7 @@ def _prompt(request: Mapping[str, Any]) -> str:
         "When reward_memory_recall contains guidance, treat it as private, non-authoritative decision context: apply it only when it fits current evidence and never treat it as new action authority.",
         "Set reward_memory_reflection_json to an empty string unless independent task evidence established a reusable experience. For eligible evidence, return one compact JSON object using schema_version=turn_reward_memory_reflection_v1, status=eligible, a configured surface_id, outcome_kind in research|simulation|real|engineering, content_summary, reasoning_summary, confidence in low|medium|high, and 1-5 opaque evidence_refs. Also include experience using schema_version=procedural_experience_contract_v0 with non-empty applicability and limitations lists, observed_outcome, attribution, the same evidence_refs, and future_behavior containing trigger, action, validation, and stop_condition. A fact recap without a future behavior change and non-generalization boundary is not eligible memory. Legacy v0 reflections are audit-only and cannot become durable memory. Never use your own summary as evidence. Settlement may ingest it only when the caller-declared Todo validator attests the exact reflection digest and evidence; ordinary validator success remains awaiting and makes no provider write.",
         "Do not write LoopX state, spend quota, or apply scheduler changes; the adapter owns those effects.",
-        "Return only the schema-constrained result. For validated_progress, repair_required, or replan_required, fill every material field with public-safe evidence.",
+        "Return only the schema-constrained result. For validated_progress, validated_completion, repair_required, or replan_required, fill every material field with public-safe evidence.",
         "For those material results, set path_delta_mode=material_replan only when this Turn changes a prior assumption, route, scope, acceptance rule, or stops prior work; then provide a complete bounded agent vision packet with goal_path_delta_v0 in agent_vision_json and leave vision_unchanged_reason empty.",
         "For routine continuation, retry, successor creation, or no-change replanning, set path_delta_mode=unchanged, leave agent_vision_json empty, and provide vision_unchanged_reason.",
         "For user_action_required, wait, or iteration_failed, leave material-only fields empty and explain the stop in summary. iteration_failed ends only this iteration and never requests a retry or successor.",
@@ -423,6 +448,15 @@ def _prompt(request: Mapping[str, Any]) -> str:
         "Turn request:",
         request_json,
     ]
+    completion_todo_id = turn_completion_todo_id(request)
+    if completion_todo_id:
+        instructions.insert(
+            -2,
+            f"This Turn selected Todo {completion_todo_id}. Return validated_completion only when that "
+            "Todo's work is complete in this workspace; the controller then runs the Todo's declared "
+            "validation independently and completes the Todo, or delivers it for acceptor review when "
+            "it requires acceptance. Return validated_progress while work on the Todo remains.",
+        )
     boundary = _mapping(_mapping(request.get("turn_envelope")).get("boundary"))
     if boundary.get("checkpointed_boundary_authority"):
         instructions.append(
