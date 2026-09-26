@@ -67,6 +67,10 @@ def _registry(tmp_path: Path, coordination: dict | None = None) -> Path:
                         "id": GOAL_ID,
                         "repo": str(tmp_path),
                         "state_file": "ACTIVE_GOAL_STATE.md",
+                        "repos": [
+                            {"name": "backend", "path": str(tmp_path / "backend")},
+                            {"name": "Frontend", "path": str(tmp_path / "frontend")},
+                        ],
                         "coordination": coordination
                         if coordination is not None
                         else {"registered_agents": [ORCH, DEV, ACC]},
@@ -323,16 +327,16 @@ def test_todo_role_fields_round_trip_through_add_and_update(tmp_path: Path) -> N
         role_contract={
             "required_role": "developer",
             "acceptor_agent": ACC,
-            "task_repositories": ["backend", "Frontend"],
+            "task_repositories": ["backend", "Frontend", "backend"],
             "requires_acceptance": True,
         },
     )
     assert added["required_role"] == "developer"
-    assert added["task_repositories"] == ["backend", "frontend"]
+    assert added["task_repositories"] == ["backend", "Frontend"]
     todo_id = added["todo_id"]
     state = (tmp_path / "ACTIVE_GOAL_STATE.md").read_text(encoding="utf-8")
     assert "required_role=developer" in state
-    assert "task_repositories=backend%2Cfrontend" in state
+    assert "task_repositories=backend%2CFrontend" in state
 
     updated = update_goal_todo(
         registry_path=registry, goal_id=GOAL_ID, todo_id=todo_id,
@@ -347,7 +351,7 @@ def test_todo_role_fields_round_trip_through_add_and_update(tmp_path: Path) -> N
                 if entry["todo_id"] == todo_id)
     assert item["reject_count"] == 2
     assert item["required_role"] == "developer"
-    assert item["task_repositories"] == ["backend", "frontend"]
+    assert item["task_repositories"] == ["backend", "Frontend"]
     assert "acceptor_agent" not in item
 
     # Resetting the reject count to the default clears it.
@@ -369,7 +373,11 @@ def test_todo_role_fields_reject_invalid_values(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="task_repositories"):
         add_goal_todo(registry_path=registry, goal_id=GOAL_ID, role="agent",
                       text="implement z",
-                      role_contract={"task_repositories": ["ok", "Not Valid!"]})
+                      role_contract={"task_repositories": ["backend", "Not Valid!"]})
+    with pytest.raises(ValueError, match="unknown Goal repos: mobile"):
+        add_goal_todo(registry_path=registry, goal_id=GOAL_ID, role="agent",
+                      text="implement w",
+                      role_contract={"task_repositories": ["backend", "mobile"]})
 
 
 def test_todo_cli_flags_for_role_fields(tmp_path: Path, capsys) -> None:
@@ -379,12 +387,12 @@ def test_todo_cli_flags_for_role_fields(tmp_path: Path, capsys) -> None:
         "--format", "json", "todo", "add",
         "--goal-id", GOAL_ID, "--role", "agent", "--text", "implement the orders UI",
         "--required-role", "developer", "--acceptor-agent", ACC,
-        "--task-repo", "frontend", "--task-repo", "backend",
+        "--task-repo", "Frontend", "--task-repo", "backend",
         "--requires-acceptance", "true",
     ])
     added = json.loads(capsys.readouterr().out)
     assert code == 0, added.get("error")
-    assert added["task_repositories"] == ["frontend", "backend"]
+    assert added["task_repositories"] == ["Frontend", "backend"]
     code = main([
         "--registry", str(registry), "--runtime-root", str(tmp_path / "runtime"),
         "--format", "json", "todo", "update",
@@ -573,6 +581,9 @@ def test_role_fields_and_selection_end_to_end(tmp_path: Path, promoted: bool) ->
     coordination = payload["goals"][0].setdefault("coordination", {})
     coordination["agent_model"] = "role_v1"
     coordination["agent_roles"] = {ORCH: "orchestrator", DEV: "developer", ACC: "acceptor"}
+    payload["goals"][0]["repos"] = [
+        {"name": name, "path": str(tmp_path / name)} for name in ("backend", "frontend")
+    ]
     registry.write_text(json.dumps(payload), encoding="utf-8")
     if promoted:
         goal = json.loads(registry.read_text())["goals"][0]
