@@ -239,6 +239,50 @@ def _is_gate(todo: Mapping[str, Any]) -> bool:
     return todo.get("role") == "user" and todo.get("task_class") == "user_gate"
 
 
+def _mark_review_cards(
+    cards: list[dict[str, Any]], *, goal_id: str, gate_index: Mapping[str, Mapping[str, Any]],
+    gate_rows: list[dict[str, Any]], dispatcher: Mapping[str, Any],
+) -> None:
+    """G12: flag an acceptor that changed its review checkout and an open blocked-review gate."""
+
+    open_gate_ids = {str(row.get("todo_id")) for row in gate_rows}
+    review_gates = {
+        str(entry.get("review_todo_id")): gate_id for gate_id, entry in gate_index.items()
+        if entry.get("kind") == "acceptor_blocked" and not entry.get("closed")
+        and entry.get("review_todo_id") and gate_id in open_gate_ids
+    }
+    warnings = _dict(dispatcher.get("review_warnings"))
+    for card in cards:
+        if f"{goal_id}/{card['todo_id']}" in warnings:
+            card["review_checkout_modified"] = True
+        if card["todo_id"] in review_gates:
+            card["review_blocked_gate_todo_id"] = review_gates[card["todo_id"]]
+
+
+def _gate_card(
+    todo: Mapping[str, Any], entry: Mapping[str, Any], plan_by_gate: Mapping[str, dict[str, Any]],
+) -> dict[str, Any]:
+    todo_id = str(todo["todo_id"])
+    plan = plan_by_gate.get(todo_id) or {}
+    awaiting = entry.get("awaiting") if entry.get("awaiting") in {"awaiting_user", "awaiting_orchestrator"} else "awaiting_user"
+    kind = entry.get("kind")
+    gate = {
+        "todo_id": todo_id,
+        "text": _text(todo.get("title") or todo.get("text")) or todo_id,
+        "kind": "plan_approval" if kind == "plan_approval" or plan
+        else "acceptor_blocked" if kind == "acceptor_blocked" else "decision",
+        "awaiting": awaiting,
+        "message_count": entry.get("message_count") if isinstance(entry.get("message_count"), int) else 0,
+        "blocks_agent": _text(todo.get("blocks_agent"), 120),
+        "updated_at": _text(entry.get("last_at") or todo.get("updated_at"), 40),
+    }
+    if plan:
+        gate.update({key: plan[key] for key in ("plan_id", "plan_status", "plan_title", "plan_revision", "plan_todo_count")})
+    if gate["kind"] == "acceptor_blocked":
+        gate.update(review_todo_id=_text(entry.get("review_todo_id"), 80), options=list(entry.get("options") or []))
+    return gate
+
+
 def build_goal_role_board(
     *,
     goal: Mapping[str, Any],
@@ -319,8 +363,6 @@ def build_goal_role_board(
         criteria = _text(todo.get("acceptance_criteria"), MAX_ROLE_BOARD_CRITERIA_TEXT)
         if criteria:
             card["acceptance_criteria"] = criteria
-        if f"{goal_id}/{todo_id}" in _dict(dispatcher.get("review_warnings")):
-            card["review_checkout_modified"] = True
         if not done and todo_id in running_by_todo:
             card["running"] = True
             card["running_agent_id"] = running_by_todo[todo_id] or None
@@ -333,35 +375,9 @@ def build_goal_role_board(
     ))
     done_cards.sort(key=lambda card: card.get("updated_at") or "", reverse=True)
     gate_index = _gate_index(runtime_root, goal_id)
-    review_gates = {
-        str(entry.get("review_todo_id")): gate_id for gate_id, entry in gate_index.items()
-        if entry.get("kind") == "acceptor_blocked" and not entry.get("closed") and entry.get("review_todo_id")
-        and gate_id in {str(row["todo_id"]) for row in gate_rows}
-    }
-    for card in open_cards:
-        if card["todo_id"] in review_gates:
-            card["review_blocked_gate_todo_id"] = review_gates[card["todo_id"]]
-    gates = []
-    for todo in gate_rows:
-        todo_id = str(todo["todo_id"])
-        entry = gate_index.get(todo_id, {})
-        plan = plan_by_gate.get(todo_id) or {}
-        awaiting = entry.get("awaiting") if entry.get("awaiting") in {"awaiting_user", "awaiting_orchestrator"} else "awaiting_user"
-        gate = {
-            "todo_id": todo_id,
-            "text": _text(todo.get("title") or todo.get("text")) or todo_id,
-            "kind": "plan_approval" if entry.get("kind") == "plan_approval" or plan
-            else "acceptor_blocked" if entry.get("kind") == "acceptor_blocked" else "decision",
-            "awaiting": awaiting,
-            "message_count": entry.get("message_count") if isinstance(entry.get("message_count"), int) else 0,
-            "blocks_agent": _text(todo.get("blocks_agent"), 120),
-            "updated_at": _text(entry.get("last_at") or todo.get("updated_at"), 40),
-        }
-        if plan:
-            gate.update({key: plan[key] for key in ("plan_id", "plan_status", "plan_title", "plan_revision", "plan_todo_count")})
-        if gate["kind"] == "acceptor_blocked":
-            gate.update(review_todo_id=_text(entry.get("review_todo_id"), 80), options=list(entry.get("options") or []))
-        gates.append(gate)
+    _mark_review_cards([*open_cards, *done_cards], goal_id=goal_id, gate_index=gate_index, gate_rows=gate_rows,
+                       dispatcher=dispatcher)
+    gates = [_gate_card(todo, gate_index.get(str(todo["todo_id"]), {}), plan_by_gate) for todo in gate_rows]
     gates.sort(key=lambda gate: (gate["awaiting"] != "awaiting_user", gate["kind"] != "plan_approval"))
 
     board: dict[str, Any] = {
