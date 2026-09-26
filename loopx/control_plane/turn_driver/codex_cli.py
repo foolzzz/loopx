@@ -396,6 +396,14 @@ def codex_cli_result_schema(
     }
 
 
+# Result fields pass a public-safety check that rejects local absolute paths.
+RESULT_PATH_HYGIENE_INSTRUCTION = (
+    "Write every file path in the result (summary, evidence, next_action and all other "
+    "fields) relative to the repository or workspace root, for example src/app.py; never "
+    "include absolute local paths, home directories, user names or machine names."
+)
+
+
 def _prompt(request: Mapping[str, Any]) -> str:
     request_json = json.dumps(
         request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -410,6 +418,7 @@ def _prompt(request: Mapping[str, Any]) -> str:
         "For those material results, set path_delta_mode=material_replan only when this Turn changes a prior assumption, route, scope, acceptance rule, or stops prior work; then provide a complete bounded agent vision packet with goal_path_delta_v0 in agent_vision_json and leave vision_unchanged_reason empty.",
         "For routine continuation, retry, successor creation, or no-change replanning, set path_delta_mode=unchanged, leave agent_vision_json empty, and provide vision_unchanged_reason.",
         "For user_action_required, wait, or iteration_failed, leave material-only fields empty and explain the stop in summary. iteration_failed ends only this iteration and never requests a retry or successor.",
+        RESULT_PATH_HYGIENE_INSTRUCTION,
         'completed_phases must be exactly ["host_execute","typed_result"], and turn_key must match the request.',
         "Turn request:",
         request_json,

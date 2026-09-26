@@ -1,0 +1,163 @@
+# Dispatcher (S4)
+
+Implements design decisions 2-4 and 19 of [design-v0](design-v0.md). It is also where decision 17 (auth preflight) and decision 18 (per-todo workspaces) take effect at launch time. Code
+lives in `loopx/dispatch/`; the CLI is `loopx dispatch`.
+
+The dispatcher is a scheduler. It is not a second state machine. For each goal and
+agent it asks LoopX whether the agent should run now (the quota `should-run`
+decision, called through the Python API). It then applies slot, cooldown and auth
+rules, and launches `loopx turn run-once` as a child process. The Turn pipeline owns
+the typed result, validation, idempotent writeback and quota spend. The dispatcher
+never writes goal state directly. Its only goal writes are user gates, which it
+creates through the normal Todo API (`add_goal_todo`, the same path as
+`todo add --role user --task-class user_gate`).
+
+## Running it
+
+```sh
+# one reconcile pass; waits for the Turns it launched (cron / tests)
+loopx dispatch serve --goal-id G --once
+
+# resident: watch state files, reconcile on changes and every tick
+loopx dispatch serve --goal-id G [--goal-id G2 ...] [--project P] \
+  [--tick-seconds 60] [--poll-seconds 3] [--max-global 4] \
+  [--turn-timeout-seconds 3600] [--long-cooldown-seconds 3600] \
+  [--backoff-base-seconds 60] [--validation-command-json '["make","test"]']
+
+loopx dispatch status            # running Turns, per-agent slots, cooldowns, gates
+loopx dispatch launchd-plist --goal-id G > ~/Library/LaunchAgents/com.loopx.dispatch.plist
+launchctl load ~/Library/LaunchAgents/com.loopx.dispatch.plist   # you install it; the command only prints
+```
+
+The global `--registry` and `--runtime-root` options select the state home as usual.
+Only one dispatcher can run per runtime root. `serve` and `serve --once` take an
+exclusive `flock` on `<runtime-root>/dispatch/serve.lock`. A second dispatcher on the
+same runtime root exits with code 3 (`dispatcher_locked`).
+
+The plist starts the dispatcher with `KeepAlive` and `RunAtLoad`, and uses the Python
+interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex` and
+`git` resolve the same way they do in your shell. Its logs go to
+`<runtime-root>/dispatch/logs/`.
+
+## What one reconcile pass does
+
+1. **Reap** finished children. The pass classifies each child from its exit code and
+   its `--format json` output: `committed`, `host_failed` (with the host's
+   `failure_kind`), `failed` or `crashed`.
+2. For each goal, load the registered agents and their registry roles (S1), and
+   resolve each agent's config file (S3 `resolve_agent`). The pass skips disabled
+   agents and agents whose config is invalid, and reports why.
+3. **Slots.** An orchestrator is limited to 1 per goal, whatever its
+   `max_concurrency` says. Developers and acceptors run up to their
+   `max_concurrency`, counted per agent across goals. Every launch counts against
+   `--max-global`.
+4. **Ask LoopX.** The pass calls `collect_status` and then `build_quota_should_run`
+   for that agent:
+   - `should_run=false`: the agent is idle.
+   - A selected todo in the agent's lane (role-aware selection from S1): launch.
+   - The orchestrator without a selected todo launches only when LoopX reports an
+     action other than `normal_run`, or when the goal's state files changed since
+     its last Turn. This is how the orchestrator becomes event-triggered: a quiet
+     goal does not burn orchestrator quota.
+   - Developers and acceptors never launch without a selected todo.
+   - A todo that already has a running Turn is never launched a second time.
+5. **Auth preflight** (S3 `preflight_agent`) runs before the first launch per agent
+   per pass. If it fails:
+   - the agent is marked unavailable for `auth_cooldown_seconds` (default 300s);
+   - one user gate opens: "Agent X needs re-login …" (`user_gate`, which blocks that
+     agent). While that gate is open no second gate is created. This holds even if
+     the dispatcher state is lost, because the dispatcher adopts the open gate by
+     its text.
+6. **Workspace.** When the selected todo has `task_repositories`, the dispatcher
+   prepares a workspace for developer and acceptor Turns with S5
+   `git_workspace.prepare` (one worktree per repo on branch `loopx/<goal>/<todo>`).
+   - The Turn's cwd and `--project` are the worktree for a single repo, or the
+     workspace root for several repos.
+   - The Turn is pinned with `--todo-id`.
+   - If prepare fails, that todo cools down (default 300s) and the pass reports the
+     failure.
+7. **Launch** `python -m loopx.cli --registry … --runtime-root … --format json turn run-once --execute`
+   with the following arguments:
+   - the agent's host flags from `turn_run_once_host_arguments`;
+   - `--claude-provider <provider>` for claude-code agents; for codex-cli agents
+     with key-based auth, the provider credential goes into the child environment
+     only;
+   - a fresh `--turn-instance-id`;
+   - `--timeout-seconds`;
+   - `--validation-command-json`, set to the todo's own declared validation command
+     when it has one, otherwise `serve --validation-command-json`.
+
+   The child's stdout and stderr go to `<runtime-root>/dispatch/runs/<run>.*`.
+
+## Cooldowns and gates
+
+- **Provider backoff.** A Turn can fail with host `failure_kind` `rate_limited`,
+  `quota_exhausted` or `provider_capacity` (claude-code maps HTTP 429 and usage-limit
+  text to these). Only that provider then enters a cooldown: 60s, 120s, 240s and so
+  on, capped at 6h. Other providers keep running. A committed Turn on the provider
+  resets the backoff.
+- **Long cooldown.** Once a single cooldown reaches `--long-cooldown-seconds`
+  (default 1h), one user gate opens: "Provider X is in a long cooldown …". It blocks
+  the agent that hit the limit.
+- **Host `auth_failed`** is handled like a failed preflight.
+- **Todo backoff.** A todo whose Turns keep failing backs off exponentially instead
+  of relaunching on every pass. LoopX's repair and replan routing still decides what
+  happens to the todo itself.
+
+## Crash recovery
+
+A child that exits without a JSON payload, or that is killed by a signal, counts as
+`crashed`. The next pass relaunches the same agent and todo with the same Turn
+identity:
+
+- If run-once already journaled that Turn, the dispatcher passes
+  `--resume-turn-key <key> --retry-failed-turn`. run-once then replays what was
+  settled and continues from the last side-effect-safe phase. It never invokes the
+  host again for a settled Turn, and never settles twice.
+- Otherwise the dispatcher reuses `--turn-instance-id`. The settlement effect id is
+  derived from it, so a second writeback of the same effect is rejected.
+
+After 3 crashes in a row the todo backs off.
+
+Children run in their own session. They survive a dispatcher restart and are
+adopted on the next start: the dispatcher tracks their pid, and reads their output
+file once they exit.
+
+## Result hygiene
+
+The executor's public-safety check rejects local absolute paths in result fields.
+Two layers tell every Turn to use repo-relative paths instead:
+
+- the Turn prompt shared by both built-in hosts
+  (`codex_cli.RESULT_PATH_HYGIENE_INSTRUCTION`);
+- for claude-code, a per-run system prompt that the dispatcher composes. It contains
+  the agent's own `system_prompt_file` followed by a dispatcher addendum: the role,
+  the workspace repos, commit-but-don't-push for developers, and review-only for
+  acceptors.
+
+## Files
+
+`<runtime-root>/dispatch/`:
+
+- `serve.lock`
+- `state.json`: running children, history, provider, agent and todo cooldowns,
+  opened gates, crash-retry identities, orchestrator baselines and per-agent slots.
+- `runs/`: child output.
+- `logs/`: launchd output.
+
+## Known gaps
+
+- `turn run-once` needs an independent validator for material results. Todos with
+  no declared validation command need `serve --validation-command-json`. Without it,
+  their Turns fail validation and the todo backs off.
+- Todos that declare a completion validation command currently fail at durable
+  writeback. The error is "accountable refresh is blocked until controller-declared
+  completion validation durably completes todo …". The claude-code and codex-cli
+  result schemas do not offer `validated_completion` to the host. That is a
+  Turn-pipeline gap, not a dispatcher one.
+- The orchestrator wakes up on any change to the goal's state files, and that includes
+  the moment a developer Turn starts journaling. The Turn it wakes up for is usually
+  a cheap `wait`. A finer event filter can come later.
+- Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
+  concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
+  todo.
