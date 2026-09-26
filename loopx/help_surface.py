@@ -271,6 +271,10 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "purpose": "Prepare, inspect, atomically merge and clean up a todo's git worktrees across the Goal's repos.",
             },
             {
+                "command": "loopx dispatch serve|status|launchd-plist",
+                "purpose": "Run the resident dispatcher that launches role_v1 agent Turns on state events and a periodic tick.",
+            },
+            {
                 "command": "loopx agent list|show|validate",
                 "purpose": "Inspect global and project agent definition files (role, runtime, provider, model).",
             },
