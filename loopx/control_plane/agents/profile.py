@@ -24,15 +24,6 @@ AGENT_PROFILE_FIELDS = {
 }
 AGENT_PROFILE_ACTION_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_*-]{0,79}$")
 AGENT_PROFILE_ACTION_PATTERN_LIMIT = 16
-AGENT_PROFILE_HIERARCHY_ROLES = {
-    "leader",
-    "manager",
-    "supervisor",
-    "worker",
-}
-AGENT_PROFILE_HIERARCHY_AGENT_ROLE = re.compile(
-    r"(?:^|-)(?:main|primary|side)-agent(?:-|$)"
-)
 AGENT_PROFILE_VISION_REQUIREMENTS = {"optional", "required"}
 
 
@@ -48,22 +39,10 @@ def _bounded_text(value: Any, *, field: str, limit: int) -> str | None:
 
 
 def _profile_role(value: Any) -> str | None:
-    role = _bounded_text(value, field="profile_role", limit=80)
-    if not role:
-        return None
-    normalized_role = re.sub(r"[^a-z0-9]+", "-", role.lower()).strip("-")
-    padded_role = f"-{normalized_role}-"
-    if (
-        any(
-            f"-{forbidden}-" in padded_role
-            for forbidden in AGENT_PROFILE_HIERARCHY_ROLES
-        )
-        or AGENT_PROFILE_HIERARCHY_AGENT_ROLE.search(normalized_role)
-    ):
-        raise ValueError(
-            "agent profile_role must be functional and advisory, not a hierarchy role"
-        )
-    return role
+    # role_v1 fork: hierarchy names (orchestrator, manager, worker, ...) are
+    # allowed. The scheduling role lives in coordination.agent_roles; this
+    # field stays a bounded, public-safe advisory label.
+    return _bounded_text(value, field="profile_role", limit=80)
 
 
 def _task_classes(value: Any) -> list[str]:

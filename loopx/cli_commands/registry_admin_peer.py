@@ -42,11 +42,30 @@ def render_register_agent_markdown(payload: dict[str, object]) -> str:
 def register_peer_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--agent-model",
-        choices=("peer_v1",),
+        choices=("role_v1", "peer_v1"),
         help=(
-            "Agent runtime model. peer_v1 removes identity rank and routes work through "
-            "claims, leases, deterministic task assignment, and task-scoped coordination."
+            "Agent runtime model. role_v1 (default for new goals) routes work by "
+            "registered role (orchestrator, developer, acceptor); peer_v1 keeps the "
+            "legacy flat peer model with deterministic hash assignment."
         ),
+    )
+    parser.add_argument(
+        "--agent-role",
+        dest="agent_roles",
+        action="append",
+        default=None,
+        metavar="AGENT_ID=ROLE",
+        help=(
+            "Assign a registered agent a role_v1 role: orchestrator, developer or "
+            "acceptor. Repeatable. At most one orchestrator per goal."
+        ),
+    )
+    parser.add_argument(
+        "--clear-agent-role",
+        dest="clear_agent_roles",
+        action="append",
+        default=None,
+        help="Registered agent id whose role should be removed. Repeatable.",
     )
     parser.add_argument(
         "--ack-automation-prompt-migration",
@@ -82,3 +101,18 @@ def register_peer_supervisor_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Remove the optional coordination.supervisor configuration.",
     )
+
+
+def parse_agent_role_arguments(values: list[str] | None) -> dict[str, str]:
+    roles: dict[str, str] = {}
+    for raw in values or []:
+        agent_id, separator, role = str(raw).partition("=")
+        agent_id, role = agent_id.strip(), role.strip()
+        if not separator or not agent_id or not role:
+            raise ValueError(
+                "--agent-role must use AGENT_ID=orchestrator|developer|acceptor"
+            )
+        if agent_id in roles:
+            raise ValueError(f"duplicate --agent-role for {agent_id}")
+        roles[agent_id] = role
+    return roles

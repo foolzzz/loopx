@@ -13,25 +13,50 @@ PEER_AGENT_PROFILE_SCHEMA_VERSION = "agent_profile_v1"
 
 
 class AgentRuntimeModel(str, Enum):
+    ROLE_V1 = "role_v1"
     PEER_V1 = "peer_v1"
 
 
+# New goals (no configured model) use role_v1; peer_v1 remains readable for
+# goals that already recorded it.
+DEFAULT_AGENT_RUNTIME_MODEL = AgentRuntimeModel.ROLE_V1
+
+AGENT_ROLE_ORCHESTRATOR = "orchestrator"
+AGENT_ROLE_DEVELOPER = "developer"
+AGENT_ROLE_ACCEPTOR = "acceptor"
+AGENT_ROLE_VALUES = (
+    AGENT_ROLE_ORCHESTRATOR,
+    AGENT_ROLE_DEVELOPER,
+    AGENT_ROLE_ACCEPTOR,
+)
+
+
+def normalize_agent_role(value: Any) -> str | None:
+    candidate = str(value or "").strip().lower()
+    return candidate if candidate in AGENT_ROLE_VALUES else None
+
+
 def agent_runtime_model_for_goal(goal: Mapping[str, Any] | None) -> AgentRuntimeModel:
-    """Return the only live agent runtime model."""
+    """Return the goal's agent runtime model (role_v1 unless peer_v1 is recorded)."""
 
     if isinstance(goal, Mapping):
         coordination = goal.get("coordination")
         raw = coordination.get("agent_model") if isinstance(coordination, Mapping) else None
         raw = raw or goal.get("agent_model")
-        if raw not in {None, "", AgentRuntimeModel.PEER_V1.value, "legacy_hierarchy"}:
-            raise ValueError("coordination.agent_model must be peer_v1")
-    return AgentRuntimeModel.PEER_V1
+        if raw == AgentRuntimeModel.ROLE_V1.value:
+            return AgentRuntimeModel.ROLE_V1
+        if raw in {AgentRuntimeModel.PEER_V1.value, "legacy_hierarchy"}:
+            return AgentRuntimeModel.PEER_V1
+        if raw not in {None, ""}:
+            raise ValueError("coordination.agent_model must be role_v1 or peer_v1")
+    return DEFAULT_AGENT_RUNTIME_MODEL
 
 
 def agent_identity_is_peer(agent_identity: Mapping[str, Any] | None) -> bool:
     return bool(
         isinstance(agent_identity, Mapping)
-        and agent_identity.get("agent_model") == AgentRuntimeModel.PEER_V1.value
+        and agent_identity.get("agent_model")
+        in {AgentRuntimeModel.PEER_V1.value, AgentRuntimeModel.ROLE_V1.value}
     )
 
 

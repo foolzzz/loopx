@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .agent_registry import normalize_registered_agents
+from .agent_registry import normalize_agent_roles, normalize_registered_agents
 from .boundary_authority import (
     build_checkpointed_boundary_authority_entry,
     checkpointed_boundary_authority_summary,
@@ -43,6 +43,7 @@ from .control_plane.agents.legacy_migration import (
 )
 from .control_plane.agents.profile import normalize_agent_profile
 from .control_plane.agents.runtime_model import (
+    DEFAULT_AGENT_RUNTIME_MODEL,
     AgentRuntimeModel,
     agent_runtime_model_for_goal,
 )
@@ -87,6 +88,18 @@ WAITING_ON_CHOICES = (
 
 MULTI_SUBAGENT_FEATURE_CHOICES = ("off", "enabled")
 AGENT_MODEL_CHOICES = tuple(model.value for model in AgentRuntimeModel)
+
+
+def normalize_agent_roles_for_summary(
+    coordination: Mapping[str, Any], registered_agents: list[str]
+) -> dict[str, str]:
+    raw = coordination.get("agent_roles")
+    if not isinstance(raw, Mapping):
+        return {}
+    try:
+        return normalize_agent_roles(dict(raw), registered_agents=registered_agents)
+    except ValueError:
+        return {}
 
 
 def _control_plane(goal: dict[str, Any]) -> dict[str, Any]:
@@ -298,6 +311,7 @@ def _settings_summary(goal: dict[str, Any]) -> dict[str, Any]:
             coordination.get("agent_work_modes"),
             registered_agents=registered_agents,
         ),
+        "agent_roles": normalize_agent_roles_for_summary(coordination, registered_agents),
         "agent_model": agent_model.value,
         "configured_agent_model": coordination.get("agent_model"),
         "legacy_hierarchy_present": legacy_agent_hierarchy_present(goal),
@@ -366,7 +380,7 @@ def _build_heartbeat_prompt_migration(
     ]
     if not registered_agents:
         return None
-    agent_model = AgentRuntimeModel.PEER_V1.value
+    agent_model = str(after.get("agent_model") or DEFAULT_AGENT_RUNTIME_MODEL.value)
     ordered_agents = list(registered_agents)
     commands = []
     for agent in ordered_agents:
@@ -485,6 +499,8 @@ def configure_goal(
     clear_agent_profiles: list[str] | None = None,
     agent_work_modes: dict[str, str] | None = None,
     clear_agent_work_modes: list[str] | None = None,
+    agent_roles: dict[str, str] | None = None,
+    clear_agent_roles: list[str] | None = None,
     todo_lifecycle_authority: list[dict[str, Any]] | None = None,
     clear_todo_lifecycle_authority: list[str] | None = None,
     agent_model: str | None = None,
@@ -810,6 +826,16 @@ def configure_goal(
             "cannot write and clear the same agent work mode: "
             + ", ".join(work_mode_conflicts)
         )
+    clear_agent_roles = _clean_registered_agents(clear_agent_roles)
+    normalized_agent_roles = normalize_agent_roles(
+        agent_roles,
+        registered_agents=effective_registered_agents,
+    )
+    role_conflicts = sorted(set(normalized_agent_roles) & set(clear_agent_roles or []))
+    if role_conflicts:
+        raise ValueError(
+            "cannot write and clear the same agent role: " + ", ".join(role_conflicts)
+        )
     normalized_todo_lifecycle_authority = normalize_todo_lifecycle_authority(
         todo_lifecycle_authority,
         registered_agents=effective_registered_agents,
@@ -1054,6 +1080,8 @@ def configure_goal(
         or clear_agent_profiles
         or normalized_agent_work_modes
         or clear_agent_work_modes
+        or normalized_agent_roles
+        or clear_agent_roles
         or normalized_todo_lifecycle_authority
         or clear_todo_lifecycle_authority
         or agent_model is not None
@@ -1071,12 +1099,23 @@ def configure_goal(
             if isinstance(goal.get("coordination"), dict)
             else {}
         )
-        effective_agent_model = AgentRuntimeModel.PEER_V1.value
+        configured_model = str(coordination.get("agent_model") or "").strip().lower()
+        effective_agent_model = (
+            agent_model
+            or (
+                AgentRuntimeModel.PEER_V1.value
+                if configured_model in {"peer_v1", "legacy_hierarchy"}
+                else configured_model
+                if configured_model in AGENT_MODEL_CHOICES
+                else DEFAULT_AGENT_RUNTIME_MODEL.value
+            )
+        )
         if clear_registered_agents:
             coordination.pop("registered_agents", None)
             coordination.pop("agent_model", None)
             coordination.pop("agent_profiles", None)
             coordination.pop("agent_work_modes", None)
+            coordination.pop("agent_roles", None)
             coordination.pop("supervisor", None)
             coordination.pop("todo_lifecycle_authority", None)
             coordination.pop("peer_task_coordination", None)
@@ -1126,6 +1165,23 @@ def configure_goal(
                 coordination["agent_work_modes"] = retained_work_modes
             else:
                 coordination.pop("agent_work_modes", None)
+            raw_roles = (
+                coordination.get("agent_roles")
+                if isinstance(coordination.get("agent_roles"), Mapping)
+                else {}
+            )
+            retained_roles = normalize_agent_roles(
+                {
+                    agent: role
+                    for agent, role in raw_roles.items()
+                    if normalize_todo_claimed_by(agent) in registered_agents
+                },
+                registered_agents=registered_agents,
+            )
+            if retained_roles:
+                coordination["agent_roles"] = retained_roles
+            else:
+                coordination.pop("agent_roles", None)
             retained_authority = [
                 entry
                 for entry in coordination.get("todo_lifecycle_authority") or []
@@ -1182,6 +1238,31 @@ def configure_goal(
                 coordination["agent_work_modes"] = dict(sorted(work_modes.items()))
             else:
                 coordination.pop("agent_work_modes", None)
+        if not clear_registered_agents and (
+            normalized_agent_roles or clear_agent_roles
+        ):
+            roles = normalize_agent_roles(
+                coordination.get("agent_roles")
+                if isinstance(coordination.get("agent_roles"), Mapping)
+                else None,
+                registered_agents=normalize_registered_agents(
+                    coordination.get("registered_agents")
+                ),
+            )
+            for role_agent_id in clear_agent_roles or []:
+                roles.pop(role_agent_id, None)
+            roles.update(normalized_agent_roles)
+            # Re-validate the merged map: one orchestrator per goal.
+            roles = normalize_agent_roles(
+                roles,
+                registered_agents=normalize_registered_agents(
+                    coordination.get("registered_agents")
+                ),
+            )
+            if roles:
+                coordination["agent_roles"] = roles
+            else:
+                coordination.pop("agent_roles", None)
         if not clear_registered_agents and (
             normalized_todo_lifecycle_authority or clear_todo_lifecycle_authority
         ):

@@ -225,11 +225,12 @@ export function resolveTodoCompletionPolicy(
     : requireRegisteredAgent(request.claimed_by, "claimed_by", request);
   if (
     request.agent_model !== null && request.agent_model !== "" &&
+    request.agent_model !== "role_v1" &&
     request.agent_model !== "peer_v1" &&
     request.agent_model !== "legacy_hierarchy"
   ) {
     throw new EffectRuntimeRequestError(
-      "coordination.agent_model must be peer_v1",
+      "coordination.agent_model must be role_v1 or peer_v1",
     );
   }
   let effectiveNextClaimedBy = request.next_claimed_by === null ||
