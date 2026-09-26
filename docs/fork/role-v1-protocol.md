@@ -150,6 +150,41 @@ When a role_v1 goal has a registered orchestrator:
 When no orchestrator is registered, or the goal is `peer_v1`, the previous
 rules apply unchanged.
 
+## Planning obligations (decision 31)
+
+A role_v1 goal does not raise two upstream planning obligations. Planning
+review is the orchestrator's job on every Turn, and developers and acceptors
+escalate through orchestrator todos. This applies to every role and to every
+goal whose runtime model is role_v1, including goals that record no model.
+
+- **Vision checkpoint.** A material closeout (`refresh-state`, or the
+  settlement of a Turn) owes no per-agent vision decision. The vision
+  checkpoint is recorded with `decision=not_required` and
+  `policy=not_required`, never `missing_required`. A supplied vision patch is
+  still recorded.
+- **Vision gaps.** The goal frontier derives no per-agent vision gaps:
+  `vision_checkpoint_missing`, `vision_outcome_checkpoint_required`,
+  `vision_acceptance_gap` and `required_agent_vision_missing`.
+- **No-follow-up replan.** A completed advancement todo without a successor or
+  a no-follow-up rationale (`completed_advancement_without_successor`) no
+  longer becomes a required replan. The `todo_succession_warning` diagnostic
+  stays in the todo summary.
+
+Both obligations are derived from state on every read, not stored. A role_v1
+goal that already carries one, for example a missing checkpoint that a pilot
+Turn recorded, stops deriving it, so it is no longer blocked.
+
+**Turn contract.** `turn run-once` marks a role_v1 Turn plan with
+`vision_checkpoint_policy=not_required`. The shared Turn prompt then tells
+the host to leave `path_delta_mode`, `agent_vision_json` and
+`vision_unchanged_reason` empty. The result validator ignores those fields
+instead of validating them, so an invalid vision packet no longer fails the
+Turn (E2E pilot gap G4).
+
+**Unchanged.** peer_v1 goals raise both obligations as before. Replan
+obligations from run history (stalls, repeated progress, dead monitors,
+periodic review) are still derived and still routed to the orchestrator.
+
 ## Acceptance flow (slice S2)
 
 See [design-v0](design-v0.md), decisions 5 to 9.
