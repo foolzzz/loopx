@@ -224,12 +224,12 @@ def test_back_to_back_accepts_never_complete_a_todo_whose_merge_failed(tmp_path:
     real_merge = git_workspace.merge
     raced: list[dict] = []
 
-    def racing_merge(goal_arg, todo_id, repos, runtime_root, *, dry_run=False):
+    def racing_merge(goal_arg, todo_id, repos, runtime_root, *, dry_run=False, **pins):
         if todo_id == ids["second"] and not dry_run and not raced:
             # The first todo's accept lands between the check and the merge.
             raced.append(accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=ids["first"],
                                           agent_id="acc"))
-        return real_merge(goal_arg, todo_id, repos, runtime_root, dry_run=dry_run)
+        return real_merge(goal_arg, todo_id, repos, runtime_root, dry_run=dry_run, **pins)
 
     monkeypatch.setattr(git_workspace, "merge", racing_merge)
     blocked = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=ids["second"], agent_id="acc")

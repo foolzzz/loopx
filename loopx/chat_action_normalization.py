@@ -652,11 +652,18 @@ class ChatActionNormalizationMixin:
         if action_kind == "gate.resolve":
             values = self._allowed_parameters(
                 parameters,
-                allowed={"goal_id", "todo_id", "decision", "note", "agent_id"},
+                allowed={"goal_id", "todo_id", "decision", "option", "note", "agent_id"},
             )
             goal_id = _opaque(values.get("goal_id"), field="goal_id")
             self._goal(goal_id)
             decision = str(values.get("decision") or "").strip().lower()
+            option = str(values.get("option") or "").strip().lower() or None
+            if option is not None:
+                # Acceptor-blocked gates (G12): the option implies its decision.
+                from .todo_review_blocked import resolve_review_gate_option, REVIEW_GATE_OPTION_DECISIONS
+
+                resolve_review_gate_option(decision or None, option)
+                decision = REVIEW_GATE_OPTION_DECISIONS[option]
             if decision not in {"approve", "reject", "cancel", "defer"}:
                 raise ValueError(
                     "gate decision must be approve, reject, cancel, or defer"
@@ -665,6 +672,7 @@ class ChatActionNormalizationMixin:
                 "goal_id": goal_id,
                 "todo_id": _opaque(values.get("todo_id"), field="todo_id"),
                 "decision": decision,
+                **({"option": option} if option else {}),
             }
             if values.get("note"):
                 result["note"] = _text(values["note"], field="note", limit=600)

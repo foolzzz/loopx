@@ -39,6 +39,7 @@ def register_todo_command(
             "complete",
             "accept",
             "reject",
+            "block-review",
             "supersede",
             "archive-completed",
             "plan",
@@ -50,7 +51,8 @@ def register_todo_command(
             "agent id, list to read projected todos, update/complete/supersede to transition by todo_id, or "
             "archive-completed to move older completed todos into Completed Work Archive. "
             "Under role_v1, accept/reject record the acceptor's verdict on an in_review todo "
-            "(--todo-id, --agent-id <acceptor>, --note; reject requires --note). "
+            "(--todo-id, --agent-id <acceptor>, --note; reject requires --note), and block-review "
+            "records that the acceptor cannot review (--reason) and opens a user gate. "
             "Use plan with --text and --agent-id for the existing Goal's model planning checkpoint; the caller owns subsequent execution."
         ),
     )

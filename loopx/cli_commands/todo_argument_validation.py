@@ -653,6 +653,24 @@ def validate_todo_verdict_options(args: argparse.Namespace) -> None:
         raise ValueError("todo reject requires --note with the acceptor's feedback")
 
 
+def validate_todo_block_review_options(args: argparse.Namespace) -> None:
+    """role_v1 acceptor verdict ``blocked`` (fork G12): ``todo block-review``."""
+
+    _validate_todo_option_subset(
+        args, {"todo_id", "agent_id", "reason", "role", "state_file"},
+        "todo block-review only accepts --goal-id, --todo-id, --agent-id, --reason, "
+        "--project, --state-file, --dry-run and --format; unsupported: ",
+    )
+    if not args.todo_id:
+        raise ValueError("todo block-review requires --todo-id")
+    if not args.agent_id:
+        raise ValueError("todo block-review requires --agent-id of the acceptor")
+    if args.role not in (None, "agent"):
+        raise ValueError("todo block-review applies only to agent todos")
+    if not (args.reason or "").strip():
+        raise ValueError("todo block-review requires --reason: why the acceptor cannot review")
+
+
 def validate_todo_supersede_options(args: argparse.Namespace) -> None:
     if not args.todo_id:
         raise ValueError("todo supersede requires --todo-id")
@@ -716,6 +734,7 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
         "complete",
         "accept",
         "reject",
+        "block-review",
         "supersede",
     }
     global_gate_allowed = args.todo_command in {"add", "update"}

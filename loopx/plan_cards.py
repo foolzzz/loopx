@@ -535,13 +535,21 @@ def plan_for_gate(runtime_root: Path, goal_id: str, todo_id: str) -> str | None:
 
 def gate_decision_preflight(
     *, registry_path: Path, runtime_root: Path, goal_id: str, todo_id: str, decision: str | None,
+    option: str | None = None, runtime_root_arg: str | None = None,
 ) -> str | None:
     """Validate the linked plan before an approve closes its gate.
 
     Returns the linked plan id (or None). An approve against a plan that no
-    longer validates raises, so the gate stays open for discussion.
+    longer validates raises, so the gate stays open for discussion. An
+    acceptor-blocked gate (G12) validates its ``option`` instead.
     """
 
+    from .todo_review_blocked import review_gate_preflight
+
+    review_gate_preflight(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,
+        decision=decision, option=option, runtime_root_arg=runtime_root_arg,
+    )
     plan_id = plan_for_gate(runtime_root, goal_id, todo_id)
     if plan_id is None:
         return None
@@ -553,12 +561,22 @@ def gate_decision_preflight(
 
 def settle_gate_decision(
     *, registry_path: Path, runtime_root: Path, goal_id: str, todo_id: str, decision: str | None,
-    runtime_root_arg: str | None = None,
+    runtime_root_arg: str | None = None, option: str | None = None, note: str | None = None,
 ) -> dict[str, Any] | None:
-    """After a gate closed: apply (approve) or close (reject/cancel) its plan."""
+    """After a gate closed: apply (approve) or close (reject/cancel) its plan.
+
+    An acceptor-blocked gate (G12) applies its chosen option instead.
+    """
 
     from .gate_threads import mark_gate_closed
+    from .todo_review_blocked import settle_review_gate
 
+    review = settle_review_gate(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,
+        decision=decision, option=option, note=note, runtime_root_arg=runtime_root_arg,
+    )
+    if review is not None:
+        return review
     index_entry = read_gate_index(runtime_root, goal_id)["gates"].get(str(todo_id))
     if index_entry is not None:
         mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision)

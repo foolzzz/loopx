@@ -351,6 +351,14 @@ def deliver_goal_todo_for_review(
             "validation": receipt, "validation_blocked_completion": True,
         }
     refs = _delivery_refs(goal_id, todo, completion_delivery_workspace)
+    if refs.get("repos") and isinstance(goal, Mapping) and not dry_run:
+        # G12: pin the delivered commit per repo; the acceptor reviews it in a
+        # detached checkout and the accept merge merges exactly this sha.
+        from .workspace.review_checkout import delivered_branch_shas, format_delivered_shas
+
+        shas = delivered_branch_shas(goal, todo_id, refs["repos"])
+        if shas:
+            refs["delivered_shas"] = format_delivered_shas(shas)
     validation_label = (
         f"passed({receipt.get('command_label') or 'validation'})" if receipt else "not_declared"
     )
@@ -451,7 +459,16 @@ def _public_merge(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {key: payload[key] for key in keys if key in payload}
 
 
-def _merge_conflict_feedback(actor: str, preflight: Mapping[str, Any]) -> str:
+def _delivery_moved(preflight: Mapping[str, Any]) -> bool:
+    report = preflight.get("conflict_report")
+    return isinstance(report, Mapping) and any(
+        isinstance(blocker, Mapping) and blocker.get("error_code") == "delivery_moved"
+        for item in report.get("repos") or [] if isinstance(item, Mapping)
+        for blocker in item.get("blockers") or []
+    )
+
+
+def _merge_conflict_feedback(actor: str, preflight: Mapping[str, Any], *, delivery_moved: bool = False) -> str:
     """Repo-relative feedback for a blocked or failed merge."""
 
     report = preflight.get("conflict_report")
@@ -475,6 +492,12 @@ def _merge_conflict_feedback(actor: str, preflight: Mapping[str, Any]) -> str:
         # (for example the target moved); nothing stayed merged.
         parts.append(f"{failure.get('name')}: {failure.get('error_code')}")
     detail = "; ".join(parts)
+    if delivery_moved:
+        return _clip(
+            f"accepted by {actor}, but the todo branch moved after delivery, so the reviewed commit "
+            f"is no longer its tip and nothing was merged; deliver again: {detail}",
+            600,
+        )
     return _clip(
         f"accepted by {actor} but the merge into the target is blocked; rebase or resolve on the "
         f"todo branch and deliver again: {detail or preflight.get('error_code') or 'merge_blocked'}",
@@ -495,8 +518,6 @@ def accept_goal_todo(
     acceptor Turn's accept replays idempotently.
     """
 
-    from .todos import terminal_complete_goal_todo
-
     goal = load_goal_from_registry(registry_path, goal_id)
     todo = _read_todo(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
@@ -505,9 +526,32 @@ def accept_goal_todo(
     if todo is None:
         raise ValueError(f"todo_id {todo_id!r} was not found")
     actor, reviewer = _require_verdict_actor(goal=goal, todo=todo, agent_id=agent_id, verb="accept")
+    return accept_delivered_todo(
+        registry_path=registry_path, goal=goal, goal_id=goal_id, todo=todo, actor=actor,
+        actor_source=reviewer["source"], note=note, evidence=evidence,
+        runtime_root_arg=runtime_root_arg, project=project, state_file=state_file,
+        dry_run=dry_run, completion_options=completion_options,
+    )
+
+
+def accept_delivered_todo(
+    *, registry_path: Path, goal: Mapping[str, Any] | None, goal_id: str, todo: Mapping[str, Any],
+    actor: str, actor_source: str, note: str | None = None, evidence: str | None = None,
+    runtime_root_arg: str | None = None, project: Path | None = None, state_file: Path | None = None,
+    dry_run: bool = False, completion_options: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Merge first, then complete an ``in_review`` todo whose verdict ``actor`` owns.
+
+    The acceptor's verdict and the owner's manual accept (an acceptor-blocked
+    gate, G12) share this path; the caller has checked the actor's authority.
+    """
+
+    from .todos import terminal_complete_goal_todo
+
+    todo_id = str(todo.get("todo_id") or "")
     # The lifecycle actor of the completion stays the delivering claim owner,
     # so claim fences and leases are unchanged; the verdict names the acceptor.
-    owner = normalize_todo_claimed_by(todo.get("claimed_by")) or actor
+    owner = normalize_todo_claimed_by(todo.get("claimed_by")) or normalize_todo_claimed_by(actor) or actor
     verdict = f"accepted_by={actor}"
     if note:
         verdict += f": {compact_todo_text(note)}"
@@ -522,19 +566,26 @@ def accept_goal_todo(
     if workspace is not None and not dry_run:
         from .todos import update_goal_todo
         from .workspace import git_workspace
+        from .workspace.review_checkout import parse_delivered_shas
 
         # The real merge runs BEFORE the terminal completion, so a todo is
         # never ``done`` without its merge. The merge is atomic across the
         # todo's repos (its own preflight runs under the goal lock) and
         # retry-idempotent: a repo whose target already contains the todo
-        # branch is skipped. Nothing fetches or pushes (a push stays behind a
-        # user gate).
-        merged = git_workspace.merge(goal, todo_id, workspace["repos"], workspace["runtime_root"])
+        # branch is skipped. It merges exactly the delivered sha recorded at
+        # delivery (G12); a todo branch that moved since blocks the merge.
+        # Nothing fetches or pushes (a push stays behind a user gate).
+        delivered = parse_delivered_shas(todo.get("evidence"))
+        merged = git_workspace.merge(
+            goal, todo_id, workspace["repos"], workspace["runtime_root"],
+            **({"expected_source_shas": delivered} if delivered else {}),
+        )
         if not merged.get("ok"):
             # Decisions 18 and 22: a blocked merge (conflict, dirty worktree,
             # moved target, failed apply) returns the whole todo to its
             # developer. It is not a quality verdict, so reject_count is kept.
-            feedback = _merge_conflict_feedback(actor, merged)
+            moved = _delivery_moved(merged)
+            feedback = _merge_conflict_feedback(actor, merged, delivery_moved=moved)
             reopened = update_goal_todo(
                 registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, role="agent",
                 runtime_root_arg=runtime_root_arg, status=TODO_STATUS_OPEN,
@@ -547,8 +598,9 @@ def accept_goal_todo(
                 "acceptance": {
                     "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
                     "transition": "merge_blocked", "verdict": "accept", "acceptor": actor,
-                    "acceptor_source": reviewer["source"], "delivered_by": todo.get("delivered_by"),
+                    "acceptor_source": actor_source, "delivered_by": todo.get("delivered_by"),
                     "review_feedback": feedback,
+                    **({"reason": "delivery_moved"} if moved else {}),
                 },
             }
         merge_payload = _public_merge(merged)
@@ -584,7 +636,7 @@ def accept_goal_todo(
             "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
             "transition": "accepted" if completed else "completion_blocked",
             "verdict": "accept", "acceptor": actor,
-            "acceptor_source": reviewer["source"], "delivered_by": todo.get("delivered_by"),
+            "acceptor_source": actor_source, "delivered_by": todo.get("delivered_by"),
             "note": compact_todo_text(note) if note else None,
         },
     }
@@ -605,7 +657,10 @@ def reject_goal_todo(
 
     feedback = compact_todo_text(note)
     if not feedback:
-        raise ValueError("todo reject requires --note with the acceptor's feedback")
+        raise ValueError(
+            "todo reject requires --note with the acceptor's feedback naming each failed acceptance "
+            "criterion; if you cannot review, use `loopx todo block-review --reason ...`"
+        )
     goal = load_goal_from_registry(registry_path, goal_id)
     todo = _read_todo(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
@@ -679,6 +734,8 @@ def reject_delivery_from_turn(
     Returns ``False`` (nothing written) unless the Todo is ``in_review`` on a
     role_v1 goal and ``agent_id`` is its resolved acceptor, so a retried Turn
     that already reopened the Todo falls back to the ordinary repair note.
+    A reject must name what failed (G12): an empty or blank summary is the
+    acceptor's ``blocked`` verdict instead (``loopx.todo_review_blocked``).
     """
 
     goal = load_goal_from_registry(registry_path, goal_id)
@@ -696,8 +753,17 @@ def reject_delivery_from_turn(
         or actor != resolve_todo_acceptor(goal, todo)["agent_id"]
     ):
         return False
+    if not compact_todo_text(feedback):
+        from .todo_review_blocked import block_goal_todo_review
+
+        block_goal_todo_review(
+            registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, agent_id=actor,
+            reason="the acceptor returned repair_required without feedback, so no reject was recorded",
+            runtime_root_arg=runtime_root_arg,
+        )
+        return True
     reject_goal_todo(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, agent_id=actor,
-        note=feedback or "rejected by the acceptor Turn", runtime_root_arg=runtime_root_arg,
+        note=feedback, runtime_root_arg=runtime_root_arg,
     )
     return True

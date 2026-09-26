@@ -95,7 +95,7 @@ def load_dispatcher_snapshot(runtime_root: Path, *, now: float | None = None) ->
     state = _read_json(dispatch_state_path(runtime_root))
     if state is None or state.get("schema_version") != DISPATCH_STATE_SCHEMA_VERSION:
         return {"available": False, "serving": False, "runs": [], "agent_cooldowns": {},
-                "provider_cooldowns": {}, "agent_slots": {}, "updated_at": None}
+                "provider_cooldowns": {}, "agent_slots": {}, "updated_at": None, "review_warnings": {}}
 
     def active(bucket: Any) -> dict[str, dict[str, Any]]:
         return {
@@ -120,6 +120,8 @@ def load_dispatcher_snapshot(runtime_root: Path, *, now: float | None = None) ->
         "provider_cooldowns": active(state.get("provider_cooldowns")),
         "agent_slots": _dict(state.get("agent_slots")),
         "updated_at": _timestamp(state.get("updated_at")),
+        # G12: acceptor Turns that changed their review checkout, by "<goal>/<todo>".
+        "review_warnings": _dict(state.get("review_warnings")),
     }
 
 
@@ -317,6 +319,8 @@ def build_goal_role_board(
         criteria = _text(todo.get("acceptance_criteria"), MAX_ROLE_BOARD_CRITERIA_TEXT)
         if criteria:
             card["acceptance_criteria"] = criteria
+        if f"{goal_id}/{todo_id}" in _dict(dispatcher.get("review_warnings")):
+            card["review_checkout_modified"] = True
         if not done and todo_id in running_by_todo:
             card["running"] = True
             card["running_agent_id"] = running_by_todo[todo_id] or None
@@ -329,6 +333,14 @@ def build_goal_role_board(
     ))
     done_cards.sort(key=lambda card: card.get("updated_at") or "", reverse=True)
     gate_index = _gate_index(runtime_root, goal_id)
+    review_gates = {
+        str(entry.get("review_todo_id")): gate_id for gate_id, entry in gate_index.items()
+        if entry.get("kind") == "acceptor_blocked" and not entry.get("closed") and entry.get("review_todo_id")
+        and gate_id in {str(row["todo_id"]) for row in gate_rows}
+    }
+    for card in open_cards:
+        if card["todo_id"] in review_gates:
+            card["review_blocked_gate_todo_id"] = review_gates[card["todo_id"]]
     gates = []
     for todo in gate_rows:
         todo_id = str(todo["todo_id"])
@@ -338,7 +350,8 @@ def build_goal_role_board(
         gate = {
             "todo_id": todo_id,
             "text": _text(todo.get("title") or todo.get("text")) or todo_id,
-            "kind": "plan_approval" if entry.get("kind") == "plan_approval" or plan else "decision",
+            "kind": "plan_approval" if entry.get("kind") == "plan_approval" or plan
+            else "acceptor_blocked" if entry.get("kind") == "acceptor_blocked" else "decision",
             "awaiting": awaiting,
             "message_count": entry.get("message_count") if isinstance(entry.get("message_count"), int) else 0,
             "blocks_agent": _text(todo.get("blocks_agent"), 120),
@@ -346,6 +359,8 @@ def build_goal_role_board(
         }
         if plan:
             gate.update({key: plan[key] for key in ("plan_id", "plan_status", "plan_title", "plan_revision", "plan_todo_count")})
+        if gate["kind"] == "acceptor_blocked":
+            gate.update(review_todo_id=_text(entry.get("review_todo_id"), 80), options=list(entry.get("options") or []))
         gates.append(gate)
     gates.sort(key=lambda gate: (gate["awaiting"] != "awaiting_user", gate["kind"] != "plan_approval"))
 

@@ -30,6 +30,23 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     add_format(show)
     show.add_argument("--goal-id", required=True)
     show.add_argument("--todo-id", required=True)
+    resolve = gate_actions.add_parser(
+        "resolve",
+        help="Close a user gate with an owner decision; acceptor-blocked gates take an --option.",
+    )
+    add_format(resolve)
+    resolve.add_argument("--goal-id", required=True)
+    resolve.add_argument("--todo-id", required=True, help="The gate todo id.")
+    resolve.add_argument("--decision", choices=["approve", "reject", "cancel"])
+    resolve.add_argument(
+        "--option",
+        choices=["retry_acceptance", "accept_manually", "return_to_developer", "cancel_todo"],
+        help="Acceptor-blocked gates (G12): retry_acceptance and accept_manually approve, "
+             "return_to_developer rejects, cancel_todo cancels.",
+    )
+    resolve.add_argument("--note", help="Decision note; return_to_developer stores it as review_feedback.")
+    resolve.add_argument("--agent-id", help="Lifecycle actor; defaults to the agent the gate blocks.")
+    resolve.add_argument("--dry-run", action="store_true")
     listing = gate_actions.add_parser("list", help="List open user gates with their thread state.")
     add_format(listing)
     listing.add_argument("--goal-id", required=True)
@@ -93,7 +110,7 @@ def handle_gate_plan_goal_command(
     if args.command not in GATE_PLAN_GOAL_COMMANDS:
         return None
     from ..control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
-    from ..gate_threads import gate_view, list_gates, render_gate_markdown, reply_to_gate
+    from ..gate_threads import gate_view, list_gates, render_gate_markdown, reply_to_gate, resolve_gate
     from ..goal_intake import create_goal, render_goal_create_markdown
     from ..plan_cards import apply_plan, list_plans, propose_plan, read_plan, render_plan_markdown
 
@@ -116,6 +133,12 @@ def handle_gate_plan_goal_command(
                         registry_path=registry_path, runtime_root=runtime_root, goal_id=args.goal_id,
                         todo_id=args.todo_id, text=args.text, author=args.author, agent_id=args.agent_id,
                         runtime_root_arg=runtime_root_arg,
+                    )
+                elif args.gate_command == "resolve":
+                    payload = resolve_gate(
+                        registry_path=registry_path, goal_id=args.goal_id, todo_id=args.todo_id,
+                        decision=args.decision, option=args.option, note=args.note,
+                        agent_id=args.agent_id, runtime_root_arg=runtime_root_arg, dry_run=args.dry_run,
                     )
                 elif args.gate_command == "show":
                     payload = gate_view(
