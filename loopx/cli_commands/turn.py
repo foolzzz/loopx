@@ -493,13 +493,14 @@ def handle_turn_command(
                 # The host workspace is execution context, not state authority.
                 state_project = None
                 result_kind = str(result.get("result_kind") or "")
+                delivery_outcome = str(result["delivery_outcome"])
                 if result_kind in {"repair_required", "replan_required"}:
                     todo_id = str(selected_todo.get("todo_id") or "")
                     if not todo_id:
                         raise ValueError(
                             f"{result_kind} requires one selected todo for typed writeback"
                         )
-                    write_turn_repair_update(
+                    verdict_recorded = write_turn_repair_update(
                         registry_path=registry_path,
                         runtime_root_arg=runtime_root_arg,
                         goal_id=args.goal_id,
@@ -509,6 +510,10 @@ def handle_turn_command(
                         agent_id=args.agent_id,
                         result_kind=result_kind,
                     )
+                    if verdict_recorded:
+                        # Fork S2: the acceptor's reject verdict is its completed
+                        # review, i.e. accountable progress, not a blocked gap.
+                        delivery_outcome = "outcome_progress"
                 refresh = refresh_state_run(
                     registry_path=registry_path,
                     runtime_root_override=runtime_root_arg,
@@ -519,7 +524,7 @@ def handle_turn_command(
                     recommended_action=str(result["recommended_action"]),
                     next_action=str(result["next_action"]),
                     delivery_batch_scale=str(result["delivery_batch_scale"]),
-                    delivery_outcome=str(result["delivery_outcome"]),
+                    delivery_outcome=delivery_outcome,
                     delivery_workspace_path=delivery_workspace_path,
                     todo_id=settlement_identity.todo_id,
                     turn_instance_id=settlement_identity.turn_instance_id,

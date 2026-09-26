@@ -17,7 +17,7 @@ def write_turn_repair_update(
     evidence: str,
     agent_id: str | None,
     result_kind: str | None = None,
-) -> None:
+) -> bool:
     """Record one repair-required Todo note under the effective runtime root.
 
     ``runtime_root_arg`` is required on purpose: the Turn settlement must
@@ -27,7 +27,8 @@ def write_turn_repair_update(
 
     Under role_v1 an acceptor Turn that returns ``repair_required`` for the
     delivered (``in_review``) Todo it reviews records a reject verdict with
-    the result summary as feedback (fork S2).
+    the result summary as feedback (fork S2). Returns ``True`` when such a
+    verdict was recorded.
     """
 
     if result_kind == "repair_required" and agent_id:
@@ -37,7 +38,7 @@ def write_turn_repair_update(
             registry_path=registry_path, runtime_root_arg=runtime_root_arg,
             goal_id=goal_id, todo_id=todo_id, agent_id=agent_id, feedback=note,
         ):
-            return
+            return True
     update_goal_todo(
         registry_path=registry_path,
         goal_id=goal_id,
@@ -50,6 +51,7 @@ def write_turn_repair_update(
         dry_run=False,
         runtime_root_arg=runtime_root_arg,
     )
+    return False
 
 
 def write_turn_validated_completion(
