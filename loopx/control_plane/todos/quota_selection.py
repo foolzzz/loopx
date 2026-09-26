@@ -10,7 +10,19 @@ from .contract import (
     normalize_todo_claimed_by, normalize_todo_bound_agent, normalize_todo_blocks_agent,
     normalize_todo_excluded_agents, normalize_todo_global_gate,
     normalize_required_capabilities, normalize_target_capabilities,
+    normalize_todo_required_role, normalize_todo_replan_obligation_id,
+    normalize_todo_action_kind, TODO_PLANNING_ACTION_KINDS,
 )
+from ..agents.runtime_model import normalize_agent_role
+
+QUOTA_PLANNING_REQUEST_SCHEMA_VERSION = "todo_quota_planning_request_v2"
+
+
+def _todo_is_planning_work(item: dict[str, Any]) -> bool:
+    return bool(
+        normalize_todo_replan_obligation_id(item.get("replan_obligation_id"))
+        or normalize_todo_action_kind(item.get("action_kind")) in TODO_PLANNING_ACTION_KINDS
+    )
 from .todo_semantics import (
     todo_item_has_removed_continuation_policy, todo_item_is_actionable_open,
     todo_item_is_due_monitor, todo_item_is_watch_only_monitor,
@@ -32,6 +44,8 @@ def project_quota_planning(
     profile = identity.get("agent_profile")
     profile = profile if isinstance(profile, dict) and profile else None
     agent = normalize_todo_claimed_by(identity.get("agent_id"))
+    agent_model = str(identity.get("agent_model") or "peer_v1")
+    agent_role = normalize_agent_role(identity.get("role")) if agent else None
 
     def encode(item: dict[str, Any]) -> dict[str, Any]:
         priority, index = todo_projection_sort_key(item)
@@ -54,6 +68,8 @@ def project_quota_planning(
             "required": normalize_required_capabilities(item.get("required_capabilities")),
             "targets": normalize_target_capabilities(item.get("target_capabilities")),
             "raw_claimed": bool(item.get("claimed_by")),
+            "required_role": normalize_todo_required_role(item.get("required_role")),
+            "planning": _todo_is_planning_work(item),
         }
 
     def active(key: str) -> list[dict[str, Any]]:
@@ -62,7 +78,7 @@ def project_quota_planning(
 
     try:
         result = effect_runtime_result("todo.quota_planning.project", {
-            "schema_version": "todo_quota_planning_request_v1",
+            "schema_version": QUOTA_PLANNING_REQUEST_SCHEMA_VERSION,
             "resume": build_todo_resume_planning_request(value, agent_id=agent, item_limit=8,
                 available_capabilities=(available_capabilities or []) if resolve_capacity else None),
             "selection": {
@@ -71,6 +87,7 @@ def project_quota_planning(
                 "active_items": active("active_next_action_items"),
                 "active_executable_items": active("active_next_action_executable_items"),
                 "agent_id": agent, "profile": profile,
+                "agent_model": agent_model, "agent_role": agent_role,
                 "user_gate_scope": filter_user_gate_blocks_agent,
                 "monitor_supported": todo_summary_monitor_writeback_supported(value),
                 "source_open_count": source_open_count,
