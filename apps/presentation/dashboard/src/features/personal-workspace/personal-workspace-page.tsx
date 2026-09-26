@@ -38,6 +38,7 @@ import { ChannelTimeline } from "./channel-timeline";
 import { ContextDrawer } from "./context-drawer";
 import { GoalSidebar } from "./goal-sidebar";
 import { GoalTasksView } from "./goal-tasks-view";
+import { GoalRoleBoardView } from "./goal-role-board-view";
 import { GoalOverview } from "./goal-overview";
 import { GoalWorkspacePanels } from "./goal-workspace-panels";
 import { localizedGoalState, localizedSessionStatus, useWorkspaceI18n, type WorkspaceTranslate } from "./i18n";
@@ -2063,6 +2064,12 @@ export function PersonalWorkspacePage({
                     onQuickComplete={readOnly ? undefined : requestQuickTodoCompletion}
                     onSelect={setSelection}
                     quickCompletingTodoIds={quickCompletingTodoIds}
+                    selectedTodoId={drawerSelection?.kind === "todo" ? drawerSelection.item.todoId : null}
+                    userTodos={model.userTodos}
+                  />),
+                  roles: (<GoalRoleBoardView
+                    goal={selectedGoal}
+                    onSelect={setSelection}
                     selectedTodoId={drawerSelection?.kind === "todo" ? drawerSelection.item.todoId : null}
                     userTodos={model.userTodos}
                   />),

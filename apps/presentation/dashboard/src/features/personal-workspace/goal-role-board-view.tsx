@@ -1,0 +1,190 @@
+import { useMemo } from "react";
+import { ClipboardCheck, GitBranch, MessageSquareText, ShieldCheck } from "lucide-react";
+
+import type { WorkspaceDrawerSelection, WorkspaceGoal, WorkspaceModel } from "./personal-workspace-model";
+import { useWorkspaceI18n } from "./i18n";
+import {
+  ROLE_BOARD_STAGES,
+  buildRoleBoardGrid,
+  roleBoardStage,
+  type WorkspaceRoleBoardAgent,
+  type WorkspaceRoleBoardCard,
+  type WorkspaceRoleBoardGate,
+} from "./role-board-model";
+
+function AgentChip({ agent }: { agent: WorkspaceRoleBoardAgent }) {
+  const { t } = useWorkspaceI18n();
+  const activity = t(`roles.activity.${agent.activity}`);
+  const detail = [activity, agent.reason, agent.provider].filter(Boolean).join(" · ");
+  return (
+    <span className={`personal-role-agent-chip is-${agent.activity}`} data-agent-id={agent.agentId} title={detail}>
+      <i aria-hidden="true" />
+      <strong>{agent.agentId}</strong>
+      <small>{activity}</small>
+    </span>
+  );
+}
+
+/**
+ * Goal Role board tab (fork slice S8): columns are derived stages, rows are
+ * role swimlanes with agent activity chips, and open gates / plan approvals
+ * that wait on the user sit above the grid. Cards reuse the Todo drawer.
+ */
+export function GoalRoleBoardView({
+  goal,
+  onSelect,
+  selectedTodoId = null,
+  userTodos,
+}: {
+  goal: WorkspaceGoal;
+  onSelect: (selection: WorkspaceDrawerSelection) => void;
+  selectedTodoId?: string | null;
+  userTodos: WorkspaceModel["userTodos"];
+}) {
+  const { t } = useWorkspaceI18n();
+  const board = goal.roleBoard ?? null;
+  const grid = useMemo(() => (board ? buildRoleBoardGrid(board) : null), [board]);
+
+  if (!board || !grid) {
+    return (
+      <section aria-label={t("header.roles")} className="personal-role-board">
+        <p className="personal-task-empty">{t("roles.empty")}</p>
+      </section>
+    );
+  }
+
+  const openGate = (gate: Pick<WorkspaceRoleBoardGate, "todoId" | "text">) => {
+    const attention = userTodos.find((todo) => todo.goalId === goal.goalId && todo.todoId === gate.todoId);
+    onSelect({
+      item: attention ?? { blocking: true, goalId: goal.goalId, goalTitle: goal.title, text: gate.text, todoId: gate.todoId },
+      kind: "attention",
+    });
+  };
+  const openCard = (card: WorkspaceRoleBoardCard) => {
+    const todo = goal.agentTodos.find((candidate) => candidate.todoId === card.todoId);
+    onSelect({
+      item: {
+        ...(todo ?? { done: roleBoardStage(card) === "done", status: card.status, text: card.text, todoId: card.todoId }),
+        claimedBy: todo?.claimedBy ?? card.claimedBy ?? null,
+        goalId: goal.goalId,
+        goalTitle: goal.title,
+        ownerLabel: card.claimedBy ?? null,
+      },
+      kind: "todo",
+    });
+  };
+  const gateById = new Map(board.gates.map((gate) => [gate.todoId, gate]));
+
+  return (
+    <section aria-label={t("header.roles")} className="personal-role-board">
+      <header className="personal-task-view-toolbar">
+        <div><strong>{t("header.roles")}</strong></div>
+        {!board.dispatcherAvailable ? <small className="personal-role-board-note">{t("roles.dispatcherMissing")}</small>
+          : !board.dispatcherServing ? <small className="personal-role-board-note">{t("roles.dispatcherOffline")}</small> : null}
+      </header>
+
+      <section aria-label={t("roles.gatesTitle")} className="personal-role-gates">
+        <header><strong>{t("roles.gatesTitle")}</strong><span>{grid.userGates.length}</span></header>
+        {grid.userGates.length ? (
+          <ul>
+            {grid.userGates.map((gate) => (
+              <li key={gate.todoId}>
+                <button
+                  className={`personal-role-gate is-${gate.awaiting}`}
+                  data-gate-kind={gate.kind}
+                  data-todo-id={gate.todoId}
+                  onClick={() => openGate(gate)}
+                  type="button"
+                >
+                  {gate.kind === "plan_approval" ? <ClipboardCheck aria-hidden size={16} /> : <MessageSquareText aria-hidden size={16} />}
+                  <span>
+                    <strong>{gate.kind === "plan_approval" && gate.planTitle ? gate.planTitle : gate.text}</strong>
+                    <small>
+                      <span className="personal-role-badge">{t(gate.kind === "plan_approval" ? "roles.planApproval" : "roles.decision")}</span>
+                      <span className={`personal-role-badge is-${gate.awaiting}`}>{t(gate.awaiting === "awaiting_user" ? "roles.gateAwaitingUser" : "roles.gateAwaitingOrchestrator")}</span>
+                      {gate.kind === "plan_approval" && gate.planTodoCount != null
+                        ? <span>{t("roles.planSummary", { count: gate.planTodoCount, revision: gate.planRevision ?? 1 })}</span>
+                        : null}
+                      {gate.messageCount ? <span>{t("roles.messages", { count: gate.messageCount })}</span> : null}
+                    </small>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="personal-task-empty">{t("roles.noGates")}</p>}
+      </section>
+
+      <div className="personal-role-grid-scroll">
+        <div className="personal-role-grid" role="table" aria-label={t("roles.gridLabel")}>
+          <div className="personal-role-grid-row is-header" role="row">
+            <span role="columnheader">{t("roles.laneHeader")}</span>
+            {ROLE_BOARD_STAGES.map((stage) => (
+              <span className={`personal-role-stage is-${stage}`} data-stage={stage} key={stage} role="columnheader">
+                {t(`roles.stage.${stage}`)}<b>{grid.stageCounts[stage]}</b>
+              </span>
+            ))}
+          </div>
+          {grid.lanes.map((lane) => (
+            <div className="personal-role-grid-row" data-role-lane={lane.role} key={lane.role} role="row">
+              <div className="personal-role-lane-head" role="rowheader">
+                <strong>{t(`roles.role.${lane.role}`)}</strong>
+                <div className="personal-role-agent-list">
+                  {lane.agents.length ? lane.agents.map((agent) => <AgentChip agent={agent} key={agent.agentId} />)
+                    : <small>{t("roles.noAgents")}</small>}
+                </div>
+              </div>
+              {ROLE_BOARD_STAGES.map((stage) => (
+                <div className="personal-role-cell" data-stage={stage} key={stage} role="cell">
+                  {lane.cells[stage].map((card) => {
+                    const planGate = card.planGateTodoId ? gateById.get(card.planGateTodoId) : undefined;
+                    return (
+                      <article
+                        className={`personal-role-card is-${stage}${selectedTodoId === card.todoId ? " is-selected" : ""}`}
+                        data-todo-id={card.todoId}
+                        key={card.todoId}
+                      >
+                        <button aria-pressed={selectedTodoId === card.todoId} className="personal-role-card-main" onClick={() => openCard(card)} type="button">
+                          <strong>{card.text}</strong>
+                          <small>
+                            {card.priority ? <span className={`personal-priority-badge is-${card.priority.toLowerCase()}`}>{card.priority}</span> : null}
+                            {card.rejectCount > 0 ? <span className="personal-role-badge is-rejected" data-reject-count={card.rejectCount}>{t("roles.rejected", { count: card.rejectCount })}</span> : null}
+                            {["blocked", "deferred"].includes(card.status) ? <span className="personal-role-badge">{card.status}</span> : null}
+                            <span className="personal-role-card-agent">{card.runningAgentId ?? card.claimedBy ?? t("roles.unassigned")}</span>
+                          </small>
+                          {card.repositories.length ? (
+                            <small className="personal-role-card-repos"><GitBranch aria-hidden size={12} />{card.repositories.join(", ")}</small>
+                          ) : null}
+                          <small className="personal-role-card-acceptance">
+                            <ShieldCheck aria-hidden size={12} />
+                            {card.requiresAcceptance
+                              ? card.acceptorAgent ? t("roles.acceptor", { agent: card.acceptorAgent }) : t("roles.acceptanceRequired")
+                              : t("roles.noAcceptance")}
+                          </small>
+                        </button>
+                        {card.planId ? (
+                          planGate ? (
+                            <button className="personal-role-card-link" onClick={() => openGate(planGate)} type="button">
+                              <ClipboardCheck aria-hidden size={12} />{t("roles.plan", { plan: card.planId })}
+                            </button>
+                          ) : <small className="personal-role-card-link"><ClipboardCheck aria-hidden size={12} />{t("roles.plan", { plan: card.planId })}</small>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      {grid.unassignedAgents.length ? (
+        <footer className="personal-role-agent-list">
+          <small>{t("roles.noRole")}</small>
+          {grid.unassignedAgents.map((agent) => <AgentChip agent={agent} key={agent.agentId} />)}
+        </footer>
+      ) : null}
+      {board.omittedCardCount ? <p className="personal-task-empty">{t("roles.omitted", { count: board.omittedCardCount })}</p> : null}
+    </section>
+  );
+}

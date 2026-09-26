@@ -4,6 +4,7 @@ import type { ActionReviewPlan } from "../../../../../../loopx/control_plane/pre
 import type { GoalAcceptanceObservation } from "../../data/goal-acceptance-observation";
 import type { AttentionDetails } from "./attention-details";
 import type { WorkspaceLoadError } from "../../data/workspace-progressive-status";
+import type { WorkspaceRoleBoard } from "./role-board-model";
 export type WorkspaceGoalState =
   | "需修复"
   | "等你"
@@ -108,6 +109,8 @@ export type WorkspaceGoal = {
   needsYouBlocking?: boolean;
   nextSentence: string;
   repository?: WorkspaceRepositoryContext;
+  /** role_v1 role board (fork slice S8); absent for Goals without registered roles. */
+  roleBoard?: WorkspaceRoleBoard | null;
   state: WorkspaceGoalState;
   subagentExecution?: WorkspaceGoalSubagentConfiguration;
   title: string;
@@ -190,7 +193,7 @@ export type WorkspaceOutput = {
 };
 
 export type WorkspaceChannel = "manager" | "attention" | "running" | "outputs";
-export type WorkspaceGoalTab = "overview" | "chat" | "tasks" | "files";
+export type WorkspaceGoalTab = "overview" | "chat" | "tasks" | "roles" | "files";
 
 export type WorkspaceScheduleKind = "heartbeat" | "monitor";
 

@@ -1836,3 +1836,54 @@
   .personal-run-row > .personal-row-status { display: inline-flex; }
   .personal-run-row .personal-row-copy strong, .personal-run-row .personal-row-copy small { overflow-wrap: anywhere; white-space: normal; }
 }
+
+/* Role board (fork slice S8): stage columns x role swimlanes. */
+.personal-channel-scroll[data-active-goal-view="roles"] { padding-inline: 20px; }
+.personal-role-board { display: grid; gap: 14px; padding: 18px 0 28px; min-width: 0; }
+.personal-role-board-note { color: var(--pw-amber); font-size: 11px; }
+.personal-role-gates { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--pw-line); border-radius: 12px; background: var(--pw-card); }
+.personal-role-gates > header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+.personal-role-gates > header span { color: var(--pw-muted); font-size: 11px; }
+.personal-role-gates ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.personal-role-gate { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 9px 10px; border: 1px solid var(--pw-line); border-radius: 9px; background: #fff; color: var(--pw-text); cursor: pointer; text-align: left; }
+.personal-role-gate:hover, .personal-role-gate:focus-visible { border-color: var(--pw-blue); outline: 0; }
+.personal-role-gate.is-awaiting_user { border-left: 3px solid var(--pw-amber); }
+.personal-role-gate > span { display: grid; gap: 4px; min-width: 0; }
+.personal-role-gate strong { font-size: 12.5px; overflow-wrap: anywhere; }
+.personal-role-gate small, .personal-role-card small { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: var(--pw-muted); font-size: 10.5px; }
+.personal-role-badge { padding: 1px 6px; border-radius: 999px; background: #f2f1ec; color: var(--pw-muted); font-size: 10px; font-weight: 650; }
+.personal-role-badge.is-awaiting_user { background: var(--pw-amber-bg); color: var(--pw-amber); }
+.personal-role-badge.is-awaiting_orchestrator { background: var(--pw-blue-soft); color: var(--pw-blue-ink); }
+.personal-role-badge.is-rejected { background: var(--pw-red-bg); color: var(--pw-red); }
+.personal-role-grid-scroll { overflow-x: auto; min-width: 0; }
+.personal-role-grid { display: grid; gap: 6px; min-width: 980px; }
+.personal-role-grid-row { display: grid; grid-template-columns: 170px repeat(6, minmax(130px, 1fr)); gap: 6px; }
+.personal-role-grid-row.is-header > span { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; color: var(--pw-muted); font-size: 11px; font-weight: 700; }
+.personal-role-grid-row.is-header b { color: var(--pw-faint); font-weight: 600; }
+.personal-role-lane-head { display: grid; align-content: start; gap: 7px; padding: 10px; border: 1px solid var(--pw-line); border-radius: 10px; background: #f5f3ee; }
+.personal-role-lane-head > strong { font-size: 12.5px; }
+.personal-role-agent-list { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.personal-role-agent-list > small { color: var(--pw-faint); font-size: 10.5px; }
+.personal-role-agent-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 7px; border: 1px solid var(--pw-line-strong); border-radius: 999px; background: #fff; font-size: 10.5px; }
+.personal-role-agent-chip strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-role-agent-chip small { color: var(--pw-muted); }
+.personal-role-agent-chip i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--pw-faint); }
+.personal-role-agent-chip.is-running i { background: var(--pw-green); box-shadow: 0 0 0 3px var(--pw-green-bg); }
+.personal-role-agent-chip.is-idle i { background: var(--pw-blue); }
+.personal-role-agent-chip.is-cooldown i { background: var(--pw-amber); }
+.personal-role-agent-chip.is-unavailable i { background: var(--pw-red); }
+.personal-role-cell { display: grid; align-content: start; gap: 6px; min-height: 64px; padding: 6px; border: 1px dashed var(--pw-line); border-radius: 10px; }
+.personal-role-card { display: grid; gap: 4px; border: 1px solid var(--pw-line); border-radius: 9px; background: var(--pw-card); }
+.personal-role-card-main { display: grid; gap: 5px; padding: 8px 9px; border: 0; background: transparent; color: var(--pw-text); cursor: pointer; text-align: left; }
+.personal-role-card-main > strong { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.personal-role-card:hover, .personal-role-card.is-selected { border-color: var(--pw-blue); }
+.personal-role-card.is-running { border-left: 3px solid var(--pw-green); }
+.personal-role-card.is-in_review { border-left: 3px solid var(--pw-blue); }
+.personal-role-card.is-rework { border-left: 3px solid var(--pw-red); }
+.personal-role-card.is-done { opacity: .72; }
+.personal-role-card-agent { color: var(--pw-text); font-weight: 600; }
+.personal-role-card-link { display: inline-flex; align-items: center; justify-self: start; gap: 4px; margin: 0 9px 8px; overflow-wrap: anywhere; text-align: left; padding: 0; border: 0; background: transparent; color: var(--pw-blue-ink); cursor: pointer; font-size: 10.5px; }
+small.personal-role-card-link { color: var(--pw-muted); cursor: default; }
+@media (max-width: 720px) {
+  .personal-channel-scroll[data-active-goal-view="roles"] { padding-inline: 12px; }
+}
