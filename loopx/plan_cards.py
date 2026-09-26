@@ -254,9 +254,9 @@ def _plan_digest(plan: Mapping[str, Any]) -> str:
 
 
 def _todo_note(plan_id: str, todo: Mapping[str, Any]) -> str:
+    # Fork G2: the plan's acceptance goes to the todo's orchestrator-owned
+    # acceptance_criteria field, not to the mutable note.
     parts = [f"Plan {plan_id} item {todo['key']}."]
-    if todo.get("acceptance"):
-        parts.append(f"Acceptance: {todo['acceptance']}")
     if todo.get("estimated_effort"):
         parts.append(f"Estimate: {todo['estimated_effort']}")
     if todo.get("depends_on"):
@@ -272,6 +272,8 @@ def _add_kwargs(plan_id: str, todo: Mapping[str, Any], ids: Mapping[str, str]) -
         role_contract["acceptor_agent"] = todo["acceptor_agent"]
     if todo.get("task_repositories"):
         role_contract["task_repositories"] = list(todo["task_repositories"])
+    if todo.get("acceptance"):
+        role_contract["acceptance_criteria"] = todo["acceptance"]
     kwargs: dict[str, Any] = {
         "role": "agent",
         "text": todo["text"],

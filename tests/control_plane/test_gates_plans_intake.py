@@ -238,7 +238,10 @@ def test_plan_propose_approve_applies_todos_exactly_once(tmp_path: Path, provide
     contract, api, integrate, readme = (state[ids[key]] for key in ("contract", "api", "integrate", "readme"))
     assert contract["status"] == "open" and contract["claimed_by"] == DEV
     assert (contract["required_role"], contract["acceptor_agent"], contract["task_repositories"]) == ("developer", ACC, ["api"])
-    assert "Acceptance: openapi covers CRUD" in contract["note"]
+    # G2: the plan's acceptance lands in the orchestrator-owned field, not the note.
+    assert contract["acceptance_criteria"] == "openapi covers CRUD"
+    assert "Acceptance:" not in contract["note"] and "Estimate: 1h" in contract["note"]
+    assert "acceptance_criteria" not in api
     assert (api["status"], api["resume_when"]) == ("deferred", f"todo_done:{ids['contract']}")
     assert (integrate["resume_when"], integrate["requires_acceptance"]) == (f"todo_done:{ids['web']}", True)
     assert readme["requires_acceptance"] is False and readme["status"] == "open"

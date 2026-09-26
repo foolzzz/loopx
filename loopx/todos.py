@@ -8,6 +8,7 @@ from typing import Any
 
 from .agent_registry import registered_agent_ids_from_registry, require_registered_agent_id
 from .gate_threads import require_user_gate_author
+from .todo_acceptance_criteria import guard_acceptance_criteria_write
 from .history import load_registry
 from .paths import resolve_runtime_root
 from .rollout_event_log import load_rollout_events, rollout_event_log_path
@@ -788,6 +789,7 @@ def add_goal_todo(
         for key, value in normalize_todo_role_contract(role_contract).items()
         if value is not None
     }
+    guard_acceptance_criteria_write(registry_path, goal_id, agent_id, role_contract)
     if role_contract.get("task_repositories") and role != "agent":
         raise ValueError("task_repositories is only valid for agent todos")
     if role_contract.get("acceptor_agent"):
@@ -1172,10 +1174,12 @@ def update_goal_todo(
     state_file: Path | None = None,
     dry_run: bool = False,
     role_contract: dict[str, Any] | None = None,
+    acceptance_criteria_author: str | None = None,
 ) -> dict[str, Any]:
     if priority is not None and clear_priority:
         raise ValueError("provide either priority or clear_priority, not both")
     role_contract = normalize_todo_role_contract(role_contract) or None
+    guard_acceptance_criteria_write(registry_path, goal_id, acceptance_criteria_author or agent_id, role_contract)
     if role_contract and role_contract.get("acceptor_agent"):
         role_contract["acceptor_agent"] = require_registered_agent_id(
             registry_path=registry_path, goal_id=goal_id,
