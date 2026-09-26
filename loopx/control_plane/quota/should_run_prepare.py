@@ -467,6 +467,32 @@ def _deferred_receipt_bound_work_lane(
     return None
 
 
+def _with_gate_threads_awaiting_orchestrator(
+    identity: dict[str, Any] | None, *, runtime_root: Any, goal_id: str,
+) -> dict[str, Any] | None:
+    """Name the gates whose discussion thread waits on this orchestrator.
+
+    Design decision 10: a user reply on a gate thread triggers an orchestrator
+    Turn. The orchestrator's own clarification or plan gate otherwise blocks
+    its lane, so the reply could never be answered. Only role_v1
+    orchestrators get the list; every other lane keeps the gate rules.
+    """
+
+    if not isinstance(identity, dict) or identity.get("role") != "orchestrator":
+        return identity
+    if identity.get("agent_model") != "role_v1" or not runtime_root:
+        return identity
+    from ...gate_threads import gates_awaiting_orchestrator
+
+    try:
+        awaiting = gates_awaiting_orchestrator(Path(str(runtime_root)), goal_id)
+    except (OSError, ValueError):
+        return identity
+    if not awaiting:
+        return identity
+    return {**identity, "awaiting_orchestrator_gate_ids": awaiting[:32]}
+
+
 def _prepare_quota_should_run_item(
     status_payload: dict[str, Any],
     *,
@@ -496,7 +522,11 @@ def _prepare_quota_should_run_item(
     reason = str(quota.get("reason") or "quota state is not eligible")
     if not goal_health_ok:
         reason = "status or contract health is not ok; skip automatic compute"
-    agent_identity = build_quota_agent_identity(item, agent_id=requested_agent_id)
+    agent_identity = _with_gate_threads_awaiting_orchestrator(
+        build_quota_agent_identity(item, agent_id=requested_agent_id),
+        runtime_root=status_payload.get("runtime_root"),
+        goal_id=safe_goal_id,
+    )
     item, project_asset, agent_lane_recommendation = _scope_status_item_to_agent_lane(
         item=item,
         latest_runs=_goal_latest_runs(status_payload, goal_id=safe_goal_id),

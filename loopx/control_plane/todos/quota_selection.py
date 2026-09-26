@@ -55,6 +55,12 @@ def project_quota_planning(
         ) if acceptor
     ]
 
+    raw_awaiting = identity.get("awaiting_orchestrator_gate_ids")
+    awaiting_gates = {
+        str(todo_id) for todo_id in (raw_awaiting if isinstance(raw_awaiting, list) else [])
+        if isinstance(todo_id, str)
+    }
+
     def encode(item: dict[str, Any]) -> dict[str, Any]:
         priority, index = todo_projection_sort_key(item)
         display = compact_todo_summary_item(item, text=str(item.get("text") or "").strip())
@@ -78,6 +84,9 @@ def project_quota_planning(
             "raw_claimed": bool(item.get("claimed_by")),
             "required_role": normalize_todo_required_role(item.get("required_role")),
             "planning": _todo_is_planning_work(item),
+            **({"awaits_orchestrator": True}
+               if awaiting_gates and is_user_gate_todo_item(item)
+               and str(item.get("todo_id") or "") in awaiting_gates else {}),
             **({"in_review": True, "review_agent": todo_review_agent(item, acceptor_ids)}
                if normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW else {}),
         }

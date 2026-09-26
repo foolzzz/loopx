@@ -467,3 +467,36 @@ def test_dispatcher_orchestrator_prompt_pins_state_home_and_gate_open(tmp_path: 
     assert f"`{command}`" in prompt
     assert "--role user --task-class user_gate" in prompt
 
+
+def test_user_reply_unblocks_the_orchestrator_lane_until_it_answers(tmp_path: Path) -> None:
+    """E2E pilot: the orchestrator's own clarification gate kept its lane blocked after a reply."""
+
+    import io
+    from contextlib import redirect_stdout
+
+    registry, runtime = fixture(tmp_path)
+    add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text="Clarify and plan",
+                  action_kind="plan", claimed_by=ORCH,
+                  role_contract={"required_role": "orchestrator", "requires_acceptance": False})
+    gate_id = open_gate(registry)
+
+    def should_run(agent: str) -> dict:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json",
+                  "quota", "should-run", "--goal-id", GOAL, "--agent-id", agent])
+        return json.loads(out.getvalue())
+
+    # The fixture goal has no adapter, so should_run stays health-gated; the
+    # quota state is what the gate decides.
+    assert should_run(ORCH)["state"] == "operator_gate"
+    reply_to_gate(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=gate_id, text="Use sqlite")
+    answered = should_run(ORCH)
+    assert answered["state"] == "eligible"
+    assert answered["agent_identity"]["awaiting_orchestrator_gate_ids"] == [gate_id]
+    assert answered["selected_todo"]["action_kind"] == "plan"
+    # The developer lane is not affected by the thread state.
+    assert "awaiting_orchestrator_gate_ids" not in (should_run(DEV).get("agent_identity") or {})
+    reply_to_gate(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=gate_id,
+                  text="Noted.", author="orchestrator", agent_id=ORCH)
+    assert should_run(ORCH)["state"] == "operator_gate"

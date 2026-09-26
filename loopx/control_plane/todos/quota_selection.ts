@@ -14,7 +14,7 @@ interface Row {
   due: boolean; watchOnly: boolean; taskClass: string; priority: number; index: number;
   profileRank: number; missing: readonly string[]; rawClaimed: boolean;
   requiredRole: string | null; planning: boolean;
-  inReview: boolean; reviewAgent: string | null;
+  inReview: boolean; reviewAgent: string | null; awaitsOrchestrator: boolean;
 }
 
 const AGENT_ROLES = ["orchestrator", "developer", "acceptor"] as const;
@@ -59,7 +59,8 @@ function decodeRow(value: unknown, available?: readonly string[]): Row {
     requiredRole: optionalRole(raw.required_role, "required_role"),
     planning: raw.planning === undefined ? false : boolean("planning"),
     inReview: raw.in_review === undefined ? false : boolean("in_review"),
-    reviewAgent: optional("review_agent")};
+    reviewAgent: optional("review_agent"),
+    awaitsOrchestrator: raw.awaits_orchestrator === undefined ? false : boolean("awaits_orchestrator")};
 }
 
 function rows(value: unknown, available?: readonly string[]): Row[] {
@@ -72,8 +73,13 @@ const bucket = (row: Row, agent: string) => row.claim === agent ? 0 : row.claim 
 
 /** A gate addresses a lane; it is not a job whose claim grants execution.
  * Under role_v1 an acceptor verifies delivered work independently, so only a
- * global gate or one explicitly scoped to the acceptor blocks its lane. */
-function gateApplies(row: Row, agent: string | null, independentReviewer = false): boolean {
+ * global gate or one explicitly scoped to the acceptor blocks its lane, and a
+ * gate awaiting the orchestrator's reply does not block the orchestrator. */
+function gateApplies(row: Row, agent: string | null, independentReviewer = false,
+  orchestrator = false): boolean {
+  // A gate whose discussion thread waits on the orchestrator (the user
+  // replied) must not stop the orchestrator from answering it (decision 10).
+  if (orchestrator && row.awaitsOrchestrator) return false;
   if (independentReviewer && agent && !row.global && row.blocks !== agent && row.claim !== agent) return false;
   return !agent || gateAddressesAgent(row, agent);
 }
@@ -177,9 +183,10 @@ export function projectQuotaSelection(value: unknown): JsonObject {
   const executable = (row: Row) => roleScoped && row.inReview ? !row.removed : executableBy(row, agent);
   const reviewable = (row: Row) => roleScoped && row.inReview && roleAllows(row);
   const independentReviewer = roleScoped && agentRole === "acceptor";
+  const discussingOrchestrator = roleScoped && agentRole === "orchestrator";
   const gates = userMode ? source.filter(row => row.gate) : source;
-  const blocking = userMode ? gates.filter(row => gateApplies(row, agent, independentReviewer)) : gates;
-  const otherGates = userMode ? gates.filter(row => !gateApplies(row, agent, independentReviewer)) : [];
+  const blocking = userMode ? gates.filter(row => gateApplies(row, agent, independentReviewer, discussingOrchestrator)) : gates;
+  const otherGates = userMode ? gates.filter(row => !gateApplies(row, agent, independentReviewer, discussingOrchestrator)) : [];
   const actions = userMode ? source.filter(row => !row.gate && actionAddressesAgent(row, agent)) : [];
   const otherActions = userMode ? source.filter(row => !row.gate && !actionAddressesAgent(row, agent)) : [];
   // Explicit User gate scope has already decided blocking. Claim/exclusion
@@ -194,7 +201,7 @@ export function projectQuotaSelection(value: unknown): JsonObject {
   const due = supported ? monitors.filter(row => row.due && executableBy(row, agent)) : [];
   const admittedDue = due.filter(row => !row.missing.length);
   const watchOnlyMonitors = monitors.filter(row => row.watchOnly);
-  const activeVisible = (row: Row) => userMode ? (row.gate ? gateApplies(row, agent, independentReviewer) : actionAddressesAgent(row, agent)) : executable(row) && roleAllows(row);
+  const activeVisible = (row: Row) => userMode ? (row.gate ? gateApplies(row, agent, independentReviewer, discussingOrchestrator) : actionAddressesAgent(row, agent)) : executable(row) && roleAllows(row);
   const gateFilter = otherGates.length ? {
     schema_version: "agent_scoped_user_gate_filter_v0", agent_id: agent,
     policy: "user todos scoped to another agent by blocks_agent or claimed_by remain visible but do not block this agent's quota lane",
