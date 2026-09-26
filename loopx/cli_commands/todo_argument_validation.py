@@ -579,6 +579,27 @@ def validate_todo_complete_options(args: argparse.Namespace) -> None:
     validate_successor_routing_options(args)
 
 
+def validate_todo_verdict_options(args: argparse.Namespace) -> None:
+    """role_v1 acceptor verdict (fork S2): ``todo accept`` / ``todo reject``."""
+
+    verb = args.todo_command
+    allowed = {"todo_id", "agent_id", "note", "role", "state_file"} | ({"evidence"} if verb == "accept" else set())
+    _validate_todo_option_subset(
+        args, allowed,
+        f"todo {verb} only accepts --goal-id, --todo-id, --agent-id, --note"
+        + (", --evidence" if verb == "accept" else "")
+        + ", --project, --state-file, --dry-run and --format; unsupported: ",
+    )
+    if not args.todo_id:
+        raise ValueError(f"todo {verb} requires --todo-id")
+    if not args.agent_id:
+        raise ValueError(f"todo {verb} requires --agent-id of the acceptor")
+    if args.role not in (None, "agent"):
+        raise ValueError(f"todo {verb} applies only to agent todos")
+    if verb == "reject" and not (args.note or "").strip():
+        raise ValueError("todo reject requires --note with the acceptor's feedback")
+
+
 def validate_todo_supersede_options(args: argparse.Namespace) -> None:
     if not args.todo_id:
         raise ValueError("todo supersede requires --todo-id")
@@ -640,6 +661,8 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
         "claim",
         "update",
         "complete",
+        "accept",
+        "reject",
         "supersede",
     }
     global_gate_allowed = args.todo_command in {"add", "update"}

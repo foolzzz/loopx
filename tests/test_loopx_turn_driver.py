@@ -2394,6 +2394,70 @@ def _turn_journal(runtime: Path) -> dict[str, object]:
     return json.loads(journal_path.read_text(encoding="utf-8"))
 
 
+def test_turn_run_once_role_v1_delivery_moves_todo_to_in_review(
+    tmp_path: Path,
+) -> None:
+    """Fork S2: a developer Turn delivers an acceptance-required Todo for review."""
+
+    project, runtime, registry = _write_live_fixture(tmp_path)
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    coordination = payload["goals"][0]["coordination"]
+    coordination["agent_model"] = "role_v1"
+    coordination["registered_agents"] = ["codex-fixture", "codex-acceptor"]
+    coordination["agent_roles"] = {
+        "codex-fixture": "developer",
+        "codex-acceptor": "acceptor",
+    }
+    registry.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    host_project = tmp_path / "isolated-host-workspace"
+    host_project.mkdir()
+    host_script = """
+import json
+import sys
+request = json.load(sys.stdin)
+json.dump({
+    "schema_version": "loopx_turn_result_v0",
+    "turn_key": request["turn_key"],
+    "result_kind": "validated_completion",
+    "completed_phases": ["host_execute", "typed_result"],
+    "classification": "fixture_completion",
+    "recommended_action": "Wait for the acceptor verdict.",
+    "next_action": "Acceptor reviews the delivery.",
+    "delivery_batch_scale": "implementation",
+    "delivery_outcome": "outcome_progress",
+    "vision_unchanged_reason": "The active goal may have further work.",
+    "summary": "One public fixture delivered."
+}, sys.stdout)
+"""
+    output = io.StringIO()
+    argv = [
+        "--registry", str(registry), "--runtime-root", str(runtime), "--format", "json",
+        "turn", "run-once", "--host", "generic-cli", "--goal-id", "loopx-turn-fixture",
+        "--agent-id", "codex-fixture", "--project", str(host_project),
+        "--host-adapter-command-json", json.dumps([sys.executable, "-c", host_script]),
+        "--validation-command-json", json.dumps([sys.executable, "-c", "pass"]),
+        "--scan-root", str(project), "--no-global-sync", "--execute",
+    ]
+    with contextlib.redirect_stdout(output):
+        exit_code = cli_main(argv)
+    result = json.loads(output.getvalue())
+    assert exit_code == 0, json.dumps(result)[:4000]
+    assert result["status"] == "committed"
+    journal_path = next(
+        (runtime / "goals" / "loopx-turn-fixture" / "turns").glob("*.json")
+    )
+    journal = json.loads(journal_path.read_text(encoding="utf-8"))
+    # The typed settlement records the Goal continuation; the Todo lifecycle
+    # (below) records that the delivery awaits the acceptor.
+    assert journal["writeback"]["completion"]["todo_id"] == "todo_fixture0001"
+    assert journal["writeback"]["completion"]["continuation"] == "active_goal"
+    state = (
+        project / ".codex" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
+    ).read_text(encoding="utf-8")
+    assert "todo_id=todo_fixture0001 status=in_review" in state
+    assert "delivered_by=codex-fixture" in state
+
+
 def test_turn_run_once_cli_repairs_committed_quota_spend_after_receipt_crash(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
