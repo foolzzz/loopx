@@ -55,12 +55,34 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
    for that agent:
    - `should_run=false`: the agent is idle.
    - A selected todo in the agent's lane (role-aware selection from S1): launch.
-   - The orchestrator without a selected todo launches only when LoopX reports an
-     action other than `normal_run`, or when the goal's state files changed since
-     its last Turn. This is how the orchestrator becomes event-triggered: a quiet
-     goal does not burn orchestrator quota.
-   - Developers and acceptors never launch without a selected todo.
-   - A todo that already has a running Turn is never launched a second time.
+   - Nobody launches without a selected todo, the orchestrator included:
+     `turn run-once` refuses every host route without todo lineage, so a
+     todo-less Turn could only fail (the E2E pilot saw a relaunch hot loop). A
+     pending orchestrator action is reported as `orchestrator_action_without_todo`.
+     The orchestrator is event-triggered through its todos: the intake planning
+     todo, S2 escalation todos, and gate threads awaiting it (a gate whose thread
+     awaits the orchestrator no longer blocks its lane, see
+     [gates-plans-intake-v0](gates-plans-intake-v0.md)).
+   - When the orchestrator does not launch but has work no todo carries (an
+     `orchestrator_action_without_todo`, or open gates whose threads await it),
+     the dispatcher opens one orchestrator todo ("Orchestrator action: …",
+     `action_kind=replan`, `required_role=orchestrator`, no acceptance) through
+     the Todo API, so the next pass launches a real Turn. It opens at most one
+     at a time: none while an action todo is open, in review or blocked, or while
+     the orchestrator has another open todo; the text prefix finds it again when
+     the dispatcher state is lost. If two action todos for the same subject
+     finish without clearing it, a user gate opens instead of a third.
+   - One in-flight Turn per agent and goal: run-once's lane fence answers
+     `turn_lane_in_flight` for a second one, so the dispatcher skips with that
+     reason. `max_concurrency` caps an agent across goals; parallel work inside
+     one goal needs several agent ids of the same role.
+   - A todo that already has a running Turn is never launched a second time. When
+     the selected todo is cooling down for this agent, the next open (or
+     in_review) todo from the same should-run lane runs instead, pinned with
+     `--todo-id`.
+   - Before the agents, every pass reopens deferred plan todos whose plan
+     dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
+     ordinary Todo update).
 5. **Auth preflight** (S3 `preflight_agent`) runs before the first launch per agent
    per pass. If it fails:
    - the agent is marked unavailable for `auth_cooldown_seconds` (default 300s);
@@ -85,7 +107,15 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
    - a fresh `--turn-instance-id`;
    - `--timeout-seconds`;
    - `--validation-command-json`, set to the todo's own declared validation command
-     when it has one, otherwise `serve --validation-command-json`.
+     when it has one. Orchestrator todos get a state check instead: an
+     `action_kind=plan` todo passes once a plan card is applied
+     (`loopx plan list --require-status applied`), an S2 escalation todo passes
+     once the escalated todo is no longer blocked
+     (`python -m loopx.dispatch.checks todo-not-status`). An orchestrator
+     action todo for gates passes once none of them is open and awaiting the
+     orchestrator (`checks gates-not-awaiting`). One for an effective action
+     passes once some other todo was created or changed since the Turn launched
+     (`checks todos-changed-since`). Otherwise `serve --validation-command-json`.
 
    The child's stdout and stderr go to `<runtime-root>/dispatch/runs/<run>.*`.
 
@@ -101,7 +131,9 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   the agent that hit the limit.
 - **Host `auth_failed`** is handled like a failed preflight.
 - **Todo backoff.** A todo whose Turns keep failing backs off exponentially instead
-  of relaunching on every pass. LoopX's repair and replan routing still decides what
+  of relaunching on every pass. The backoff is keyed by todo and agent, so a
+  developer's failures do not hold back the acceptor's review of the same todo;
+  a workspace-prepare failure cools the todo down for everyone. LoopX's repair and replan routing still decides what
   happens to the todo itself.
 
 ## Crash recovery
@@ -133,7 +165,15 @@ Two layers tell every Turn to use repo-relative paths instead:
 - for claude-code, a per-run system prompt that the dispatcher composes. It contains
   the agent's own `system_prompt_file` followed by a dispatcher addendum: the role,
   the workspace repos, commit-but-don't-push for developers, and review-only for
-  acceptors.
+  acceptors. The orchestrator's addendum names the exact CLI prefix
+  (interpreter, `--registry`, `--runtime-root`) for its gate and plan commands,
+  how to open a question gate, to return `user_action_required` while it waits
+  on the user, and how to resolve an escalation.
+
+Role guidance that every host needs lives in the shared Turn prompt instead: an
+`in_review` todo tells the acceptor that `validated_completion` accepts and
+`repair_required` rejects, and a reopened todo shows the developer the
+acceptor's `review_feedback`.
 
 ## Files
 
@@ -141,7 +181,8 @@ Two layers tell every Turn to use repo-relative paths instead:
 
 - `serve.lock`
 - `state.json`: running children, history, provider, agent and todo cooldowns,
-  opened gates, crash-retry identities, orchestrator baselines and per-agent slots.
+  opened gates, orchestrator action todos, crash-retry identities, orchestrator
+  baselines and per-agent slots.
 - `runs/`: child output.
 - `logs/`: launchd output.
 
@@ -150,14 +191,10 @@ Two layers tell every Turn to use repo-relative paths instead:
 - `turn run-once` needs an independent validator for material results. Todos with
   no declared validation command need `serve --validation-command-json`. Without it,
   their Turns fail validation and the todo backs off.
-- Todos that declare a completion validation command currently fail at durable
-  writeback. The error is "accountable refresh is blocked until controller-declared
-  completion validation durably completes todo …". The claude-code and codex-cli
-  result schemas do not offer `validated_completion` to the host. That is a
-  Turn-pipeline gap, not a dispatcher one.
-- The orchestrator wakes up on any change to the goal's state files, and that includes
-  the moment a developer Turn starts journaling. The Turn it wakes up for is usually
-  a cheap `wait`. A finer event filter can come later.
+- The `todos-changed-since` validator is coarse: another agent's concurrent todo
+  write also satisfies it. Whether the orchestrator's Turn clears an upstream
+  replan obligation is the kernel's decision (E2E pilot gap G4); if it does not,
+  the repeat limit turns it into a user gate.
 - Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
   concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
   todo.

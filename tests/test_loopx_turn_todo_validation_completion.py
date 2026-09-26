@@ -40,7 +40,8 @@ result = {
     "schema_version": "loopx_turn_result_v0", "turn_key": turn_key, "result_kind": kind,
     "completed_phases": ["host_execute", "typed_result"], "classification": "fixture_done",
     "recommended_action": "Select the next Todo.", "next_action": "Select the next Todo.",
-    "delivery_batch_scale": "implementation", "delivery_outcome": "primary_goal_outcome",
+    "delivery_batch_scale": "implementation",
+    "delivery_outcome": os.environ.get("FAKE_CLAUDE_OUTCOME", "primary_goal_outcome"),
     "vision_unchanged_reason": "The fixture objective remains unchanged.",
     "path_delta_mode": "unchanged", "agent_vision_json": "",
     "summary": os.environ.get("FAKE_CLAUDE_SUMMARY", "The fixture Todo is complete."),
@@ -163,3 +164,59 @@ def test_acceptor_turns_reject_then_accept_a_delivery(
     assert code == 0, json.dumps(payload)[:3000]
     assert payload["result_kind"] == "validated_completion"
     assert f"todo_id={TODO} status=done" in _state(project)
+
+
+def test_acceptor_reject_with_an_outcome_gap_still_settles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """E2E pilot: a real acceptor rejected with delivery_outcome=outcome_gap.
+
+    The verdict was recorded, then the Turn's refresh refused an untyped
+    outcome_gap and the whole acceptor Turn failed.
+    """
+
+    monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
+    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    code, payload = _run_once(project, runtime, registry, executable, workspace)
+    assert code == 0, json.dumps(payload)[:3000]
+    monkeypatch.setenv("FAKE_CLAUDE_KIND", "repair_required")
+    monkeypatch.setenv("FAKE_CLAUDE_OUTCOME", "outcome_gap")
+    monkeypatch.setenv("FAKE_CLAUDE_SUMMARY", "README still lists the gap.")
+    code, payload = _run_once(project, runtime, registry, executable, workspace, "codex-acceptor")
+    assert code == 0, json.dumps(payload)[:3000]
+    assert payload["status"] == "committed"
+    state = _state(project)
+    assert f"todo_id={TODO} status=open" in state and "reject_count=1" in state
+
+
+def test_acceptor_accept_with_a_blocked_merge_settles_and_reopens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """E2E pilot: an accept whose merge was blocked failed the acceptor Turn.
+
+    The accept preflight reopened the todo for its developer with the
+    conflict report, then the Turn expected a durably done todo and reported
+    writeback_failed.
+    """
+
+    import loopx.todo_acceptance as acceptance
+    from loopx.workspace import git_workspace
+
+    monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
+    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    code, payload = _run_once(project, runtime, registry, executable, workspace)
+    assert code == 0, json.dumps(payload)[:3000]
+    assert f"todo_id={TODO} status=in_review" in _state(project)
+
+    monkeypatch.setattr(acceptance, "_accepted_workspace",
+                        lambda **_: {"repos": ["web"], "runtime_root": runtime})
+    blocked = {"ok": False, "error_code": "merge_blocked", "merged": [], "conflict_report": {
+        "repos": [{"name": "web", "blockers": [{"error_code": "merge_conflict",
+                                                "conflicted_paths": ["README.md"]}]}]}}
+    monkeypatch.setattr(git_workspace, "merge", lambda *_a, **_k: blocked)
+    code, payload = _run_once(project, runtime, registry, executable, workspace, "codex-acceptor")
+    assert code == 0, json.dumps(payload)[:3000]
+    assert payload["status"] == "committed"
+    state = _state(project)
+    assert f"todo_id={TODO} status=open" in state
+    assert "merge_conflict" in state and "reject_count=" not in state

@@ -179,7 +179,17 @@ which binds one with `todo update --acceptor-agent`.
 
 - **Accept** runs the ordinary completion transaction (the validation
   command runs again) and the todo becomes `done`. The completion evidence
-  starts with `accepted_by=<acceptor>`.
+  starts with `accepted_by=<acceptor>`. For a todo with an S5 workspace,
+  accept first runs the atomic merge into the goal's merge target, and only
+  then completes the todo, so a todo is never `done` without its merge. A
+  blocked or failed merge reopens the todo for its developer with the
+  conflict report in `review_feedback` (transition `merge_blocked`,
+  reject_count unchanged). If the merge lands but the completion is refused
+  (the re-run validation fails), the todo stays `in_review` (transition
+  `completion_blocked`, the merge is in the result). The merge is
+  idempotent, so the acceptor can retry the accept, or reject. Plan
+  dependents whose dependencies are now all done are reopened only after a
+  completed accept.
 - **Reject** reopens the todo (`open`) for the same developer. The claim is
   kept, `reject_count` is incremented, and `review_feedback` stores the
   feedback. The developer's next selection carries `review_feedback` in the
@@ -190,6 +200,15 @@ which binds one with `todo update --acceptor-agent`.
   `orchestrator`, `action_kind=replan` and `requires_acceptance=false`. It is
   claimed by the orchestrator, which decides whether to reassign, split,
   change the criteria or open a user gate.
+
+**Turn context.** The Turn envelope's selected todo carries `required_role`,
+`requires_acceptance`, `acceptor_agent`, `task_repositories`, `reject_count`,
+a bounded `review_feedback` and the todo's bounded `note`, and the shared
+Turn prompt spells out the review contract for an `in_review` todo and the
+feedback for a reopened one. The resolved acceptor may pin a delivered todo
+with `turn run-once --todo-id`, and a gate scoped to another agent does not
+keep its lane in `operator_gate`. A reject verdict from a Turn settles as
+`outcome_progress`.
 
 **Verdicts from a managed Turn.** An acceptor Turn (`loopx turn run-once`,
 for example launched by the dispatcher) selects the delivered todo. A
@@ -242,7 +261,15 @@ directly, as before.
   the todo stays open. The default `soft_claim` mode works.
 - Accept completes directly from `in_review` through the terminal
   transaction, attributed to the claim owner.
-- The todo's declared validation runs in the Goal repository unless the
-  todo names a `task_repository` with a verified delivery worktree. A todo
-  worked in an S5 per-todo worktree (`task_repositories`) is therefore still
-  validated in the Goal checkout.
+- A todo with S5 `task_repositories` validates in its prepared per-todo
+  workspace (the worktree for one repo, the workspace root for several), which
+  must be clean on the todo branch. The workspace is looked up under the
+  caller's `--runtime-root` (the dispatcher's). If it is missing or off the
+  todo branch, validation fails closed with `workspace_unverified`; it never
+  falls back to the Goal repository, which lacks the todo's commits. Run
+  `loopx workspace prepare` again to recreate a removed worktree on the
+  existing todo branch.
+- A multi-repo Turn runs from the workspace root, which is not a git worktree.
+  Its delivery and verdict land, but the post-settlement refresh fails the
+  multi-agent worktree guard, because a delivery-workspace snapshot models one
+  repository. This needs a protocol decision (E2E pilot report, gap G1).

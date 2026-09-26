@@ -55,6 +55,18 @@ test("an unscoped user gate blocks developers but not the acceptor; a global gat
     agent_model: "peer_v1", user_gate_scope: true})).lanes as JsonObject).open_items), ["unscoped"]);
 });
 
+test("a gate awaiting the orchestrator's reply does not block the orchestrator lane", () => {
+  const gates = [row("clarify", {gate: true, blocks: "orch", claim: null, awaits_orchestrator: true}),
+    row("plan-approval", {gate: true, blocks: "orch"}), row("unscoped", {gate: true, awaits_orchestrator: true})];
+  const open = (agent: string, role: string, model = "role_v1") => ids((projectQuotaSelection(
+    request(gates, {agent_id: agent, agent_role: role, agent_model: model, user_gate_scope: true})).lanes as JsonObject).open_items);
+  // The awaited gate stops blocking the orchestrator; the one awaiting the user still blocks it.
+  assert.deepEqual(open("orch", "orchestrator"), ["plan-approval"]);
+  // Other roles and peer_v1 keep the previous rules.
+  assert.deepEqual(open("dev-1", "developer"), ["unscoped"]);
+  assert.deepEqual(open("orch", "orchestrator", "peer_v1"), ["clarify", "plan-approval", "unscoped"]);
+});
+
 test("field planner accepts in_review and the delivery/verdict fields", () => {
   const plan = planTodoFieldUpdate({schema_version: TODO_FIELD_UPDATE_REQUEST_SCHEMA,
     todo: {todo_id: "todo_review1", status: "open"},

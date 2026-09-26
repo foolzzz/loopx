@@ -204,17 +204,74 @@ def build_fresh_turn_decision_owner(
         status_payload=status_payload,
         scheduler_execution_context=scheduler_execution_context,
         operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-        build_turn_decision=_build_turn_decision(
-            args,
+        build_turn_decision=_with_durable_todo_note(
+            _build_turn_decision(
+                args,
+                registry_path=registry_path,
+                runtime_root=runtime_root,
+                status_payload=status_payload,
+                scheduler_execution_context=scheduler_execution_context,
+                operator_inbox_urgency_projector=operator_inbox_urgency_projector,
+                turn_start_hook_dispatch=turn_start_hook_dispatch,
+            ),
             registry_path=registry_path,
             runtime_root=runtime_root,
-            status_payload=status_payload,
-            scheduler_execution_context=scheduler_execution_context,
-            operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-            turn_start_hook_dispatch=turn_start_hook_dispatch,
+            goal_id=args.goal_id,
         ),
         requested_todo_id=getattr(args, "todo_id", None),
     )
+
+
+def _goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
+    from ..agent_registry import load_goal_from_registry
+    from ..todo_acceptance import goal_uses_role_v1
+
+    try:
+        return goal_uses_role_v1(load_goal_from_registry(registry_path, goal_id))
+    except (OSError, ValueError):
+        return False
+
+
+def _with_durable_todo_note(
+    build: Callable[..., dict[str, Any]], *, registry_path: Path, runtime_root: Path, goal_id: str,
+) -> Callable[..., dict[str, Any]]:
+    """Attach the selected todo's durable note before the envelope is signed.
+
+    Fork role_v1: plan cards keep a todo's acceptance criteria, and the
+    orchestrator keeps rework instructions, in the todo note. The status
+    projection behind the decision carries no notes, so the host never saw
+    them (E2E pilot). Only the selected todo gets its bounded note, and only
+    on a role_v1 goal: other goals get the builder unchanged, with no extra
+    todo read and no envelope change.
+    """
+
+    if not _goal_uses_role_v1(registry_path, goal_id):
+        return build
+
+    def wrapped(**kwargs: Any) -> dict[str, Any]:
+        decision = build(**kwargs)
+        selected = decision.get("selected_todo") if isinstance(decision, dict) else None
+        todo_id = selected.get("todo_id") if isinstance(selected, dict) else None
+        if not todo_id or selected.get("note"):
+            return decision
+        from ..todos import list_goal_todos
+
+        try:
+            listed = list_goal_todos(
+                registry_path=registry_path, goal_id=goal_id, todo_id=str(todo_id),
+                runtime_root_arg=str(runtime_root),
+            )
+        except (OSError, ValueError):
+            return decision
+        for item in listed.get("todos") or []:
+            if isinstance(item, dict) and item.get("todo_id") == todo_id:
+                note = " ".join(str(item.get("note") or "").split())
+                if note:
+                    selected["note"] = note[:600]
+                break
+        return decision
+
+    return wrapped
 
 
 def fresh_turn_envelope(

@@ -113,9 +113,15 @@ def test_policy_slots_backoff_and_decisions() -> None:
     idle = {"should_run": True, "effective_action": "normal_run"}
     assert policy.decide_turn(idle, role="developer", state_changed=True)["launch"] is False
     assert policy.decide_turn(idle, role="orchestrator", state_changed=False)["launch"] is False
-    assert policy.decide_turn(idle, role="orchestrator", state_changed=True)["launch"] is True
+    # run-once refuses host routes without todo lineage, so a todo-less
+    # orchestrator Turn is never launched (E2E pilot: a relaunch hot loop).
+    assert policy.decide_turn(idle, role="orchestrator", state_changed=True)["launch"] is False
     replan = {"should_run": True, "effective_action": "autonomous_replan"}
-    assert policy.decide_turn(replan, role="orchestrator", state_changed=False)["launch"] is True
+    pending = policy.decide_turn(replan, role="orchestrator", state_changed=False)
+    assert pending == {"launch": False, "reason": "orchestrator_action_without_todo",
+                       "detail": "effective_action=autonomous_replan"}
+    orch_todo = {"should_run": True, "selected_todo": {"todo_id": "todo_orch", "role": "agent"}}
+    assert policy.decide_turn(orch_todo, role="orchestrator", state_changed=False)["todo_id"] == "todo_orch"
     assert policy.decide_turn({"should_run": False}, role="orchestrator", state_changed=True)["launch"] is False
     crashed = policy.classify_outcome(9, "Traceback")
     assert crashed["outcome"] == "crashed"
@@ -137,19 +143,22 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
         },
     )
     set_modes(fixture, {"orch": ["hold"], "dev": ["hold"], "acc": ["hold"]})
-    should_run = ScriptedShouldRun({"dev": ["todo_aaa", "todo_bbb", "todo_ccc"], "acc": []})
+    should_run = ScriptedShouldRun({"orch": ["todo_orch"], "dev": ["todo_aaa", "todo_bbb", "todo_ccc"], "acc": []})
     dispatcher = _dispatcher(fixture, should_run=should_run)
 
     report = dispatcher.reconcile()
     launched = [(item["agent_id"], item["todo_id"]) for item in report["launched"]]
-    assert launched == [("orch", None), ("dev", "todo_aaa"), ("dev", "todo_bbb")]
+    # One in-flight Turn per agent and goal: run-once's lane fence
+    # (turn_lane_in_flight) refuses a second one; max_concurrency spans goals.
+    assert launched == [("orch", "todo_orch"), ("dev", "todo_aaa")]
     assert {"agent_id": "acc", "goal_id": GOAL_ID, "reason": "should_run_false", "detail": "no eligible work"} in report["skipped"]
+    assert ("dev", "turn_lane_in_flight") in {(item["agent_id"], item["reason"]) for item in report["skipped"]}
 
     second = dispatcher.reconcile()
     assert second["launched"] == []
     reasons = {(item["agent_id"], item["reason"]) for item in second["skipped"]}
     assert ("orch", "slots_full") in reasons
-    assert ("dev", "slots_full") in reasons
+    assert ("dev", "turn_lane_in_flight") in reasons
 
     status = dispatch_status(fixture["runtime"])
     assert status["agent_slots"]["orch"]["max"] == 1
@@ -157,12 +166,12 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
         "role": "developer",
         "max": 2,
         "provider": "anthropic-login",
-        "running": 2,
+        "running": 1,
     }
-    assert len(status["running"]) == 3
+    assert len(status["running"]) == 2
 
     finished = _release_and_wait(fixture, dispatcher)
-    assert sorted(item["outcome"] for item in finished) == ["committed"] * 3
+    assert sorted(item["outcome"] for item in finished) == ["committed"] * 2
     assert dispatch_status(fixture["runtime"])["running"] == []
 
 
@@ -178,7 +187,7 @@ def test_global_cap_limits_total_running_turns(tmp_path: Path) -> None:
     should_run = ScriptedShouldRun({"dev1": ["todo_aaa", "todo_bbb", "todo_ccc"], "dev2": ["todo_ddd", "todo_eee"]})
     dispatcher = _dispatcher(fixture, should_run=should_run, max_global=2)
     report = dispatcher.reconcile()
-    assert [item["todo_id"] for item in report["launched"]] == ["todo_aaa", "todo_bbb"]
+    assert [item["todo_id"] for item in report["launched"]] == ["todo_aaa", "todo_ddd"]
     assert any(item["reason"] == "global_cap" for item in report["skipped"])
     _release_and_wait(fixture, dispatcher)
 
@@ -196,7 +205,7 @@ def test_same_todo_is_not_launched_twice_and_disabled_agents_are_skipped(tmp_pat
     report = dispatcher.reconcile()
     assert [item["todo_id"] for item in report["launched"]] == ["todo_same"]
     reasons = {(item["agent_id"], item["reason"]) for item in report["skipped"]}
-    assert ("dev", "todo_in_flight") in reasons
+    assert ("dev", "turn_lane_in_flight") in reasons
     assert ("off", "agent_disabled") in reasons
     _release_and_wait(fixture, dispatcher)
 
@@ -308,14 +317,14 @@ def test_once_is_idempotent_and_adopts_running_turns(tmp_path: Path) -> None:
         tmp_path, agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}}
     )
     set_modes(fixture, {"orch": ["ok"], "dev": ["hold"]})
-    should_run = ScriptedShouldRun({"dev": ["todo_aaa"]})
+    should_run = ScriptedShouldRun({"orch": ["todo_orch", None], "dev": ["todo_aaa"]})
     first = _dispatcher(fixture, should_run=should_run)
     report = first.run_once(wait=False)
     assert {item["agent_id"] for item in report["launched"]} == {"orch", "dev"}
     first.wait_for_children([r["run_id"] for r in report["launched"] if r["agent_id"] == "orch"], timeout=30)
 
     # A second process sees the running developer Turn and launches nothing:
-    # the todo is in flight and the orchestrator saw no state change since its Turn.
+    # the todo is in flight and the orchestrator has no todo of its own.
     second = _dispatcher(fixture, should_run=should_run)
     again = second.run_once(wait=False)
     assert again["launched"] == []
@@ -382,7 +391,7 @@ def test_repeated_failures_on_one_todo_back_off(tmp_path: Path) -> None:
     dispatcher = _dispatcher(fixture, should_run=ScriptedShouldRun({"dev": ["todo_aaa"]}), clock=clock)
     for _ in range(3):
         dispatcher.run_once()
-    assert load_state(fixture["runtime"])["todo_cooldowns"][f"{GOAL_ID}/todo_aaa"]["reason"] == "repeated_crash"
+    assert load_state(fixture["runtime"])["todo_cooldowns"][f"{GOAL_ID}/todo_aaa@dev"]["reason"] == "repeated_crash"
     report = dispatcher.run_once()
     assert report["launched"] == []
     assert any(item["reason"] == "todo_cooldown" for item in report["skipped"])
@@ -561,3 +570,220 @@ def test_status_and_launchd_plist_cli(tmp_path: Path) -> None:
     assert plist["Label"].startswith("com.loopx.dispatch.")
     # Rendering never installs anything.
     assert not (Path.home() / "Library" / "LaunchAgents" / f"{plist['Label']}.plist").exists()
+
+
+def test_orchestrator_plan_todo_is_validated_by_an_applied_plan_card(tmp_path: Path) -> None:
+    """E2E pilot: the intake planning todo had no validator, so every orchestrator Turn failed."""
+
+    fixture = write_fixture(
+        tmp_path,
+        agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}},
+    )
+
+    def add(text: str, action_kind: str, **extra: Any) -> str:
+        added = add_goal_todo(
+            registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+            role="agent", text=text, task_class="advancement_task", action_kind=action_kind, **extra,
+        )
+        return str(added["todo_id"])
+
+    plan_todo = add("Clarify and plan", "plan", claimed_by="orch",
+                    role_contract={"required_role": "orchestrator", "requires_acceptance": False})
+    build_todo = add("Build it", "fixture")
+    dispatcher = _dispatcher(
+        fixture, should_run=ScriptedShouldRun({"orch": [plan_todo], "dev": [build_todo]})
+    )
+    dispatcher.run_once()
+    rows = {row["agent"]: row for row in read_jsonl(fixture["turn_log"])}
+    orch = rows["orch"]["argv"]
+    validator = json.loads(orch[orch.index("--validation-command-json") + 1])
+    assert validator[-6:] == ["plan", "list", "--goal-id", GOAL_ID, "--require-status", "applied"]
+    assert validator[validator.index("--registry") + 1] == str(fixture["registry"])
+    # Ordinary developer work without a declared validator gets no plan check.
+    assert "--validation-command-json" not in rows["dev"]["argv"]
+    prompt = rows["orch"]["system_prompt"]
+    assert "user_action_required" in prompt and "--registry" in prompt
+
+    def plan_list() -> int:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return cli_main([
+                "--registry", str(fixture["registry"]), "--runtime-root", str(fixture["runtime"]),
+                "--format", "json", "plan", "list", "--goal-id", GOAL_ID, "--require-status", "applied",
+            ])
+
+    assert plan_list() == 1
+    plans = fixture["runtime"] / "goals" / GOAL_ID / "plans"
+    plans.mkdir(parents=True)
+    (plans / "plan_aaaa.json").write_text(json.dumps({"plan_id": "plan_aaaa", "status": "applied"}))
+    assert plan_list() == 0
+
+
+def test_a_cooling_todo_yields_to_the_lanes_next_todo_and_only_for_that_agent(tmp_path: Path) -> None:
+    """E2E pilot: a developer's failures on a todo also stalled its acceptor.
+
+    should-run always selects the lane's first todo; when that todo is cooling
+    down for this agent the next executable todo runs instead (pinned with
+    --todo-id), and another agent's backoff on the same todo does not apply.
+    """
+
+    from loopx.dispatch.state import save_state
+
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"},
+                                              "acc": {"role": "acceptor", "runtime": "codex-cli"}})
+
+    def should_run(goal_id: str, agent_id: str) -> dict[str, Any]:
+        items = [{"todo_id": "todo_aaa", "status": "open"}, {"todo_id": "todo_bbb", "status": "open"},
+                 {"todo_id": "todo_ccc", "status": "done"}]
+        return {"should_run": True, "effective_action": "normal_run",
+                "selected_todo": {"todo_id": "todo_aaa", "role": "agent"},
+                "agent_todo_summary": {"first_executable_items": items}}
+
+    dispatcher = _dispatcher(fixture, should_run=should_run)
+    dispatcher.state.setdefault("todo_cooldowns", {})[f"{GOAL_ID}/todo_aaa@dev"] = {
+        "until": 10_000_000_000.0, "failures": 2, "reason": "failed"}
+    save_state(fixture["runtime"], dispatcher.state)
+    report = dispatcher.run_once()
+    assert sorted((item["agent_id"], item["todo_id"], item["reason"]) for item in report["launched"]) == [
+        ("acc", "todo_aaa", "selected_todo"), ("dev", "todo_bbb", "alternate_todo")]
+    rows = {row["agent"]: row["argv"] for row in read_jsonl(fixture["turn_log"])}
+    assert rows["dev"][rows["dev"].index("--todo-id") + 1] == "todo_bbb"
+    assert policy.alternate_todo({"agent_todo_summary": {"first_executable_items": [
+        {"todo_id": "todo_aaa"}, {"todo_id": "todo_ccc", "status": "done"}]}}, exclude={"todo_aaa"}) is None
+
+
+def test_orchestrator_escalation_todo_is_validated_by_the_escalated_todo_status(tmp_path: Path) -> None:
+    """E2E pilot: an escalation todo had no validator, so the orchestrator could not settle it."""
+
+    from loopx.dispatch.checks import main as check
+
+    fixture = write_fixture(tmp_path, agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}})
+    rejected = add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text="Build the web UI", task_class="advancement_task", action_kind="fixture",
+    )["todo_id"]
+    escalation = add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text=f"Escalation: {rejected} was rejected 2 times by acc. Decide: reassign.",
+        task_class="advancement_task", action_kind="replan", claimed_by="orch",
+        role_contract={"required_role": "orchestrator", "requires_acceptance": False},
+    )["todo_id"]
+    dispatcher = _dispatcher(fixture, should_run=ScriptedShouldRun({"orch": [escalation], "dev": []}))
+    dispatcher.run_once()
+    argv = {row["agent"]: row["argv"] for row in read_jsonl(fixture["turn_log"])}["orch"]
+    validator = json.loads(argv[argv.index("--validation-command-json") + 1])
+    assert validator[1:4] == ["-m", "loopx.dispatch.checks", "todo-not-status"]
+    assert validator[validator.index("--todo-id") + 1] == rejected
+    base = ["todo-not-status", "--registry", str(fixture["registry"]), "--runtime-root", str(fixture["runtime"]),
+            "--goal-id", GOAL_ID, "--todo-id", rejected]
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert check([*base, "--status", "blocked"]) == 0  # the rejected todo is open
+        assert check([*base, "--status", "open"]) == 1
+        assert check([*base[:-1], "todo_000000000000", "--status", "blocked"]) == 1
+
+
+def _orch_rows(fixture: dict[str, Any]) -> list[dict[str, Any]]:
+    listed = list_goal_todos(registry_path=fixture["registry"], goal_id=GOAL_ID, role="agent",
+                             runtime_root_arg=str(fixture["runtime"]))
+    return [row for row in listed["todos"] if row.get("claimed_by") == "orch"]
+
+
+def _action_should_run(fixture: dict[str, Any], effective_action: str | None):
+    """should-run for a pending orchestrator action: its todo once one exists."""
+
+    def should_run(goal_id: str, agent_id: str) -> dict[str, Any]:
+        if agent_id != "orch":
+            return {"should_run": False, "reason": "no eligible work"}
+        live = [row for row in _orch_rows(fixture) if row["status"] == "open"]
+        if live:
+            return {"should_run": True, "effective_action": "normal_run",
+                    "selected_todo": {"todo_id": live[0]["todo_id"], "role": "agent"}}
+        if effective_action:
+            return {"should_run": True, "effective_action": effective_action}
+        return {"should_run": False, "reason": "operator_gate"}
+
+    return should_run
+
+
+def test_a_pending_orchestrator_action_without_a_todo_opens_one_orchestrator_todo(tmp_path: Path) -> None:
+    """Review fix: orchestrator_action_without_todo never produced a Turn, so the goal stalled."""
+
+    from loopx.dispatch.checks import main as check
+    from loopx.todos import complete_goal_todo
+
+    fixture = write_fixture(tmp_path, agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}})
+    dispatcher = _dispatcher(fixture, should_run=_action_should_run(fixture, "autonomous_replan_required"))
+    first = dispatcher.run_once()
+    assert first["launched"] == []
+    [opened] = first["orchestrator_todos_opened"]
+    [row] = _orch_rows(fixture)
+    assert row["todo_id"] == opened["todo_id"]
+    assert row["text"].startswith("Orchestrator action: settle the pending effective_action=autonomous_replan_required")
+    assert (row["required_role"], row["requires_acceptance"], row["action_kind"]) == ("orchestrator", False, "replan")
+
+    # The next pass launches a real Turn for it, with an independent validator,
+    # and opens nothing else (one at a time).
+    second = dispatcher.run_once()
+    assert [(item["agent_id"], item["todo_id"]) for item in second["launched"]] == [("orch", row["todo_id"])]
+    assert "orchestrator_todos_opened" not in second and len(_orch_rows(fixture)) == 1
+    argv = {item["agent"]: item["argv"] for item in read_jsonl(fixture["turn_log"])}["orch"]
+    validator = json.loads(argv[argv.index("--validation-command-json") + 1])
+    assert validator[1:4] == ["-m", "loopx.dispatch.checks", "todos-changed-since"]
+    assert validator[validator.index("--exclude-todo-id") + 1] == row["todo_id"]
+    since = validator[validator.index("--since") + 1]
+    base = ["todos-changed-since", "--registry", str(fixture["registry"]), "--runtime-root", str(fixture["runtime"]),
+            "--goal-id", GOAL_ID, "--exclude-todo-id", row["todo_id"], "--since", since]
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert check(base) == 1  # the orchestrator has not replanned yet
+        add_goal_todo(registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+                      role="agent", text="Follow-up from the replan", task_class="advancement_task")
+        assert check(base) == 0
+
+    # The same action left unsettled by its todos is escalated, not looped.
+    def close(todo_id: str) -> None:
+        done = complete_goal_todo(registry_path=fixture["registry"], goal_id=GOAL_ID, todo_id=todo_id,
+                                  role="agent", runtime_root_arg=str(fixture["runtime"]), evidence="replanned",
+                                  no_followup=True, agent_id="orch")
+        assert done.get("ok") is not False, done
+
+    dispatcher.wait_for_children(list(dispatcher.children), timeout=30)
+    close(row["todo_id"])
+    assert len(dispatcher.run_once()["orchestrator_todos_opened"]) == 1
+    dispatcher.wait_for_children(list(dispatcher.children), timeout=30)
+    for item in _orch_rows(fixture):
+        if item["status"] != "done":
+            close(item["todo_id"])
+    stalled = dispatcher.run_once()
+    assert "orchestrator_todos_opened" not in stalled
+    assert [gate["text"] for gate in _user_gates(fixture)][0].startswith(
+        "Orchestrator orch did not settle effective_action=autonomous_replan_required after 2 action todos")
+
+
+def test_a_gate_reply_awaiting_an_orchestrator_without_todos_opens_one(tmp_path: Path) -> None:
+    """Review fix: a gate reply woke the orchestrator only if it already had an open todo (G7)."""
+
+    from loopx.dispatch.checks import main as check
+    from loopx.gate_threads import reply_to_gate
+
+    fixture = write_fixture(tmp_path, agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}})
+    gate_id = add_goal_todo(registry_path=fixture["registry"], goal_id=GOAL_ID, role="user", task_class="user_gate",
+                            agent_id="orch", text="Which database?",
+                            runtime_root_arg=str(fixture["runtime"]))["todo_id"]
+    dispatcher = _dispatcher(fixture, should_run=_action_should_run(fixture, None))
+    assert "orchestrator_todos_opened" not in dispatcher.run_once()  # nothing awaits the orchestrator
+    reply_to_gate(registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_id=GOAL_ID,
+                  todo_id=gate_id, text="Use sqlite")
+    [opened] = dispatcher.run_once()["orchestrator_todos_opened"]
+    assert opened["subject"] == gate_id
+    [row] = _orch_rows(fixture)
+    assert f"awaiting you: {gate_id}." in row["text"]
+    launched = dispatcher.run_once()["launched"]
+    assert [(item["agent_id"], item["todo_id"]) for item in launched] == [("orch", row["todo_id"])]
+    argv = {item["agent"]: item["argv"] for item in read_jsonl(fixture["turn_log"])}["orch"]
+    validator = json.loads(argv[argv.index("--validation-command-json") + 1])
+    assert validator[1:4] == ["-m", "loopx.dispatch.checks", "gates-not-awaiting"]
+    base = validator[3:]
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert check(base) == 1
+        reply_to_gate(registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_id=GOAL_ID,
+                      todo_id=gate_id, text="Noted, sqlite it is.", author="orchestrator", agent_id="orch")
+        assert check(base) == 0

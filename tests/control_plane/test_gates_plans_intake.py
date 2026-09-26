@@ -449,3 +449,116 @@ def test_dispatcher_orchestrator_prompt_names_gates_awaiting_it(tmp_path: Path) 
     developer = dispatch_prompt_addendum(goal_id=GOAL, agent_id=DEV, role="developer", todo_id=None,
                                          workspace_repos=None)
     assert "loopx gate" not in developer
+
+
+def test_dispatcher_orchestrator_prompt_pins_state_home_and_gate_open(tmp_path: Path) -> None:
+    """E2E pilot: a bare `loopx` in the orchestrator prompt reached the default registry."""
+
+    from loopx.dispatch.dispatcher import DispatchConfig, Dispatcher
+    from loopx.dispatch.prompts import dispatch_prompt_addendum
+
+    registry, runtime = fixture(tmp_path)
+    dispatcher = Dispatcher(DispatchConfig(registry_path=registry, runtime_root=runtime, goal_ids=[GOAL],
+                                           loopx_argv=("/py", "-m", "loopx.cli")))
+    command = dispatcher._loopx_command()
+    assert command == f"/py -m loopx.cli --registry {registry} --runtime-root {runtime}"
+    prompt = dispatch_prompt_addendum(goal_id=GOAL, agent_id=ORCH, role="orchestrator", todo_id=None,
+                                      workspace_repos=None, loopx_command=command)
+    assert f"`{command}`" in prompt
+    assert "--role user --task-class user_gate" in prompt
+
+
+def test_user_reply_unblocks_the_orchestrator_lane_until_it_answers(tmp_path: Path) -> None:
+    """E2E pilot: the orchestrator's own clarification gate kept its lane blocked after a reply."""
+
+    import io
+    from contextlib import redirect_stdout
+
+    registry, runtime = fixture(tmp_path)
+    add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text="Clarify and plan",
+                  action_kind="plan", claimed_by=ORCH,
+                  role_contract={"required_role": "orchestrator", "requires_acceptance": False})
+    gate_id = open_gate(registry)
+
+    def should_run(agent: str) -> dict:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json",
+                  "quota", "should-run", "--goal-id", GOAL, "--agent-id", agent])
+        return json.loads(out.getvalue())
+
+    # The fixture goal has no adapter, so should_run stays health-gated; the
+    # quota state is what the gate decides.
+    assert should_run(ORCH)["state"] == "operator_gate"
+    reply_to_gate(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=gate_id, text="Use sqlite")
+    answered = should_run(ORCH)
+    assert answered["state"] == "eligible"
+    assert answered["agent_identity"]["awaiting_orchestrator_gate_ids"] == [gate_id]
+    assert answered["selected_todo"]["action_kind"] == "plan"
+    # The developer lane is not affected by the thread state.
+    assert "awaiting_orchestrator_gate_ids" not in (should_run(DEV).get("agent_identity") or {})
+    reply_to_gate(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=gate_id,
+                  text="Noted.", author="orchestrator", agent_id=ORCH)
+    assert should_run(ORCH)["state"] == "operator_gate"
+
+
+def test_plan_dependents_resume_only_when_every_dependency_is_done(tmp_path: Path) -> None:
+    """E2E pilot: applied plan todos stayed deferred after their dependency finished."""
+
+    from loopx.plan_cards import resume_ready_plan_todos
+
+    registry, runtime = fixture(tmp_path)
+    # The repos here are plain directories with no S5 workspace, so a declared
+    # validation would fail closed (workspace_unverified); this test is about
+    # dependency resume only.
+    plan = {**PLAN, "todos": [{k: v for k, v in item.items() if k != "validation_command"} for item in PLAN["todos"]]}
+    proposed = propose_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, agent_id=ORCH, plan=plan)
+    plan_id = proposed["plan"]["plan_id"]
+    complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=proposed["plan"]["gate_todo_id"], role="user",
+                       decision_outcome="approve", note="Go", no_followup=True, agent_id=ORCH)
+    ids = read_plan(runtime, GOAL, plan_id)["todo_id_map"]
+
+    def status(key: str) -> str:
+        return rows(registry)[ids[key]]["status"]
+
+    def finish(key: str) -> None:
+        from loopx.todo_acceptance import accept_goal_todo
+
+        todo_id = ids[key]
+        owner = rows(registry)[todo_id].get("claimed_by") or DEV
+        delivered = complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, role="agent",
+                                       evidence="built", agent_id=owner)
+        if delivered.get("in_review"):
+            accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id=ACC)
+        assert rows(registry)[todo_id]["status"] == "done"
+
+    def resume() -> list[str]:
+        return resume_ready_plan_todos(registry_path=registry, goal_id=GOAL, runtime_root=runtime)
+
+    assert resume() == []
+    assert status("api") == "deferred"
+    finish("contract")  # the accept verdict resumes the dependents
+    assert status("api") == "open" and status("web") == "open" and status("integrate") == "deferred"
+    finish("web")  # integrate's resume_when names web, but api is still open
+    assert resume() == [] and status("integrate") == "deferred"
+    finish("api")
+    assert status("integrate") == "open" and resume() == []
+
+
+def test_only_the_role_v1_orchestrator_skips_the_peer_worktree_guard() -> None:
+    """E2E pilot: the orchestrator's plan-todo completion failed the peer worktree guard.
+
+    It works from the state home and delivers no code; developers and
+    acceptors keep refreshing from their per-todo worktrees.
+    """
+
+    from loopx.state_refresh import _role_v1_orchestrator
+
+    coordination = {"registered_agents": [ORCH, DEV, ACC],
+                    "agent_roles": {ORCH: "orchestrator", DEV: "developer", ACC: "acceptor"}}
+    role_v1 = {"id": GOAL, "coordination": {"agent_model": "role_v1", **coordination}}
+    peer_v1 = {"id": GOAL, "coordination": {"agent_model": "peer_v1", **coordination}}
+    assert _role_v1_orchestrator(role_v1, ORCH) is True
+    assert _role_v1_orchestrator(role_v1, DEV) is False and _role_v1_orchestrator(role_v1, ACC) is False
+    assert _role_v1_orchestrator(peer_v1, ORCH) is False
+    assert _role_v1_orchestrator(role_v1, None) is False

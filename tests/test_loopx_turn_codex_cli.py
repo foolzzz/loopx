@@ -967,3 +967,35 @@ def test_checkpointed_write_approval_is_scoped_and_absent_by_default():
     prompt = _prompt(request)
     assert "only within its active_write_scope" in prompt
     assert "publish, and production actions retain their gates" in prompt
+
+
+def test_prompt_tells_the_acceptor_how_to_accept_or_reject_a_delivered_todo() -> None:
+    """E2E pilot: a codex acceptor got only developer wording and no reject path."""
+
+    request = _request()
+    request["turn_envelope"]["action"]["selected_todo"]["status"] = "in_review"
+    review = _prompt(request)
+    assert "repair_required" in review and "status in_review" in review
+    assert "Return validated_progress while work on the Todo remains" not in review
+    developer = _prompt(_request())
+    assert "Return validated_progress while work on the Todo remains" in developer
+    assert "status in_review" not in developer
+
+
+def test_prompt_hands_a_rejected_delivery_its_review_feedback() -> None:
+    """E2E pilot: the developer re-delivered unchanged work because the feedback never reached it."""
+
+    from loopx.control_plane.quota.selected_todo_projection import selected_todo_projection
+
+    selected = selected_todo_projection(
+        agent_lane_next_action={"todo_id": "todo_fixture0001", "text": "Build the web UI", "status": "open",
+                                "task_class": "advancement_task", "reject_count": 1,
+                                "review_feedback": "rejected by acc (#1): README still lists the gap"},
+        work_lane_contract=None,
+    )
+    assert selected["reject_count"] == 1 and "README" in selected["review_feedback"]
+    request = _request()
+    request["turn_envelope"]["action"]["selected_todo"] = selected
+    prompt = _prompt(request)
+    assert "An acceptor rejected the previous delivery" in prompt and "README still lists the gap" in prompt
+    assert "An acceptor rejected" not in _prompt(_request())

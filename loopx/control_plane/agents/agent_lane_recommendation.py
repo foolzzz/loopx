@@ -12,6 +12,7 @@ from ..todos.contract import (
     normalize_todo_claimed_by,
     normalize_todo_id,
     normalize_todo_status,
+    todo_review_agent,
 )
 from ..todos.todo_semantics import todo_item_is_due_monitor
 from ..todos.summary_item import compact_todo_summary_item
@@ -58,16 +59,23 @@ def build_explicit_advancement_next_action(
     for item in agent_todo_items:
         if normalize_todo_id(item.get("todo_id")) != normalized_todo_id:
             continue
+        # Fork S2: the resolved acceptor may pin a delivered (in_review) todo
+        # even though the developer keeps its claim.
+        reviewing = (
+            agent_identity.get("agent_model") == "role_v1"
+            and normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW
+            and todo_review_agent(item, agent_identity.get("acceptor_agent_ids")) == agent_id
+        )
         if (
-            not _todo_item_is_actionable_open(item)
+            not (reviewing or _todo_item_is_actionable_open(item))
             or _todo_task_class(item) != TODO_TASK_CLASS_ADVANCEMENT
             or missing_required_capabilities(
                 item,
                 available_capabilities=available_capabilities,
             )
-            or not agent_scope_item_claimed_by_agent_or_unclaimed(
-                item,
-                agent_id=agent_id,
+            or not (
+                reviewing
+                or agent_scope_item_claimed_by_agent_or_unclaimed(item, agent_id=agent_id)
             )
         ):
             return None

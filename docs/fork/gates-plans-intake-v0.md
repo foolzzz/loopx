@@ -23,8 +23,14 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
 - The thread only accepts replies while the gate is `open` or `blocked`. Once
   the gate closes, the thread is read-only.
 - Replying never closes a gate. You still close it with approve, reject or cancel,
-  either through `loopx todo complete --role user --decision-outcome ...` or
-  through the dashboard `gate.resolve` action (S7).
+  either through `loopx todo complete --role user --decision-outcome ... --agent-id
+  <the agent the gate blocks>` (a multi-agent goal needs the lifecycle actor; the
+  dashboard path uses the same attribution) or through the dashboard
+  `gate.resolve` action (S7).
+- A gate whose thread awaits the orchestrator (the user replied last) does not
+  block the orchestrator's lane under role_v1, so the reply can be answered. Once
+  the orchestrator replies, the gate awaits the user and blocks it again. The
+  orchestrator's quota identity carries `awaiting_orchestrator_gate_ids` for this.
 
 ### Awaiting state and the dispatcher contract (S4)
 
@@ -95,7 +101,7 @@ gates:
 ```sh
 loopx plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]
 loopx plan show    --goal-id G --plan-id PLAN_ID
-loopx plan list    --goal-id G
+loopx plan list    --goal-id G [--require-status applied]   # exit 1 when no plan has it
 loopx plan apply   --goal-id G --plan-id PLAN_ID      # recovery only
 ```
 
@@ -155,6 +161,9 @@ Lifecycle:
      `resume_when=todo_done:<id of its last listed dependency>`. `resume_when`
      holds only one condition, and in dependency order the last listed
      dependency is the latest one.
+   - `resume_ready_plan_todos` reopens a deferred plan todo once **all** of its
+     `depends_on` todos are done. The accept verdict and every dispatcher pass
+     call it.
 4. **reject / cancel.** Nothing is applied, and the plan becomes `rejected` or
    `cancelled`.
 

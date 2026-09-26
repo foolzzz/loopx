@@ -1770,6 +1770,7 @@ def _complete_goal_todo_unsettled(
         requested_successor_todo_ids=normalized_successor_todo_ids,
         completion_delivery_workspace=completion_delivery_workspace,
         completion_validation_workspace_path=completion_validation_workspace_path,
+        runtime_root_arg=runtime_root_arg,
     )
     validation_failure = validation_gate.get("failure")
     if validation_failure is not None:

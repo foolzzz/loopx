@@ -52,6 +52,11 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     plan_list = plan_actions.add_parser("list", help="List the goal's plan cards.")
     add_format(plan_list)
     plan_list.add_argument("--goal-id", required=True)
+    plan_list.add_argument(
+        "--require-status",
+        choices=["pending", "applying", "applied", "rejected", "cancelled"],
+        help="Exit 1 unless at least one plan has this status (an orchestrator plan-todo validator).",
+    )
     plan_apply = plan_actions.add_parser(
         "apply", help="Retry applying a plan whose gate was approved but whose apply was interrupted.",
     )
@@ -135,7 +140,14 @@ def handle_gate_plan_goal_command(
                 elif args.plan_command == "show":
                     payload = {"ok": True, "plan": read_plan(runtime_root, args.goal_id, args.plan_id)}
                 elif args.plan_command == "list":
-                    payload = {"ok": True, "goal_id": args.goal_id, "plans": list_plans(runtime_root, args.goal_id)}
+                    plans = list_plans(runtime_root, args.goal_id)
+                    payload = {"ok": True, "goal_id": args.goal_id, "plans": plans}
+                    required = getattr(args, "require_status", None)
+                    if required and not any(plan.get("status") == required for plan in plans):
+                        payload.update(
+                            ok=False, error_code="plan_status_missing",
+                            error=f"goal {args.goal_id!r} has no plan with status {required!r}",
+                        )
                 else:
                     payload = apply_plan(
                         registry_path=registry_path, runtime_root=runtime_root, goal_id=args.goal_id,

@@ -238,9 +238,17 @@ function selectedTodo(payload: JsonObject, recommendedAction: string | null): Js
     "task_repository", "continuation_policy", "claimed_by", "bound_agent",
     "goal_bound", "blocks_agent", "unblocks_todo_id", "next_due_at",
     "expires_at", "selected_by", "confidence",
+    // Fork role_v1: acceptance context the host needs (S1/S2).
+    "required_role", "requires_acceptance", "acceptor_agent", "task_repositories", "reject_count",
   ]) {
     if (source[field] !== null && source[field] !== undefined) compact[field] = source[field];
   }
+  // The acceptor's feedback on a rejected delivery, and the todo note that
+  // carries the plan's acceptance criteria and orchestrator instructions.
+  const reviewFeedback = text(source.review_feedback, 600);
+  if (reviewFeedback) compact.review_feedback = reviewFeedback;
+  const note = text(source.note, 600);
+  if (note) compact.note = note;
   const rendered = text(source.text, 360);
   if (rendered && sameActionText(source.text, recommendedAction)) {
     compact.text_ref = "action.recommended_action";

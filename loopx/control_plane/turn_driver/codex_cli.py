@@ -313,6 +313,28 @@ def _has_subagent_topology(request: Mapping[str, Any] | None) -> bool:
     )
 
 
+def _selected_todo_in_review(request: Mapping[str, Any]) -> bool:
+    from .driver import selected_turn_todo
+
+    envelope = request.get("turn_envelope")
+    if not isinstance(envelope, Mapping):
+        return False
+    action = envelope.get("action")
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        selected = selected_turn_todo(envelope)
+    return str(selected.get("status") or "") == "in_review"
+
+
+def _selected_todo_review_feedback(request: Mapping[str, Any]) -> str:
+    envelope = request.get("turn_envelope")
+    action = envelope.get("action") if isinstance(envelope, Mapping) else None
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        return ""
+    return str(selected.get("review_feedback") or "").strip()[:600]
+
+
 def turn_completion_todo_id(request: Mapping[str, Any] | None) -> str | None:
     """Return the Todo a todo-scoped Turn may complete, if any.
 
@@ -449,7 +471,18 @@ def _prompt(request: Mapping[str, Any]) -> str:
         request_json,
     ]
     completion_todo_id = turn_completion_todo_id(request)
-    if completion_todo_id:
+    if completion_todo_id and _selected_todo_in_review(request):
+        # Fork S2: only the resolved acceptor is ever offered a delivered Todo.
+        instructions.insert(
+            -2,
+            f"This Turn reviews Todo {completion_todo_id}, which a developer delivered for your "
+            "acceptance (status in_review). Check the committed work in this workspace against the "
+            "Todo's text, acceptance criteria and validation; do not modify, commit, push or merge "
+            "anything. Return validated_completion to accept it. To reject it, return repair_required "
+            "and put concrete, actionable feedback for the developer in summary; LoopX reopens the "
+            "Todo for the same developer, and a second rejection escalates to the orchestrator.",
+        )
+    elif completion_todo_id:
         instructions.insert(
             -2,
             f"This Turn selected Todo {completion_todo_id}. Return validated_completion only when that "
@@ -457,6 +490,13 @@ def _prompt(request: Mapping[str, Any]) -> str:
             "validation independently and completes the Todo, or delivers it for acceptor review when "
             "it requires acceptance. Return validated_progress while work on the Todo remains.",
         )
+        feedback = _selected_todo_review_feedback(request)
+        if feedback:
+            instructions.insert(
+                -2,
+                "An acceptor rejected the previous delivery of this Todo. Address this feedback "
+                f"before delivering again (selected_todo.review_feedback): {feedback}",
+            )
     boundary = _mapping(_mapping(request.get("turn_envelope")).get("boundary"))
     if boundary.get("checkpointed_boundary_authority"):
         instructions.append(

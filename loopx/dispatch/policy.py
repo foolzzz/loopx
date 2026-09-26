@@ -54,12 +54,16 @@ def decide_turn(
 
     - ``should_run`` false: never launch.
     - A selected Todo in this agent's lane: launch for it.
-    - The orchestrator without a selected Todo still owns planning, gate replies
-      and replans, which LoopX may express as a non-normal-run action; it
-      also runs once after any goal state change since its last Turn (the
-      event-triggered orchestrator of decision 2). Otherwise it stays idle so a
-      quiet goal does not burn quota.
-    - Developers and acceptors only run for a selected Todo.
+    - Without a selected Todo nobody launches. ``turn run-once`` refuses every
+      host route that lacks todo lineage ("host-bound routes require goal,
+      agent, todo, and action-hash lineage"), so a todo-less orchestrator
+      Turn could only fail without calling the host, and the E2E pilot's
+      resident dispatcher relaunched it every few seconds. The orchestrator
+      is event-triggered through its todos instead: intake planning,
+      escalations, and gate threads awaiting it (which unblock its lane).
+      A pending orchestrator action is reported, not launched; the
+      dispatcher then opens one orchestrator todo for it
+      (``orchestrator_actions``), so the next pass has a todo to launch.
     """
 
     payload = payload if isinstance(payload, Mapping) else {}
@@ -79,10 +83,36 @@ def decide_turn(
         return {"launch": False, "reason": "no_selected_todo"}
     effective_action = str(payload.get("effective_action") or "")
     if effective_action and effective_action != EffectiveAction.NORMAL_RUN.value:
-        return {"launch": True, "reason": f"effective_action:{effective_action}", "todo_id": None}
-    if state_changed:
-        return {"launch": True, "reason": "state_changed_since_last_turn", "todo_id": None}
+        return {"launch": False, "reason": "orchestrator_action_without_todo",
+                "detail": f"effective_action={effective_action}"}
     return {"launch": False, "reason": "orchestrator_idle"}
+
+
+def alternate_todo(
+    payload: Mapping[str, Any] | None, *, exclude: set[str] | frozenset[str],
+) -> str | None:
+    """Another executable todo from the same should-run lane, for a free slot.
+
+    ``should-run`` always selects the lane's first executable todo, so a
+    second slot of the same agent would get the in-flight todo again. The
+    lane's ``first_executable_items`` is already role- and claim-filtered by
+    LoopX; the Turn is pinned with ``--todo-id`` and run-once re-checks it.
+    """
+
+    summary = (payload or {}).get("agent_todo_summary") if isinstance(payload, Mapping) else None
+    items = summary.get("first_executable_items") if isinstance(summary, Mapping) else None
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, Mapping):
+            continue
+        todo_id = str(item.get("todo_id") or "")
+        if not todo_id or todo_id in exclude:
+            continue
+        if str(item.get("status") or "open") not in {"open", "in_review"}:
+            continue
+        if str(item.get("role") or "agent") != "agent":
+            continue
+        return todo_id
+    return None
 
 
 def classify_outcome(returncode: int | None, stdout_text: str) -> dict[str, Any]:
