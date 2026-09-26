@@ -40,8 +40,8 @@ def _fixture(tmp_path: Path, monkeypatch, *, roles: bool = False) -> tuple[Path,
     return registry, runtime, goal
 
 
-def _add(registry: Path, repos: list[str], argv: list[str], **extra) -> str:
-    added = add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text="Build it",
+def _add(registry: Path, repos: list[str], argv: list[str], text: str = "Build it", **extra) -> str:
+    added = add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text=text,
                           task_class="advancement_task", validation_command_json=json.dumps(argv),
                           role_contract={"task_repositories": repos}, **extra)
     return str(added["todo_id"])
@@ -102,3 +102,47 @@ def test_role_v1_delivery_and_accept_validate_in_the_todo_worktree(tmp_path: Pat
                                 note="looks right")
     assert accepted.get("ok") is True, accepted
     assert _status(registry, todo_id) == "done"
+
+
+def _deliver(registry: Path, runtime: Path, goal: dict, repos: list[str], files: dict[str, str]) -> str:
+    todo_id = _add(registry, repos, ["true"], text=f"Build {sorted(files)}", claimed_by="dev")
+    paths = git_workspace.prepare(goal, todo_id, None, runtime)["paths"]
+    for name, content in files.items():
+        repo, rel = name.split("/", 1)
+        (Path(paths[repo]) / rel).write_text(content, encoding="utf-8")
+    for repo in {name.split("/", 1)[0] for name in files}:
+        git(Path(paths[repo]), "add", ".")
+        git(Path(paths[repo]), "commit", "-qm", f"work on {todo_id}")
+    assert _complete(registry, todo_id, agent_id="dev").get("in_review") is True
+    return todo_id
+
+
+def test_accept_merges_every_repo_of_the_todo_into_the_task_branch(tmp_path: Path, monkeypatch) -> None:
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch, roles=True)
+    todo_id = _deliver(registry, runtime, goal, ["api", "web"], {"api/a.txt": "a\n", "web/w.txt": "w\n"})
+    accepted = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id="acc")
+    assert accepted["merge"]["ok"] is True
+    assert sorted(item["name"] for item in accepted["merge"]["merged"]) == ["api", "web"]
+    for repo, name in (("api", "a.txt"), ("web", "w.txt")):
+        repo_dir = tmp_path / "repos" / repo
+        assert git(repo_dir, "show", f"loopx-task/{GOAL}:{name}") == name[0]
+        # The default branch is untouched and nothing was pushed anywhere.
+        assert git(repo_dir, "rev-parse", "main") == git(repo_dir, "rev-parse", "main~0")
+        assert git(repo_dir, "remote") == ""
+    assert _status(registry, todo_id) == "done"
+
+
+def test_a_merge_conflict_returns_the_todo_to_its_developer(tmp_path: Path, monkeypatch) -> None:
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch, roles=True)
+    first = _deliver(registry, runtime, goal, ["api"], {"api/shared.txt": "first\n"})
+    second = _deliver(registry, runtime, goal, ["api"], {"api/shared.txt": "second\n", "api/other.txt": "o\n"})
+    assert accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=first, agent_id="acc")["merge"]["ok"]
+    blocked = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=second, agent_id="acc")
+    assert blocked["acceptance"]["transition"] == "merge_blocked"
+    assert blocked["merge"]["error_code"] == "merge_blocked"
+    row = next(r for r in list_goal_todos(registry_path=registry, goal_id=GOAL)["todos"] if r["todo_id"] == second)
+    assert row["status"] == "open" and row["claimed_by"] == "dev"
+    assert "merge_conflict (shared.txt)" in row["review_feedback"]
+    assert not row.get("reject_count")
+    api = tmp_path / "repos" / "api"
+    assert git(api, "show", f"loopx-task/{GOAL}:shared.txt") == "first"

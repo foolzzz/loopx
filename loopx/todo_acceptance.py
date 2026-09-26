@@ -406,6 +406,55 @@ def _require_verdict_actor(
     return actor, reviewer
 
 
+def _accepted_workspace(
+    *, registry_path: Path, goal: Mapping[str, Any] | None, todo: Mapping[str, Any],
+    runtime_root_arg: str | None,
+) -> dict[str, Any] | None:
+    """The prepared S5 workspace an accepted todo merges from, if any."""
+
+    repos = normalize_todo_task_repositories(todo.get("task_repositories"))
+    todo_id = str(todo.get("todo_id") or "")
+    if not repos or not todo_id or not isinstance(goal, Mapping):
+        return None
+    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .workspace.git_workspace import todo_workspace_root
+
+    runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
+    root = todo_workspace_root(runtime_root, str(goal.get("id") or ""), todo_id)
+    if not all((root / name).is_dir() for name in repos):
+        return None
+    return {"repos": repos, "runtime_root": runtime_root}
+
+
+def _public_merge(payload: Mapping[str, Any]) -> dict[str, Any]:
+    keys = ("ok", "error_code", "merged", "would_merge", "repos", "conflict_report", "failure", "rolled_back")
+    return {key: payload[key] for key in keys if key in payload}
+
+
+def _merge_conflict_feedback(actor: str, preflight: Mapping[str, Any]) -> str:
+    report = preflight.get("conflict_report")
+    parts: list[str] = []
+    if isinstance(report, Mapping):
+        for item in report.get("repos") or []:
+            if not isinstance(item, Mapping):
+                continue
+            for blocker in item.get("blockers") or []:
+                if not isinstance(blocker, Mapping):
+                    continue
+                # Repo-relative paths only; blocker reasons can name local paths.
+                paths = blocker.get("conflicted_paths") or blocker.get("paths") or []
+                parts.append(
+                    f"{item.get('name')}: {blocker.get('error_code')}"
+                    + (f" ({', '.join(str(path) for path in list(paths)[:5])})" if paths else "")
+                )
+    detail = "; ".join(parts)
+    return _clip(
+        f"accepted by {actor} but the merge into the target is blocked; rebase or resolve on the "
+        f"todo branch and deliver again: {detail or preflight.get('error_code') or 'merge_blocked'}",
+        600,
+    )
+
+
 def accept_goal_todo(
     *, registry_path: Path, goal_id: str, todo_id: str, agent_id: str | None,
     note: str | None = None, evidence: str | None = None, runtime_root_arg: str | None = None,
@@ -439,6 +488,36 @@ def accept_goal_todo(
         part for part in (verdict, compact_todo_text(evidence) if evidence else "",
                           compact_todo_text(todo.get("evidence")) if todo.get("evidence") else "") if part
     ))
+    workspace = _accepted_workspace(
+        registry_path=registry_path, goal=goal, todo=todo, runtime_root_arg=runtime_root_arg,
+    )
+    if workspace is not None and not dry_run:
+        from .todos import update_goal_todo
+        from .workspace import git_workspace
+
+        preflight = git_workspace.merge(
+            goal, todo_id, workspace["repos"], workspace["runtime_root"], dry_run=True,
+        )
+        if not preflight.get("ok"):
+            # Decisions 18 and 22: a conflict returns the whole todo to its
+            # developer. It is not a quality verdict, so reject_count is kept.
+            feedback = _merge_conflict_feedback(actor, preflight)
+            reopened = update_goal_todo(
+                registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, role="agent",
+                runtime_root_arg=runtime_root_arg, status=TODO_STATUS_OPEN,
+                role_contract={"review_feedback": feedback}, agent_id=owner,
+                project=project, state_file=state_file, dry_run=False,
+            )
+            return {
+                **reopened,
+                "merge": _public_merge(preflight),
+                "acceptance": {
+                    "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
+                    "transition": "merge_blocked", "verdict": "accept", "acceptor": actor,
+                    "acceptor_source": reviewer["source"], "delivered_by": todo.get("delivered_by"),
+                    "review_feedback": feedback,
+                },
+            }
     result = terminal_complete_goal_todo(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, role="agent",
         runtime_root_arg=runtime_root_arg, evidence=completion_evidence,
@@ -446,8 +525,18 @@ def accept_goal_todo(
         project=project, state_file=state_file, dry_run=dry_run,
         **dict(completion_options or {}),
     )
+    merge_payload = None
+    if workspace is not None and not dry_run and result.get("ok") is not False:
+        from .workspace import git_workspace
+
+        # Atomic across the todo's repos; nothing fetches or pushes (a push
+        # stays behind a user gate).
+        merge_payload = _public_merge(git_workspace.merge(
+            goal, todo_id, workspace["repos"], workspace["runtime_root"],
+        ))
     return {
         **result,
+        **({"merge": merge_payload} if merge_payload is not None else {}),
         "acceptance": {
             "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
             "transition": "accepted", "verdict": "accept", "acceptor": actor,
