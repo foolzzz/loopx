@@ -633,6 +633,31 @@ def handle_turn_command(
                 # never a host-normalized continuation. Contradictory or
                 # dangling durable state fails closed before any further
                 # writeback so the typed settlement sees the truthful outcome.
+                acceptance = completion.get("acceptance")
+                if (
+                    isinstance(acceptance, dict)
+                    and acceptance.get("transition") == "merge_blocked"
+                    and completion.get("ok") is not False
+                ):
+                    # Fork S2/S5: the acceptor accepted, but the merge into the
+                    # target is blocked, so the todo went back to its developer
+                    # with the conflict report. The review itself is settled.
+                    merge_payload = {
+                        "ok": True,
+                        "appended": True,
+                        "completion": {
+                            "todo_id": todo_id,
+                            "continuation": "active_goal",
+                            "acceptance_status": "merge_blocked",
+                        },
+                    }
+                    append_settlement_event(
+                        merge_payload,
+                        event_kind="todo_update",
+                        status="merge_blocked",
+                        details={"command": "turn run-once", "acceptance": "merge_blocked"},
+                    )
+                    return merge_payload
                 if completion.get("validation_blocked_completion") is True:
                     receipt = completion.get("validation")
                     exit_code = receipt.get("exit_code") if isinstance(receipt, dict) else None

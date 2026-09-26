@@ -187,3 +187,36 @@ def test_acceptor_reject_with_an_outcome_gap_still_settles(
     assert payload["status"] == "committed"
     state = _state(project)
     assert f"todo_id={TODO} status=open" in state and "reject_count=1" in state
+
+
+def test_acceptor_accept_with_a_blocked_merge_settles_and_reopens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """E2E pilot: an accept whose merge was blocked failed the acceptor Turn.
+
+    The accept preflight reopened the todo for its developer with the
+    conflict report, then the Turn expected a durably done todo and reported
+    writeback_failed.
+    """
+
+    import loopx.todo_acceptance as acceptance
+    from loopx.workspace import git_workspace
+
+    monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
+    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    code, payload = _run_once(project, runtime, registry, executable, workspace)
+    assert code == 0, json.dumps(payload)[:3000]
+    assert f"todo_id={TODO} status=in_review" in _state(project)
+
+    monkeypatch.setattr(acceptance, "_accepted_workspace",
+                        lambda **_: {"repos": ["web"], "runtime_root": runtime})
+    blocked = {"ok": False, "error_code": "merge_blocked", "merged": [], "conflict_report": {
+        "repos": [{"name": "web", "blockers": [{"error_code": "merge_conflict",
+                                                "conflicted_paths": ["README.md"]}]}]}}
+    monkeypatch.setattr(git_workspace, "merge", lambda *_a, **_k: blocked)
+    code, payload = _run_once(project, runtime, registry, executable, workspace, "codex-acceptor")
+    assert code == 0, json.dumps(payload)[:3000]
+    assert payload["status"] == "committed"
+    state = _state(project)
+    assert f"todo_id={TODO} status=open" in state
+    assert "merge_conflict" in state and "reject_count=" not in state
