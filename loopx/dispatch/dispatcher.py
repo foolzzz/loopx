@@ -25,6 +25,13 @@ from typing import Any
 
 from . import policy
 from ..gate_threads import gates_awaiting_orchestrator
+from .orchestrator_actions import (
+    ORCHESTRATOR_ACTION_REPEAT_LIMIT,
+    action_todo_text,
+    action_validator_argv,
+    is_orchestrator_action_todo,
+    live_orchestrator_todo,
+)
 from .prompts import compose_system_prompt, dispatch_prompt_addendum, replace_system_prompt_argument
 from .state import (
     DispatchLock,
@@ -300,6 +307,8 @@ class Dispatcher:
                     != self.goal_fingerprint(goal_id)
                 )
                 decision = policy.decide_turn(payload, role=role, state_changed=state_changed)
+                if not decision["launch"] and role == policy.ROLE_ORCHESTRATOR:
+                    self._open_orchestrator_action(goal_id, agent_id, decision, report)
                 if not decision["launch"]:
                     skip(
                         decision["reason"],
@@ -491,6 +500,70 @@ class Dispatcher:
         if resumed:
             report.setdefault("resumed", []).extend({"goal_id": goal_id, "todo_id": todo_id} for todo_id in resumed)
 
+    def _open_orchestrator_action(
+        self, goal_id: str, agent_id: str, decision: Mapping[str, Any], report: dict[str, Any],
+    ) -> None:
+        """Open one orchestrator todo for an action no todo carries (orchestrator_actions)."""
+
+        gate_ids = gates_awaiting_orchestrator(self.runtime_root, goal_id)
+        if gate_ids:
+            # Only open gates count; the cheap index read comes first.
+            try:
+                open_gates = self._open_user_todo_ids(goal_id)
+            except Exception:  # noqa: BLE001 - without a readback we must not duplicate todos
+                return
+            gate_ids = [gate for gate in gate_ids if gate in open_gates]
+        effective_action = None
+        if decision.get("reason") == "orchestrator_action_without_todo":
+            effective_action = str(decision.get("detail") or "").removeprefix("effective_action=") or None
+        if not gate_ids and not effective_action:
+            # Nothing is pending any more: a later recurrence starts afresh.
+            self.state.get("orchestrator_actions", {}).pop(_agent_key(goal_id, agent_id), None)
+            return
+        from ..todos import add_goal_todo, list_goal_todos
+
+        try:
+            rows = list_goal_todos(
+                registry_path=self.registry_path, goal_id=goal_id, role="agent",
+                runtime_root_arg=str(self.runtime_root),
+            ).get("todos") or []
+        except Exception:  # noqa: BLE001 - without a readback we must not duplicate todos
+            return
+        if live_orchestrator_todo(rows, agent_id):
+            return
+        key = _agent_key(goal_id, agent_id)
+        actions = self.state.setdefault("orchestrator_actions", {})
+        subject = ",".join(gate_ids) if gate_ids else f"effective_action={effective_action}"
+        previous = actions.get(key) or {}
+        repeats = int(previous.get("count") or 0) if previous.get("subject") == subject else 0
+        if repeats >= ORCHESTRATOR_ACTION_REPEAT_LIMIT:
+            # The orchestrator's Turns did not clear it: stop spending Turns and
+            # say so, instead of looping or stalling silently.
+            self._open_gate(
+                goal_id, key=f"orchestrator-action:{agent_id}",
+                text=(f"Orchestrator {agent_id} did not settle {subject} after {repeats} action todos "
+                      "(dispatcher). Inspect the goal, then close this gate."),
+                blocks_agent=agent_id, report=report,
+            )
+            return
+        try:
+            added = add_goal_todo(
+                registry_path=self.registry_path, goal_id=goal_id, role="agent",
+                runtime_root_arg=str(self.runtime_root),
+                text=action_todo_text(effective_action, gate_ids),
+                task_class="advancement_task", action_kind="replan", claimed_by=agent_id,
+                role_contract={"required_role": policy.ROLE_ORCHESTRATOR, "requires_acceptance": False},
+                note="Opened by the LoopX dispatcher.",
+            )
+        except Exception as exc:  # noqa: BLE001 - report and retry next pass
+            report["errors"].append({"goal_id": goal_id, "error": f"orchestrator_action: {exc}"[:400]})
+            return
+        todo_id = str(added.get("todo_id") or "")
+        actions[key] = {"subject": subject, "count": repeats + 1, "todo_id": todo_id, "opened_at": self.clock()}
+        report.setdefault("orchestrator_todos_opened", []).append(
+            {"goal_id": goal_id, "agent_id": agent_id, "todo_id": todo_id, "subject": subject}
+        )
+
     def _todo_cooling(self, goal_id: str, todo_id: str, agent_id: str, now: float) -> bool:
         """A todo-wide cooldown (workspace prepare) or this agent's failure backoff."""
 
@@ -645,6 +718,11 @@ class Dispatcher:
             # The intake planning todo is done once its plan card is applied;
             # that is the orchestrator Turn's independent validator.
             validation_argv = self._plan_applied_validator(goal_id)
+        if not validation_argv and role == "orchestrator" and todo_id and is_orchestrator_action_todo(todo):
+            validation_argv = action_validator_argv(
+                self.config.loopx_argv[0], registry=str(self.registry_path),
+                runtime_root=str(self.runtime_root), goal_id=goal_id, todo=todo,
+            )
         if not validation_argv and role == "orchestrator" and todo_id:
             from ..todo_acceptance import escalated_todo_id
 

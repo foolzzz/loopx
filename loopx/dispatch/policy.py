@@ -61,7 +61,9 @@ def decide_turn(
       resident dispatcher relaunched it every few seconds. The orchestrator
       is event-triggered through its todos instead: intake planning,
       escalations, and gate threads awaiting it (which unblock its lane).
-      A pending orchestrator action is reported, not launched.
+      A pending orchestrator action is reported, not launched; the
+      dispatcher then opens one orchestrator todo for it
+      (``orchestrator_actions``), so the next pass has a todo to launch.
     """
 
     payload = payload if isinstance(payload, Mapping) else {}

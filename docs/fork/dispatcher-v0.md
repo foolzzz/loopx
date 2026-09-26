@@ -63,6 +63,15 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      todo, S2 escalation todos, and gate threads awaiting it (a gate whose thread
      awaits the orchestrator no longer blocks its lane, see
      [gates-plans-intake-v0](gates-plans-intake-v0.md)).
+   - When the orchestrator does not launch but has work no todo carries (an
+     `orchestrator_action_without_todo`, or open gates whose threads await it),
+     the dispatcher opens one orchestrator todo ("Orchestrator action: …",
+     `action_kind=replan`, `required_role=orchestrator`, no acceptance) through
+     the Todo API, so the next pass launches a real Turn. It opens at most one
+     at a time: none while an action todo is open, in review or blocked, or while
+     the orchestrator has another open todo; the text prefix finds it again when
+     the dispatcher state is lost. If two action todos for the same subject
+     finish without clearing it, a user gate opens instead of a third.
    - One in-flight Turn per agent and goal: run-once's lane fence answers
      `turn_lane_in_flight` for a second one, so the dispatcher skips with that
      reason. `max_concurrency` caps an agent across goals; parallel work inside
@@ -102,8 +111,11 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      `action_kind=plan` todo passes once a plan card is applied
      (`loopx plan list --require-status applied`), an S2 escalation todo passes
      once the escalated todo is no longer blocked
-     (`python -m loopx.dispatch.checks todo-not-status`). Otherwise
-     `serve --validation-command-json`.
+     (`python -m loopx.dispatch.checks todo-not-status`). An orchestrator
+     action todo for gates passes once none of them is open and awaiting the
+     orchestrator (`checks gates-not-awaiting`). One for an effective action
+     passes once some other todo was created or changed since the Turn launched
+     (`checks todos-changed-since`). Otherwise `serve --validation-command-json`.
 
    The child's stdout and stderr go to `<runtime-root>/dispatch/runs/<run>.*`.
 
@@ -169,7 +181,8 @@ acceptor's `review_feedback`.
 
 - `serve.lock`
 - `state.json`: running children, history, provider, agent and todo cooldowns,
-  opened gates, crash-retry identities, orchestrator baselines and per-agent slots.
+  opened gates, orchestrator action todos, crash-retry identities, orchestrator
+  baselines and per-agent slots.
 - `runs/`: child output.
 - `logs/`: launchd output.
 
@@ -178,9 +191,10 @@ acceptor's `review_feedback`.
 - `turn run-once` needs an independent validator for material results. Todos with
   no declared validation command need `serve --validation-command-json`. Without it,
   their Turns fail validation and the todo backs off.
-- A gate reply wakes the orchestrator only while it has an open todo (its
-  planning or escalation todo). A reply on a gate after the orchestrator's todos
-  are done waits until it gets a todo. See the E2E pilot report.
+- The `todos-changed-since` validator is coarse: another agent's concurrent todo
+  write also satisfies it. Whether the orchestrator's Turn clears an upstream
+  replan obligation is the kernel's decision (E2E pilot gap G4); if it does not,
+  the repeat limit turns it into a user gate.
 - Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
   concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
   todo.
