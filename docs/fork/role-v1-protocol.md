@@ -152,7 +152,8 @@ Under role_v1, `loopx todo complete` (and the managed Turn writeback of
    the todo stays `open`.
 2. The todo moves to `in_review`. The claim is kept. `delivered_by` records
    the developer. `evidence` records the delivery: `delivered_by`, the
-   shared branch and repos for multi-repo todos (S5), the workspace identity
+   shared branch and repos for multi-repo todos (S5), the delivered commit per
+   repo (`delivered_shas=<repo>@<sha>,...`, G12), the workspace identity
    kind, the validation result and the developer's evidence text.
 
 The built-in `claude-code` and `codex` Turn hosts are offered the
@@ -174,11 +175,13 @@ its own delivery.
 
 ```bash
 loopx todo accept --goal-id G --todo-id T --agent-id codex-acc [--note ...] [--evidence ...]
-loopx todo reject --goal-id G --todo-id T --agent-id codex-acc --note "what is missing"
+loopx todo reject --goal-id G --todo-id T --agent-id codex-acc --note "criterion 2 fails: ..."
+loopx todo block-review --goal-id G --todo-id T --agent-id codex-acc --reason "why I cannot review"
 ```
 
 The Python API is `loopx.todo_acceptance.accept_goal_todo` and
-`reject_goal_todo`.
+`reject_goal_todo`, and `loopx.todo_review_blocked.block_goal_todo_review`
+(G12, see [Acceptor verdicts and isolation](#acceptor-verdicts-and-isolation-gap-g12)).
 
 Only the resolved acceptor can record a verdict. The resolved acceptor is
 the todo's `acceptor_agent`. If none is bound, it is the goal's single
@@ -190,10 +193,12 @@ which binds one with `todo update --acceptor-agent`.
   command runs again) and the todo becomes `done`. The completion evidence
   starts with `accepted_by=<acceptor>`. For a todo with an S5 workspace,
   accept first runs the atomic merge into the goal's merge target, and only
-  then completes the todo, so a todo is never `done` without its merge. A
+  then completes the todo, so a todo is never `done` without its merge. The
+  merge merges exactly the delivered sha recorded at delivery (G12). A
   blocked or failed merge reopens the todo for its developer with the
   conflict report in `review_feedback` (transition `merge_blocked`,
-  reject_count unchanged). If the merge lands but the completion is refused
+  reject_count unchanged); a todo branch that moved after delivery blocks
+  with reason `delivery_moved`. If the merge lands but the completion is refused
   (the re-run validation fails), the todo stays `in_review` (transition
   `completion_blocked`, the merge is in the result). The merge is
   idempotent, so the acceptor can retry the accept, or reject. Plan
@@ -201,7 +206,12 @@ which binds one with `todo update --acceptor-agent`.
   completed accept.
 - **Reject** reopens the todo (`open`) for the same developer. The claim is
   kept, `reject_count` is incremented, and `review_feedback` stores the
-  feedback. The developer's next selection carries `review_feedback` in the
+  feedback. The feedback is required and should name each acceptance
+  criterion that failed (prompt guidance, not parsed); an empty note is
+  refused.
+- **Blocked** (G12) records that the acceptor cannot review for its own
+  reasons. The todo stays `in_review`, `reject_count` is unchanged, and a
+  system user gate opens. See below. The developer's next selection carries `review_feedback` in the
   selected todo item.
 - **The second rejection escalates.** The todo becomes `blocked` with
   reason "escalated to the orchestrator". Its claim is kept and it is never
@@ -226,7 +236,11 @@ keep its lane in `operator_gate`. A reject verdict from a Turn settles as
 **Verdicts from a managed Turn.** An acceptor Turn (`loopx turn run-once`,
 for example launched by the dispatcher) selects the delivered todo. A
 `validated_completion` result is the accept verdict. A `repair_required`
-result is the reject verdict, and its summary becomes the feedback. A
+result is the reject verdict, and its summary becomes the feedback; with an
+empty or blank summary it is the blocked verdict instead. A
+`user_action_required` result is the blocked verdict, and its summary is the
+reason (G12). A host crash or timeout (`iteration_failed`, host failure) is
+not a verdict and does not count. A
 completion by the resolved acceptor through `loopx todo complete` is also
 treated as accept. Required replan obligations belong to the orchestrator
 (S1 routing), so they no longer fence the accountable writeback of another
@@ -291,6 +305,84 @@ directly, as before.
   todo branch. The Turn then settles, spends quota and closes its journal. A
   repo without `origin` gets a local `repo_id`, a digest of its git common
   dir. See [workspaces-v0](workspaces-v0.md#delivery-identity-decision-29).
+
+## Acceptor verdicts and isolation (gap G12)
+
+See [design-v0](design-v0.md), decisions 35 and 36.
+
+### The acceptor only reviews
+
+- **Delivery** records the delivered commit per repo for todos with
+  `task_repositories`: the tip of `loopx/<goal>/<todo>` goes into the delivery
+  evidence as `delivered_shas=<repo>@<sha>,...`. A later delivery records the
+  new tip. (G1's per-repo `head_sha` in the delivery identity can replace this
+  once it lands.)
+- **Review checkout.** The dispatcher runs the acceptor's Turn in a throwaway
+  detached worktree per repo at the delivered sha,
+  `<runtime_root>/goals/<G>/reviews/<T>/<attempt>/<repo>`, never in the
+  developer's todo worktree. A detached HEAD moves no branch, so nothing the
+  acceptor does there can reach the todo branch. After the Turn settles the
+  checkout is removed (best-effort, idempotent). See
+  [workspaces-v0](workspaces-v0.md) and [dispatcher-v0](dispatcher-v0.md).
+- **Merge.** The accept merge merges exactly the recorded delivered sha. If the
+  todo branch moved after delivery, the merge is blocked (`merge_blocked`,
+  reason `delivery_moved`) and the todo returns to the developer, who
+  delivers again.
+- **Detection.** If the review checkout has changes or new commits after the
+  Turn, the verdict still stands, the changes are discarded, and the event log
+  records `acceptor_modified_review_checkout`. The role board card shows
+  `review_checkout_modified`.
+- **Sandbox.** The acceptor's role default is unsandboxed: codex
+  `danger-full-access`, claude-code `bypassPermissions`. Explicit agent config
+  still wins. See [agent-and-provider-config](agent-and-provider-config.md).
+- **Prompt.** The acceptor is told it only reviews and delivers a verdict,
+  never modifies code, and puts the required changes into the rejection
+  feedback.
+
+Todos without `task_repositories` have no per-repo branch, so there is no
+review checkout or pinned merge; the acceptor Turn runs in the goal project as
+before.
+
+### Three verdicts
+
+| verdict | how | effect |
+|---|---|---|
+| accept | `todo accept`, Turn `validated_completion` | merge the delivered sha, then complete |
+| reject | `todo reject --note`, Turn `repair_required` with a summary | reopen for the developer, `reject_count` + 1; the second escalates |
+| blocked | `todo block-review --reason`, Turn `user_action_required`, Turn `repair_required` with a blank summary | stays `in_review`, no count, opens a system user gate |
+
+**Blocked** is for when the acceptor cannot review for its own reasons: broken
+tooling, the environment, missing dependencies. LoopX, not the acceptor,
+opens one user gate of kind `acceptor_blocked` (the same class of exception
+to decision 11 as the dispatcher's re-login gate, decision 17). The gate text
+carries the acceptor's reason, and `blocks_agent` is the acceptor, so the gate
+holds the acceptor's lane and nobody else's. A second blocked verdict while
+the gate is open reuses it. The gate index entry records `review_todo_id`,
+`acceptor_agent` and `options`, and the event log gets `todo_review_blocked`.
+While the gate is open the dispatcher does not relaunch the acceptor on that
+todo.
+
+The owner resolves the gate with one option:
+
+| option | decision | effect |
+|---|---|---|
+| `retry_acceptance` | approve | the todo stays `in_review` and the acceptor may review it again |
+| `accept_manually` | approve | merge first, then complete; the verdict actor is `owner` (`accepted_by=owner`) |
+| `return_to_developer` | reject | reopen with the gate note as `review_feedback`; `reject_count` unchanged |
+| `cancel_todo` | cancel | supersede the todo |
+
+```bash
+loopx gate resolve --goal-id G --todo-id GATE --option accept_manually [--note ...]
+loopx todo complete --goal-id G --todo-id GATE --role user --decision-outcome reject \
+  --agent-id <acceptor> --note "install the toolchain first"
+```
+
+The dashboard `gate.resolve` action takes the same `option` parameter (S7). A
+bare decision maps to its default option: approve is retry, reject is return
+to developer, cancel is cancel the todo. An option must match its decision.
+`accept_manually` is refused while the todo is no longer `in_review`, and the
+gate stays open. The applied option is recorded as `decision_option` in the
+gate index and as a `review_gate_decided` event.
 
 ## Per-todo acceptance criteria (gap G2)
 

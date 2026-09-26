@@ -44,15 +44,29 @@ provider: anthropic-login    # must exist; kind must fit the runtime
 model: opus
 reasoning_effort: high       # claude: low..max; codex: shared LoopX vocabulary
 system_prompt_file: prompts/dev.md   # relative to this yaml; claude-code only
-permission_mode: acceptEdits # claude-code (default dontAsk)
-# sandbox: read-only         # codex-cli (default read-only)
+permission_mode: acceptEdits # claude-code (default dontAsk; acceptor: bypassPermissions)
+# sandbox: read-only         # codex-cli (default read-only; acceptor: danger-full-access)
 max_concurrency: 2
 extra_args: ["--verbose"]    # claude: raw flags; codex: KEY=VALUE config overrides
 enabled: true
 ```
 
 A project file overrides the global file with the same id field by field;
-`extra_args` is replaced as a whole. Python API:
+`extra_args` is replaced as a whole.
+
+**Role-based defaults (G12, design decision 35).** When the file sets no
+`sandbox` / `permission_mode`, the default depends on the agent's role:
+
+| role | codex-cli `sandbox` | claude-code `permission_mode` |
+|---|---|---|
+| acceptor | `danger-full-access` | `bypassPermissions` |
+| developer, orchestrator | `read-only` | `dontAsk` |
+
+The acceptor only reviews, in a throwaway detached checkout of the delivered
+commit, so it runs without a sandbox to build and test freely. An explicit
+value in the agent file always wins. The role is the registry role when the
+caller passes it (`resolve_agent(..., role=...)`, as the dispatcher does),
+otherwise the file's `role`. Python API:
 `resolve_agent(agent_id, project, runtime_root=...)`,
 `load_agent_definitions(...)`, `check_provider(...)`, `preflight_agent(...)`,
 `turn_run_once_host_arguments(agent)`.
