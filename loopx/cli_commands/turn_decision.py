@@ -222,6 +222,16 @@ def build_fresh_turn_decision_owner(
     )
 
 
+def _goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
+    from ..agent_registry import load_goal_from_registry
+    from ..todo_acceptance import goal_uses_role_v1
+
+    try:
+        return goal_uses_role_v1(load_goal_from_registry(registry_path, goal_id))
+    except (OSError, ValueError):
+        return False
+
+
 def _with_durable_todo_note(
     build: Callable[..., dict[str, Any]], *, registry_path: Path, runtime_root: Path, goal_id: str,
 ) -> Callable[..., dict[str, Any]]:
@@ -230,8 +240,13 @@ def _with_durable_todo_note(
     Fork role_v1: plan cards keep a todo's acceptance criteria, and the
     orchestrator keeps rework instructions, in the todo note. The status
     projection behind the decision carries no notes, so the host never saw
-    them (E2E pilot). Only the selected todo gets its bounded note.
+    them (E2E pilot). Only the selected todo gets its bounded note, and only
+    on a role_v1 goal: other goals get the builder unchanged, with no extra
+    todo read and no envelope change.
     """
+
+    if not _goal_uses_role_v1(registry_path, goal_id):
+        return build
 
     def wrapped(**kwargs: Any) -> dict[str, Any]:
         decision = build(**kwargs)

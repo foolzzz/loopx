@@ -1181,3 +1181,36 @@ def test_turn_envelope_carries_the_role_v1_acceptance_context() -> None:
     assert selected["review_feedback"].startswith("rejected by acc (#1)") and len(selected["review_feedback"]) <= 600
     assert selected["note"] == "Acceptance: README documents priority"
     assert build_turn_envelope(source)["action_signature"]["matches"] is True
+
+
+@pytest.mark.parametrize("agent_model", ["role_v1", "peer_v1"])
+def test_durable_todo_note_is_read_only_for_role_v1_goals(tmp_path, monkeypatch, agent_model) -> None:
+    """Review fix: peer_v1 goals get no extra todo read and no envelope change."""
+
+    from loopx import todos as todos_module
+    from loopx.cli_commands.turn_decision import _with_durable_todo_note
+    from loopx.todos import add_goal_todo
+
+    state = tmp_path / "ACTIVE_GOAL_STATE.md"
+    state.write_text("# Goal\n\n## User Todo\n\n## Agent Todo\n\n## Completed Work Archive\n", encoding="utf-8")
+    registry = tmp_path / "registry.json"
+    registry.write_text(json.dumps({"schema_version": 1, "common_runtime_root": str(tmp_path / "runtime"), "goals": [{
+        "id": "g", "status": "active", "repo": str(tmp_path), "state_file": state.name,
+        "coordination": {"agent_model": agent_model, "registered_agents": ["dev"],
+                         **({"agent_roles": {"dev": "developer"}} if agent_model == "role_v1" else {})},
+    }]}), encoding="utf-8")
+    todo_id = add_goal_todo(registry_path=registry, goal_id="g", role="agent", text="Build",
+                            note="Acceptance: it builds")["todo_id"]
+    reads: list[str] = []
+    real_list = todos_module.list_goal_todos
+    monkeypatch.setattr(todos_module, "list_goal_todos", lambda **kw: reads.append("read") or real_list(**kw))
+
+    def build(**_kwargs):
+        return {"selected_todo": {"todo_id": todo_id}}
+
+    wrapped = _with_durable_todo_note(build, registry_path=registry, runtime_root=tmp_path / "runtime", goal_id="g")
+    decision = wrapped()
+    if agent_model == "role_v1":
+        assert decision["selected_todo"]["note"] == "Acceptance: it builds" and reads == ["read"]
+    else:
+        assert wrapped is build and decision == {"selected_todo": {"todo_id": todo_id}} and reads == []
