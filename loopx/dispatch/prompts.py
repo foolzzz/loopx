@@ -24,6 +24,7 @@ def dispatch_prompt_addendum(
     role: str | None,
     todo_id: str | None,
     workspace_repos: Mapping[str, str] | None,
+    awaiting_gates: Sequence[str] | None = None,
 ) -> str:
     lines = [
         "# LoopX dispatcher context",
@@ -55,6 +56,19 @@ def dispatch_prompt_addendum(
             lines.append(
                 "- Commit your changes on the current branch in every repo you touch. "
                 "Do not push, merge or switch branches; LoopX merges after acceptance."
+            )
+    if role == "orchestrator":
+        lines += [
+            "- Talk to the user only through user gates: `loopx gate show|reply --goal-id "
+            f"{goal_id} --todo-id T --as orchestrator --agent-id {agent_id}`. Propose or revise "
+            f"plans with `loopx plan propose --goal-id {goal_id} --agent-id {agent_id} --plan-file F "
+            "[--revise PLAN_ID]`; the user approves, rejects or cancels the gate.",
+        ]
+        if awaiting_gates:
+            lines.append(
+                "- The user replied and is waiting for you on gate(s): "
+                + ", ".join(f"`{gate}`" for gate in awaiting_gates)
+                + ". Read each thread and answer, or propose a conclusion."
             )
     return "\n".join(lines) + "\n"
 

@@ -75,6 +75,7 @@ from .extensions.runtime import (
 )
 from .history import load_registry
 from .chat_completed_todos import CompletedTodoPages, CompletedTodoRequestMixin
+from .chat_gate_thread_api import CHAT_GATE_THREAD_PATH, CHAT_GATE_THREAD_REPLY_PATH, GateThreadRequestMixin
 from .kiro_cli_goal_mode import KIRO_CLI_BIN
 from .paths import resolve_runtime_root
 from .release_manifest import release_runtime_identity
@@ -426,6 +427,7 @@ class ChatHTTPServer(ThreadingHTTPServer):
 
 class ChatRequestHandler(
     CompletedTodoRequestMixin,
+    GateThreadRequestMixin,
     AttachedSessionRequestMixin,
     SshSourceRequestMixin,
     GoalSubagentConfigurationRequestMixin,
@@ -1327,6 +1329,7 @@ class ChatRequestHandler(
             )
         get_dispatch = {
             "/api/chat/completed-todos": self._completed_todos,
+            CHAT_GATE_THREAD_PATH: self._gate_thread,
             "/api/chat/goal-results": self._goal_results,
             CHAT_SESSIONS_PATH: self._list_sessions,
             CHAT_ACTIONS_PATH: self._action_list,
@@ -1377,6 +1380,7 @@ class ChatRequestHandler(
             CHAT_ACTION_PREVIEW_PATH: self._action_preview,
             CHAT_TODO_DRY_RUN_PATH: lambda: self._todo(apply=False),
             CHAT_TODO_APPLY_PATH: lambda: self._todo(apply=True),
+            CHAT_GATE_THREAD_REPLY_PATH: self._gate_thread_reply,
             CHAT_GOAL_CHANNEL_SETUP_PATH: self._goal_channel_setup,
             CHAT_GOAL_CHANNEL_CONFIGURE_PATH: self._goal_channel_configure,
             CHAT_LARK_APP_SETUPS_PATH: self._lark_setup_start,

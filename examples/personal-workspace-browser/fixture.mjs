@@ -429,6 +429,8 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
     invalidMachineNamespaces: [],
     larkWrites: [],
     actionTransitions: [],
+    gateThreads: new Map(),
+    gateReplies: [],
     allowNextHeartbeatApply: false,
     nextLifecycleApplyDelayMs: 0,
     nextLifecyclePreviewDelayMs: 0,
@@ -861,6 +863,22 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
         return { todo_id: `todo_history_${index}`, text: index < 3 ? `Completed ${String.fromCharCode(65 + index)}` : `Completed historical Task ${index + 1}`, claimed_by: "example-agent", evidence: null, priority: null, task_class: "advancement_task" };
       });
       await route.fulfill({ json: { ok: true, total, items, next_cursor: offset + 40 < total ? String(offset + 40) : null } });
+      return;
+    }
+    if (url.pathname === "/api/chat/gate-thread" || url.pathname === "/api/chat/gate-thread/reply") {
+      const body = request.method() === "POST" ? JSON.parse(request.postData() || "{}") : null;
+      const goalId = body?.goal_id ?? url.searchParams.get("goal_id") ?? "";
+      const todoId = body?.todo_id ?? url.searchParams.get("todo_id") ?? "";
+      const key = `${goalId}/${todoId}`;
+      const messages = state.gateThreads.get(key) ?? [];
+      if (body) {
+        const message = { seq: messages.length + 1, message_id: `gmsg_fixture_${messages.length + 1}`, author: "user", agent_id: null, text: String(body.text || "").trim(), at: "2026-08-13T01:00:03-07:00" };
+        state.gateThreads.set(key, [...messages, message]);
+        state.gateReplies.push({ goalId, todoId, text: message.text });
+        await route.fulfill({ json: { ok: true, schema_version: "loopx_gate_thread_v0", goal_id: goalId, todo_id: todoId, message, awaiting: "awaiting_orchestrator", message_count: messages.length + 1 } });
+        return;
+      }
+      await route.fulfill({ json: { ok: true, schema_version: "loopx_gate_thread_v0", goal_id: goalId, todo_id: todoId, text: "", status: "open", decision_outcome: null, kind: "decision", awaiting: messages.length ? "awaiting_orchestrator" : "awaiting_user", messages } });
       return;
     }
     if (url.pathname === "/api/chat/goal-results") {

@@ -275,6 +275,18 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "purpose": "Run the resident dispatcher that launches role_v1 agent Turns on state events and a periodic tick.",
             },
             {
+                "command": "loopx goal create",
+                "purpose": "Create a role_v1 goal from a requirements doc: agents, repos, authority source and the orchestrator's first todo.",
+            },
+            {
+                "command": "loopx gate reply|show|list",
+                "purpose": "Discuss a user gate with the orchestrator through its append-only thread.",
+            },
+            {
+                "command": "loopx plan propose|show|list|apply",
+                "purpose": "Orchestrator plan cards: a pending plan applied atomically when its plan_approval gate is approved.",
+            },
+            {
                 "command": "loopx agent list|show|validate",
                 "purpose": "Inspect global and project agent definition files (role, runtime, provider, model).",
             },

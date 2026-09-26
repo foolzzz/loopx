@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_registry import registered_agent_ids_from_registry, require_registered_agent_id
+from .gate_threads import require_user_gate_author
 from .history import load_registry
 from .paths import resolve_runtime_root
 from .rollout_event_log import load_rollout_events, rollout_event_log_path
@@ -776,6 +777,10 @@ def add_goal_todo(
     operation_id: str | None = None,
     role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if role == "user":
+        require_user_gate_author(
+            registry_path=registry_path, goal_id=goal_id, actor_agent_id=agent_id,
+        )
     shadow_runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     role_contract = {
         key: value
@@ -1614,8 +1619,71 @@ def update_goal_todo(
     )
 
 
-@provider_first_terminal_lifecycle("complete")
+def _next_user_todo_author_guard(function: Any) -> Any:
+    """Decision 11: a terminal transition may not open a user gate for a
+    developer/acceptor under role_v1 (checked before any authority routing)."""
+
+    from functools import wraps
+
+    @wraps(function)
+    def guarded(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        if kwargs.get("next_user_todo"):
+            require_user_gate_author(
+                registry_path=kwargs["registry_path"], goal_id=kwargs["goal_id"],
+                actor_agent_id=kwargs.get("agent_id") or kwargs.get("claimed_by"),
+                surface="--next-user-todo",
+            )
+        return function(*args, **kwargs)
+
+    return guarded
+
+
 def complete_goal_todo(
+    *,
+    registry_path: Path,
+    goal_id: str,
+    todo_id: str,
+    runtime_root_arg: str | None = None,
+    decision_outcome: str | None = None,
+    dry_run: bool = False,
+    **options: Any,
+) -> dict[str, Any]:
+    """Complete a todo; closing a user gate also settles its thread and plan card.
+
+    An approve on a ``plan_approval`` gate is refused while its plan does not
+    validate, so the gate stays open; after the gate closes, the plan is
+    applied (approve) or closed (reject/cancel). See ``loopx.plan_cards``.
+    """
+
+    from .plan_cards import gate_decision_preflight, settle_gate_decision
+
+    runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
+    plan_id = gate_decision_preflight(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
+        todo_id=todo_id, decision=decision_outcome,
+    )
+    payload = _complete_goal_todo_unsettled(
+        registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
+        runtime_root_arg=runtime_root_arg, decision_outcome=decision_outcome,
+        dry_run=dry_run, **options,
+    )
+    if dry_run or not payload.get("ok") or payload.get("role") not in (None, "user"):
+        if plan_id and dry_run:
+            payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
+        return payload
+    settled = settle_gate_decision(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
+        todo_id=todo_id, decision=payload.get("decision_outcome") or decision_outcome,
+        runtime_root_arg=runtime_root_arg,
+    )
+    if settled is not None:
+        payload["plan_card"] = settled
+    return payload
+
+
+@_next_user_todo_author_guard
+@provider_first_terminal_lifecycle("complete")
+def _complete_goal_todo_unsettled(
     *,
     registry_path: Path,
     goal_id: str,
@@ -2003,6 +2071,7 @@ def complete_goal_todo(
         goal_id=goal_id, capture=shadow_capture,
     )
 
+@_next_user_todo_author_guard
 @provider_first_terminal_lifecycle("supersede")
 def supersede_goal_todo(
     *,
