@@ -1355,7 +1355,11 @@ def test_writeback_uses_configured_completion_cadence(threshold: int) -> None:
     }
     default_obligation, _ = qualify_replan_writeback(**arguments)
     assert default_obligation is None
-    goal = {"execution_profile": {"replan_after_completed_todos": threshold}}
+    # Completion-cadence replans are a peer_v1 contract (fork decision 31).
+    goal = {
+        "execution_profile": {"replan_after_completed_todos": threshold},
+        "coordination": {"agent_model": "peer_v1"},
+    }
     obligation, _ = qualify_replan_writeback(**arguments, registry_goal=goal)
     assert obligation is not None
     assert any(

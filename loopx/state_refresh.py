@@ -95,6 +95,10 @@ from .history import (
 )
 from .control_plane.runtime.local_state_write_correctness import build_local_state_write_correctness_dry_run_packet
 from .paths import resolve_runtime_root
+from .control_plane.agents.runtime_model import (
+    goal_agent_runtime_model_or_none,
+    orchestrator_owns_planning_review,
+)
 from .control_plane.goals.vision_checkpoint import (
     build_vision_checkpoint,
     prepare_vision_refresh,
@@ -1285,6 +1289,9 @@ def refresh_state_run(
             completion_todo_id=completion_todo_id,
             autonomous_replan_recorded=effective_autonomous_replan_recorded,
             blocked_retry=blocked_retry,
+            checkpoint_required=not orchestrator_owns_planning_review(
+                goal_agent_runtime_model_or_none(registry_goal)
+            ),
         )
         if checkpoint_supplement and not vision_checkpoint.get("satisfied"):
             raise ValueError(

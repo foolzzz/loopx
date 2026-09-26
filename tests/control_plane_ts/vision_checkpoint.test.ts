@@ -549,3 +549,41 @@ test("finalize owns unchanged-reason public safety and budget", () => {
     /vision_unchanged_reason exceeds 240 chars/,
   );
 });
+
+test("the not_required policy (role_v1, fork decision 31) never records a missing decision", () => {
+  const required = buildVisionCheckpoint(finalizeRequest({
+    vision_unchanged_reason: "Routine continuation.",
+  }));
+  assert.equal(required.decision, "missing_required");
+  assert.equal(required.missing_baseline, true);
+  assert.equal("policy" in required, false);
+
+  for (const unchanged of [null, "Routine continuation."]) {
+    const relaxed = buildVisionCheckpoint(finalizeRequest({
+      checkpoint_policy: "not_required",
+      active_state_next_action_would_update: true,
+      vision_unchanged_reason: unchanged,
+    }));
+    assert.equal(relaxed.decision, "not_required");
+    assert.equal(relaxed.required, false);
+    assert.equal(relaxed.satisfied, true);
+    assert.equal(relaxed.policy, "not_required");
+    assert.equal("missing_baseline" in relaxed, false);
+    assert.equal("required_resolution" in relaxed, false);
+    assert.deepEqual(
+      (relaxed.triggers as Array<Record<string, unknown>>).map((trigger) => trigger.kind),
+      ["material_delivery_outcome", "durable_next_action_update"],
+    );
+  }
+
+  // A supplied vision patch is still recorded.
+  const patched = buildVisionCheckpoint(finalizeRequest({
+    checkpoint_policy: "not_required",
+    agent_vision: { state: "vision_patch_proposed" },
+  }));
+  assert.equal(patched.decision, "patched");
+  assert.throws(
+    () => buildVisionCheckpoint(finalizeRequest({ checkpoint_policy: "optional" })),
+    /checkpoint_policy is unsupported/,
+  );
+});

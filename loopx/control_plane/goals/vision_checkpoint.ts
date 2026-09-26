@@ -16,6 +16,10 @@ export const VISION_REFRESH_PREPARED_SCHEMA_VERSION =
   "vision_refresh_prepared_v0";
 export const VISION_CHECKPOINT_REQUEST_SCHEMA = VISION_REFRESH_REQUEST_SCHEMA;
 export const VISION_CHECKPOINT_SCHEMA_VERSION = "vision_checkpoint_v0";
+// Fork decision 31: a role_v1 goal's orchestrator reviews the plan every Turn,
+// so a material closeout there does not owe a per-agent vision decision.
+export const VISION_CHECKPOINT_POLICIES = ["required", "not_required"] as const;
+export type VisionCheckpointPolicy = (typeof VISION_CHECKPOINT_POLICIES)[number];
 
 const GOAL_VISION_REPLAN_SCHEMA_VERSION = "goal_vision_replan_contract_v0";
 const GOAL_PATH_DELTA_SCHEMA_VERSION = "goal_path_delta_v0";
@@ -150,6 +154,7 @@ interface VisionRefreshFinalizeRequest {
   completion_todo_id: string | null;
   autonomous_replan_recorded: boolean;
   blocked_retry: JsonObject | null;
+  checkpoint_policy: VisionCheckpointPolicy;
 }
 
 export type VisionCheckpointDecision =
@@ -724,7 +729,16 @@ export function decodeVisionCheckpointRequest(
       "autonomous_replan_recorded",
     ),
     blocked_retry: optionalObject(request.blocked_retry, "blocked_retry"),
+    checkpoint_policy: decodeCheckpointPolicy(request.checkpoint_policy),
   };
+}
+
+function decodeCheckpointPolicy(value: unknown): VisionCheckpointPolicy {
+  if (value === null || value === undefined) return "required";
+  if (VISION_CHECKPOINT_POLICIES.some((candidate) => candidate === value)) {
+    return value as VisionCheckpointPolicy;
+  }
+  throw new EffectRuntimeRequestError("checkpoint_policy is unsupported");
 }
 
 function validateInFlightBoundary(request: VisionRefreshFinalizeRequest): void {
@@ -799,7 +813,9 @@ export function buildVisionCheckpoint(value: unknown): JsonObject {
   const requiredTriggers = triggers.filter((trigger) =>
     trigger.kind !== "in_flight_continuation"
   );
-  const required = requiredTriggers.length > 0 || unchanged !== null;
+  const policyRequires = request.checkpoint_policy === "required";
+  const required = policyRequires &&
+    (requiredTriggers.length > 0 || unchanged !== null);
   let decision: VisionCheckpointDecision;
   let satisfied: boolean;
   if (request.agent_vision !== null) {
@@ -808,7 +824,7 @@ export function buildVisionCheckpoint(value: unknown): JsonObject {
   } else if (unchanged !== null && request.existing_agent_vision !== null) {
     decision = "unchanged_with_reason";
     satisfied = true;
-  } else if (unchanged !== null || required) {
+  } else if (required) {
     decision = "missing_required";
     satisfied = false;
   } else {
@@ -825,6 +841,9 @@ export function buildVisionCheckpoint(value: unknown): JsonObject {
     triggers,
     delivery_boundary: request.delivery_boundary,
   };
+  if (!policyRequires) {
+    checkpoint.policy = request.checkpoint_policy;
+  }
   if (request.agent_vision !== null) {
     checkpoint.agent_vision_state = request.agent_vision.state;
   }
@@ -837,7 +856,7 @@ export function buildVisionCheckpoint(value: unknown): JsonObject {
     if (continuityBasis !== null) {
       checkpoint.continuity_basis = continuityBasis;
     }
-  } else if (unchanged !== null) {
+  } else if (unchanged !== null && policyRequires) {
     checkpoint.missing_baseline = true;
     checkpoint.rejected_unchanged_reason = unchanged;
   }

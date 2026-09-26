@@ -92,7 +92,12 @@ def setup(root: Path) -> tuple[Path, Path, Path]:
     project, runtime, registry = fixture.write_fixture(root)
     config = json.loads(registry.read_text())
     goal = config["goals"][0]
-    goal.update(state_file="ACTIVE_GOAL_STATE.md", coordination={"registered_agents": [AGENT]})
+    # The per-agent vision checkpoint under qualification is a peer_v1 contract
+    # (role_v1 goals owe none, fork decision 31).
+    goal.update(
+        state_file="ACTIVE_GOAL_STATE.md",
+        coordination={"agent_model": "peer_v1", "registered_agents": [AGENT]},
+    )
     goal["quota"]["allowed_slots"] = 12
     registry.write_text(json.dumps(config))
     runtime.mkdir(parents=True, exist_ok=True)
