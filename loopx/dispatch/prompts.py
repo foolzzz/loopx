@@ -121,6 +121,13 @@ def dispatch_prompt_addendum(
             "--agent-id <its developer> --review-feedback ...`), reassigning, splitting or "
             "superseding it, or open a user gate. Then return validated_completion; LoopX checks "
             "that the todo is no longer blocked.",
+            "- To replace or split a todo, create the new todo(s) with `loopx todo add`, then run "
+            f"`loopx todo supersede --goal-id {goal_id} --todo-id OLD --by NEW[,NEW2] --agent-id "
+            f"{agent_id} [--note why]`. It closes OLD as superseded and makes every todo that "
+            "depended on OLD depend on all the new ones. Never mark a replaced todo done "
+            "(`todo complete` or `todo update --status done`): a dependency that requires "
+            "acceptance releases its dependents only once an acceptor accepted it and LoopX "
+            "merged it, so a manual done keeps them waiting (`loopx todo list` names the wait).",
             "- A todo's acceptance criteria live in its acceptance_criteria field; plan cards set "
             "them from each item's `acceptance`. Changing criteria is a major change: prefer a "
             "revised plan card, or `loopx todo update --goal-id "
