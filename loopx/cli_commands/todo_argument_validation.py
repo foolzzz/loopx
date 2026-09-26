@@ -63,6 +63,7 @@ TODO_OPTION_FIELDS = (
     ("--clear-global-gate", "clear_global_gate"),
     ("--unblocks-todo-id", "unblocks_todo_id"),
     ("--successor-todo-id", "successor_todo_ids"),
+    ("--by", "supersede_by"),
     ("--resume-when", "resume_when"),
     ("--validation-command", "validation_command"),
     ("--validation-command-json", "validation_command_json"),
@@ -174,6 +175,17 @@ def register_todo_linkage_arguments(
             "For todo add/update, link this todo to the blocked todo it unblocks, "
             "for example todo_ab12cd34ef56. Completing an exactly linked user_gate "
             "also consumes the target required decision scopes covered by that gate."
+        ),
+    )
+    todo_parser.add_argument(
+        "--by",
+        dest="supersede_by",
+        action="append",
+        help=(
+            "For todo supersede under role_v1, the existing todo(s) that replace "
+            "--todo-id (comma-separated or repeated; several ids split it). Every "
+            "todo that depended on it then depends on all of them. Orchestrator or "
+            "owner only; a superseded todo never counts as done."
         ),
     )
     todo_parser.add_argument(
@@ -699,6 +711,17 @@ def validate_todo_supersede_options(args: argparse.Namespace) -> None:
         raise ValueError("todo supersede does not support --successor-todo-id; use --next-agent-todo or update the source todo before supersede")
     if any(getattr(args, field) for field in ("monitor_target_key", "cadence", "next_due_at", "expires_at")):
         raise ValueError("todo supersede does not update target or monitor schedule metadata; use todo update before supersede")
+    if getattr(args, "supersede_by", None) and any(
+        getattr(args, field) for field in (
+            "next_agent_todo", "next_user_todo", "next_claimed_by", "next_task_class", "next_action_kind",
+            "next_task_repository", "next_required_capabilities", "next_continuation_policy",
+            "next_excluded_agents", "task_lease_idempotency_key", "reason",
+        )
+    ):
+        raise ValueError(
+            "todo supersede --by names existing replacement todos; it takes only --note, --agent-id "
+            "and --dry-run (create the replacements first with todo add)"
+        )
 
 
 def validate_todo_archive_completed_options(args: argparse.Namespace) -> None:
@@ -744,6 +767,8 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
         "complete",
         "supersede",
     }
+    if getattr(args, "supersede_by", None) and args.todo_command != "supersede":
+        raise ValueError("--by is supported only by todo supersede")
     if getattr(args, "turn_instance_id", None) and args.todo_command != "complete":
         raise ValueError(
             "--turn-instance-id is supported only by todo complete settlement"
