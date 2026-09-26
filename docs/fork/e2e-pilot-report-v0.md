@@ -223,7 +223,7 @@ Fixes from the PR review, one commit each, with regression tests.
 - **W1.** The pilot repos had no `origin`, and the kernel's delivery-workspace
   identity requires `remote.origin.url` (gap G3). I added
   `https://git.invalid/loopx-pilots/<repo>.git` with the push URL set to
-  `DISABLED-no-push`.
+  `DISABLED-no-push`. No longer needed since G3 was resolved.
 - **W2.** Contract todo `todo_052d0a865d78`: I merged it by hand with
   `lx workspace merge --repo api`, because it was accepted before fix 6.
 - **W3.** Backend and frontend: I resumed them once by calling
@@ -243,7 +243,13 @@ Fixes from the PR review, one commit each, with regression tests.
 "Needs approval" marks a gap that touches the core protocol, the contract or the
 schema, or the lease or guard semantics. None of these was changed.
 
-- **G1 (P0, needs approval). Multi-repo delivery identity.**
+- **G1 (P0). Multi-repo delivery identity. Resolved by design decision 29,
+  approved by the user; see [workspaces-v0](workspaces-v0.md#delivery-identity-decision-29).**
+  A multi-repo delivery now binds to a todo workspace identity (goal, todo,
+  branch, per-repo name, path, head and `repo_id`). The refresh accepts the
+  registered root of exactly that todo, with every repo on the todo branch.
+  Multi-repo Turns settle, spend quota and close their journal. The original
+  finding:
   - A multi-repo Turn runs from the workspace root, which is not a git worktree.
     Delivery and verdicts land, but the post-settlement refresh fails the
     multi-agent worktree guard. The Turn then reports `failed`, quota is not
@@ -262,9 +268,11 @@ schema, or the lease or guard semantics. None of these was changed.
     [role-v1-protocol](role-v1-protocol.md#per-todo-acceptance-criteria-gap-g2).
     A criteria change is recorded as a major change but not gated by a plan
     card.
-- **G3 (P1, needs approval). Origin-less repos.** The delivery identity needs
-  `remote.origin.url`. Local-only repos need a local identity, for example a
-  digest of the common git dir; W1 is the stopgap.
+- **G3 (P1). Origin-less repos. Resolved by design decision 29.** Without a
+  usable `remote.origin.url`, `repo_id` is `local:` + sha256 of the realpath of
+  the git common dir, so local-only repos deliver and W1 is no longer needed.
+  The original finding: the delivery identity needed `remote.origin.url`, and
+  W1 was the stopgap.
 - **G4 (P1). The orchestrator and the upstream vision and replan machinery.**
   - A completed orchestrator todo raises vision-checkpoint and no-follow-up
     replan obligations that the orchestrator cannot settle through a Turn: the

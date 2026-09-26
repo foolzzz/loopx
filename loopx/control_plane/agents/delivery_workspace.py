@@ -16,10 +16,26 @@ from ..effect_runtime import EffectRuntimeRejected, effect_runtime_result
 LEGACY_DELIVERY_WORKSPACE_SCHEMA_VERSION = (
     DELIVERY_WORKSPACE_SNAPSHOT_LEGACY_SNAPSHOT_SCHEMA
 )
-DELIVERY_WORKSPACE_IDENTITY_KINDS = frozenset({"git_repository", "local_goal"})
-DELIVERY_WORKSPACE_KINDS = frozenset(
-    {"canonical_checkout", "independent_git_worktree", "local_goal_workspace"}
+DELIVERY_WORKSPACE_IDENTITY_KINDS = frozenset(
+    {"git_repository", "local_goal", "todo_workspace"}
 )
+DELIVERY_WORKSPACE_KINDS = frozenset(
+    {
+        "canonical_checkout",
+        "independent_git_worktree",
+        "local_goal_workspace",
+        "todo_workspace_root",
+    }
+)
+TODO_WORKSPACE_IDENTITY_PREFIX = "todo-workspace:"
+# A repository without a usable origin: ``local:`` + sha256 of its git common dir.
+LOCAL_REPOSITORY_ID_PREFIX = "local:"
+
+
+def todo_workspace_identity_ref(goal_id: str, todo_id: str) -> str:
+    """The ``workspace_identity`` of a fork S5 per-Todo workspace snapshot."""
+
+    return f"{TODO_WORKSPACE_IDENTITY_PREFIX}{goal_id}/{todo_id}"
 
 
 def _runtime_result(operation: str, **params: Any) -> Mapping[str, Any]:
@@ -56,10 +72,16 @@ def _workspace_result(result: Mapping[str, Any]) -> dict[str, Any] | None:
         "workspace_kind",
         "peer_independent_worktree_required",
     }
-    actual_keys = set(value)
-    if actual_keys not in (
-        expected_keys,
-        expected_keys | {"workspace_revision_digest"},
+    actual_keys = set(value) - {"workspace_revision_digest", "todo_workspace"}
+    if actual_keys != expected_keys:
+        raise RuntimeError("TypeScript delivery workspace result shape mismatch")
+    todo_workspace = value.get("todo_workspace")
+    if ("todo_workspace" in value) != (value.get("identity_kind") == "todo_workspace") or (
+        todo_workspace is not None
+        and (
+            not isinstance(todo_workspace, Mapping)
+            or not isinstance(todo_workspace.get("repos"), list)
+        )
     ):
         raise RuntimeError("TypeScript delivery workspace result shape mismatch")
     if (
@@ -90,22 +112,21 @@ def build_delivery_workspace_snapshot(
     workspace_kind: str,
     peer_independent_worktree_required: bool,
     workspace_revision_digest: str | None = None,
+    todo_workspace: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    return _workspace_result(
-        _runtime_result(
-            "build",
-            observation={
-                "workspace_identity": workspace_identity,
-                "identity_kind": identity_kind,
-                "workspace_revision_digest": workspace_revision_digest,
-                "repository_source": repository_source,
-                "workspace_kind": workspace_kind,
-                "peer_independent_worktree_required": bool(
-                    peer_independent_worktree_required
-                ),
-            },
-        )
-    )
+    observation: dict[str, Any] = {
+        "workspace_identity": workspace_identity,
+        "identity_kind": identity_kind,
+        "workspace_revision_digest": workspace_revision_digest,
+        "repository_source": repository_source,
+        "workspace_kind": workspace_kind,
+        "peer_independent_worktree_required": bool(
+            peer_independent_worktree_required
+        ),
+    }
+    if todo_workspace is not None:
+        observation["todo_workspace"] = dict(todo_workspace)
+    return _workspace_result(_runtime_result("build", observation=observation))
 
 
 def normalize_delivery_workspace_snapshot(value: Any) -> dict[str, Any] | None:
@@ -123,4 +144,6 @@ def normalize_delivery_workspace_snapshot(value: Any) -> dict[str, Any] | None:
             "peer_independent_worktree_required"
         ),
     }
+    if value.get("todo_workspace") is not None:
+        prepared["todo_workspace"] = value.get("todo_workspace")
     return _workspace_result(_runtime_result("normalize", workspace=prepared))

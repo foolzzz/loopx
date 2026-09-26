@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from hashlib import sha256
+import os
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 
@@ -9,13 +12,25 @@ from ...repository_identity import (
     normalize_repository_identity,
     resolve_project_identity,
 )
-from ..todos.contract import normalize_todo_claimed_by, normalize_todo_task_repository
+from ..todos.contract import (
+    normalize_todo_claimed_by,
+    normalize_todo_task_repositories,
+    normalize_todo_task_repository,
+)
 from .delivery_workspace import (
+    LOCAL_REPOSITORY_ID_PREFIX,
     build_delivery_workspace_snapshot,
     normalize_delivery_workspace_snapshot,
+    todo_workspace_identity_ref,
 )
 
 AGENT_WORKSPACE_GUARD_SCHEMA_VERSION = "agent_workspace_guard_v1"
+# Workspace kinds that satisfy a peer independent-worktree requirement: a
+# linked git worktree, or a verified fork S5 per-Todo workspace root whose
+# repos are all linked worktrees on the Todo branch.
+INDEPENDENT_DELIVERY_WORKSPACE_KINDS = frozenset(
+    {"independent_git_worktree", "todo_workspace_root"}
+)
 PEER_WRITE_ACTION_KINDS = {
     "fix",
     "implement",
@@ -94,14 +109,188 @@ def _git_dir(path: Path) -> Path | None:
         return None
 
 
+def _local_repository_identity(path: Path) -> str | None:
+    """A stable identity for a repository without a usable ``origin``.
+
+    ``local:`` + sha256 of the realpath of ``git rev-parse --git-common-dir``,
+    so a checkout and all of its linked worktrees share it, and no local path
+    is recorded.
+    """
+
+    common = _git_common_dir(path)
+    if common is None:
+        return None
+    digest = sha256(os.path.realpath(str(common)).encode("utf-8")).hexdigest()
+    return f"{LOCAL_REPOSITORY_ID_PREFIX}{digest}"
+
+
 def _git_repository_identity(path: Path) -> str | None:
+    """The delivery ``repo_id``: the canonical origin, else a local identity.
+
+    A local-only repository (no ``origin``, or one that does not normalize to
+    a credential-free remote identity) falls back to the git-common-dir
+    digest instead of failing the delivery identity (fork decision 29).
+    """
+
     remote = _git_command_output(path, "config", "--get", "remote.origin.url")
-    if not remote:
+    if remote:
+        try:
+            return normalize_repository_identity(remote)
+        except ValueError:
+            pass
+    return _local_repository_identity(path)
+
+
+_TODO_WORKSPACE_REPO_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_TODO_WORKSPACE_MAX_REPOS = 8
+
+
+def _same_real_path(left: Path, right: Path) -> bool:
+    return os.path.realpath(str(left)) == os.path.realpath(str(right))
+
+
+def _todo_workspace_repo(
+    repo_dir: Path, *, branch: str, declared_path: Any = None
+) -> dict[str, Any] | None:
+    """One repo of a per-Todo workspace, or ``None`` if it is not verifiable.
+
+    The directory must be the top of a linked git worktree (not a main
+    checkout) checked out on the Todo branch. When the Goal declares the
+    repository, the worktree must belong to that repository.
+    """
+
+    root = _git_worktree_root(repo_dir)
+    if root is None or not _same_real_path(root, repo_dir):
         return None
+    common = _git_common_dir(repo_dir)
+    git_dir = _git_dir(repo_dir)
+    if common is None or git_dir is None or common == git_dir:
+        return None
+    if _git_command_output(repo_dir, "symbolic-ref", "-q", "HEAD") != f"refs/heads/{branch}":
+        return None
+    head_sha = _git_command_output(repo_dir, "rev-parse", "--verify", "-q", "HEAD^{commit}")
+    repo_id = _git_repository_identity(repo_dir)
+    if not head_sha or not repo_id:
+        return None
+    if declared_path is not None:
+        declared = Path(str(declared_path)).expanduser()
+        declared_common = _git_common_dir(declared) if declared.is_dir() else None
+        if declared_common is None or declared_common != common:
+            return None
+    return {"head_sha": head_sha.lower(), "repo_id": repo_id}
+
+
+def verify_todo_workspace(
+    path: Path,
+    *,
+    runtime_root: Path | str,
+    goal_id: str,
+    todo_id: str,
+    goal: Mapping[str, Any] | None = None,
+    repo_names: Sequence[str] | None = None,
+) -> dict[str, Any] | None:
+    """Verify ``path`` is the registered S5 workspace root of exactly this Todo.
+
+    Returns the ``todo_workspace`` identity (goal, Todo, branch and one
+    ``{name, path, head_sha, repo_id}`` entry per repo, ``path`` relative to
+    the workspace root) or ``None``. ``path`` must resolve to
+    ``<runtime_root>/goals/<goal>/workspaces/<todo>``. Every listed repo (by
+    default every git entry under the root) must be a linked worktree on the
+    Todo branch ``loopx/<goal>/<todo>``; with ``goal`` it must also be a
+    worktree of the repository the Goal declares under that name. Anything
+    else fails closed.
+    """
+
+    from ...workspace.git_workspace import todo_branch, todo_workspace_root
+
     try:
-        return normalize_repository_identity(remote)
-    except ValueError:
+        root = todo_workspace_root(runtime_root, goal_id, todo_id)
+    except (OSError, TypeError, ValueError):
         return None
+    if not root.is_dir() or not _same_real_path(path, root):
+        return None
+    declared: dict[str, Any] | None = None
+    if goal is not None:
+        from ...workspace.repos import goal_repos
+
+        try:
+            declared = {str(repo["name"]): repo.get("path") for repo in goal_repos(goal)}
+        except (KeyError, TypeError, ValueError):
+            return None
+    if repo_names is None:
+        try:
+            names = sorted(
+                child.name for child in root.iterdir() if (child / ".git").exists()
+            )
+        except OSError:
+            return None
+    else:
+        names = [str(name) for name in repo_names]
+    if (
+        not names
+        or len(names) > _TODO_WORKSPACE_MAX_REPOS
+        or len(set(names)) != len(names)
+    ):
+        return None
+    branch = todo_branch(goal_id, todo_id)
+    repos: list[dict[str, Any]] = []
+    for name in names:
+        if not _TODO_WORKSPACE_REPO_NAME.match(name):
+            return None
+        if declared is not None and name not in declared:
+            return None
+        verified = _todo_workspace_repo(
+            root / name,
+            branch=branch,
+            declared_path=(declared or {}).get(name),
+        )
+        if verified is None:
+            return None
+        repos.append({"name": name, "path": name, **verified})
+    return {"goal_id": goal_id, "todo_id": todo_id, "branch": branch, "repos": repos}
+
+
+def _todo_workspace_revision_digest(todo_workspace: Mapping[str, Any]) -> str:
+    material = "\0".join(
+        f"{repo['name']}\0{repo['repo_id']}\0{repo['head_sha']}"
+        for repo in todo_workspace["repos"]
+    )
+    return sha256(material.encode("utf-8")).hexdigest()
+
+
+def _capture_todo_workspace(
+    path: Path,
+    scope: Mapping[str, Any],
+    *,
+    peer_independent_worktree_required: bool,
+    repository_source: str | None,
+) -> dict[str, Any] | None:
+    runtime_root = scope.get("runtime_root")
+    goal_id = str(scope.get("goal_id") or "")
+    todo_id = str(scope.get("todo_id") or "")
+    if not runtime_root or not goal_id or not todo_id:
+        return None
+    goal = scope.get("goal")
+    repo_names = scope.get("repo_names")
+    todo_workspace = verify_todo_workspace(
+        path,
+        runtime_root=runtime_root,
+        goal_id=goal_id,
+        todo_id=todo_id,
+        goal=goal if isinstance(goal, Mapping) else None,
+        repo_names=list(repo_names) if isinstance(repo_names, (list, tuple)) else None,
+    )
+    if todo_workspace is None:
+        return None
+    return build_delivery_workspace_snapshot(
+        workspace_identity=todo_workspace_identity_ref(goal_id, todo_id),
+        identity_kind="todo_workspace",
+        repository_source=repository_source or "todo_workspace_root",
+        workspace_kind="todo_workspace_root",
+        peer_independent_worktree_required=peer_independent_worktree_required,
+        workspace_revision_digest=_todo_workspace_revision_digest(todo_workspace),
+        todo_workspace=todo_workspace,
+    )
 
 
 def capture_delivery_workspace(
@@ -111,17 +300,34 @@ def capture_delivery_workspace(
     local_goal_id: str | None = None,
     local_project_root: Path | None = None,
     repository_source: str | None = None,
+    todo_workspace_scope: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Capture a compact, credential-free delivery workspace identity.
 
-    Git deliveries bind to their canonical repository identity and, when HEAD
-    exists, an opaque digest of its content-addressed revision. A single-agent
-    non-Git goal may instead bind to its stable LoopX goal identity. The
-    snapshot intentionally excludes local paths, branch names and raw commits.
+    Git deliveries bind to their repository identity (the canonical origin,
+    or a local git-common-dir digest without one) and, when HEAD exists, an
+    opaque digest of its content-addressed revision. A single-agent non-Git
+    goal may instead bind to its stable LoopX goal identity. These snapshots
+    exclude local paths, branch names and raw commits.
+
+    With ``todo_workspace_scope`` (``runtime_root``, ``goal_id``, ``todo_id``
+    and optionally ``goal`` and ``repo_names``), a path that is the registered
+    fork S5 workspace root of exactly that Todo binds to a ``todo_workspace``
+    identity: goal, Todo, the Todo branch and per repo its root-relative
+    path, HEAD and repo id (fork decision 29).
     """
 
     path = current_path or Path.cwd()
     current_root = _git_worktree_root(path)
+    if current_root is None and todo_workspace_scope:
+        todo_snapshot = _capture_todo_workspace(
+            path,
+            todo_workspace_scope,
+            peer_independent_worktree_required=peer_independent_worktree_required,
+            repository_source=repository_source,
+        )
+        if todo_snapshot is not None:
+            return todo_snapshot
     if current_root is None:
         if peer_independent_worktree_required or not local_goal_id:
             return None
@@ -168,7 +374,11 @@ def capture_delivery_workspace(
     return build_delivery_workspace_snapshot(
         workspace_identity=task_repository,
         identity_kind="git_repository",
-        repository_source=repository_source or "current_git_origin",
+        repository_source=repository_source or (
+            "current_git_origin"
+            if task_repository.startswith("git:")
+            else "current_git_common_dir"
+        ),
         workspace_kind=workspace_kind,
         peer_independent_worktree_required=peer_independent_worktree_required,
         workspace_revision_digest=workspace_revision_digest,
@@ -186,10 +396,87 @@ def delivery_workspace_repository(value: Any) -> str | None:
     snapshot = normalize_delivery_workspace_snapshot(value)
     if snapshot is None or snapshot.get("identity_kind") != "git_repository":
         return None
+    repository = str(snapshot.get("task_repository") or "")
+    if _LOCAL_REPOSITORY_ID.match(repository):
+        return repository
     try:
-        return normalize_todo_task_repository(snapshot.get("task_repository"))
+        return normalize_todo_task_repository(repository)
     except (TypeError, ValueError):
         return None
+
+
+_LOCAL_REPOSITORY_ID = re.compile(r"^local:[0-9a-f]{64}$")
+
+
+def _todo_workspace_delivery_guard(
+    snapshot: Mapping[str, Any],
+    delivery_run: Mapping[str, Any],
+    *,
+    agent_id: str | None,
+    current_path: Path | None,
+    runtime_root: Path | str | None,
+) -> dict[str, Any] | None:
+    """Spend from the recorded per-Todo workspace root, with the same repos."""
+
+    recorded = snapshot.get("todo_workspace")
+    recorded = recorded if isinstance(recorded, Mapping) else {}
+    recorded_repos = {
+        str(repo.get("name")): repo.get("repo_id")
+        for repo in recorded.get("repos") or []
+        if isinstance(repo, Mapping)
+    }
+    current = (
+        capture_delivery_workspace(
+            current_path,
+            todo_workspace_scope={
+                "runtime_root": runtime_root,
+                "goal_id": recorded.get("goal_id"),
+                "todo_id": recorded.get("todo_id"),
+                "repo_names": sorted(recorded_repos),
+            },
+        )
+        if runtime_root is not None and recorded_repos
+        else None
+    )
+    current_todo_workspace = (current or {}).get("todo_workspace")
+    current_repos = (
+        {
+            str(repo.get("name")): repo.get("repo_id")
+            for repo in current_todo_workspace.get("repos") or []
+            if isinstance(repo, Mapping)
+        }
+        if isinstance(current_todo_workspace, Mapping)
+        else {}
+    )
+    if (
+        current is not None
+        and current.get("workspace_identity") == snapshot.get("workspace_identity")
+        and current_repos == recorded_repos
+    ):
+        return None
+    return {
+        "schema_version": AGENT_WORKSPACE_GUARD_SCHEMA_VERSION,
+        "source": "quota.spend_slot.delivery_workspace",
+        "action": "return_to_delivery_worktree",
+        "current_workspace": (
+            "foreign_todo_workspace" if current is not None else "not_todo_workspace_root"
+        ),
+        "required_workspace": "accountable_delivery_todo_workspace_root",
+        "blocks_delivery": True,
+        "agent_id": normalize_todo_claimed_by(agent_id),
+        "repository_source": "delivery_run.delivery_workspace.todo_workspace",
+        "workspace_identity": snapshot.get("workspace_identity"),
+        "delivery_run_generated_at": delivery_run.get("generated_at"),
+        "delivery_run_classification": delivery_run.get("classification"),
+        "reason": (
+            "quota spend workspace does not match the latest unspent accountable "
+            "delivery workspace"
+        ),
+        "required_action": (
+            "run quota spend-slot from the per-Todo workspace root that produced "
+            "the latest unspent accountable delivery"
+        ),
+    }
 
 
 def build_delivery_workspace_guard(
@@ -197,11 +484,14 @@ def build_delivery_workspace_guard(
     *,
     agent_id: str | None = None,
     current_path: Path | None = None,
+    runtime_root: Path | str | None = None,
 ) -> dict[str, Any] | None:
     """Validate quota accounting against its accountable delivery workspace.
 
     Legacy delivery runs without a snapshot return ``None`` so the existing
-    selected-todo workspace guard remains the fail-closed fallback.
+    selected-todo workspace guard remains the fail-closed fallback. A
+    ``todo_workspace`` delivery must be spent from the same per-Todo
+    workspace root (under ``runtime_root``) with the same repositories.
     """
 
     snapshot = (
@@ -214,6 +504,14 @@ def build_delivery_workspace_guard(
         return None
     if normalized_snapshot["identity_kind"] == "local_goal":
         return None
+    if normalized_snapshot["identity_kind"] == "todo_workspace":
+        return _todo_workspace_delivery_guard(
+            normalized_snapshot,
+            delivery_run,
+            agent_id=agent_id,
+            current_path=current_path,
+            runtime_root=runtime_root,
+        )
     task_repository = str(normalized_snapshot["task_repository"])
 
     current = capture_delivery_workspace(current_path)
@@ -308,6 +606,48 @@ def _peer_work_requires_isolated_workspace(
     )
 
 
+def _in_registered_todo_workspace(
+    goal: Mapping[str, Any],
+    todo: Mapping[str, Any],
+    *,
+    current_path: Path,
+    runtime_root: Path | str | None,
+) -> bool:
+    """Whether ``current_path`` is this S5 Todo's verified workspace.
+
+    That is its registered workspace root, or for a one-repo Todo that repo's
+    worktree inside it. Every repo the Todo names must be a worktree of the
+    Goal-declared repository on the Todo branch.
+    """
+
+    repo_names = normalize_todo_task_repositories(todo.get("task_repositories"))
+    todo_id = str(todo.get("todo_id") or "").strip()
+    goal_id = str(goal.get("id") or "").strip()
+    if not repo_names or not todo_id or not goal_id or runtime_root is None:
+        return False
+    from ...workspace.git_workspace import todo_workspace_root
+
+    try:
+        root = todo_workspace_root(runtime_root, goal_id, todo_id)
+    except (OSError, TypeError, ValueError):
+        return False
+    if not _same_real_path(current_path, root) and not (
+        len(repo_names) == 1 and _same_real_path(current_path, root / repo_names[0])
+    ):
+        return False
+    return (
+        verify_todo_workspace(
+            root,
+            runtime_root=runtime_root,
+            goal_id=goal_id,
+            todo_id=todo_id,
+            goal=goal,
+            repo_names=repo_names,
+        )
+        is not None
+    )
+
+
 def build_agent_workspace_guard(
     goal: dict[str, Any],
     agent_identity: dict[str, Any] | None,
@@ -315,6 +655,7 @@ def build_agent_workspace_guard(
     agent_todo_summary: dict[str, Any] | None = None,
     selected_todo: dict[str, Any] | None = None,
     current_path: Path | None = None,
+    runtime_root: Path | str | None = None,
 ) -> dict[str, Any] | None:
     if not isinstance(agent_identity, dict):
         return None
@@ -338,6 +679,12 @@ def build_agent_workspace_guard(
         else next(iter(_peer_candidate_items(agent_todo_summary)), {})
     )
     task_repository = normalize_todo_task_repository(candidate.get("task_repository"))
+    if not task_repository and _in_registered_todo_workspace(
+        goal, candidate, current_path=current_path, runtime_root=runtime_root
+    ):
+        # Fork S5: the per-Todo workspace (one worktree per repo on the Todo
+        # branch) is this Todo's independent workspace.
+        return None
     current_workspace = ""
     repository_source = "goal.repo"
     if task_repository:

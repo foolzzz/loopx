@@ -283,9 +283,14 @@ directly, as before.
   `loopx workspace prepare` again to recreate a removed worktree on the
   existing todo branch.
 - A multi-repo Turn runs from the workspace root, which is not a git worktree.
-  Its delivery and verdict land, but the post-settlement refresh fails the
-  multi-agent worktree guard, because a delivery-workspace snapshot models one
-  repository. This needs a protocol decision (E2E pilot report, gap G1).
+  Its delivery and verdict bind to the todo workspace identity (design
+  decision 29): goal, todo, the todo branch and, per repo, its name,
+  root-relative path, HEAD and `repo_id`. The post-settlement refresh accepts
+  that root as the independent workspace only when it is the registered root
+  of exactly this todo and every repo is a worktree of the declared repo on the
+  todo branch. The Turn then settles, spends quota and closes its journal. A
+  repo without `origin` gets a local `repo_id`, a digest of its git common
+  dir. See [workspaces-v0](workspaces-v0.md#delivery-identity-decision-29).
 
 ## Per-todo acceptance criteria (gap G2)
 
