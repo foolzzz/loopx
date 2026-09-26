@@ -48,6 +48,9 @@ equal([drifted.todos[0].effective_role, drifted.todos[0].reject_count, drifted.t
 equal([drifted.gates[0].kind, drifted.gates[0].awaiting], ["decision", "awaiting_user"], "unknown gate kind/awaiting fall back");
 
 const board = roleBoardFromProjection(parsed);
+equal(board.cards.find((card) => card.todoId === "todo_rb_review")?.acceptanceCriteria, "GET /todos returns 200; tests pass",
+  "G2: the card carries the todo's acceptance criteria");
+equal(board.cards.find((card) => card.todoId === "todo_rb_running")?.acceptanceCriteria, null, "cards without criteria stay empty");
 equal(board.omittedCardCount, 3, "omitted card count is surfaced");
 const stages = Object.fromEntries(board.cards.map((card) => [card.todoId, roleBoardStage(card)]));
 equal(stages, {

@@ -37,6 +37,7 @@ SELECTED_TODO_COMPACT_FIELDS = (
     "task_repositories",
     "reject_count",
     "review_feedback",
+    "acceptance_criteria",
 )
 SELECTED_TODO_AGENT_FIELDS = (
     "agent_id",

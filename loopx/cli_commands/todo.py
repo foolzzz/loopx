@@ -36,6 +36,7 @@ from ..control_plane.goals.task_planning import (
     build_task_planning_packet,
     render_task_planning_packet,
 )
+from ..todo_acceptance_criteria import set_goal_todo_acceptance_criteria
 from ..todos import (
     add_goal_todo,
     archive_completed_todos,
@@ -48,6 +49,7 @@ from ..todos import (
 from .todo_argument_validation import (
     validate_capability_gap_options,
     validate_shared_todo_options,
+    todo_acceptance_criteria_update_requested,
     todo_role_contract_from_args,
     validate_todo_add_options,
     validate_todo_archive_completed_options,
@@ -384,6 +386,14 @@ def handle_todo_command(
                 task_lease_expected_version=args.task_lease_expected_version,
                 **_todo_path_args(args),
                 dry_run=bool(args.dry_run),
+            )
+        elif args.todo_command == "update" and todo_acceptance_criteria_update_requested(args):
+            validate_todo_update_options(args)
+            payload = set_goal_todo_acceptance_criteria(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id,
+                acceptance_criteria=None if args.clear_acceptance_criteria else args.acceptance_criteria,
+                agent_id=args.agent_id, **_todo_path_args(args), dry_run=bool(args.dry_run),
             )
         elif args.todo_command == "update":
             validate_todo_update_options(args)

@@ -53,6 +53,9 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 27. **Later**: Lark and Telegram channels.
 28. **Validation.** Build small pilot projects locally and run the full loop: intake, clarification, plan approval, contract-first decomposition, delivery, at least one rejection then acceptance, merge, answering a gate in the web UI, and the role board. Add kernel unit tests for role-aware selection, `in_review` transitions, the reject count and escalation, and atomic multi-repo merge.
 
+## Decisions after the E2E pilot (2026-09-26)
+30. Per-todo acceptance criteria live in a dedicated orchestrator-owned `acceptance_criteria` todo field, shown to developer and acceptor every Turn; rework instructions go to `review_feedback`. Approved by the user.
+
 ## Kernel seams (from code exploration)
 - **Registry roster:** `loopx/agent_registry.py`, `loopx/configure_goal.py`, `loopx/cli_commands/registry_admin.py`. The runtime model enum is in `loopx/control_plane/agents/runtime_model.py`; the anti-hierarchy rules are in `control_plane/agents/profile.py` and `legacy_migration.py`.
 - **Selection choke point:** `loopx/control_plane/todos/quota_selection.ts:121-183`, with its Python packer `quota_selection.py`.

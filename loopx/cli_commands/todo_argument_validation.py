@@ -56,6 +56,10 @@ TODO_OPTION_FIELDS = (
     ("--reject-count", "reject_count"),
     ("--task-repo", "task_repositories"),
     ("--clear-task-repos", "clear_task_repositories"),
+    ("--acceptance-criteria", "acceptance_criteria"),
+    ("--clear-acceptance-criteria", "clear_acceptance_criteria"),
+    ("--review-feedback", "review_feedback"),
+    ("--clear-review-feedback", "clear_review_feedback"),
     ("--clear-global-gate", "clear_global_gate"),
     ("--unblocks-todo-id", "unblocks_todo_id"),
     ("--successor-todo-id", "successor_todo_ids"),
@@ -104,14 +108,19 @@ _TODO_UPDATE_MUTABLE_FIELDS = (
     "validation_command", "validation_command_json", "validation_label",
     "validation_timeout_seconds", "required_role", "clear_required_role",
     "requires_acceptance", "acceptor_agent", "clear_acceptor_agent", "reject_count",
-    "task_repositories", "clear_task_repositories",
+    "task_repositories", "clear_task_repositories", "acceptance_criteria",
+    "clear_acceptance_criteria", "review_feedback", "clear_review_feedback",
 )
 
 TODO_ROLE_CONTRACT_OPTION_FIELDS = (
     "required_role", "clear_required_role", "requires_acceptance", "acceptor_agent",
     "clear_acceptor_agent", "reject_count", "task_repositories",
-    "clear_task_repositories",
+    "clear_task_repositories", "acceptance_criteria", "clear_acceptance_criteria",
+    "review_feedback", "clear_review_feedback",
 )
+# Fork G2: the orchestrator-owned acceptance_criteria field is updated in its
+# own call, so the lifecycle write can be attributed to the claim owner.
+TODO_ACCEPTANCE_CRITERIA_OPTION_FIELDS = ("acceptance_criteria", "clear_acceptance_criteria")
 
 _TODO_UPDATE_UNSUPPORTED_FIELDS = (
     (
@@ -151,6 +160,7 @@ _TODO_ADD_UNSUPPORTED_FIELDS = (
     "next_continuation_policy", "next_excluded_agents", "clear_excluded_agents",
     "clear_blocks_agent", "self_merged", "no_follow_up", "clear_priority",
     "clear_required_role", "clear_acceptor_agent", "clear_task_repositories",
+    "clear_acceptance_criteria", "review_feedback", "clear_review_feedback",
 )
 _TODO_OPTION_FLAGS = {field: flag for flag, field in TODO_OPTION_FIELDS}
 
@@ -336,6 +346,31 @@ def register_todo_role_contract_arguments(
         action="store_true",
         help="For todo update, remove all named task repositories.",
     )
+    todo_parser.add_argument(
+        "--acceptance-criteria",
+        help=(
+            "For todo add/update, set the todo's acceptance criteria. Under role_v1 only "
+            "the goal orchestrator (or the owner) may write them; on update pass it "
+            "without other fields. A change is recorded as a major change."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-acceptance-criteria",
+        action="store_true",
+        help="For todo update, remove the todo's acceptance criteria.",
+    )
+    todo_parser.add_argument(
+        "--review-feedback",
+        help=(
+            "For todo update, set review_feedback: the rework instructions the "
+            "developer sees on its next Turn (the orchestrator after an escalation)."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-review-feedback",
+        action="store_true",
+        help="For todo update, remove review_feedback.",
+    )
 
 
 def todo_role_contract_from_args(args: argparse.Namespace) -> dict[str, object] | None:
@@ -349,6 +384,8 @@ def todo_role_contract_from_args(args: argparse.Namespace) -> dict[str, object] 
         ("required_role", "clear_required_role"),
         ("acceptor_agent", "clear_acceptor_agent"),
         ("task_repositories", "clear_task_repositories"),
+        ("acceptance_criteria", "clear_acceptance_criteria"),
+        ("review_feedback", "clear_review_feedback"),
     )
     for field, clear_field in pairs:
         value = getattr(args, field, None)
@@ -371,6 +408,10 @@ def todo_role_contract_from_args(args: argparse.Namespace) -> dict[str, object] 
             raise ValueError("--reject-count must be a non-negative integer")
         patch["reject_count"] = reject_count
     return patch or None
+
+
+def todo_acceptance_criteria_update_requested(args: argparse.Namespace) -> bool:
+    return any(getattr(args, field, None) for field in TODO_ACCEPTANCE_CRITERIA_OPTION_FIELDS)
 
 
 def unsupported_todo_options(
@@ -503,6 +544,18 @@ def validate_todo_update_options(args: argparse.Namespace) -> None:
         getattr(args, "reject_count", None) is None
     ):
         raise ValueError("todo update requires at least one mutable todo field")
+    if todo_acceptance_criteria_update_requested(args):
+        others = [
+            _TODO_OPTION_FLAGS[field] for field in _TODO_UPDATE_MUTABLE_FIELDS
+            if field not in TODO_ACCEPTANCE_CRITERIA_OPTION_FIELDS and getattr(args, field)
+        ]
+        if getattr(args, "reject_count", None) is not None:
+            others.append("--reject-count")
+        if others:
+            raise ValueError(
+                "todo update --acceptance-criteria/--clear-acceptance-criteria must be "
+                "used without other fields (" + ", ".join(others) + ")"
+            )
     validation_fields = (
         args.validation_command,
         args.validation_command_json,

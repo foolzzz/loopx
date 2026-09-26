@@ -592,6 +592,22 @@ def normalize_todo_review_feedback(value: Any) -> str | None:
     return text
 
 
+# Fork G2: per-todo acceptance criteria, owned by the role_v1 orchestrator.
+# The bound matches the plan card's ``acceptance`` text.
+TODO_ACCEPTANCE_CRITERIA_LIMIT = 1000
+
+
+def normalize_todo_acceptance_criteria(value: Any) -> str | None:
+    """Return a todo's acceptance criteria (bounded, single line)."""
+
+    text = compact_todo_text(value)
+    if not text:
+        return None
+    if len(text) > TODO_ACCEPTANCE_CRITERIA_LIMIT:
+        text = text[: TODO_ACCEPTANCE_CRITERIA_LIMIT - 3].rstrip() + "..."
+    return text
+
+
 def todo_effective_required_role(item: Mapping[str, Any] | None) -> str:
     """Return the role_v1 role that owns a todo.
 
@@ -1269,6 +1285,10 @@ _TODO_METADATA_FIELD_SCHEMA = (
         normalize_todo_review_feedback,
     ),
     _TodoMetadataField(
+        "acceptance_criteria",
+        normalize_todo_acceptance_criteria,
+    ),
+    _TodoMetadataField(
         "unblocks_todo_id",
         normalize_todo_id,
         invalid_message=(
@@ -1450,7 +1470,12 @@ TODO_ROLE_CONTRACT_FIELDS = (
     # Fork slice S2 (acceptance flow): delivery author and latest verdict.
     "delivered_by",
     "review_feedback",
+    # Fork G2: per-todo acceptance criteria (orchestrator-owned).
+    "acceptance_criteria",
 )
+
+# role_v1 fields that only the goal orchestrator (or the owner) may write.
+TODO_ORCHESTRATOR_OWNED_FIELDS = ("acceptance_criteria",)
 
 
 def normalize_todo_role_contract(
@@ -1531,6 +1556,7 @@ def format_todo_metadata_line(
     task_repositories: Any = None,
     delivered_by: str | None = None,
     review_feedback: str | None = None,
+    acceptance_criteria: str | None = None,
     unblocks_todo_id: str | None = None,
     successor_todo_ids: Any = None,
     completion_continuation: str | None = None,
@@ -1600,6 +1626,8 @@ def todo_block_metadata(block: dict[str, Any]) -> dict[str, Any]:
             normalized = normalize_todo_claimed_by(value)
         elif key == "review_feedback":
             normalized = normalize_todo_review_feedback(value)
+        elif key == "acceptance_criteria":
+            normalized = normalize_todo_acceptance_criteria(value)
         elif key == "continuation_policy":
             normalized = normalize_todo_continuation_policy(value)
         elif key == "decision_scope":

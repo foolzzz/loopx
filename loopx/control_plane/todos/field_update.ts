@@ -44,8 +44,10 @@ const INTENT_FIELDS = new Set<string>([...STRING_FIELDS, ...PRESENT_FIELDS, ...F
   "role_contract"]);
 
 export const TODO_ROLE_CONTRACT_FIELDS = ["required_role", "requires_acceptance", "acceptor_agent",
-  "reject_count", "task_repositories", "delivered_by", "review_feedback"] as const;
+  "reject_count", "task_repositories", "delivered_by", "review_feedback", "acceptance_criteria"] as const;
 const TODO_REVIEW_FEEDBACK_LIMIT = 600;
+// Fork G2: orchestrator-owned per-todo acceptance criteria (plan card bound).
+const TODO_ACCEPTANCE_CRITERIA_LIMIT = 1000;
 const TODO_REQUIRED_ROLES = ["orchestrator", "developer", "acceptor"];
 
 /** role_v1 routing/acceptance patch. Present keys are written; null clears.
@@ -70,10 +72,11 @@ export function normalizeTodoRoleContract(value: unknown): JsonObject {
       result[key] = raw;
     } else if (key === "acceptor_agent" || key === "delivered_by") {
       result[key] = normalizeTodoAgent(raw, key);
-    } else if (key === "review_feedback") {
-      if (typeof raw !== "string") throw new EffectRuntimeRequestError("review_feedback must be a string");
+    } else if (key === "review_feedback" || key === "acceptance_criteria") {
+      if (typeof raw !== "string") throw new EffectRuntimeRequestError(`${key} must be a string`);
+      const limit = key === "review_feedback" ? TODO_REVIEW_FEEDBACK_LIMIT : TODO_ACCEPTANCE_CRITERIA_LIMIT;
       let text = raw.replace(/\s+/gu, " ").trim();
-      if (text.length > TODO_REVIEW_FEEDBACK_LIMIT) text = `${text.slice(0, TODO_REVIEW_FEEDBACK_LIMIT - 3).trimEnd()}...`;
+      if (text.length > limit) text = `${text.slice(0, limit - 3).trimEnd()}...`;
       result[key] = text || null;
     } else if (key === "reject_count") {
       if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {

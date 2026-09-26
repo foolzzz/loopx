@@ -243,12 +243,21 @@ function selectedTodo(payload: JsonObject, recommendedAction: string | null): Js
   ]) {
     if (source[field] !== null && source[field] !== undefined) compact[field] = source[field];
   }
-  // The acceptor's feedback on a rejected delivery, and the todo note that
-  // carries the plan's acceptance criteria and orchestrator instructions.
+  // The acceptor's (or orchestrator's) rework feedback, and the todo note.
   const reviewFeedback = text(source.review_feedback, 600);
   if (reviewFeedback) compact.review_feedback = reviewFeedback;
   const note = text(source.note, 600);
   if (note) compact.note = note;
+  // Fork G2: the orchestrator-owned per-todo criteria, and the goal-level
+  // acceptance contract (decision 9), which developer and acceptor both see.
+  const acceptanceCriteria = text(source.acceptance_criteria, 1000);
+  if (acceptanceCriteria) compact.acceptance_criteria = acceptanceCriteria;
+  const goalAcceptance = object(source.goal_acceptance);
+  const goalObjective = text(goalAcceptance.objective, 300);
+  const goalCriteria = textList(goalAcceptance.criteria, 12);
+  if (goalObjective || goalCriteria.length) {
+    compact.goal_acceptance = {...(goalObjective ? {objective: goalObjective} : {}), criteria: goalCriteria};
+  }
   const rendered = text(source.text, 360);
   if (rendered && sameActionText(source.text, recommendedAction)) {
     compact.text_ref = "action.recommended_action";

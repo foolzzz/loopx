@@ -161,6 +161,11 @@ export function GoalRoleBoardView({
                               ? card.acceptorAgent ? t("roles.acceptor", { agent: card.acceptorAgent }) : t("roles.acceptanceRequired")
                               : t("roles.noAcceptance")}
                           </small>
+                          {card.acceptanceCriteria ? (
+                            <small className="personal-role-card-criteria" title={card.acceptanceCriteria}>
+                              {t("roles.criteria", { criteria: card.acceptanceCriteria })}
+                            </small>
+                          ) : null}
                         </button>
                         {card.planId ? (
                           planGate ? (

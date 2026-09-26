@@ -37,6 +37,8 @@ MAX_ROLE_BOARD_GATES = 10
 MAX_ROLE_BOARD_PLANS = 20
 MAX_ROLE_BOARD_TEXT = 160
 MAX_ROLE_BOARD_REPOS = 8
+# Fork G2: the orchestrator-owned per-todo acceptance criteria on the card.
+MAX_ROLE_BOARD_CRITERIA_TEXT = 300
 
 _DONE_STATUSES = {"done", "completed"}
 _HIDDEN_STATUSES = {"superseded", "cancelled", "canceled", "obsolete", "archived"}
@@ -312,6 +314,9 @@ def build_goal_role_board(
             "task_class": _text(todo.get("task_class"), 40),
             "updated_at": _text(todo.get("updated_at"), 40),
         }
+        criteria = _text(todo.get("acceptance_criteria"), MAX_ROLE_BOARD_CRITERIA_TEXT)
+        if criteria:
+            card["acceptance_criteria"] = criteria
         if not done and todo_id in running_by_todo:
             card["running"] = True
             card["running_agent_id"] = running_by_todo[todo_id] or None
