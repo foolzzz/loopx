@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+import random
+import time
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,42 @@ from .spend_sources import DEFAULT_SLOT_SPEND_SOURCE
 
 QUOTA_SPEND_COMMIT_REQUEST_SCHEMA = "loopx_quota_spend_commit_request_v0"
 QUOTA_SPEND_COMMIT_RESULT_SCHEMA = "loopx_quota_spend_commit_result_v0"
+# The TS commit's typed reason for a run index that changed after the preview.
+QUOTA_SPEND_INDEX_DIGEST_CONFLICT_CODE = "index_digest_conflict"
+
+
+class QuotaSpendIndexConflict(ValueError):
+    """Another writer appended to the goal's run index after the spend preview.
+
+    The spend wrote nothing. A caller may preview again against the new index
+    and retry; the effect identity keeps a retry from spending twice.
+    """
+
+
+# Spend attempts when a sibling writer moves the run index under a preview.
+QUOTA_SPEND_INDEX_CONFLICT_ATTEMPTS = 6
+
+
+def retry_quota_spend_index_conflicts(
+    spend: Callable[[], dict[str, Any]],
+) -> dict[str, Any]:
+    """Run one spend, retrying it when the run index moved under its preview.
+
+    ``spend`` must build its status (the preview's index basis) afresh on
+    every call. Under role_v1 one agent can settle several Turns of a goal at
+    nearly the same time (design-v0 decision 32), so a sibling Turn's refresh
+    or spend can append between this Turn's preview and its commit.
+    """
+
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return spend()
+        except QuotaSpendIndexConflict:
+            if attempt >= QUOTA_SPEND_INDEX_CONFLICT_ATTEMPTS:
+                raise
+            time.sleep(min(1.0, 0.05 * (2 ** attempt)) * (0.5 + random.random()))
 
 
 def quota_spend_index_digest(index_path: Path) -> str | None:
@@ -94,7 +132,10 @@ def _quota_spend_commit_result(
     ):
         raise RuntimeError("TypeScript quota spend commit result shape mismatch")
     if result.get("status") == "conflict":
-        raise ValueError(str(result.get("reason") or "quota spend commit conflict"))
+        reason = str(result.get("reason") or "quota spend commit conflict")
+        if result.get("reason_code") == QUOTA_SPEND_INDEX_DIGEST_CONFLICT_CODE:
+            raise QuotaSpendIndexConflict(reason)
+        raise ValueError(reason)
     return result
 
 

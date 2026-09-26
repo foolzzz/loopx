@@ -222,6 +222,31 @@ def build_fresh_turn_decision_owner(
     )
 
 
+def turn_lane_todo_id(
+    registry_path: Path, goal_id: str, agent_id: str, selected_todo: Mapping[str, Any],
+) -> str | None:
+    """The todo whose (goal, todo) lane this Turn runs in, else ``None``.
+
+    Fork role_v1 (design-v0 decision 32): developer and acceptor Turns are
+    fenced per todo, so one agent can run several todos of a goal at once.
+    The orchestrator, peer_v1 goals and todo-less Turns keep the agent lane.
+    """
+
+    from ..agent_registry import agent_role_for_goal, load_goal_from_registry
+    from ..control_plane.turn_driver.lane_fence import turn_lane_todo_scope
+    from ..todo_acceptance import goal_uses_role_v1
+
+    try:
+        goal = load_goal_from_registry(registry_path, goal_id)
+    except (OSError, ValueError):
+        return None
+    return turn_lane_todo_scope(
+        role_v1=goal_uses_role_v1(goal),
+        agent_role=agent_role_for_goal(goal, agent_id),
+        todo_id=str(selected_todo.get("todo_id") or ""),
+    )
+
+
 def _goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
     from ..agent_registry import load_goal_from_registry
     from ..todo_acceptance import goal_uses_role_v1

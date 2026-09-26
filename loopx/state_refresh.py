@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
+import time
+from collections.abc import Callable
 from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from typing import Any
@@ -795,6 +798,39 @@ def render_state_refresh_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+class ActiveGoalStateChangedDuringRefresh(ValueError):
+    """Another writer changed the goal state file during one refresh.
+
+    Raised before the refresh writes the state file or appends its run, so a
+    caller can run the same refresh again from the current state.
+    """
+
+
+# Refresh attempts when a concurrent state write races one Turn's writeback.
+REFRESH_STATE_RACE_ATTEMPTS = 6
+
+
+def retry_refresh_state_races(refresh: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Run one refresh-state call, retrying a concurrent state-file write.
+
+    Under role_v1 one agent can settle several Turns of a goal at nearly the
+    same time (design-v0 decision 32): a sibling Turn's todo lifecycle write
+    can land between this refresh's read and its write of the state file.
+    The refresh raced before persisting anything, so it runs again from the
+    current state; every other failure is returned or raised unchanged.
+    """
+
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return refresh()
+        except ActiveGoalStateChangedDuringRefresh:
+            if attempt >= REFRESH_STATE_RACE_ATTEMPTS:
+                raise
+            time.sleep(min(1.0, 0.05 * (2 ** attempt)) * (0.5 + random.random()))
+
+
 def refresh_state_run(
     *,
     registry_path: Path,
@@ -1333,7 +1369,7 @@ def refresh_state_run(
             with exclusive_cross_runtime_file_lock(resolved_state_file):
                 current_state_text = resolved_state_file.read_text(encoding="utf-8")
                 if current_state_text != expected_write_state_text:
-                    raise ValueError(
+                    raise ActiveGoalStateChangedDuringRefresh(
                         "active goal state changed while refresh-state was qualifying "
                         "its semantic writeback; retry from the current state"
                     )

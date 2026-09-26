@@ -40,11 +40,30 @@ if log:
                                  "system_prompt": system_prompt}) + "\n")
 match = re.search(r'"turn_key":"([^"]+)"', prompt)
 turn_key = match.group(1) if match else ""
+barrier = os.environ.get("FAKE_CLAUDE_BARRIER_DIR")
+if barrier:
+    # Overlap probe: wait until N host processes are running at once, so a
+    # test can prove that Turns really overlapped instead of running serially.
+    import time
+    started = time.time()
+    pathlib.Path(barrier).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(barrier, f"{os.getpid()}.start").write_text(str(started), encoding="utf-8")
+    wanted = int(os.environ.get("FAKE_CLAUDE_BARRIER_COUNT", "2"))
+    deadline = started + float(os.environ.get("FAKE_CLAUDE_BARRIER_SECONDS", "30"))
+    while len(list(pathlib.Path(barrier).glob("*.start"))) < wanted and time.time() < deadline:
+        time.sleep(0.05)
+    met = len(list(pathlib.Path(barrier).glob("*.start"))) >= wanted
+    pathlib.Path(barrier, f"{os.getpid()}.end").write_text(
+        json.dumps({"started": started, "ended": time.time(), "met": met, "cwd": os.getcwd()}), encoding="utf-8")
 pathlib.Path("fixture-artifact.txt").write_text("validated", encoding="utf-8")
+if os.environ.get("FAKE_CLAUDE_COMMIT") == "1":
+    import subprocess
+    subprocess.run(["git", "add", "fixture-artifact.txt"], check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-qm", "fixture artifact"], check=True, capture_output=True)
 result = {
     "schema_version": "loopx_turn_result_v0",
     "turn_key": turn_key,
-    "result_kind": "validated_progress",
+    "result_kind": os.environ.get("FAKE_CLAUDE_RESULT_KIND", "validated_progress"),
     "completed_phases": ["host_execute", "typed_result"],
     "classification": "fixture_progress",
     "recommended_action": "Continue the public fixture",
@@ -162,8 +181,9 @@ def write_fixture(
     agents: dict[str, dict[str, Any]],
     todo_lines: list[str] | None = None,
     repos: dict[str, Path] | None = None,
+    agent_model: str = "role_v1",
 ) -> dict[str, Any]:
-    """Create a role_v1 goal, agent files, providers and fake CLIs under tmp_path.
+    """Create a role_v1 (or ``agent_model``) goal, agent files, providers and fake CLIs.
 
     ``agents`` maps agent id to ``{role, runtime?, provider?, max_concurrency?,
     system_prompt?}``.
@@ -201,7 +221,7 @@ def write_fixture(
         "adapter": {"kind": "fixture_v0", "status": "connected-delivery"},
         "quota": {"compute": 10.0, "window_hours": 24},
         "coordination": {
-            "agent_model": "role_v1",
+            "agent_model": agent_model,
             "registered_agents": sorted(agents),
             "agent_roles": {agent_id: spec["role"] for agent_id, spec in agents.items()},
             "write_scope": ["docs/**"],
