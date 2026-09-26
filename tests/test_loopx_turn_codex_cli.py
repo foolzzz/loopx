@@ -980,3 +980,22 @@ def test_prompt_tells_the_acceptor_how_to_accept_or_reject_a_delivered_todo() ->
     developer = _prompt(_request())
     assert "Return validated_progress while work on the Todo remains" in developer
     assert "status in_review" not in developer
+
+
+def test_prompt_hands_a_rejected_delivery_its_review_feedback() -> None:
+    """E2E pilot: the developer re-delivered unchanged work because the feedback never reached it."""
+
+    from loopx.control_plane.quota.selected_todo_projection import selected_todo_projection
+
+    selected = selected_todo_projection(
+        agent_lane_next_action={"todo_id": "todo_fixture0001", "text": "Build the web UI", "status": "open",
+                                "task_class": "advancement_task", "reject_count": 1,
+                                "review_feedback": "rejected by acc (#1): README still lists the gap"},
+        work_lane_contract=None,
+    )
+    assert selected["reject_count"] == 1 and "README" in selected["review_feedback"]
+    request = _request()
+    request["turn_envelope"]["action"]["selected_todo"] = selected
+    prompt = _prompt(request)
+    assert "An acceptor rejected the previous delivery" in prompt and "README still lists the gap" in prompt
+    assert "An acceptor rejected" not in _prompt(_request())

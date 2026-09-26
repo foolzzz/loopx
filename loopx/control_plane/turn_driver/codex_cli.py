@@ -326,6 +326,15 @@ def _selected_todo_in_review(request: Mapping[str, Any]) -> bool:
     return str(selected.get("status") or "") == "in_review"
 
 
+def _selected_todo_review_feedback(request: Mapping[str, Any]) -> str:
+    envelope = request.get("turn_envelope")
+    action = envelope.get("action") if isinstance(envelope, Mapping) else None
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        return ""
+    return str(selected.get("review_feedback") or "").strip()[:600]
+
+
 def turn_completion_todo_id(request: Mapping[str, Any] | None) -> str | None:
     """Return the Todo a todo-scoped Turn may complete, if any.
 
@@ -481,6 +490,13 @@ def _prompt(request: Mapping[str, Any]) -> str:
             "validation independently and completes the Todo, or delivers it for acceptor review when "
             "it requires acceptance. Return validated_progress while work on the Todo remains.",
         )
+        feedback = _selected_todo_review_feedback(request)
+        if feedback:
+            instructions.insert(
+                -2,
+                "An acceptor rejected the previous delivery of this Todo. Address this feedback "
+                f"before delivering again (selected_todo.review_feedback): {feedback}",
+            )
     boundary = _mapping(_mapping(request.get("turn_envelope")).get("boundary"))
     if boundary.get("checkpointed_boundary_authority"):
         instructions.append(
