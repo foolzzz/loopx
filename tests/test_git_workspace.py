@@ -354,3 +354,28 @@ def test_workspace_cli_round_trip(env, capsys):
     assert code == 1 and missing["error_code"] == "unknown_repo"
     code = main([*base, "workspace", "status", "--goal-id", "missing", "--todo-id", TODO, "--format", "json"])
     assert code == 1 and json.loads(capsys.readouterr().out)["error_code"] == "goal_not_registered"
+
+
+def test_workspace_cli_defaults_to_the_todos_task_repositories(env, capsys):
+    """E2E pilot: `workspace merge` without --repo tried every Goal repo and was blocked."""
+
+    from loopx.todos import add_goal_todo
+
+    state = env["tmp"] / "ACTIVE_GOAL_STATE.md"
+    state.write_text("# Goal\n\n## User Todo\n\n## Agent Todo\n\n## Completed Work Archive\n")
+    registry = env["tmp"] / "registry.json"
+    registry.write_text(json.dumps({"common_runtime_root": str(env["runtime"]), "goals": [
+        {**env["goal"], "repo": str(env["tmp"]), "state_file": state.name, "status": "active"}]}))
+    todo_id = add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text="Web only",
+                            role_contract={"task_repositories": ["web"]})["todo_id"]
+    base = ["--registry", str(registry)]
+
+    def run(*argv):
+        code = main([*base, "workspace", *argv, "--goal-id", GOAL, "--todo-id", todo_id, "--format", "json"])
+        return code, json.loads(capsys.readouterr().out)
+
+    code, prepared = run("prepare")
+    assert code == 0 and set(prepared["paths"]) == {"web"}
+    commit_file(Path(prepared["paths"]["web"]), "web.txt", "client\n")
+    code, merged = run("merge")
+    assert code == 0 and [item["name"] for item in merged["merged"]] == ["web"]

@@ -33,7 +33,10 @@ def register_workspace(subparsers, add_format):
             dest="repo_names",
             action="append",
             default=None,
-            help="Repo name from the Goal's repos list; repeatable. Defaults to every repo.",
+            help=(
+                "Repo name from the Goal's repos list; repeatable. Defaults to the todo's "
+                "task_repositories, else every repo."
+            ),
         )
         if action != "status":
             sub.add_argument("--dry-run", action="store_true", help="Report the plan without changing anything.")
@@ -61,7 +64,7 @@ def handle_workspace(args, registry_path, runtime_root, print_payload, output_fo
         }
         print_payload(payload, output_format(args), render_workspace)
         return 1
-    repo_names = args.repo_names or None
+    repo_names = args.repo_names or _todo_repositories(registry_path, runtime_root, args.goal_id, args.todo_id)
     dry_run = bool(getattr(args, "dry_run", False))
     if action == "prepare":
         payload = git_workspace.prepare(goal, args.todo_id, repo_names, runtime_root, dry_run=dry_run)
@@ -75,6 +78,25 @@ def handle_workspace(args, registry_path, runtime_root, print_payload, output_fo
         )
     print_payload(payload, output_format(args), render_workspace)
     return 0 if payload.get("ok") else 1
+
+
+def _todo_repositories(registry_path, runtime_root, goal_id, todo_id):
+    """The todo's own task_repositories (fork S5), so a merge never names repos it did not touch."""
+
+    from ..control_plane.todos.contract import normalize_todo_task_repositories
+    from ..todos import list_goal_todos
+
+    try:
+        listed = list_goal_todos(
+            registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
+            runtime_root_arg=str(runtime_root) if runtime_root else None,
+        )
+    except (OSError, ValueError):
+        return None
+    for item in listed.get("todos") or []:
+        if isinstance(item, dict) and item.get("todo_id") == todo_id:
+            return normalize_todo_task_repositories(item.get("task_repositories")) or None
+    return None
 
 
 def render_workspace(payload):
