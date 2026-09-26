@@ -769,6 +769,7 @@ def build_quota_slot_preview_for_decision(
             delivery_completion_run,
             agent_id=safe_requested_agent_id,
             current_path=workspace_path,
+            runtime_root=raw_runtime_root,
         )
         if delivery_completion_run and delivery_workspace
         else None

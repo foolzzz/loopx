@@ -23,6 +23,7 @@ from .control_plane.work_items.delivery_outcome import (
     require_delivery_outcome,
 )
 from .control_plane.agents.workspace_guard import (
+    INDEPENDENT_DELIVERY_WORKSPACE_KINDS,
     capture_delivery_workspace,
 )
 from .control_plane.quota.refresh_external_delivery import (
@@ -1279,19 +1280,32 @@ def refresh_state_run(
                     if delivery_workspace_path is not None
                     else None
                 ),
+                # Fork S5 (decision 29): a multi-repo Todo delivers from its
+                # registered per-Todo workspace root, which is not itself a
+                # git worktree; it binds to the Todo workspace identity.
+                todo_workspace_scope=(
+                    {
+                        "runtime_root": runtime_root,
+                        "goal_id": safe_goal_id,
+                        "todo_id": settlement_identity.todo_id,
+                        "goal": registry_goal,
+                    }
+                    if settlement_identity is not None and settlement_identity.todo_id
+                    else None
+                ),
             )
             if (
                 peer_independent_worktree_required
                 and (
                     delivery_workspace is None
                     or delivery_workspace.get("workspace_kind")
-                    != "independent_git_worktree"
+                    not in INDEPENDENT_DELIVERY_WORKSPACE_KINDS
                 )
             ):
                 raise ValueError(
                     "accountable peer delivery must be refreshed from the independent "
-                    "git worktree that produced it, or name that worktree with "
-                    "--delivery-workspace-path"
+                    "git worktree (or the per-Todo workspace root) that produced it, "
+                    "or name it with --delivery-workspace-path"
                 )
             if delivery_workspace_path is not None and delivery_workspace is None:
                 raise ValueError(
