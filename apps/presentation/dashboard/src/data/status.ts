@@ -529,6 +529,8 @@ export const roleBoardTodoSchema = z.object({
   reject_count: z.number().int().nonnegative().catch(0),
   requires_acceptance: z.boolean().optional().default(false),
   task_repositories: z.array(z.string()).optional().default([]),
+  // G2: the orchestrator-owned per-todo acceptance criteria (bounded by the backend).
+  acceptance_criteria: z.string().nullable().optional(),
   priority: z.string().nullable().optional(),
   task_class: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),

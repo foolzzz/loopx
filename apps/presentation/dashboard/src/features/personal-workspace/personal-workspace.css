@@ -1877,6 +1877,7 @@
 .personal-role-card-main { display: grid; gap: 5px; padding: 8px 9px; border: 0; background: transparent; color: var(--pw-text); cursor: pointer; text-align: left; }
 .personal-role-card-main > strong { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
 .personal-role-card:hover, .personal-role-card.is-selected { border-color: var(--pw-blue); }
+.personal-role-card small.personal-role-card-criteria { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .personal-role-card.is-running { border-left: 3px solid var(--pw-green); }
 .personal-role-card.is-in_review { border-left: 3px solid var(--pw-blue); }
 .personal-role-card.is-rework { border-left: 3px solid var(--pw-red); }
