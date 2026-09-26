@@ -118,7 +118,9 @@ The code is in `goal-role-board-view.tsx`, with the model in `role-board-model.t
 - **Cards** show the title, the running or bound agent, the repos, a
   "Rejected ×N" badge, the acceptor (or "No acceptance"), the todo's
   `acceptance_criteria` (gap G2; at most 300 characters, clamped to two lines,
-  full text on hover) and a link to the plan.
+  full text on hover), for a deferred plan todo why it still waits on its
+  dependencies (`dependency_wait`, gap G6; from the resume pass's
+  `dependency-waits.json`) and a link to the plan.
   The plan link opens the plan's gate while that gate is open. Clicking a card
   opens the Todo drawer.
 

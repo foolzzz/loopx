@@ -173,8 +173,9 @@ Lifecycle:
      holds only one condition, and in dependency order the last listed
      dependency is the latest one.
    - `resume_ready_plan_todos` reopens a deferred plan todo once **all** of its
-     `depends_on` todos are done. The accept verdict and every dispatcher pass
-     call it.
+     `depends_on` todos are satisfied (see
+     [below](#dependency-release-and-supersession-gap-g6)). The accept verdict
+     and every dispatcher pass call it.
 4. **reject / cancel.** Nothing is applied, and the plan becomes `rejected` or
    `cancelled`.
 
@@ -199,6 +200,24 @@ has one advancement todo per lane, no role, dependency or validation fields, and
 an `actor === lane.agent_id` rule. Plan application here is an owner-confirmed
 action with no actor, which resolves the orchestrator-assigns-others concern
 raised in S1 without granting the orchestrator anything new.
+
+## Dependency release and supersession (gap G6)
+
+Decision 37. On role_v1 goals a dependency that requires acceptance is
+satisfied only when it is accepted and merged: `done` with the accept
+verdict's `accepted_by=<acceptor>` evidence (accept merges before it
+completes). A manual `done` keeps its dependents waiting, a superseded todo
+never counts as done, and a dependency without acceptance is satisfied by
+`done`. `peer_v1` keeps the old rule.
+
+To replace or split a todo, the orchestrator creates the new todo(s) and runs
+`loopx todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2] --agent-id
+ORCH`. OLD is closed as superseded, and every todo that depended on OLD now
+depends on all of the new ones. The rewrite is an append-only supersession log
+next to the plan cards, applied on top of each applied plan's `depends_on`.
+
+`loopx todo list` and the role board say why a deferred plan todo is still
+waiting. Details: [role-v1-protocol](role-v1-protocol.md#dependency-release-and-supersession-gap-g6).
 
 ## Goal intake (decisions 13 and 21)
 

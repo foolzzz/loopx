@@ -496,3 +496,86 @@ goals) before the envelope is signed, only on role_v1 goals. The developer
 prompt asks it to meet every criterion. The acceptor prompt asks it to check
 each criterion and the goal contract, and, when it rejects, to name each
 criterion that failed. The role board card shows the criteria.
+
+## Dependency release and supersession (gap G6)
+
+See [design-v0](design-v0.md), decision 37, and
+[gates-plans-intake](gates-plans-intake-v0.md#dependency-release-and-supersession-gap-g6).
+
+In the E2E pilot the orchestrator replaced a twice-rejected frontend todo and
+closed the old one as `done`. That released the dependent integration todo
+before the replacement was accepted and merged, and the integration branch was
+cut from a stale task branch.
+
+**Release rule (role_v1).** A deferred plan todo is reopened only when every
+one of its dependencies is satisfied:
+
+- A dependency that requires acceptance (an explicit `requires_acceptance`, or
+  the developer default when the goal has an acceptor, the same test that
+  sends a delivery to `in_review`) must be `done` with the accept verdict's
+  record: completion evidence that starts with `accepted_by=<acceptor>`, where
+  the acceptor is the todo's resolved acceptor or one of the goal's acceptors.
+  Accept merges the todo branch before it completes the todo, so this is also
+  the merge record.
+- `done` through any other path (a developer or owner completing a blocked
+  todo, for example) does not count. The dependent keeps waiting.
+- A superseded todo never counts as done, even when it has no replacement.
+- A dependency without acceptance is satisfied by `done`, as before.
+
+`peer_v1` goals keep the previous rule: `done` releases dependents.
+
+**Why a todo waits.** `loopx todo list` adds `dependency_waits` (JSON) and a
+`## Dependency waits` section (Markdown), and each waiting row carries
+`dependency_wait`. The role board card of a deferred todo shows the reason.
+The reasons are:
+
+- `waiting for dependency T (status S)`;
+- `dependency T is done without an accept+merge record ...`;
+- `dependency T was superseded without a replacement ...`.
+
+**Supersede.**
+
+```bash
+loopx todo supersede --goal-id G --todo-id OLD --by NEW [--agent-id ORCH] [--note why]
+loopx todo supersede --goal-id G --todo-id OLD --by NEW1,NEW2 --agent-id ORCH   # split
+```
+
+The Python API is `loopx.plan_dependencies.supersede_goal_todo_by`.
+
+- The replacements must be existing, unfinished agent todos; create them first
+  with `todo add`. `--by` takes comma-separated or repeated ids (at most 8).
+- OLD is closed through the kernel's own supersede transition: status `done`,
+  completion note `superseded`, reason `--note` (else `superseded by NEW`). No
+  status is added, and the transition is not counted as done for release.
+  An OLD that is already `done` (for example closed by hand) is not closed
+  again, but its dependents are still rewired.
+- Every todo that depended on OLD now depends on all of the replacements. A
+  deferred dependent whose `resume_when` named OLD is updated to name the last
+  replacement.
+- Only the goal orchestrator, or the owner with no agent id, may supersede.
+  Others are refused with `not_orchestrator`. On a `peer_v1` goal `--by` is
+  refused (`role_v1_required`); plain `todo supersede` is unchanged.
+- A replacement that is itself a dependent of OLD is refused
+  (`dependency_cycle`), as is a finished or superseded replacement.
+- Retrying the same supersede is a no-op (`already_superseded`); a different
+  `--by` for the same OLD is refused.
+- `--by` takes only `--note`, `--agent-id` and `--dry-run`. The `--next-*`
+  successor options belong to plain `todo supersede`.
+
+As with verdicts, the kernel writes are attributed to the claim owner of OLD
+and of each rewired dependent, so claim fences and leases are unchanged. The
+orchestrator's authority is checked first and recorded as `actor`.
+
+**Durable state and replay.** Each supersession is one line of
+`<runtime_root>/goals/<goal>/plans/supersessions.jsonl` (schema
+`loopx_todo_supersession_v0`: `superseded_todo_id`, `by_todo_ids`,
+`rewired_todo_ids`, `actor`, `note`, `at`). Readers fold the log into a
+substitution map (first record per todo wins; a torn final line is skipped),
+and a todo's effective dependencies are its plan card's `depends_on` with the
+map applied transitively. The plan records are never rewritten. Each
+supersession also appends one `todo_dependency_rewrite` rollout event, and the
+CLI appends its usual `todo_supersede` event. Each resume pass refreshes
+`dependency-waits.json` next to the log, a read model for the role board.
+
+The dispatcher's orchestrator prompt says to use `todo supersede` when
+replacing or splitting a todo, and never to mark the replaced todo done.
