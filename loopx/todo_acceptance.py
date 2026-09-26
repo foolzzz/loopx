@@ -177,6 +177,7 @@ def run_delivery_validation(
 
     from .control_plane.todos.completion_validation import _run_declared_completion_validation
     from .control_plane.todos.completion_validation import normalize_validation_command_json
+    from .control_plane.todos.completion_validation import todo_requires_todo_workspace
     from .control_plane.todos.completion_validation import todo_workspace_for_validation
 
     todo_id = str(todo.get("todo_id") or "")
@@ -201,8 +202,9 @@ def run_delivery_validation(
         delivery_workspace=delivery_workspace,
         validation_workspace_path=validation_workspace_path,
         todo_workspace_path=todo_workspace_for_validation(
-            registry_path=registry_path, goal_id=goal_id, todo=todo,
+            registry_path=registry_path, goal_id=goal_id, todo=todo, runtime_root_arg=runtime_root_arg,
         ),
+        todo_workspace_required=todo_requires_todo_workspace(todo),
     )
 
 
@@ -422,20 +424,26 @@ def _accepted_workspace(
     *, registry_path: Path, goal: Mapping[str, Any] | None, todo: Mapping[str, Any],
     runtime_root_arg: str | None,
 ) -> dict[str, Any] | None:
-    """The prepared S5 workspace an accepted todo merges from, if any."""
+    """The S5 workspace an accepted todo merges from, if any.
+
+    Eligibility keys on the todo branch ``loopx/<goal>/<todo>``, not on the
+    worktree directories: after ``workspace cleanup`` (or a lost runtime
+    directory) the branch still carries the delivered commits, and the merge
+    preflight tolerates a missing worktree. When the branch exists in only
+    some of the todo's repos, the merge blocks on the others
+    (``todo_branch_missing``) instead of completing without them.
+    """
 
     repos = normalize_todo_task_repositories(todo.get("task_repositories"))
     todo_id = str(todo.get("todo_id") or "")
     if not repos or not todo_id or not isinstance(goal, Mapping):
         return None
     from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
-    from .workspace.git_workspace import todo_workspace_root
+    from .workspace.git_workspace import repos_with_todo_branch
 
-    runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
-    root = todo_workspace_root(runtime_root, str(goal.get("id") or ""), todo_id)
-    if not all((root / name).is_dir() for name in repos):
+    if not repos_with_todo_branch(goal, todo_id, repos):
         return None
-    return {"repos": repos, "runtime_root": runtime_root}
+    return {"repos": repos, "runtime_root": effective_runtime_root(registry_path, runtime_root_arg)}
 
 
 def _public_merge(payload: Mapping[str, Any]) -> dict[str, Any]:

@@ -82,11 +82,41 @@ def test_multi_repo_todo_validates_in_the_workspace_root(tmp_path: Path, monkeyp
     assert _status(registry, todo_id) == "done"
 
 
-def test_without_a_prepared_workspace_validation_stays_in_the_goal_repo(tmp_path: Path, monkeypatch) -> None:
+def test_without_a_prepared_workspace_validation_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    """Review fix: no fallback to the Goal repo, which lacks the Todo's commits."""
+
     registry, _runtime, _goal = _fixture(tmp_path, monkeypatch)
     todo_id = _add(registry, ["api"], ["test", "-f", "ACTIVE_GOAL_STATE.md"])
-    assert _complete(registry, todo_id).get("ok") is not False
-    assert _status(registry, todo_id) == "done"
+    blocked = _complete(registry, todo_id)
+    assert blocked.get("validation_blocked_completion") is True, blocked
+    assert blocked["validation"]["status"] == "workspace_unverified"
+    assert _status(registry, todo_id) == "open"
+
+
+def test_a_worktree_off_the_todo_branch_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch)
+    todo_id = _add(registry, ["api"], ["true"])
+    worktree = Path(git_workspace.prepare(goal, todo_id, None, runtime)["paths"]["api"])
+    git(worktree, "checkout", "-q", "--detach")
+    blocked = _complete(registry, todo_id)
+    assert blocked["validation"]["status"] == "workspace_unverified"
+    assert _status(registry, todo_id) == "open"
+
+
+def test_validation_uses_the_callers_runtime_root(tmp_path: Path, monkeypatch) -> None:
+    """Review fix: the dispatcher's --runtime-root is where it prepared the workspace."""
+
+    registry, _runtime, goal = _fixture(tmp_path, monkeypatch)
+    other = tmp_path / "dispatch-runtime"
+    root_arg = {"runtime_root_arg": str(other)}
+    todo_id = _add(registry, ["api"], ["test", "-f", "feature.txt"], **root_arg)
+    worktree = Path(git_workspace.prepare(goal, todo_id, None, other)["paths"]["api"])
+    (worktree / "feature.txt").write_text("done\n", encoding="utf-8")
+    git(worktree, "add", ".")
+    git(worktree, "commit", "-qm", "feature")
+    assert _complete(registry, todo_id, **root_arg).get("ok") is not False
+    assert next(row["status"] for row in list_goal_todos(registry_path=registry, goal_id=GOAL, **root_arg)["todos"]
+                if row["todo_id"] == todo_id) == "done"
 
 
 def test_role_v1_delivery_and_accept_validate_in_the_todo_worktree(tmp_path: Path, monkeypatch) -> None:
@@ -250,3 +280,40 @@ def test_a_completion_refused_after_the_merge_is_retry_safe(tmp_path: Path, monk
     assert retried["merge"] == {**retried["merge"], "ok": True, "merged": []}
     assert git(api, "rev-parse", f"loopx-task/{GOAL}") == head
     assert _status(registry, todo_id) == "done"
+
+
+def test_accept_merges_from_the_todo_branch_after_its_worktree_is_gone(tmp_path: Path, monkeypatch) -> None:
+    """Review fix: merge eligibility keys on the todo branch, not on directories."""
+
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch, roles=True)
+    added = add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text="No validation",
+                          task_class="advancement_task", claimed_by="dev",
+                          role_contract={"task_repositories": ["api"]})
+    todo_id = str(added["todo_id"])
+    worktree = _commit_in_workspace(runtime, goal, todo_id, {"gone.txt": "g\n"})
+    assert _complete(registry, todo_id, agent_id="dev").get("in_review") is True
+    api = tmp_path / "repos" / "api"
+    git(api, "worktree", "remove", "--force", str(worktree))
+    assert not worktree.exists()
+    accepted = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id="acc")
+    assert accepted["acceptance"]["transition"] == "accepted", accepted
+    assert accepted["merge"]["ok"] is True and len(accepted["merge"]["merged"]) == 1
+    assert git(api, "show", f"loopx-task/{GOAL}:gone.txt") == "g"
+    assert _status(registry, todo_id) == "done"
+
+
+def test_accept_blocks_when_a_repo_lacks_the_todo_branch(tmp_path: Path, monkeypatch) -> None:
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch, roles=True)
+    added = add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent", text="Two repos",
+                          task_class="advancement_task", claimed_by="dev",
+                          role_contract={"task_repositories": ["api", "web"]})
+    todo_id = str(added["todo_id"])
+    git_workspace.prepare(goal, todo_id, None, runtime)
+    assert _complete(registry, todo_id, agent_id="dev").get("in_review") is True
+    web = tmp_path / "repos" / "web"
+    git(web, "worktree", "remove", "--force", str(runtime / "goals" / GOAL / "workspaces" / todo_id / "web"))
+    git(web, "branch", "-D", f"loopx/{GOAL}/{todo_id}")
+    blocked = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id="acc")
+    assert blocked["acceptance"]["transition"] == "merge_blocked", blocked
+    assert "web: todo_branch_missing" in blocked["acceptance"]["review_feedback"]
+    assert _status(registry, todo_id) == "open"

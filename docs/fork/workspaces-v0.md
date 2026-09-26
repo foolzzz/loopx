@@ -47,10 +47,13 @@ loopx workspace prepare|status|merge|cleanup --goal-id G --todo-id T [--repo NAM
 Without `--repo`, the CLI actions use the todo's `task_repositories` and fall
 back to every Goal repo only when the todo names none.
 
-After acceptance (S2) the accept verdict merges a todo with a prepared workspace
-automatically, all repos or none. A blocked merge returns the todo to its
-developer with repo-relative conflict feedback and does not count as a rejection.
-A todo's declared validation runs in this workspace too (see
+After acceptance (S2) the accept verdict merges a todo automatically, all repos or
+none, before it completes the todo. A todo is merge-eligible when its branch
+`loopx/G/T` exists in its repos, even if the worktree directories were removed. A
+repo that lacks the branch blocks the merge. A blocked merge returns the todo to
+its developer with repo-relative conflict feedback and does not count as a
+rejection. A todo's declared validation runs in this workspace too, and fails
+closed (`workspace_unverified`) when the workspace is missing (see
 [role-v1-protocol](role-v1-protocol.md)).
 
 Nothing fetches or pushes. Pushing is a user gate.

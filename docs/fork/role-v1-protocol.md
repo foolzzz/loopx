@@ -263,8 +263,12 @@ directly, as before.
   transaction, attributed to the claim owner.
 - A todo with S5 `task_repositories` validates in its prepared per-todo
   workspace (the worktree for one repo, the workspace root for several), which
-  must be clean on the todo branch. Without a prepared workspace it still
-  validates in the Goal repository.
+  must be clean on the todo branch. The workspace is looked up under the
+  caller's `--runtime-root` (the dispatcher's). If it is missing or off the
+  todo branch, validation fails closed with `workspace_unverified`; it never
+  falls back to the Goal repository, which lacks the todo's commits. Run
+  `loopx workspace prepare` again to recreate a removed worktree on the
+  existing todo branch.
 - A multi-repo Turn runs from the workspace root, which is not a git worktree.
   Its delivery and verdict land, but the post-settlement refresh fails the
   multi-agent worktree guard, because a delivery-workspace snapshot models one

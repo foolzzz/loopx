@@ -508,7 +508,11 @@ def test_plan_dependents_resume_only_when_every_dependency_is_done(tmp_path: Pat
     from loopx.plan_cards import resume_ready_plan_todos
 
     registry, runtime = fixture(tmp_path)
-    proposed = propose_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, agent_id=ORCH, plan=PLAN)
+    # The repos here are plain directories with no S5 workspace, so a declared
+    # validation would fail closed (workspace_unverified); this test is about
+    # dependency resume only.
+    plan = {**PLAN, "todos": [{k: v for k, v in item.items() if k != "validation_command"} for item in PLAN["todos"]]}
+    proposed = propose_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, agent_id=ORCH, plan=plan)
     plan_id = proposed["plan"]["plan_id"]
     complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=proposed["plan"]["gate_todo_id"], role="user",
                        decision_outcome="approve", note="Go", no_followup=True, agent_id=ORCH)
@@ -516,8 +520,6 @@ def test_plan_dependents_resume_only_when_every_dependency_is_done(tmp_path: Pat
 
     def status(key: str) -> str:
         return rows(registry)[ids[key]]["status"]
-
-    (tmp_path / "project" / "openapi.yaml").write_text("openapi: 3.1.0\n", encoding="utf-8")
 
     def finish(key: str) -> None:
         from loopx.todo_acceptance import accept_goal_todo

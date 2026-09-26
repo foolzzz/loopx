@@ -127,28 +127,43 @@ def _todo_workspace_is_clean(path: Path) -> bool | None:
     return all(results)
 
 
+def todo_requires_todo_workspace(todo: Mapping[str, Any]) -> bool:
+    """A ``task_repositories`` Todo (fork S5) without a singular ``task_repository``.
+
+    Its work lives on the Todo branch in its per-Todo workspace, so its
+    validation may only run there; the Goal repository lacks its commits.
+    """
+
+    if str(todo.get("task_repository") or "").strip():
+        return False
+    return bool(normalize_todo_task_repositories(todo.get("task_repositories")))
+
+
 def todo_workspace_for_validation(
     *, registry_path: Path, goal_id: str, todo: Mapping[str, Any],
+    runtime_root_arg: str | None = None,
 ) -> Path | None:
     """The fork S5 per-Todo workspace of a ``task_repositories`` Todo, if prepared.
 
     One repo validates in its worktree; several validate in the workspace
     root that holds one worktree per repo. Each worktree must be checked out
-    on the Todo branch ``loopx/<goal>/<todo>``. Anything else keeps the
-    previous Goal-repository behaviour.
+    on the Todo branch ``loopx/<goal>/<todo>``. ``runtime_root_arg`` is the
+    caller's ``--runtime-root`` (the dispatcher prepares workspaces there).
+    ``None`` means no verified workspace; for a Todo that
+    ``todo_requires_todo_workspace`` that fails validation closed.
     """
 
-    if str(todo.get("task_repository") or "").strip():
+    if not todo_requires_todo_workspace(todo):
         return None
     repos = normalize_todo_task_repositories(todo.get("task_repositories"))
     todo_id = str(todo.get("todo_id") or "").strip()
-    if not repos or not todo_id:
+    if not todo_id:
         return None
     from ...workspace.git_workspace import todo_branch, todo_workspace_root
     from ..coordination.local_authority_shadow_adapter import effective_runtime_root
 
     try:
-        root = todo_workspace_root(effective_runtime_root(registry_path, None), goal_id, todo_id)
+        root = todo_workspace_root(effective_runtime_root(registry_path, runtime_root_arg), goal_id, todo_id)
     except (OSError, ValueError):
         return None
     branch = todo_branch(goal_id, todo_id)
@@ -178,13 +193,17 @@ def _resolve_completion_validation_workspace(
     validation_workspace_path: Path | None,
     label: str,
     todo_workspace_path: Path | None = None,
+    todo_workspace_required: bool = False,
 ) -> tuple[Path | None, dict[str, Any] | None]:
     """Resolve the authority-bound workspace for one validation effect.
 
     A Todo bound to Goal repos through ``task_repositories`` (fork S5) and no
     singular ``task_repository`` validates in its per-Todo LoopX workspace
-    (``todo_workspace_path``) when that workspace exists; the work lives on
-    the Todo branch there, not in the Goal checkout.
+    (``todo_workspace_path``); the work lives on the Todo branch there, not
+    in the Goal checkout. When that workspace cannot be verified
+    (``todo_workspace_required`` and no path) validation fails closed with
+    ``workspace_unverified``; it never falls back to the Goal checkout, which
+    lacks the Todo's commits and would pass spuriously.
 
     The Goal repository remains the default when a Todo does not select a
     repository.  When the host supplies a path-free, turn-bound delivery
@@ -219,6 +238,15 @@ def _resolve_completion_validation_workspace(
                 ),
             )
         return todo_workspace_path, None
+    if not expected_repository and todo_workspace_required:
+        return None, _workspace_failure(
+            label,
+            status="workspace_unverified",
+            summary=(
+                "the Todo's per-Todo workspace is missing or not on the Todo branch; "
+                "prepare it with `loopx workspace prepare` before completion validation"
+            ),
+        )
     if not expected_repository:
         return goal_workspace, None
 
@@ -336,6 +364,7 @@ def _run_declared_completion_validation(
     delivery_workspace: Mapping[str, Any] | None = None,
     validation_workspace_path: Path | None = None,
     todo_workspace_path: Path | None = None,
+    todo_workspace_required: bool = False,
 ) -> dict[str, Any] | None:
     """Run a todo's declared caller-approved validation command.
 
@@ -366,6 +395,7 @@ def _run_declared_completion_validation(
         validation_workspace_path=validation_workspace_path,
         label=label,
         todo_workspace_path=todo_workspace_path,
+        todo_workspace_required=todo_workspace_required,
     )
     if workspace_failure is not None:
         return workspace_failure
@@ -444,6 +474,7 @@ def run_declared_completion_validation_effect(
     delivery_workspace: Mapping[str, Any] | None = None,
     validation_workspace_path: Path | None = None,
     todo_workspace_path: Path | None = None,
+    todo_workspace_required: bool = False,
 ) -> dict[str, Any]:
     """Execute exactly one TypeScript-authorized validation effect.
 
@@ -496,6 +527,7 @@ def run_declared_completion_validation_effect(
         delivery_workspace=delivery_workspace,
         validation_workspace_path=validation_workspace_path,
         todo_workspace_path=todo_workspace_path,
+        todo_workspace_required=todo_workspace_required,
     )
     if receipt is None:
         raise RuntimeError("authorized validation effect produced no receipt")
@@ -596,6 +628,7 @@ def run_completion_validation_gate_with_source(
     requested_successor_todo_ids: list[str] | None = None,
     completion_delivery_workspace: Mapping[str, Any] | None = None,
     completion_validation_workspace_path: Path | None = None,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     """Run the caller-approved completion validation gate, OUTSIDE the mutation lock.
 
@@ -674,7 +707,9 @@ def run_completion_validation_gate_with_source(
             validation_workspace_path=completion_validation_workspace_path,
             todo_workspace_path=todo_workspace_for_validation(
                 registry_path=registry_path, goal_id=goal_id, todo={**todo, "todo_id": todo_id},
+                runtime_root_arg=runtime_root_arg,
             ),
+            todo_workspace_required=todo_requires_todo_workspace(todo),
         )
         if completion_validation is None:
             raise RuntimeError("Todo completion validation effect produced no receipt")

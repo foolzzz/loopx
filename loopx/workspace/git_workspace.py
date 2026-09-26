@@ -546,6 +546,32 @@ def _status_one(repo: Mapping[str, Any], goal_id: str, todo_id: str, root: Path)
 # ---------------------------------------------------------------------------
 
 
+def repos_with_todo_branch(goal: Mapping[str, Any], todo_id: str, repo_names: Sequence[str] | None) -> list[str]:
+    """The selected repos in which the todo branch ``loopx/<goal>/<todo>`` exists.
+
+    Merge eligibility keys on the branch, not on the worktree directory: the
+    branch carries the work even after its worktree is gone. Unresolvable
+    repos are left out; the merge itself reports them as blockers.
+    """
+
+    try:
+        goal_id = _goal_id(goal)
+        todo_id = _checked_id(todo_id, field="todo id")
+        repos = _select_repos(goal, repo_names)
+    except WorkspaceError:
+        return []
+    branch = todo_branch(goal_id, todo_id)
+    found: list[str] = []
+    for repo in repos:
+        try:
+            ctx = _resolve_repo(repo, goal_id=goal_id)
+        except WorkspaceError:
+            continue
+        if _rev(ctx["path"], f"refs/heads/{branch}") is not None:
+            found.append(str(repo["name"]))
+    return found
+
+
 def merge(
     goal: Mapping[str, Any],
     todo_id: str,
