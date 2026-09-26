@@ -315,8 +315,9 @@ See [design-v0](design-v0.md), decisions 35 and 36.
 - **Delivery** records the delivered commit per repo for todos with
   `task_repositories`: the tip of `loopx/<goal>/<todo>` goes into the delivery
   evidence as `delivered_shas=<repo>@<sha>,...`. A later delivery records the
-  new tip. (G1's per-repo `head_sha` in the delivery identity can replace this
-  once it lands.)
+  new tip. The decision-29 delivery identity also carries per-repo `head_sha`,
+  but only for Turn deliveries from the workspace root; `delivered_shas` covers
+  every delivery path, the CLI included.
 - **Review checkout.** The dispatcher runs the acceptor's Turn in a throwaway
   detached worktree per repo at the delivered sha,
   `<runtime_root>/goals/<G>/reviews/<T>/<attempt>/<repo>`, never in the
