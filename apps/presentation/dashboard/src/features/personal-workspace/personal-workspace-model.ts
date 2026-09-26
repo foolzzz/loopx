@@ -246,6 +246,8 @@ export type WorkspaceActionPreview = {
   previewId: string;
   primaryLabel?: string;
   errorMessage?: string;
+  // Canonical readback of an applied gate.resolve decision.
+  gateOutcome?: { decision: "approve" | "reject" | "cancel"; gateStatus: string; targetStatus: string | null };
   status: "draft" | "ready" | "applying" | "applied" | "gated" | "stale" | "error" | "rejected" | "deferred";
   // The lanes a confirmed team plan left unstaffed, read from the apply
   // receipt so the card can name them after the confirmation, not only in the

@@ -594,6 +594,20 @@ function workspaceCandidatesFromGate(gate: Record<string, unknown> | null | unde
   });
 }
 
+function gateOutcomeFromReceipt(receipt: TypedActionProposal["receipt"]): WorkspaceActionPreview["gateOutcome"] {
+  const readback = receipt?.gate_readback;
+  if (!readback || typeof readback !== "object") return undefined;
+  const record = readback as Record<string, unknown>;
+  const decision = record.decision_outcome;
+  if (decision !== "approve" && decision !== "reject" && decision !== "cancel") return undefined;
+  const target = record.target && typeof record.target === "object" ? record.target as Record<string, unknown> : null;
+  return {
+    decision,
+    gateStatus: String(record.status ?? ""),
+    targetStatus: typeof target?.status === "string" ? target.status : null,
+  };
+}
+
 function workspaceProposal(proposal: TypedActionProposal, t: WorkspaceTranslate): WorkspaceActionPreview {
   const lifecycleOperation = lifecycleOperationFor(proposal);
   const reviewPlan = compileActionReviewPlan(proposal);
@@ -691,6 +705,7 @@ function workspaceProposal(proposal: TypedActionProposal, t: WorkspaceTranslate)
       && reviewPlan.interaction !== "completed"
       ? "error"
       : proposalStatus(proposal.status),
+    gateOutcome: proposal.action_kind === "gate.resolve" ? gateOutcomeFromReceipt(proposal.receipt) : undefined,
     teamPlanOutcome: proposal.action_kind === "team.plan" ? teamPlanAppliedOutcome(proposal.receipt) ?? undefined : undefined,
     teamPlanAssignments: proposal.action_kind === "team.plan" ? teamPlanAssignments(proposal.receipt, proposal.normalized_parameters) : undefined,
     teamPlanTodoIds: proposal.action_kind === "team.plan" ? teamPlanTodoIds(proposal.receipt) : undefined,
@@ -1502,6 +1517,12 @@ export function PersonalWorkspacePage({
       // surface the same result through the persistent feedback receipt.
       if (applied.actionKind === "todo.create") {
         await callbacks.onRefresh?.();
+      }
+      if (applied.actionKind === "gate.resolve") {
+        // The decision unblocks (or keeps blocking) linked work; re-read status
+        // so the attention queue and task board reflect the canonical result.
+        await callbacks.onRefresh?.();
+        void reconcileStatus(applied.goalId ? [applied.goalId] : undefined);
       }
       if (applied.actionKind === "goal.lifecycle" && (applied.lifecycleOperation === "stop" || applied.lifecycleOperation === "delete")) {
         selectGoal(null);
