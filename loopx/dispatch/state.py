@@ -113,6 +113,7 @@ def empty_state() -> dict[str, Any]:
         "retry_turns": {},
         "orchestrator_baselines": {},
         "agent_slots": {},
+        "review_warnings": {},
         "last_pass": None,
     }
 

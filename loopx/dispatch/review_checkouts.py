@@ -121,9 +121,11 @@ def append_review_warning(
                 status="warning",
                 summary="The acceptor changed its review checkout; the change was discarded and the verdict stands.",
                 details={
-                    "modified_repos": [str(item.get("name")) for item in modified],
+                    "modified_repos": ",".join(str(item.get("name")) for item in modified),
                     "uncommitted_file_count": sum(len(item.get("dirty_paths") or []) for item in modified),
-                    "new_commit_repos": [str(item.get("name")) for item in modified if item.get("new_commits")],
+                    "new_commit_repos": ",".join(
+                        str(item.get("name")) for item in modified if item.get("new_commits")
+                    ),
                 },
             ),
         )
