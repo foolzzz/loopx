@@ -6,6 +6,7 @@ allowed: slots, cooldowns and how a finished child's outcome is classified.
 """
 
 from __future__ import annotations
+from ..control_plane.quota.effective_action import EffectiveAction
 
 import json
 from collections.abc import Mapping
@@ -54,7 +55,7 @@ def decide_turn(
     - ``should_run`` false: never launch.
     - A selected Todo in this agent's lane: launch for it.
     - The orchestrator without a selected Todo still owns planning, gate replies
-      and replans, which LoopX may express as a non-``normal_run`` action; it
+      and replans, which LoopX may express as a non-normal-run action; it
       also runs once after any goal state change since its last Turn (the
       event-triggered orchestrator of decision 2). Otherwise it stays idle so a
       quiet goal does not burn quota.
@@ -77,7 +78,7 @@ def decide_turn(
     if role in {ROLE_DEVELOPER, ROLE_ACCEPTOR}:
         return {"launch": False, "reason": "no_selected_todo"}
     effective_action = str(payload.get("effective_action") or "")
-    if effective_action and effective_action != "normal_run":
+    if effective_action and effective_action != EffectiveAction.NORMAL_RUN.value:
         return {"launch": True, "reason": f"effective_action:{effective_action}", "todo_id": None}
     if state_changed:
         return {"launch": True, "reason": "state_changed_since_last_turn", "todo_id": None}
