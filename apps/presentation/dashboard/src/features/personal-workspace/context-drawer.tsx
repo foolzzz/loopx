@@ -1,5 +1,6 @@
 import { GoalAcceptanceObservationCard } from "./goal-acceptance-observation-card";
 import { AttentionDetailCard } from "./attention-detail-card";
+import { GateThreadPanel } from "./gate-thread-panel";
 import { attentionSuccessor, canReviewAttention } from "./attention-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -556,6 +557,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
               </dl>
             </section>
             <AttentionDetailCard item={selection.item} onSelect={onSelectAttention} successor={attentionSuccessor(selection.item, attentionHistory)} />
+            <GateThreadPanel goalId={selection.item.goalId} readOnly={readOnly} todoId={selection.item.todoId} />
             {!readOnly && canReviewAttention(selection.item) ? <>
               <label className="personal-decision-note">
                 <span>{t("drawer.decisionNote")}</span>

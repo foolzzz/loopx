@@ -383,7 +383,7 @@
     },
     {
       "site": "loopx/chat_server.py::<module>.ChatRequestHandler._goal_channel_extension_ready::codec_read:load_registry#1",
-      "line": 949,
+      "line": 951,
       "column": 24,
       "kind": "codec_read",
       "api": "load_registry",
@@ -391,7 +391,7 @@
     },
     {
       "site": "loopx/chat_server.py::<module>.ChatRequestHandler._registry_and_goal::codec_read:load_registry#1",
-      "line": 506,
+      "line": 508,
       "column": 20,
       "kind": "codec_read",
       "api": "load_registry",
@@ -399,7 +399,7 @@
     },
     {
       "site": "loopx/chat_server.py::<module>.serve_chat::codec_read:load_registry#1",
-      "line": 1471,
+      "line": 1475,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1887,7 +1887,7 @@
     },
     {
       "site": "loopx/todos.py::<module>.list_goal_todos::codec_read:load_registry#1",
-      "line": 200,
+      "line": 201,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
