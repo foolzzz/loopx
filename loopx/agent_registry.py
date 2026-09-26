@@ -118,6 +118,24 @@ def agent_role_for_goal(goal: dict[str, Any] | None, agent_id: str | None) -> st
     return agent_roles_for_goal(goal).get(agent)
 
 
+def acceptor_agents_for_goal(goal: dict[str, Any] | None) -> list[str]:
+    """Return the goal's role=acceptor agents (sorted) under role_v1."""
+
+    from .control_plane.agents.runtime_model import (
+        AgentRuntimeModel,
+        agent_runtime_model_for_goal,
+    )
+
+    try:
+        if agent_runtime_model_for_goal(goal) != AgentRuntimeModel.ROLE_V1:
+            return []
+    except ValueError:
+        return []
+    return sorted(
+        agent for agent, role in agent_roles_for_goal(goal).items() if role == "acceptor"
+    )
+
+
 def orchestrator_agent_for_goal(goal: dict[str, Any] | None) -> str | None:
     """Return the goal's single orchestrator under role_v1, else None."""
 

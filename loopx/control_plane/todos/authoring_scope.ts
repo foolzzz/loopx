@@ -175,7 +175,9 @@ export function planTodoAuthoringScope(value: unknown): JsonObject {
   if (!Array.isArray(registeredAgents)) fail("registered_agents must be an array");
   const agents = normalizeRegisteredTodoAgents(registeredAgents);
   const status = stripPythonWhitespace(string(intent.status, "status") ?? "").toLowerCase() || string(todo.status, "status") || "open";
-  if (!["open", "done", "blocked", "deferred"].includes(status)) fail("todo status must be one of: open, done, blocked, deferred");
+  if (!["open", "done", "blocked", "deferred", "in_review"].includes(status)) fail("todo status must be one of: open, done, blocked, deferred, in_review");
+  if (command === "create" && status === "in_review") fail("todo add cannot create work in review; deliver it with `loopx todo complete`");
+  if (role === "user" && intent.status && status === "in_review") fail("in_review applies only to agent todos");
   if (command === "create" && status === "done") fail("todo add cannot create completed work; add it open and use `loopx todo complete`");
   if (command === "update" && role === "agent" && intent.status && status === "done") fail("agent todo completion must use complete_goal_todo " +
     "(CLI: `loopx todo complete`) so completion policy, successor, and no-follow-up contracts are enforced");

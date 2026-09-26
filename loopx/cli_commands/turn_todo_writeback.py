@@ -16,6 +16,7 @@ def write_turn_repair_update(
     note: str,
     evidence: str,
     agent_id: str | None,
+    result_kind: str | None = None,
 ) -> None:
     """Record one repair-required Todo note under the effective runtime root.
 
@@ -23,8 +24,20 @@ def write_turn_repair_update(
     hand down the same ``--runtime-root`` override the dispatch resolved, so
     the legacy writer fence and the todo mutex of a promotion cannot split
     from the Turn writeback path.
+
+    Under role_v1 an acceptor Turn that returns ``repair_required`` for the
+    delivered (``in_review``) Todo it reviews records a reject verdict with
+    the result summary as feedback (fork S2).
     """
 
+    if result_kind == "repair_required" and agent_id:
+        from ..todo_acceptance import reject_delivery_from_turn
+
+        if reject_delivery_from_turn(
+            registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+            goal_id=goal_id, todo_id=todo_id, agent_id=agent_id, feedback=note,
+        ):
+            return
     update_goal_todo(
         registry_path=registry_path,
         goal_id=goal_id,

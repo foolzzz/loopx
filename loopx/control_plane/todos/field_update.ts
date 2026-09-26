@@ -21,7 +21,7 @@ import { MONITOR_METADATA_FIELDS, planMonitorMetadata, TODO_MONITOR_METADATA_REQ
 export const TODO_FIELD_UPDATE_REQUEST_SCHEMA = "loopx_todo_field_update_request_v0";
 export const TODO_FIELD_UPDATE_RESULT_SCHEMA = "loopx_todo_field_update_result_v0";
 
-const STATUS = ["open", "done", "blocked", "deferred"] as const;
+const STATUS = ["open", "done", "blocked", "deferred", "in_review"] as const;
 type Status = typeof STATUS[number];
 export interface TodoFieldUpdatePlan extends JsonObject {
   schema_version: typeof TODO_FIELD_UPDATE_RESULT_SCHEMA;
@@ -44,7 +44,8 @@ const INTENT_FIELDS = new Set<string>([...STRING_FIELDS, ...PRESENT_FIELDS, ...F
   "role_contract"]);
 
 export const TODO_ROLE_CONTRACT_FIELDS = ["required_role", "requires_acceptance", "acceptor_agent",
-  "reject_count", "task_repositories"] as const;
+  "reject_count", "task_repositories", "delivered_by", "review_feedback"] as const;
+const TODO_REVIEW_FEEDBACK_LIMIT = 600;
 const TODO_REQUIRED_ROLES = ["orchestrator", "developer", "acceptor"];
 
 /** role_v1 routing/acceptance patch. Present keys are written; null clears.
@@ -67,8 +68,13 @@ export function normalizeTodoRoleContract(value: unknown): JsonObject {
     } else if (key === "requires_acceptance") {
       if (typeof raw !== "boolean") throw new EffectRuntimeRequestError("requires_acceptance must be a boolean");
       result[key] = raw;
-    } else if (key === "acceptor_agent") {
-      result[key] = normalizeTodoAgent(raw, "acceptor_agent");
+    } else if (key === "acceptor_agent" || key === "delivered_by") {
+      result[key] = normalizeTodoAgent(raw, key);
+    } else if (key === "review_feedback") {
+      if (typeof raw !== "string") throw new EffectRuntimeRequestError("review_feedback must be a string");
+      let text = raw.replace(/\s+/gu, " ").trim();
+      if (text.length > TODO_REVIEW_FEEDBACK_LIMIT) text = `${text.slice(0, TODO_REVIEW_FEEDBACK_LIMIT - 3).trimEnd()}...`;
+      result[key] = text || null;
     } else if (key === "reject_count") {
       if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
         throw new EffectRuntimeRequestError("reject_count must be a non-negative integer");
@@ -205,7 +211,7 @@ export function planTodoFieldUpdate(value: unknown): TodoFieldUpdatePlan {
   validateLegacyContinuationPolicyRepair(block, intent, todoId);
   const status = intent.status ? stripPythonWhitespace(String(intent.status)).toLowerCase() : null;
   if (status !== null && !STATUS.includes(status as Status)) {
-    throw new EffectRuntimeRequestError("todo status must be one of: open, done, blocked, deferred");
+    throw new EffectRuntimeRequestError("todo status must be one of: open, done, blocked, deferred, in_review");
   }
   const normalizedStatus = status as Status | null;
   const targetStatus = normalizedStatus ?? (block.status || "open") as Status;

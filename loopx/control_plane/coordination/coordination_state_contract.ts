@@ -43,7 +43,7 @@ export interface TodoDomainRecord extends JsonObject {
   schema_version: string;
   todo_id: string;
   role: "user" | "agent";
-  status: "open" | "done" | "blocked" | "deferred";
+  status: "open" | "done" | "blocked" | "deferred" | "in_review";
   done: boolean;
   text: string;
   archive_state: "active" | "archive";
@@ -61,7 +61,7 @@ export function canonicalTodoDomainRecord(value: unknown, label = "Todo domain r
       typeof record.todo_id !== "string" || !record.todo_id ||
       (record.role !== "user" && record.role !== "agent") ||
       typeof record.status !== "string" ||
-      !["open", "done", "blocked", "deferred"].includes(String(record.status)) ||
+      !["open", "done", "blocked", "deferred", "in_review"].includes(String(record.status)) ||
       typeof record.done !== "boolean" || record.done !== terminal ||
       typeof record.text !== "string" ||
       (record.archive_state !== "active" && record.archive_state !== "archive")) {

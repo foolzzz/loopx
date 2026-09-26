@@ -507,6 +507,7 @@ def handle_turn_command(
                         note=str(result.get("summary") or result["classification"]),
                         evidence=f"LoopX Turn {result_kind}: {result['next_action']}",
                         agent_id=args.agent_id,
+                        result_kind=result_kind,
                     )
                 refresh = refresh_state_run(
                     registry_path=registry_path,
@@ -601,6 +602,28 @@ def handle_turn_command(
                     completion_delivery_workspace=completion_delivery_workspace,
                     completion_validation_workspace_path=delivery_workspace_path,
                 )
+                if completion.get("in_review") is True:
+                    # role_v1 delivery (fork S2): the Todo awaits its acceptor.
+                    # The Goal continues; the verdict is a later acceptor Turn.
+                    review_payload = {
+                        "ok": bool(completion.get("ok")),
+                        "appended": bool(
+                            completion.get("changed") or completion.get("idempotent_replay")
+                        ),
+                        "completion": {
+                            "todo_id": todo_id,
+                            "continuation": "active_goal",
+                            "acceptance_status": "in_review",
+                        },
+                    }
+                    if review_payload["ok"] and review_payload["appended"]:
+                        append_settlement_event(
+                            review_payload,
+                            event_kind="todo_update",
+                            status="in_review",
+                            details={"command": "turn run-once", "acceptance": "delivered"},
+                        )
+                    return review_payload
                 # Project the continuation the Todo lifecycle durably recorded,
                 # never a host-normalized continuation. Contradictory or
                 # dangling durable state fails closed before any further

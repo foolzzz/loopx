@@ -8,6 +8,7 @@ from typing import Any
 
 from .contract import (
     TODO_STATUS_DONE,
+    TODO_STATUS_IN_REVIEW,
     normalize_todo_claimed_by,
     normalize_todo_id,
 )
@@ -134,6 +135,9 @@ def pending_completion_validation_todo(
         if item.get("completion_validation_required") is not True:
             continue
         if item.get("done") is True or item.get("status") == TODO_STATUS_DONE:
+            continue
+        # role_v1: a delivered Todo passed its validation and awaits the acceptor.
+        if item.get("status") == TODO_STATUS_IN_REVIEW:
             continue
         return item
     return None

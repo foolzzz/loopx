@@ -34,7 +34,7 @@ test("mixed Goal, orphan, duplicate identity and unsupported event kind reject",
   assert.throws(() => plan([event("todo_added", 1)], "another"), /share one goal/);
   assert.throws(() => plan([event("todo_completed", 1)]), /unknown todo_id/);
   assert.throws(() => plan([event("todo_added", 1), event("todo_added", 1)]), /deduplicated/);
-  assert.throws(() => plan([event("todo_reopened", 1)]), /unsupported/);
+  assert.throws(() => plan([event("todo_resurrected", 1)]), /unsupported/);
   assert.throws(() => plan([event("todo_added", 1, {todo_id: null})]), /requires refs.todo_id/);
 });
 

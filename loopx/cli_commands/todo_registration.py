@@ -37,6 +37,8 @@ def register_todo_command(
             "claim",
             "update",
             "complete",
+            "accept",
+            "reject",
             "supersede",
             "archive-completed",
             "plan",
@@ -47,6 +49,8 @@ def register_todo_command(
             "Use add to append a checkbox todo, claim to soft-claim by registered "
             "agent id, list to read projected todos, update/complete/supersede to transition by todo_id, or "
             "archive-completed to move older completed todos into Completed Work Archive. "
+            "Under role_v1, accept/reject record the acceptor's verdict on an in_review todo "
+            "(--todo-id, --agent-id <acceptor>, --note; reject requires --note). "
             "Use plan with --text and --agent-id for the existing Goal's model planning checkpoint; the caller owns subsequent execution."
         ),
     )
@@ -103,7 +107,7 @@ def register_todo_command(
             "becomes the semantic receipt; no follow-up ACK command is required."
         ),
     )
-    todo_parser.add_argument("--status", choices=["open", "done", "blocked", "deferred"], help="For todo add/update, set the lifecycle status.")
+    todo_parser.add_argument("--status", choices=["open", "done", "blocked", "deferred", "in_review"], help="For todo add/update, set the lifecycle status.")
     todo_parser.add_argument("--note", help="Public-safe note to attach to a lifecycle transition.")
     todo_parser.add_argument("--evidence", help="Public-safe evidence pointer or short result for complete/update.")
     todo_parser.add_argument("--result-file", help="For todo complete, bind a bounded local .json, .md or .txt result to the independently accepted completion.")

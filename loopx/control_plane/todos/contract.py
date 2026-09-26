@@ -130,11 +130,15 @@ TODO_STATUS_OPEN = "open"
 TODO_STATUS_DONE = "done"
 TODO_STATUS_BLOCKED = "blocked"
 TODO_STATUS_DEFERRED = "deferred"
+# role_v1 (fork S2): delivered work awaiting the acceptor's verdict. It is
+# non-terminal and never claimable or executable by developers.
+TODO_STATUS_IN_REVIEW = "in_review"
 TODO_STATUS_VALUES = {
     TODO_STATUS_OPEN,
     TODO_STATUS_DONE,
     TODO_STATUS_BLOCKED,
     TODO_STATUS_DEFERRED,
+    TODO_STATUS_IN_REVIEW,
 }
 TODO_TERMINAL_STATUS_VALUES = {TODO_STATUS_DONE, TODO_STATUS_DEFERRED}
 TODO_LEGACY_TERMINAL_STATUS_VALUES = {"completed", "closed", "archived"}
@@ -574,6 +578,20 @@ def require_todo_task_repositories(value: Any) -> list[str]:
     return normalized
 
 
+TODO_REVIEW_FEEDBACK_LIMIT = 600
+
+
+def normalize_todo_review_feedback(value: Any) -> str | None:
+    """Return the acceptor's latest verdict text (bounded, single line)."""
+
+    text = compact_todo_text(value)
+    if not text:
+        return None
+    if len(text) > TODO_REVIEW_FEEDBACK_LIMIT:
+        text = text[: TODO_REVIEW_FEEDBACK_LIMIT - 3].rstrip() + "..."
+    return text
+
+
 def todo_effective_required_role(item: Mapping[str, Any] | None) -> str:
     """Return the role_v1 role that owns a todo.
 
@@ -599,6 +617,26 @@ def todo_effective_required_role(item: Mapping[str, Any] | None) -> str:
     if normalize_todo_action_kind(item.get("action_kind")) in TODO_PLANNING_ACTION_KINDS:
         return "orchestrator"
     return "developer"
+
+
+def todo_review_agent(
+    item: Mapping[str, Any] | None, acceptor_agent_ids: list[str] | tuple[str, ...] | None,
+) -> str | None:
+    """Return the acceptor that owns the verdict on a delivered todo.
+
+    Design decision 5: the todo's bound ``acceptor_agent`` wins; otherwise
+    the goal's single ``role=acceptor`` agent. With zero or several
+    acceptors and none bound, the choice goes back to the orchestrator
+    (``None``).
+    """
+
+    if not isinstance(item, Mapping):
+        return None
+    bound = normalize_todo_claimed_by(item.get("acceptor_agent"))
+    if bound:
+        return bound
+    acceptors = [agent for agent in (acceptor_agent_ids or []) if agent]
+    return acceptors[0] if len(acceptors) == 1 else None
 
 
 def todo_requires_acceptance(item: Mapping[str, Any] | None) -> bool:
@@ -1220,6 +1258,17 @@ _TODO_METADATA_FIELD_SCHEMA = (
         encoder=_metadata_csv,
     ),
     _TodoMetadataField(
+        "delivered_by",
+        normalize_todo_claimed_by,
+        invalid_message=(
+            "delivered_by must be a public-safe agent token such as opus-dev"
+        ),
+    ),
+    _TodoMetadataField(
+        "review_feedback",
+        normalize_todo_review_feedback,
+    ),
+    _TodoMetadataField(
         "unblocks_todo_id",
         normalize_todo_id,
         invalid_message=(
@@ -1398,6 +1447,9 @@ TODO_ROLE_CONTRACT_FIELDS = (
     "acceptor_agent",
     "reject_count",
     "task_repositories",
+    # Fork slice S2 (acceptance flow): delivery author and latest verdict.
+    "delivered_by",
+    "review_feedback",
 )
 
 
@@ -1477,6 +1529,8 @@ def format_todo_metadata_line(
     acceptor_agent: str | None = None,
     reject_count: int | str | None = None,
     task_repositories: Any = None,
+    delivered_by: str | None = None,
+    review_feedback: str | None = None,
     unblocks_todo_id: str | None = None,
     successor_todo_ids: Any = None,
     completion_continuation: str | None = None,
@@ -1542,8 +1596,10 @@ def todo_block_metadata(block: dict[str, Any]) -> dict[str, Any]:
             normalized = normalize_todo_reject_count(value)
         elif key == "required_role":
             normalized = normalize_todo_required_role(value)
-        elif key == "acceptor_agent":
+        elif key in {"acceptor_agent", "delivered_by"}:
             normalized = normalize_todo_claimed_by(value)
+        elif key == "review_feedback":
+            normalized = normalize_todo_review_feedback(value)
         elif key == "continuation_policy":
             normalized = normalize_todo_continuation_policy(value)
         elif key == "decision_scope":

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...agent_registry import (
+    acceptor_agents_for_goal,
     agent_profile_for_goal,
     agent_role_for_goal,
     orchestrator_agent_for_goal,
@@ -69,6 +70,9 @@ def build_quota_agent_identity(
         orchestrator = orchestrator_agent_for_goal(goal)
         if orchestrator:
             identity["orchestrator_agent_id"] = orchestrator
+        acceptors = acceptor_agents_for_goal(goal)
+        if acceptors:
+            identity["acceptor_agent_ids"] = acceptors
     work_mode = agent_work_mode_for_goal(goal, normalized_agent_id)
     if work_mode:
         identity["work_mode"] = work_mode

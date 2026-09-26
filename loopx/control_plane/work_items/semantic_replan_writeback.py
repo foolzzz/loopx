@@ -317,6 +317,18 @@ def qualify_replan_writeback(
         ),
     )
     obligation = context.get("replan_obligation")
+    if obligation and orchestrator_agent_id and orchestrator_agent_id != safe_agent_id:
+        # role_v1: every required replan obligation is routed to the goal's
+        # orchestrator, so it cannot fence another role's accountable writeback
+        # (for example an acceptor recording its verdict after a rejection).
+        from ..goals.goal_frontier import autonomous_replan_scope_decision
+
+        if not autonomous_replan_scope_decision(
+            obligation, agent_id=safe_agent_id,
+            registered_agent_ids=list(registered_agent_ids),
+            orchestrator_agent_id=orchestrator_agent_id,
+        ).get("applies"):
+            return None, None
     if not obligation:
         # A validated Todo transition can discharge the read-model obligation
         # before refresh. Preserve that evidence in this run so periodic review

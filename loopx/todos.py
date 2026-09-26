@@ -17,6 +17,7 @@ from .control_plane.todos.contract import (
     TODO_ROLE_CONTRACT_FIELDS,
     TODO_STATUS_DEFERRED,
     TODO_STATUS_DONE,
+    TODO_STATUS_IN_REVIEW,
     TODO_STATUS_OPEN,
     TODO_TASK_CLASS_USER_GATE,
     build_todo_id,
@@ -480,7 +481,7 @@ def add_todo_to_lines(
     todo_text = normalize_new_todo(text)
     normalized_status = normalize_todo_status(status) if status else TODO_STATUS_OPEN
     if status and not normalized_status:
-        raise ValueError("todo status must be one of: open, done, blocked, deferred")
+        raise ValueError("todo status must be one of: open, done, blocked, deferred, in_review")
     assert normalized_status is not None
     normalized_resume_when = require_supported_todo_resume_when(resume_when)
     normalized_monitor_metadata = todo_monitor_metadata.require_monitor_metadata_scope(
@@ -832,9 +833,11 @@ def add_goal_todo(
     )
     normalized_status = normalize_todo_status(status) if status else TODO_STATUS_OPEN
     if status and not normalized_status:
-        raise ValueError("todo status must be one of: open, done, blocked, deferred")
+        raise ValueError("todo status must be one of: open, done, blocked, deferred, in_review")
     if normalized_status == TODO_STATUS_DONE:
         raise ValueError("todo add cannot create completed work; add it open and use `loopx todo complete`")
+    if normalized_status == TODO_STATUS_IN_REVIEW:
+        raise ValueError("todo add cannot create work in review; deliver it with `loopx todo complete`")
     priority_plan = plan_todo_priority({}, {"text": text, **({"priority": priority} if priority is not None else {})})
     todo_text = str(priority_plan["text"])
     if validation_command and validation_command_json:
@@ -1662,11 +1665,13 @@ def complete_goal_todo(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
         todo_id=todo_id, decision=decision_outcome,
     )
-    payload = _complete_goal_todo_unsettled(
+    from .todo_acceptance import route_role_v1_completion  # S2: may deliver to in_review
+
+    payload = route_role_v1_completion(_complete_goal_todo_unsettled, dict(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
         runtime_root_arg=runtime_root_arg, decision_outcome=decision_outcome,
         dry_run=dry_run, **options,
-    )
+    ))
     if dry_run or not payload.get("ok") or payload.get("role") not in (None, "user"):
         if plan_id and dry_run:
             payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
@@ -2070,6 +2075,10 @@ def _complete_goal_todo_unsettled(
         result, registry_path=registry_path, runtime_root=shadow_runtime_root,
         goal_id=goal_id, capture=shadow_capture,
     )
+
+
+terminal_complete_goal_todo = _complete_goal_todo_unsettled  # no S2 routing (accept verdict)
+
 
 @_next_user_todo_author_guard
 @provider_first_terminal_lifecycle("supersede")

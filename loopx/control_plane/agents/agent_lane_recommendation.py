@@ -6,10 +6,12 @@ from typing import Any
 
 from ..effect_program import ReceiptBoundMonitorPhase
 from ..todos.contract import (
+    TODO_STATUS_IN_REVIEW,
     TODO_TASK_CLASS_ADVANCEMENT,
     TODO_TASK_CLASS_MONITOR,
     normalize_todo_claimed_by,
     normalize_todo_id,
+    normalize_todo_status,
 )
 from ..todos.todo_semantics import todo_item_is_due_monitor
 from ..todos.summary_item import compact_todo_summary_item
@@ -454,6 +456,21 @@ def selected_recommended_action_from_work_lane(
     return raw_action
 
 
+def _addressed_review_item(item: dict[str, Any], agent_identity: dict[str, Any]) -> bool:
+    """role_v1 (fork S2): a delivered todo in this reviewer's executable lane.
+
+    Quota selection already addressed in_review work to its resolved
+    acceptor (or the orchestrator); the developer keeps the claim, so the
+    claim and open-status filters do not apply to the review itself.
+    """
+
+    return (
+        normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW
+        and agent_identity.get("agent_model") == "role_v1"
+        and agent_identity.get("role") in {"acceptor", "orchestrator"}
+    )
+
+
 def build_agent_lane_next_action(
     *,
     agent_identity: dict[str, Any] | None,
@@ -575,7 +592,8 @@ def build_agent_lane_next_action(
         for raw_item in raw_items:
             if not isinstance(raw_item, dict):
                 continue
-            if not _todo_item_is_actionable_open(raw_item):
+            review = _addressed_review_item(raw_item, agent_identity)
+            if not review and not _todo_item_is_actionable_open(raw_item):
                 continue
             if _todo_task_class(raw_item) != TODO_TASK_CLASS_ADVANCEMENT:
                 continue
@@ -585,7 +603,7 @@ def build_agent_lane_next_action(
             identity = (str(raw_item.get("todo_id") or ""), text)
             if identity in seen:
                 continue
-            if not agent_scope_item_claimed_by_agent_or_unclaimed(
+            if not review and not agent_scope_item_claimed_by_agent_or_unclaimed(
                 raw_item,
                 agent_id=agent_id,
             ):
@@ -621,6 +639,8 @@ def build_agent_lane_next_action(
             selected_by = (
                 str(selected_todo_override.get("selected_by") or "selected_todo_override")
                 if override_selected and isinstance(selected_todo_override, dict)
+                else "review_todo"
+                if _addressed_review_item(raw_item, agent_identity)
                 else "active_next_action_todo"
                 if todo_id and todo_id in preferred_todo_ids
                 else "current_agent_claimed_todo"
@@ -673,6 +693,7 @@ def build_agent_lane_next_action(
                             "in_flight_todo",
                             "active_next_action_todo",
                             "current_agent_claimed_todo",
+                            "review_todo",
                         }
                         else "candidate"
                     ),

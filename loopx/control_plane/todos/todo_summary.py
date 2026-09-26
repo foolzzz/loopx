@@ -30,6 +30,7 @@ from .contract import (
     normalize_todo_reject_count,
     normalize_todo_required_role,
     normalize_todo_requires_acceptance,
+    normalize_todo_review_feedback,
     normalize_todo_task_repositories,
     normalize_todo_generation,
     normalize_todo_goal_bound,
@@ -305,6 +306,8 @@ _ROLE_CONTRACT_NORMALIZERS = (
     ("acceptor_agent", normalize_todo_claimed_by),
     ("reject_count", normalize_todo_reject_count),
     ("task_repositories", normalize_todo_task_repositories),
+    ("delivered_by", normalize_todo_claimed_by),
+    ("review_feedback", normalize_todo_review_feedback),
 )
 
 

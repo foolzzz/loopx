@@ -17,7 +17,7 @@ export const NEXT_ACTION_BINDING_SCHEMA = "loopx_next_action_binding_v0";
 const TODO_ID_PATTERN = /^todo_[a-z0-9_-]{3,64}$/;
 const NEXT_ACTION_BINDING_PATTERN =
   /^\s*<!--\s*loopx:next-action\s+schema=([A-Za-z0-9_-]+)\s+todo_id=(todo_[A-Za-z0-9_-]+)\s*-->\s*$/;
-const TODO_STATUSES = new Set(["open", "done", "blocked", "deferred"]);
+const TODO_STATUSES = new Set(["open", "done", "blocked", "deferred", "in_review"]);
 const CONTROL_TASK_CLASSES = new Set([
   "continuous_monitor",
   "user_gate",

@@ -23,7 +23,7 @@ export function sharedGoalWorkFacts(value: unknown, agent: string, observedAt: u
     if (seen.has(id)) throw new EffectRuntimeRequestError("duplicate Todo in shared goal snapshot");
     seen.add(id);
     const status = optionalNonEmptyString(item.status, "status") ?? "open";
-    if (!["open", "done", "blocked", "deferred"].includes(status)) {
+    if (!["open", "done", "blocked", "deferred", "in_review"].includes(status)) {
       throw new EffectRuntimeRequestError("invalid shared goal Todo status");
     }
     for (const field of ["done", "resume_ready"]) {

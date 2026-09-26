@@ -41,8 +41,8 @@ export type DeliveryBoundary = (typeof DELIVERY_BOUNDARIES)[number];
 export type DeliveryContinuityPreemption =
   (typeof DELIVERY_CONTINUITY_PREEMPTIONS)[number];
 
-type TodoStatus = "open" | "done" | "blocked" | "deferred";
-const TODO_STATUSES = ["open", "done", "blocked", "deferred"] as const;
+type TodoStatus = "open" | "done" | "blocked" | "deferred" | "in_review";
+const TODO_STATUSES = ["open", "done", "blocked", "deferred", "in_review"] as const;
 
 export interface DeliveryContinuityTodo {
   todo_id: string;
