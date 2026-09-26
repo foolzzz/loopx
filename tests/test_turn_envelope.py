@@ -1160,3 +1160,24 @@ def test_turn_envelope_retains_configured_cadence_floor_and_host_boundary() -> N
     projected = envelope["scheduler"]["codex_app"]
     assert projected["execution_interval_policy"] == policy
     assert projected["guarantee"] == guarantee
+
+
+def test_turn_envelope_carries_the_role_v1_acceptance_context() -> None:
+    """E2E pilot: the envelope dropped review_feedback and the todo note, so a
+    rejected delivery came back unchanged and the acceptance criteria never
+    reached the host."""
+
+    source = _full_decision()
+    source["selected_todo"].update({
+        "required_role": "developer", "requires_acceptance": True, "acceptor_agent": "acc",
+        "task_repositories": ["web", "api"], "reject_count": 1,
+        "review_feedback": "rejected by acc (#1): README still lists the gap " + "x" * 700,
+        "note": "Acceptance: README documents priority",
+    })
+    selected = build_turn_envelope(source)["action"]["selected_todo"]
+    assert selected["required_role"] == "developer" and selected["requires_acceptance"] is True
+    assert selected["acceptor_agent"] == "acc" and selected["task_repositories"] == ["web", "api"]
+    assert selected["reject_count"] == 1
+    assert selected["review_feedback"].startswith("rejected by acc (#1)") and len(selected["review_feedback"]) <= 600
+    assert selected["note"] == "Acceptance: README documents priority"
+    assert build_turn_envelope(source)["action_signature"]["matches"] is True
