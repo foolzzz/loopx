@@ -160,6 +160,8 @@ export const COORDINATION_STATE_CONTRACT = deepFreeze({
       "acceptor_agent",
       "reject_count",
       "task_repositories",
+      "delivered_by",
+      "review_feedback",
       "unblocks_todo_id",
       "resume_when",
       "resume_monitor_generation",

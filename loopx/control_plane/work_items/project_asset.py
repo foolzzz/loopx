@@ -526,6 +526,8 @@ PROJECT_ASSET_TODO_DISPLAY_FIELDS = (
     "acceptor_agent",
     "reject_count",
     "task_repositories",
+    "delivered_by",
+    "review_feedback",
     "unblocks_todo_id",
     "resume_when",
     "resume_monitor_generation",

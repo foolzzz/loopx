@@ -17,7 +17,7 @@ export const TODO_COMPLETION_FENCE_REQUEST_SCHEMA =
 export const TODO_COMPLETION_FENCE_RESULT_SCHEMA =
   "loopx_todo_completion_fence_result_v0";
 
-const TODO_STATUSES = ["open", "done", "blocked", "deferred"] as const;
+const TODO_STATUSES = ["open", "done", "blocked", "deferred", "in_review"] as const;
 const TODO_ID_PATTERN = /^todo_[a-z0-9_-]{3,64}$/;
 
 export type TodoStatus = (typeof TODO_STATUSES)[number];

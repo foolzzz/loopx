@@ -14,7 +14,7 @@ const CONTEXT_FIELDS = ["action_kind", "task_repository", "continuation_policy",
   "resume_when", "blocks_agent", "excluded_agents", "global_gate"] as const;
 const EVALUATION_SCHEMA = "todo_succession_evaluation_v0";
 interface Row {
-  facts: JsonObject; id: string | null; status: "open" | "blocked" | "done" | "deferred";
+  facts: JsonObject; id: string | null; status: "open" | "blocked" | "done" | "deferred" | "in_review";
   active: boolean; advancement: boolean; noFollowup: boolean; tracked: boolean;
   successors: string[]; supersededBy: string | null; unblocks: string | null;
   resumes: string | null; handoff: boolean;
@@ -30,7 +30,7 @@ function decode(value: unknown): Row {
   const raw = requireJsonObject(value, "succession facts");
   const facts: JsonObject = {...raw, context_fields: Array.isArray(raw.context_fields)
     ? CONTEXT_FIELDS.filter(field => (raw.context_fields as unknown[]).includes(field)) : raw.context_fields};
-  const status = requireStringLiteral(facts.status, ["open", "blocked", "done", "deferred"], "status");
+  const status = requireStringLiteral(facts.status, ["open", "blocked", "done", "deferred", "in_review"], "status");
   const active = requireBoolean(facts.active, "active");
   const advancement = requireBoolean(facts.advancement, "advancement");
   if (!Array.isArray(facts.successors) || !Array.isArray(facts.context_fields) ||
@@ -163,7 +163,7 @@ export function projectTodoClosure(value: unknown): JsonObject {
     requireBoolean(request.full_selection, "full_selection");
   const rows = request.rows.map(value => {
     const row = requireJsonObject(value, "closure row");
-    return {status: requireStringLiteral(row.status, ["open", "blocked", "done", "deferred"], "status"),
+    return {status: requireStringLiteral(row.status, ["open", "blocked", "done", "deferred", "in_review"], "status"),
       watch: requireBoolean(row.watch_only, "watch_only"), noFollowup: requireBoolean(row.no_followup, "no_followup"),
       gap: requireBoolean(row.successor_gap, "successor_gap"), replan: requireBoolean(row.replan, "replan"),
       handoff: row.handoff_state === null ? null : requireStringLiteral(row.handoff_state, HANDOFF_STATES, "handoff_state")};

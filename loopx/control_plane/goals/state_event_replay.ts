@@ -8,10 +8,12 @@ import {authorityUnicodeCompare} from "../coordination/authority_store_codec.ts"
 import {normalizeTodoPriority} from "../todos/priority.ts";
 
 const KINDS = ["todo_added", "todo_claimed", "todo_updated", "todo_blocked", "todo_deferred",
-  "todo_completed", "refresh_recorded", "run_recorded", "quota_spent", "evidence_attached",
+  "todo_completed", "todo_in_review", "todo_reopened", "refresh_recorded", "run_recorded", "quota_spent", "evidence_attached",
   "supervisor_proposed", "supervisor_receipt_recorded"] as const;
 type Kind = typeof KINDS[number];
-type Status = "open" | "blocked" | "deferred" | "done";
+type Status = "open" | "blocked" | "deferred" | "done" | "in_review";
+const TODO_LIFECYCLE_KINDS = ["todo_added", "todo_claimed", "todo_updated", "todo_blocked", "todo_deferred",
+  "todo_completed", "todo_in_review", "todo_reopened"];
 interface Event {
   ordinal: number; id: string; goal: string; kind: Kind; sequence: number | null;
   time: string; todo: string | null; role: "user" | "agent" | null;
@@ -40,7 +42,7 @@ function decode(raw: unknown, index: number, offset: number): Event {
   const r = requireJsonObject(raw, "event replay facts");
   const kind = requireStringLiteral(r.event_type, KINDS, "event_type");
   const todo = r.todo_id === null ? null : requireNonEmptyString(r.todo_id, "todo_id");
-  if (["todo_added", "todo_claimed", "todo_updated", "todo_blocked", "todo_deferred", "todo_completed"].includes(kind) && todo === null) throw new EffectRuntimeRequestError(`${kind} requires refs.todo_id`);
+  if (TODO_LIFECYCLE_KINDS.includes(kind) && todo === null) throw new EffectRuntimeRequestError(`${kind} requires refs.todo_id`);
   if (typeof r.content_changed !== "boolean") throw new EffectRuntimeRequestError("content_changed must be boolean");
   if (typeof r.has_exclusions !== "boolean" || (r.goal_bound !== null && typeof r.goal_bound !== "boolean")) {
     throw new EffectRuntimeRequestError("event ownership facts require explicit booleans");
@@ -69,7 +71,7 @@ function decodeTodo(value: unknown): Todo {
     Object.defineProperty(field_sources, key, {value: n, enumerable: true, writable: true, configurable: true});
   }
   const role = requireStringLiteral(r.role, ["user", "agent"] as const, "role");
-  const status = requireStringLiteral(r.status, ["open", "done", "blocked", "deferred"] as const, "status");
+  const status = requireStringLiteral(r.status, ["open", "done", "blocked", "deferred", "in_review"] as const, "status");
   if (typeof r.render_priority !== "boolean") throw new EffectRuntimeRequestError("render_priority must be boolean");
   const priority = normalizeTodoPriority(r.priority);
   if (priority === null) throw new EffectRuntimeRequestError("continuation priority is required");
@@ -125,7 +127,8 @@ export function planStateEventReplay(value: unknown): JsonObject {
           binding: event.binding, removedPolicy: event.removedPolicy});
         break;
       }
-      case "todo_claimed": case "todo_updated": case "todo_blocked": case "todo_deferred": case "todo_completed": {
+      case "todo_claimed": case "todo_updated": case "todo_blocked": case "todo_deferred": case "todo_completed":
+      case "todo_in_review": case "todo_reopened": {
         const todo = todos.get(event.todo!);
         if (!todo) throw new EffectRuntimeRequestError(`${kind} references unknown todo_id: ${event.todo}`);
         for (const field of event.fields) Object.defineProperty(todo.field_sources, field,
@@ -156,6 +159,9 @@ export function planStateEventReplay(value: unknown): JsonObject {
         } else if (kind === "todo_blocked") todo.status = "blocked";
         else if (kind === "todo_deferred") todo.status = "deferred";
         else if (kind === "todo_completed") todo.status = "done";
+        // role_v1 acceptance: delivery awaits the acceptor; a rejection reopens.
+        else if (kind === "todo_in_review") todo.status = "in_review";
+        else if (kind === "todo_reopened") todo.status = "open";
         todo.done = todo.status === "done";
         break;
       }

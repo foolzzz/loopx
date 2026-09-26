@@ -55,7 +55,7 @@ export const UNSETTLED_HOST_TURN_RECOVERY_SCHEMA_VERSION =
   "unsettled_host_turn_recovery_v0";
 
 const MONITOR_TASK_CLASS = "continuous_monitor";
-const SETTLED_LIFECYCLE_STATUSES = ["done", "blocked", "deferred"] as const;
+const SETTLED_LIFECYCLE_STATUSES = ["done", "blocked", "deferred", "in_review"] as const;
 const WRITEBACK_RECEIPT = "durable_writeback_receipt";
 const SPEND_RECEIPT = "quota_spend_receipt";
 const MISSING_RECEIPT_NAMES = [WRITEBACK_RECEIPT, SPEND_RECEIPT] as const;

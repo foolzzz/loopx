@@ -203,9 +203,9 @@ def _field_update_plan(
     if (
         not isinstance(result, dict)
         or result.get("schema_version") != "loopx_todo_field_update_result_v0"
-        or result.get("target_status") not in {"open", "done", "blocked", "deferred"}
+        or result.get("target_status") not in {"open", "done", "blocked", "deferred", "in_review"}
         or result.get("normalized_status")
-        not in {None, "open", "done", "blocked", "deferred"}
+        not in {None, "open", "done", "blocked", "deferred", "in_review"}
         or not isinstance(result.get("metadata_updates"), dict)
     ):
         raise RuntimeError("TypeScript Todo field update result shape mismatch")

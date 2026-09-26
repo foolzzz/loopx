@@ -253,7 +253,7 @@ function advancement(todo: JsonObject): boolean {
 }
 export function acceptanceApplies(todo: JsonObject): boolean {
   return advancement(todo) && todo.archive_state === "active" &&
-    (todo.status === "open" || todo.status === "blocked") && todo.done === false;
+    (todo.status === "open" || todo.status === "blocked" || todo.status === "in_review") && todo.done === false;
 }
 export function acceptanceTodos(head: JsonObject, goalId: string): ReadonlyMap<string, JsonObject> {
   validateCoordinationTodoReadModel(head, goalId);
@@ -329,7 +329,7 @@ export function acceptanceTask(todoId: string, todo: JsonObject | undefined, sta
       : "The owner confirmed this work's current acceptance association.",
     applicable: acceptanceIncludes(state.document.scope, todoId) && (state.document.scope?.kind === "selected_work"
       ? todo === undefined || (todo.archive_state === "active" && todo.done === false &&
-        (todo.status === "open" || todo.status === "blocked"))
+        (todo.status === "open" || todo.status === "blocked" || todo.status === "in_review"))
       : todo !== undefined && acceptanceApplies(todo))};
 }
 

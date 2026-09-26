@@ -486,11 +486,14 @@ for (const native of [false, true]) {
 // just before it (current manifest without those fields) must stay readable,
 // and their records must not carry the newer fields.
 const roleFields = ["required_role", "requires_acceptance", "acceptor_agent", "reject_count", "task_repositories"];
+// Fork slice S2 added the acceptance-flow fields after S1.
+const acceptanceFields = ["delivered_by", "review_feedback"];
 for (const native of [false, true]) {
   test(`Todo head written before the role_v1 fields stays readable (${native ? "native" : "canonical"})`, () => {
     const contract = native ? TODO_DOMAIN_RECORD_CONTRACT.fields : TODO_CANONICAL_READ_RECORD_FIELDS;
-    assert.equal(roleFields.every(field => contract.includes(field)), true);
-    const fields = contract.filter((field: string) => !roleFields.includes(field));
+    assert.equal([...roleFields, ...acceptanceFields].every(field => contract.includes(field)), true);
+    const fields = contract.filter((field: string) =>
+      !roleFields.includes(field) && !acceptanceFields.includes(field));
     const todo: JsonObject = {
       schema_version: native ? TODO_DOMAIN_ITEM_SCHEMA : "todo_item_v0",
       todo_id: "todo_pre_role", role: "agent", status: "open", done: false,
@@ -505,6 +508,29 @@ for (const native of [false, true]) {
     const withRole = {...todo, required_role: "developer"};
     assert.throws(() => validateCoordinationTodoReadModel({...head, todos: [withRole],
       todo_read_model: {...head.todo_read_model, records_sha256: canonicalAuthoritySha256([withRole])}},
+    head.goal_id), /exceeds its historical field contract/);
+  });
+}
+
+for (const native of [false, true]) {
+  test(`Todo head written by role_v1 S1 (before the acceptance fields) stays readable (${native ? "native" : "canonical"})`, () => {
+    const contract = native ? TODO_DOMAIN_RECORD_CONTRACT.fields : TODO_CANONICAL_READ_RECORD_FIELDS;
+    const fields = contract.filter((field: string) => !acceptanceFields.includes(field));
+    const todo: JsonObject = {
+      schema_version: native ? TODO_DOMAIN_ITEM_SCHEMA : "todo_item_v0",
+      todo_id: "todo_pre_review", role: "agent", status: "open", done: false,
+      text: "Read work accepted before the acceptance flow", archive_state: "active",
+      required_role: "developer",
+      ...(native ? {} : {source_section: "Agent Todo"}),
+    };
+    const schema = native ? TODO_DOMAIN_READ_RECORD_SCHEMA : TODO_CANONICAL_READ_RECORD_SCHEMA;
+    const head = {goal_id: "goal-pre-review", todos: [todo], leases: [],
+      todo_read_model: {schema_version: schema, contract_fields: fields,
+        todo_count: 1, records_sha256: canonicalAuthoritySha256([todo])}};
+    assert.deepEqual(validateCoordinationTodoReadModel(head, head.goal_id), head.todo_read_model);
+    const withReview = {...todo, review_feedback: "needs tests"};
+    assert.throws(() => validateCoordinationTodoReadModel({...head, todos: [withReview],
+      todo_read_model: {...head.todo_read_model, records_sha256: canonicalAuthoritySha256([withReview])}},
     head.goal_id), /exceeds its historical field contract/);
   });
 }

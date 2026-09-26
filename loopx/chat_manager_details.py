@@ -31,7 +31,7 @@ def read_manager_goal_details(
         if result.get("ok") is not True or result.get("state_event_projection_warning"):
             raise ValueError("Todo authority unavailable or conflicting")
         records = result.get("todos", [])
-        active = [r for r in records if r.get("status") in {"open", "blocked", "deferred"}]
+        active = [r for r in records if r.get("status") in {"open", "blocked", "deferred", "in_review"}]
         # Owner decisions first, then declared priority; do not invent urgency.
         active.sort(key=lambda r: (r.get("role") != "user", str(r.get("priority") or "Z")))
         rows = []

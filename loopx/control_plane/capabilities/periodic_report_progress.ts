@@ -33,7 +33,7 @@ function request(value: unknown, schema: string): JsonObject {
 
 interface ProgressRow {
   index: number;
-  status: 'open' | 'blocked' | 'done' | 'deferred';
+  status: 'open' | 'blocked' | 'done' | 'deferred' | 'in_review';
   owner: string;
   action: string;
   taskClass: string;
@@ -51,7 +51,7 @@ export function selectPeriodicReportProgress(value: unknown): JsonObject {
   if (stage === null) throw new EffectRuntimeRequestError('periodic-report stage completion timestamp is invalid');
   const rows: ProgressRow[] = (input.items as JsonObject[]).map((row, index) => {
     const updated = text(row.updated_at), completed = text(row.completed_at) || updated;
-    return {index, status: requireStringLiteral(row.status, ['open','blocked','done','deferred'], 'Todo status'),
+    return {index, status: requireStringLiteral(row.status, ['open','blocked','done','deferred','in_review'], 'Todo status'),
       owner: text(row.claimed_by), action: text(row.action_kind), taskClass: text(row.task_class),
       actionable: requireBoolean(row.actionable, 'evaluated Todo actionable'),
       updatedAt: timestamp(updated), completedAt: completed, completedTime: timestamp(completed),
