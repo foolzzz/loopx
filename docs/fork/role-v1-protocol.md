@@ -179,12 +179,17 @@ which binds one with `todo update --acceptor-agent`.
 
 - **Accept** runs the ordinary completion transaction (the validation
   command runs again) and the todo becomes `done`. The completion evidence
-  starts with `accepted_by=<acceptor>`. For a todo with a prepared S5
-  workspace, accept first preflights the atomic merge into the goal's merge
-  target. A blocker reopens the todo for its developer with the conflict
-  report in `review_feedback` (transition `merge_blocked`, reject_count
-  unchanged); otherwise the todo completes and its branch merges. Plan
-  dependents whose dependencies are now all done are reopened.
+  starts with `accepted_by=<acceptor>`. For a todo with an S5 workspace,
+  accept first runs the atomic merge into the goal's merge target, and only
+  then completes the todo, so a todo is never `done` without its merge. A
+  blocked or failed merge reopens the todo for its developer with the
+  conflict report in `review_feedback` (transition `merge_blocked`,
+  reject_count unchanged). If the merge lands but the completion is refused
+  (the re-run validation fails), the todo stays `in_review` (transition
+  `completion_blocked`, the merge is in the result). The merge is
+  idempotent, so the acceptor can retry the accept, or reject. Plan
+  dependents whose dependencies are now all done are reopened only after a
+  completed accept.
 - **Reject** reopens the todo (`open`) for the same developer. The claim is
   kept, `reject_count` is incremented, and `review_feedback` stores the
   feedback. The developer's next selection carries `review_feedback` in the

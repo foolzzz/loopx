@@ -7,6 +7,7 @@ central progress home holds none of the code, so every delivery failed.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 from loopx.todo_acceptance import accept_goal_todo
@@ -32,8 +33,8 @@ def _fixture(tmp_path: Path, monkeypatch, *, roles: bool = False) -> tuple[Path,
                   {"name": "web", "path": str(web), "default_branch": "main", "merge_target": "task_branch"}],
     }
     if roles:
-        goal["coordination"] = {"agent_model": "role_v1", "registered_agents": ["dev", "acc"],
-                                "agent_roles": {"dev": "developer", "acc": "acceptor"}}
+        goal["coordination"] = {"agent_model": "role_v1", "registered_agents": ["orch", "dev", "acc"],
+                                "agent_roles": {"orch": "orchestrator", "dev": "developer", "acc": "acceptor"}}
     registry = tmp_path / "registry.json"
     registry.write_text(json.dumps({"schema_version": 1, "common_runtime_root": str(runtime), "goals": [goal]}),
                         encoding="utf-8")
@@ -146,3 +147,106 @@ def test_a_merge_conflict_returns_the_todo_to_its_developer(tmp_path: Path, monk
     assert not row.get("reject_count")
     api = tmp_path / "repos" / "api"
     assert git(api, "show", f"loopx-task/{GOAL}:shared.txt") == "first"
+
+
+def _plan_todos(registry: Path, runtime: Path) -> dict[str, str]:
+    """Apply a plan: ``first`` and ``second`` edit api; ``after`` depends on ``second``."""
+
+    from loopx.plan_cards import propose_plan
+
+    plan = {"title": "Race", "summary": "Two api todos, one dependent.", "todos": [
+        {"key": "first", "text": "First api change", "bound_agent": "dev", "task_repositories": ["api"]},
+        {"key": "second", "text": "Second api change", "bound_agent": "dev", "task_repositories": ["api"]},
+        {"key": "after", "text": "Builds on the second", "bound_agent": "dev", "depends_on": ["second"],
+         "task_repositories": ["api"]},
+    ]}
+    proposed = propose_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, agent_id="orch", plan=plan)
+    done = complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=proposed["plan"]["gate_todo_id"],
+                              role="user", decision_outcome="approve", note="Go", no_followup=True, agent_id="orch")
+    return dict(done["plan_card"]["todo_id_map"])
+
+
+def _commit_in_workspace(runtime: Path, goal: dict, todo_id: str, files: dict[str, str]) -> Path:
+    worktree = Path(git_workspace.prepare(goal, todo_id, None, runtime)["paths"]["api"])
+    for rel, content in files.items():
+        (worktree / rel).write_text(content, encoding="utf-8")
+    git(worktree, "add", ".")
+    git(worktree, "commit", "-qm", f"work on {todo_id}")
+    return worktree
+
+
+def test_back_to_back_accepts_never_complete_a_todo_whose_merge_failed(tmp_path: Path, monkeypatch) -> None:
+    """Review fix: accept used to complete the todo before its real merge.
+
+    The second accept's merge check passes, then the first todo's accept lands
+    on the task branch before the second's real merge. The second todo must
+    not become done, its plan dependent must not resume, and a redelivery
+    must still complete it.
+    """
+
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch, roles=True)
+    ids = _plan_todos(registry, runtime)
+    _commit_in_workspace(runtime, goal, ids["first"], {"shared.txt": "first\n"})
+    second_tree = _commit_in_workspace(runtime, goal, ids["second"], {"shared.txt": "second\n"})
+    for key in ("first", "second"):
+        assert _complete(registry, ids[key], agent_id="dev").get("in_review") is True
+
+    real_merge = git_workspace.merge
+    raced: list[dict] = []
+
+    def racing_merge(goal_arg, todo_id, repos, runtime_root, *, dry_run=False):
+        if todo_id == ids["second"] and not dry_run and not raced:
+            # The first todo's accept lands between the check and the merge.
+            raced.append(accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=ids["first"],
+                                          agent_id="acc"))
+        return real_merge(goal_arg, todo_id, repos, runtime_root, dry_run=dry_run)
+
+    monkeypatch.setattr(git_workspace, "merge", racing_merge)
+    blocked = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=ids["second"], agent_id="acc")
+    assert raced and raced[0]["merge"]["ok"] is True and _status(registry, ids["first"]) == "done"
+    assert blocked["acceptance"]["transition"] == "merge_blocked", blocked
+    assert blocked["merge"]["ok"] is False
+    assert _status(registry, ids["second"]) == "open"
+    assert _status(registry, ids["after"]) == "deferred"
+    assert "resumed_todo_ids" not in blocked
+    api = tmp_path / "repos" / "api"
+    assert git(api, "show", f"loopx-task/{GOAL}:shared.txt") == "first"
+
+    # Recoverable: the developer resolves on the todo branch and delivers again.
+    subprocess.run(["git", "merge", "-q", f"loopx-task/{GOAL}"], cwd=second_tree, capture_output=True, check=False)
+    (second_tree / "shared.txt").write_text("first\nsecond\n", encoding="utf-8")
+    git(second_tree, "add", ".")
+    git(second_tree, "commit", "-qm", "resolve")
+    assert _complete(registry, ids["second"], agent_id="dev").get("in_review") is True
+    accepted = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=ids["second"], agent_id="acc")
+    assert accepted["acceptance"]["transition"] == "accepted" and accepted["merge"]["ok"] is True
+    assert _status(registry, ids["second"]) == "done"
+    assert accepted["resumed_todo_ids"] == [ids["after"]]
+    assert git(api, "show", f"loopx-task/{GOAL}:shared.txt") == "first\nsecond"
+
+
+def test_a_completion_refused_after_the_merge_is_retry_safe(tmp_path: Path, monkeypatch) -> None:
+    """The merge lands, then the re-run validation refuses completion.
+
+    The todo stays in_review with nothing resumed; a retry re-merges as a
+    no-op and completes.
+    """
+
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch, roles=True)
+    todo_id = _add(registry, ["api"], ["test", "!", "-f", str(tmp_path / "veto")], claimed_by="dev")
+    _commit_in_workspace(runtime, goal, todo_id, {"a.txt": "a\n"})
+    assert _complete(registry, todo_id, agent_id="dev").get("in_review") is True
+    (tmp_path / "veto").write_text("x", encoding="utf-8")
+    refused = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id="acc")
+    assert refused.get("validation_blocked_completion") is True, refused
+    assert refused["acceptance"]["transition"] == "completion_blocked"
+    assert refused["merge"]["ok"] is True and len(refused["merge"]["merged"]) == 1
+    assert _status(registry, todo_id) == "in_review"
+    api = tmp_path / "repos" / "api"
+    head = git(api, "rev-parse", f"loopx-task/{GOAL}")
+    (tmp_path / "veto").unlink()
+    retried = accept_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=todo_id, agent_id="acc")
+    assert retried["acceptance"]["transition"] == "accepted"
+    assert retried["merge"] == {**retried["merge"], "ok": True, "merged": []}
+    assert git(api, "rev-parse", f"loopx-task/{GOAL}") == head
+    assert _status(registry, todo_id) == "done"

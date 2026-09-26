@@ -444,6 +444,8 @@ def _public_merge(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _merge_conflict_feedback(actor: str, preflight: Mapping[str, Any]) -> str:
+    """Repo-relative feedback for a blocked or failed merge."""
+
     report = preflight.get("conflict_report")
     parts: list[str] = []
     if isinstance(report, Mapping):
@@ -459,6 +461,11 @@ def _merge_conflict_feedback(actor: str, preflight: Mapping[str, Any]) -> str:
                     f"{item.get('name')}: {blocker.get('error_code')}"
                     + (f" ({', '.join(str(path) for path in list(paths)[:5])})" if paths else "")
                 )
+    failure = preflight.get("failure")
+    if isinstance(failure, Mapping):
+        # merge_apply_failed: the check passed but applying the merge did not
+        # (for example the target moved); nothing stayed merged.
+        parts.append(f"{failure.get('name')}: {failure.get('error_code')}")
     detail = "; ".join(parts)
     return _clip(
         f"accepted by {actor} but the merge into the target is blocked; rebase or resolve on the "
@@ -503,17 +510,23 @@ def accept_goal_todo(
     workspace = _accepted_workspace(
         registry_path=registry_path, goal=goal, todo=todo, runtime_root_arg=runtime_root_arg,
     )
+    merge_payload = None
     if workspace is not None and not dry_run:
         from .todos import update_goal_todo
         from .workspace import git_workspace
 
-        preflight = git_workspace.merge(
-            goal, todo_id, workspace["repos"], workspace["runtime_root"], dry_run=True,
-        )
-        if not preflight.get("ok"):
-            # Decisions 18 and 22: a conflict returns the whole todo to its
+        # The real merge runs BEFORE the terminal completion, so a todo is
+        # never ``done`` without its merge. The merge is atomic across the
+        # todo's repos (its own preflight runs under the goal lock) and
+        # retry-idempotent: a repo whose target already contains the todo
+        # branch is skipped. Nothing fetches or pushes (a push stays behind a
+        # user gate).
+        merged = git_workspace.merge(goal, todo_id, workspace["repos"], workspace["runtime_root"])
+        if not merged.get("ok"):
+            # Decisions 18 and 22: a blocked merge (conflict, dirty worktree,
+            # moved target, failed apply) returns the whole todo to its
             # developer. It is not a quality verdict, so reject_count is kept.
-            feedback = _merge_conflict_feedback(actor, preflight)
+            feedback = _merge_conflict_feedback(actor, merged)
             reopened = update_goal_todo(
                 registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, role="agent",
                 runtime_root_arg=runtime_root_arg, status=TODO_STATUS_OPEN,
@@ -522,7 +535,7 @@ def accept_goal_todo(
             )
             return {
                 **reopened,
-                "merge": _public_merge(preflight),
+                "merge": _public_merge(merged),
                 "acceptance": {
                     "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
                     "transition": "merge_blocked", "verdict": "accept", "acceptor": actor,
@@ -530,6 +543,7 @@ def accept_goal_todo(
                     "review_feedback": feedback,
                 },
             }
+        merge_payload = _public_merge(merged)
     result = terminal_complete_goal_todo(
         registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, role="agent",
         runtime_root_arg=runtime_root_arg, evidence=completion_evidence,
@@ -537,33 +551,31 @@ def accept_goal_todo(
         project=project, state_file=state_file, dry_run=dry_run,
         **dict(completion_options or {}),
     )
-    merge_payload = None
-    if workspace is not None and not dry_run and result.get("ok") is not False:
-        from .workspace import git_workspace
-
-        # Atomic across the todo's repos; nothing fetches or pushes (a push
-        # stays behind a user gate).
-        merge_payload = _public_merge(git_workspace.merge(
-            goal, todo_id, workspace["repos"], workspace["runtime_root"],
-        ))
+    completed = result.get("ok") is not False
     resumed: list[str] = []
-    if not dry_run and result.get("ok") is not False:
+    if not dry_run and completed:
         from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
         from .plan_cards import resume_ready_plan_todos
 
-        # Dependents of this todo in an applied plan card become workable.
+        # Dependents of this todo in an applied plan card become workable. The
+        # merge (when the todo has a workspace) has already landed here.
         resumed = resume_ready_plan_todos(
             registry_path=registry_path, goal_id=goal_id,
             runtime_root=effective_runtime_root(registry_path, runtime_root_arg),
             runtime_root_arg=runtime_root_arg,
         )
+    # A completion refused after a successful merge (the re-run validation
+    # failed) leaves the todo ``in_review``: the merged branch is recorded in
+    # ``merge`` and a later accept re-merges as a no-op, so the verdict can be
+    # retried, or turned into a reject that returns the todo to its developer.
     return {
         **result,
         **({"merge": merge_payload} if merge_payload is not None else {}),
         **({"resumed_todo_ids": resumed} if resumed else {}),
         "acceptance": {
             "schema_version": TODO_ACCEPTANCE_SCHEMA_VERSION,
-            "transition": "accepted", "verdict": "accept", "acceptor": actor,
+            "transition": "accepted" if completed else "completion_blocked",
+            "verdict": "accept", "acceptor": actor,
             "acceptor_source": reviewer["source"], "delivered_by": todo.get("delivered_by"),
             "note": compact_todo_text(note) if note else None,
         },
