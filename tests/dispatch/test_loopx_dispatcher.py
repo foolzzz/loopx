@@ -148,14 +148,17 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
 
     report = dispatcher.reconcile()
     launched = [(item["agent_id"], item["todo_id"]) for item in report["launched"]]
-    assert launched == [("orch", "todo_orch"), ("dev", "todo_aaa"), ("dev", "todo_bbb")]
+    # One in-flight Turn per agent and goal: run-once's lane fence
+    # (turn_lane_in_flight) refuses a second one; max_concurrency spans goals.
+    assert launched == [("orch", "todo_orch"), ("dev", "todo_aaa")]
     assert {"agent_id": "acc", "goal_id": GOAL_ID, "reason": "should_run_false", "detail": "no eligible work"} in report["skipped"]
+    assert ("dev", "turn_lane_in_flight") in {(item["agent_id"], item["reason"]) for item in report["skipped"]}
 
     second = dispatcher.reconcile()
     assert second["launched"] == []
     reasons = {(item["agent_id"], item["reason"]) for item in second["skipped"]}
     assert ("orch", "slots_full") in reasons
-    assert ("dev", "slots_full") in reasons
+    assert ("dev", "turn_lane_in_flight") in reasons
 
     status = dispatch_status(fixture["runtime"])
     assert status["agent_slots"]["orch"]["max"] == 1
@@ -163,12 +166,12 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
         "role": "developer",
         "max": 2,
         "provider": "anthropic-login",
-        "running": 2,
+        "running": 1,
     }
-    assert len(status["running"]) == 3
+    assert len(status["running"]) == 2
 
     finished = _release_and_wait(fixture, dispatcher)
-    assert sorted(item["outcome"] for item in finished) == ["committed"] * 3
+    assert sorted(item["outcome"] for item in finished) == ["committed"] * 2
     assert dispatch_status(fixture["runtime"])["running"] == []
 
 
@@ -184,7 +187,7 @@ def test_global_cap_limits_total_running_turns(tmp_path: Path) -> None:
     should_run = ScriptedShouldRun({"dev1": ["todo_aaa", "todo_bbb", "todo_ccc"], "dev2": ["todo_ddd", "todo_eee"]})
     dispatcher = _dispatcher(fixture, should_run=should_run, max_global=2)
     report = dispatcher.reconcile()
-    assert [item["todo_id"] for item in report["launched"]] == ["todo_aaa", "todo_bbb"]
+    assert [item["todo_id"] for item in report["launched"]] == ["todo_aaa", "todo_ddd"]
     assert any(item["reason"] == "global_cap" for item in report["skipped"])
     _release_and_wait(fixture, dispatcher)
 
@@ -202,7 +205,7 @@ def test_same_todo_is_not_launched_twice_and_disabled_agents_are_skipped(tmp_pat
     report = dispatcher.reconcile()
     assert [item["todo_id"] for item in report["launched"]] == ["todo_same"]
     reasons = {(item["agent_id"], item["reason"]) for item in report["skipped"]}
-    assert ("dev", "todo_in_flight") in reasons
+    assert ("dev", "turn_lane_in_flight") in reasons
     assert ("off", "agent_disabled") in reasons
     _release_and_wait(fixture, dispatcher)
 
@@ -388,7 +391,7 @@ def test_repeated_failures_on_one_todo_back_off(tmp_path: Path) -> None:
     dispatcher = _dispatcher(fixture, should_run=ScriptedShouldRun({"dev": ["todo_aaa"]}), clock=clock)
     for _ in range(3):
         dispatcher.run_once()
-    assert load_state(fixture["runtime"])["todo_cooldowns"][f"{GOAL_ID}/todo_aaa"]["reason"] == "repeated_crash"
+    assert load_state(fixture["runtime"])["todo_cooldowns"][f"{GOAL_ID}/todo_aaa@dev"]["reason"] == "repeated_crash"
     report = dispatcher.run_once()
     assert report["launched"] == []
     assert any(item["reason"] == "todo_cooldown" for item in report["skipped"])
@@ -615,11 +618,18 @@ def test_orchestrator_plan_todo_is_validated_by_an_applied_plan_card(tmp_path: P
     assert plan_list() == 0
 
 
-def test_a_second_slot_takes_the_lanes_next_executable_todo(tmp_path: Path) -> None:
-    """E2E pilot: should-run always selects the first todo, so max_concurrency=2 ran one Turn."""
+def test_a_cooling_todo_yields_to_the_lanes_next_todo_and_only_for_that_agent(tmp_path: Path) -> None:
+    """E2E pilot: a developer's failures on a todo also stalled its acceptor.
 
-    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer", "max_concurrency": 2}})
-    set_modes(fixture, {"dev": ["hold"]})
+    should-run always selects the lane's first todo; when that todo is cooling
+    down for this agent the next executable todo runs instead (pinned with
+    --todo-id), and another agent's backoff on the same todo does not apply.
+    """
+
+    from loopx.dispatch.state import save_state
+
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"},
+                                              "acc": {"role": "acceptor", "runtime": "codex-cli"}})
 
     def should_run(goal_id: str, agent_id: str) -> dict[str, Any]:
         items = [{"todo_id": "todo_aaa", "status": "open"}, {"todo_id": "todo_bbb", "status": "open"},
@@ -629,13 +639,14 @@ def test_a_second_slot_takes_the_lanes_next_executable_todo(tmp_path: Path) -> N
                 "agent_todo_summary": {"first_executable_items": items}}
 
     dispatcher = _dispatcher(fixture, should_run=should_run)
-    report = dispatcher.reconcile()
-    assert [(item["agent_id"], item["todo_id"], item["reason"]) for item in report["launched"]] == [
-        ("dev", "todo_aaa", "selected_todo"), ("dev", "todo_bbb", "alternate_todo")]
-    _release_and_wait(fixture, dispatcher)
-    rows = [row["argv"] for row in read_jsonl(fixture["turn_log"])]
-    pinned = [argv[argv.index("--todo-id") + 1] for argv in rows if "--todo-id" in argv]
-    assert pinned == ["todo_bbb"]
+    dispatcher.state.setdefault("todo_cooldowns", {})[f"{GOAL_ID}/todo_aaa@dev"] = {
+        "until": 10_000_000_000.0, "failures": 2, "reason": "failed"}
+    save_state(fixture["runtime"], dispatcher.state)
+    report = dispatcher.run_once()
+    assert sorted((item["agent_id"], item["todo_id"], item["reason"]) for item in report["launched"]) == [
+        ("acc", "todo_aaa", "selected_todo"), ("dev", "todo_bbb", "alternate_todo")]
+    rows = {row["agent"]: row["argv"] for row in read_jsonl(fixture["turn_log"])}
+    assert rows["dev"][rows["dev"].index("--todo-id") + 1] == "todo_bbb"
     assert policy.alternate_todo({"agent_todo_summary": {"first_executable_items": [
         {"todo_id": "todo_aaa"}, {"todo_id": "todo_ccc", "status": "done"}]}}, exclude={"todo_aaa"}) is None
 

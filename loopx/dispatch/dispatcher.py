@@ -73,6 +73,10 @@ def _agent_key(goal_id: str, agent_id: str) -> str:
     return f"{goal_id}/{agent_id}"
 
 
+def _todo_agent_key(goal_id: str, todo_id: str, agent_id: str) -> str:
+    return f"{goal_id}/{todo_id}@{agent_id}"
+
+
 class Dispatcher:
     def __init__(
         self,
@@ -271,6 +275,12 @@ class Dispatcher:
                 if len(agent_runs) >= limit:
                     skip("slots_full", running=len(agent_runs), max=limit)
                     break
+                if any(run.get("goal_id") == goal_id for run in agent_runs):
+                    # The Turn lane fence admits one in-flight Turn per agent and
+                    # goal (run-once: turn_lane_in_flight); max_concurrency spans
+                    # goals. Parallel work in one goal needs several agent ids.
+                    skip("turn_lane_in_flight")
+                    break
                 if role == policy.ROLE_ORCHESTRATOR and any(
                     run.get("goal_id") == goal_id and run.get("role") == policy.ROLE_ORCHESTRATOR
                     for run in runs.values()
@@ -303,9 +313,13 @@ class Dispatcher:
                     if run.get("goal_id") == goal_id and run.get("todo_id")
                 }
                 cooling = {
-                    key.split("/", 1)[1]
-                    for key, value in (self.state.get("todo_cooldowns") or {}).items()
-                    if key.startswith(f"{goal_id}/") and (value or {}).get("until", 0) > now
+                    candidate
+                    for candidate in {
+                        key.split("/", 1)[1].split("@", 1)[0]
+                        for key in (self.state.get("todo_cooldowns") or {})
+                        if key.startswith(f"{goal_id}/")
+                    }
+                    if self._todo_cooling(goal_id, candidate, agent_id, now)
                 }
                 if todo_id and (todo_id in in_flight or todo_id in cooling) and role != policy.ROLE_ORCHESTRATOR:
                     # Fill a free slot of this agent with its next executable todo.
@@ -316,8 +330,7 @@ class Dispatcher:
                 if todo_id and todo_id in in_flight:
                     skip("todo_in_flight", todo_id=todo_id)
                     break
-                todo_cooldown = self.state.get("todo_cooldowns", {}).get(f"{goal_id}/{todo_id}")
-                if todo_id and todo_cooldown and todo_cooldown.get("until", 0) > now:
+                if todo_id and self._todo_cooling(goal_id, str(todo_id), agent_id, now):
                     skip("todo_cooldown", todo_id=todo_id)
                     break
                 if not preflight_done:
@@ -477,6 +490,15 @@ class Dispatcher:
             return
         if resumed:
             report.setdefault("resumed", []).extend({"goal_id": goal_id, "todo_id": todo_id} for todo_id in resumed)
+
+    def _todo_cooling(self, goal_id: str, todo_id: str, agent_id: str, now: float) -> bool:
+        """A todo-wide cooldown (workspace prepare) or this agent's failure backoff."""
+
+        bucket = self.state.get("todo_cooldowns") or {}
+        for key in (f"{goal_id}/{todo_id}", _todo_agent_key(goal_id, todo_id, agent_id)):
+            if (bucket.get(key) or {}).get("until", 0) > now:
+                return True
+        return False
 
     def _loopx_command(self) -> str:
         """The CLI prefix a launched agent must use to reach this state home."""
@@ -727,7 +749,7 @@ class Dispatcher:
                 "crashes": crashes,
             }
             if crashes >= 3 and run.get("todo_id"):
-                self.state.setdefault("todo_cooldowns", {})[f"{goal_id}/{run['todo_id']}"] = {
+                self.state.setdefault("todo_cooldowns", {})[_todo_agent_key(goal_id, run["todo_id"], agent_id)] = {
                     "until": now
                     + policy.backoff_seconds(
                         crashes - 2, base=self.config.backoff_base_seconds, cap=self.config.backoff_cap_seconds
@@ -744,13 +766,17 @@ class Dispatcher:
             if cooldown:
                 cooldown["failures"] = 0
             if run.get("todo_id"):
-                self.state.setdefault("todo_cooldowns", {}).pop(f"{goal_id}/{run['todo_id']}", None)
+                bucket = self.state.setdefault("todo_cooldowns", {})
+                bucket.pop(f"{goal_id}/{run['todo_id']}", None)
+                bucket.pop(_todo_agent_key(goal_id, run["todo_id"], agent_id), None)
         elif run.get("todo_id"):
             # A Turn that keeps failing on the same todo backs off instead of
             # relaunching every pass; LoopX's repair/replan routing still owns
             # what happens to the todo itself.
+            # Keyed by agent: a developer's failures must not stall the
+            # acceptor's review of the same todo (E2E pilot).
             bucket = self.state.setdefault("todo_cooldowns", {})
-            todo_key = f"{goal_id}/{run['todo_id']}"
+            todo_key = _todo_agent_key(goal_id, run["todo_id"], agent_id)
             failures = int((bucket.get(todo_key) or {}).get("failures") or 0) + 1
             bucket[todo_key] = {
                 "until": now
