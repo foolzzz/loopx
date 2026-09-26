@@ -113,9 +113,15 @@ def test_policy_slots_backoff_and_decisions() -> None:
     idle = {"should_run": True, "effective_action": "normal_run"}
     assert policy.decide_turn(idle, role="developer", state_changed=True)["launch"] is False
     assert policy.decide_turn(idle, role="orchestrator", state_changed=False)["launch"] is False
-    assert policy.decide_turn(idle, role="orchestrator", state_changed=True)["launch"] is True
+    # run-once refuses host routes without todo lineage, so a todo-less
+    # orchestrator Turn is never launched (E2E pilot: a relaunch hot loop).
+    assert policy.decide_turn(idle, role="orchestrator", state_changed=True)["launch"] is False
     replan = {"should_run": True, "effective_action": "autonomous_replan"}
-    assert policy.decide_turn(replan, role="orchestrator", state_changed=False)["launch"] is True
+    pending = policy.decide_turn(replan, role="orchestrator", state_changed=False)
+    assert pending == {"launch": False, "reason": "orchestrator_action_without_todo",
+                       "detail": "effective_action=autonomous_replan"}
+    orch_todo = {"should_run": True, "selected_todo": {"todo_id": "todo_orch", "role": "agent"}}
+    assert policy.decide_turn(orch_todo, role="orchestrator", state_changed=False)["todo_id"] == "todo_orch"
     assert policy.decide_turn({"should_run": False}, role="orchestrator", state_changed=True)["launch"] is False
     crashed = policy.classify_outcome(9, "Traceback")
     assert crashed["outcome"] == "crashed"
@@ -137,12 +143,12 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
         },
     )
     set_modes(fixture, {"orch": ["hold"], "dev": ["hold"], "acc": ["hold"]})
-    should_run = ScriptedShouldRun({"dev": ["todo_aaa", "todo_bbb", "todo_ccc"], "acc": []})
+    should_run = ScriptedShouldRun({"orch": ["todo_orch"], "dev": ["todo_aaa", "todo_bbb", "todo_ccc"], "acc": []})
     dispatcher = _dispatcher(fixture, should_run=should_run)
 
     report = dispatcher.reconcile()
     launched = [(item["agent_id"], item["todo_id"]) for item in report["launched"]]
-    assert launched == [("orch", None), ("dev", "todo_aaa"), ("dev", "todo_bbb")]
+    assert launched == [("orch", "todo_orch"), ("dev", "todo_aaa"), ("dev", "todo_bbb")]
     assert {"agent_id": "acc", "goal_id": GOAL_ID, "reason": "should_run_false", "detail": "no eligible work"} in report["skipped"]
 
     second = dispatcher.reconcile()
@@ -308,14 +314,14 @@ def test_once_is_idempotent_and_adopts_running_turns(tmp_path: Path) -> None:
         tmp_path, agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}}
     )
     set_modes(fixture, {"orch": ["ok"], "dev": ["hold"]})
-    should_run = ScriptedShouldRun({"dev": ["todo_aaa"]})
+    should_run = ScriptedShouldRun({"orch": ["todo_orch", None], "dev": ["todo_aaa"]})
     first = _dispatcher(fixture, should_run=should_run)
     report = first.run_once(wait=False)
     assert {item["agent_id"] for item in report["launched"]} == {"orch", "dev"}
     first.wait_for_children([r["run_id"] for r in report["launched"] if r["agent_id"] == "orch"], timeout=30)
 
     # A second process sees the running developer Turn and launches nothing:
-    # the todo is in flight and the orchestrator saw no state change since its Turn.
+    # the todo is in flight and the orchestrator has no todo of its own.
     second = _dispatcher(fixture, should_run=should_run)
     again = second.run_once(wait=False)
     assert again["launched"] == []
