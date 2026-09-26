@@ -362,3 +362,58 @@ def test_event_replay_projects_in_review_and_reopen() -> None:
     events.append(event("todo_completed", 5, {"evidence": "accepted"}))
     item = build_state_projection(events, goal_id=GOAL_ID)["agent_todos"]["items"][0]
     assert item["status"] == "done" and item["done"] is True
+
+
+def test_gate_scoped_to_another_agent_does_not_block_the_acceptors_review() -> None:
+    """E2E pilot: an open orchestrator gate kept the acceptor lane in operator_gate.
+
+    The scoped-gate override only counted open items as executable, so a lane
+    whose only work was an in_review delivery stayed blocked.
+    """
+
+    from loopx.control_plane.agents.agent_scope import _agent_scoped_user_todo_override
+
+    def override(status: str):
+        return _agent_scoped_user_todo_override(
+            state="operator_gate",
+            item={},
+            user_todo_summary={"open_count": 0, "other_agent_scoped_open_count": 1},
+            agent_todo_summary={"first_executable_items": [{
+                "todo_id": "todo_aaaaaaaaaaaa", "status": status, "text": "Review the contract",
+                "task_class": "advancement_task", "claimed_by": DEV,
+            }]},
+            agent_identity={"agent_id": ACC},
+        )
+
+    accepted = override("in_review")
+    assert accepted is not None and accepted["to_state"] == "eligible"
+    assert accepted["selected_action"] == "Review the contract"
+    assert override("done") is None
+
+
+def test_resolved_acceptor_can_pin_a_delivered_todo() -> None:
+    """E2E pilot: `turn run-once --todo-id` refused the acceptor's in_review todo.
+
+    The dispatcher pins every workspace Turn with --todo-id; the explicit
+    selection admitted only open todos claimed by (or free for) the requester,
+    so the acceptor could never start its review.
+    """
+
+    from loopx.control_plane.agents.agent_lane_recommendation import build_explicit_advancement_next_action
+
+    delivered = {"todo_id": "todo_aaaaaaaaaaaa", "status": "in_review", "text": "Review the contract",
+                 "task_class": "advancement_task", "claimed_by": DEV}
+
+    def pin(agent: str, item: dict, **identity):
+        return build_explicit_advancement_next_action(
+            agent_identity={"agent_id": agent, "agent_model": "role_v1", "acceptor_agent_ids": [ACC], **identity},
+            agent_todo_items=[item], available_capabilities=[], todo_id=item["todo_id"],
+            selection_binding="pending_action_selection",
+        )
+
+    assert pin(ACC, delivered)["todo_id"] == "todo_aaaaaaaaaaaa"
+    assert pin(DEV, delivered) is None
+    assert pin("acc-2", delivered, acceptor_agent_ids=[ACC, "acc-2"]) is None
+    assert pin(ACC, {**delivered, "acceptor_agent": "acc-2"}) is None
+    assert pin(ACC, delivered, agent_model="peer_v1") is None
+    assert pin(ACC, {**delivered, "status": "open"}) is None
