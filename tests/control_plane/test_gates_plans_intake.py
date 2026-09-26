@@ -449,3 +449,21 @@ def test_dispatcher_orchestrator_prompt_names_gates_awaiting_it(tmp_path: Path) 
     developer = dispatch_prompt_addendum(goal_id=GOAL, agent_id=DEV, role="developer", todo_id=None,
                                          workspace_repos=None)
     assert "loopx gate" not in developer
+
+
+def test_dispatcher_orchestrator_prompt_pins_state_home_and_gate_open(tmp_path: Path) -> None:
+    """E2E pilot: a bare `loopx` in the orchestrator prompt reached the default registry."""
+
+    from loopx.dispatch.dispatcher import DispatchConfig, Dispatcher
+    from loopx.dispatch.prompts import dispatch_prompt_addendum
+
+    registry, runtime = fixture(tmp_path)
+    dispatcher = Dispatcher(DispatchConfig(registry_path=registry, runtime_root=runtime, goal_ids=[GOAL],
+                                           loopx_argv=("/py", "-m", "loopx.cli")))
+    command = dispatcher._loopx_command()
+    assert command == f"/py -m loopx.cli --registry {registry} --runtime-root {runtime}"
+    prompt = dispatch_prompt_addendum(goal_id=GOAL, agent_id=ORCH, role="orchestrator", todo_id=None,
+                                      workspace_repos=None, loopx_command=command)
+    assert f"`{command}`" in prompt
+    assert "--role user --task-class user_gate" in prompt
+

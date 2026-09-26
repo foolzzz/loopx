@@ -25,7 +25,17 @@ def dispatch_prompt_addendum(
     todo_id: str | None,
     workspace_repos: Mapping[str, str] | None,
     awaiting_gates: Sequence[str] | None = None,
+    loopx_command: str = "loopx",
 ) -> str:
+    """Render the dispatch context for one Turn.
+
+    ``loopx_command`` is the exact CLI prefix (interpreter, registry and
+    runtime root) the dispatcher itself uses. The orchestrator must run its
+    gate and plan commands against the same state home; a bare ``loopx``
+    would fall back to the default registry, which may be another state home.
+    """
+
+    lx = loopx_command or "loopx"
     lines = [
         "# LoopX dispatcher context",
         "",
@@ -73,10 +83,20 @@ def dispatch_prompt_addendum(
         )
     if role == "orchestrator":
         lines += [
-            "- Talk to the user only through user gates: `loopx gate show|reply --goal-id "
+            f"- Run every LoopX command with this exact prefix so it reaches this goal's state "
+            f"home: `{lx}`. It is shown below as `loopx`.",
+            "- Talk to the user only through user gates. Open a question gate with `loopx todo add "
+            f"--goal-id {goal_id} --role user --task-class user_gate --agent-id {agent_id} --text Q`, "
+            "then read or answer its thread with `loopx gate show|reply --goal-id "
             f"{goal_id} --todo-id T --as orchestrator --agent-id {agent_id}`. Propose or revise "
             f"plans with `loopx plan propose --goal-id {goal_id} --agent-id {agent_id} --plan-file F "
             "[--revise PLAN_ID]`; the user approves, rejects or cancels the gate.",
+            "- Your gate and plan commands are the orchestrator's own LoopX writes; they are allowed "
+            "even though the Turn prompt says the adapter owns state writes.",
+            "- When you are waiting on the user (you opened or answered a gate, or proposed a plan), "
+            "return result_kind `user_action_required` and name the gate in summary. Return "
+            "`validated_completion` for a planning todo only once its plan card is approved and "
+            "applied; LoopX verifies that with `loopx plan list --require-status applied`.",
         ]
         if awaiting_gates:
             lines.append(

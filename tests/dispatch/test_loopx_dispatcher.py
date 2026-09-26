@@ -561,3 +561,49 @@ def test_status_and_launchd_plist_cli(tmp_path: Path) -> None:
     assert plist["Label"].startswith("com.loopx.dispatch.")
     # Rendering never installs anything.
     assert not (Path.home() / "Library" / "LaunchAgents" / f"{plist['Label']}.plist").exists()
+
+
+def test_orchestrator_plan_todo_is_validated_by_an_applied_plan_card(tmp_path: Path) -> None:
+    """E2E pilot: the intake planning todo had no validator, so every orchestrator Turn failed."""
+
+    fixture = write_fixture(
+        tmp_path,
+        agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}},
+    )
+
+    def add(text: str, action_kind: str, **extra: Any) -> str:
+        added = add_goal_todo(
+            registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+            role="agent", text=text, task_class="advancement_task", action_kind=action_kind, **extra,
+        )
+        return str(added["todo_id"])
+
+    plan_todo = add("Clarify and plan", "plan", claimed_by="orch",
+                    role_contract={"required_role": "orchestrator", "requires_acceptance": False})
+    build_todo = add("Build it", "fixture")
+    dispatcher = _dispatcher(
+        fixture, should_run=ScriptedShouldRun({"orch": [plan_todo], "dev": [build_todo]})
+    )
+    dispatcher.run_once()
+    rows = {row["agent"]: row for row in read_jsonl(fixture["turn_log"])}
+    orch = rows["orch"]["argv"]
+    validator = json.loads(orch[orch.index("--validation-command-json") + 1])
+    assert validator[-6:] == ["plan", "list", "--goal-id", GOAL_ID, "--require-status", "applied"]
+    assert validator[validator.index("--registry") + 1] == str(fixture["registry"])
+    # Ordinary developer work without a declared validator gets no plan check.
+    assert "--validation-command-json" not in rows["dev"]["argv"]
+    prompt = rows["orch"]["system_prompt"]
+    assert "user_action_required" in prompt and "--registry" in prompt
+
+    def plan_list() -> int:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return cli_main([
+                "--registry", str(fixture["registry"]), "--runtime-root", str(fixture["runtime"]),
+                "--format", "json", "plan", "list", "--goal-id", GOAL_ID, "--require-status", "applied",
+            ])
+
+    assert plan_list() == 1
+    plans = fixture["runtime"] / "goals" / GOAL_ID / "plans"
+    plans.mkdir(parents=True)
+    (plans / "plan_aaaa.json").write_text(json.dumps({"plan_id": "plan_aaaa", "status": "applied"}))
+    assert plan_list() == 0

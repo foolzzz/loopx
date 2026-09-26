@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -444,6 +445,34 @@ class Dispatcher:
             return True, Path(next(iter(paths.values()))), paths
         return True, Path(str(prepared["workspace_root"])), paths
 
+    def _loopx_command(self) -> str:
+        """The CLI prefix a launched agent must use to reach this state home."""
+
+        return shlex.join(
+            [
+                *self.config.loopx_argv,
+                "--registry",
+                str(self.registry_path),
+                "--runtime-root",
+                str(self.runtime_root),
+            ]
+        )
+
+    def _plan_applied_validator(self, goal_id: str) -> list[str]:
+        return [
+            *self.config.loopx_argv,
+            "--registry",
+            str(self.registry_path),
+            "--runtime-root",
+            str(self.runtime_root),
+            "plan",
+            "list",
+            "--goal-id",
+            goal_id,
+            "--require-status",
+            "applied",
+        ]
+
     def _launch(
         self,
         goal: Mapping[str, Any],
@@ -463,6 +492,7 @@ class Dispatcher:
         repo_paths: dict[str, str] = {}
         validation_argv: list[str] | None = None
         validation_timeout: int | None = None
+        todo: Mapping[str, Any] = {}
         if todo_id and decision.get("todo_is_agent_todo", True):
             todo = self._todo_record(goal_id, str(todo_id)) or {}
             ok, cwd, repo_paths = self._prepare_workspace(goal, str(todo_id), todo, role, report)
@@ -512,6 +542,7 @@ class Dispatcher:
                         gates_awaiting_orchestrator(self.runtime_root, goal_id)
                         if role == "orchestrator" else None
                     ),
+                    loopx_command=self._loopx_command(),
                 ),
             )
             host_args = replace_system_prompt_argument(host_args, prompt_path)
@@ -555,6 +586,10 @@ class Dispatcher:
             argv.extend(["--turn-instance-id", turn_instance_id])
             if cwd is not None and todo_id:
                 argv.extend(["--todo-id", str(todo_id)])
+        if not validation_argv and role == "orchestrator" and todo_id and _is_plan_todo(todo):
+            # The intake planning todo is done once its plan card is applied;
+            # that is the orchestrator Turn's independent validator.
+            validation_argv = self._plan_applied_validator(goal_id)
         if not validation_argv and self.config.default_validation_argv:
             validation_argv = list(self.config.default_validation_argv)
         if validation_argv:
@@ -875,6 +910,10 @@ class Dispatcher:
                 time.sleep(self.config.poll_seconds)
             self.state.pop("serve_pid", None)
             save_state(self.runtime_root, self.state)
+
+
+def _is_plan_todo(todo: Mapping[str, Any]) -> bool:
+    return str(todo.get("action_kind") or "") == "plan"
 
 
 def _default_preflight(definition: Any, environ: Mapping[str, str]) -> Mapping[str, Any]:
