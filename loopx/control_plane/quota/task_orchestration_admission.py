@@ -106,8 +106,15 @@ def build_adaptive_task_orchestration_contract(
         },
         fallback="adaptive_task_orchestration",
     )
+    # role_v1: task orchestration (planning across lanes) belongs to the
+    # goal's orchestrator. Without one, keep the peer_v1 election.
+    orchestrator = normalize_todo_claimed_by(
+        agent_identity.get("orchestrator_agent_id")
+    )
     coordinator = (
-        next(iter(claimed_owners))
+        orchestrator
+        if orchestrator
+        else next(iter(claimed_owners))
         if len(claimed_owners) == 1
         else select_peer_for_work(
             agent_identity.get("registered_agents") or [agent_id],

@@ -255,6 +255,26 @@ def qualify_replan_writeback(
         agent_id=safe_agent_id,
         external_progress_review=external_progress_review,
     )
+    orchestrator_agent_id = (
+        str(agent_identity.get("orchestrator_agent_id") or "").strip() or None
+        if isinstance(agent_identity, dict)
+        else None
+    )
+    if run_obligation is None and orchestrator_agent_id == safe_agent_id:
+        # role_v1: the orchestrator settles replans raised from any agent lane.
+        # Use the same per-lane derivation as the status projection so the
+        # obligation id matches what quota routed to the orchestrator.
+        for lane_agent in sorted(registered_agent_ids):
+            if lane_agent == safe_agent_id:
+                continue
+            run_obligation = autonomous_replan_obligation_from_runs(
+                newest_first_runs,
+                agent_todos=None,
+                agent_id=lane_agent,
+                external_progress_review=external_progress_review,
+            )
+            if run_obligation:
+                break
     status_payload = {
         "run_history": {
             "goals": [
@@ -288,6 +308,7 @@ def qualify_replan_writeback(
             AUTONOMOUS_RUN_HISTORY_NEUTRAL_CLASSIFICATIONS
         ),
         registered_agent_ids=list(agent_identity["registered_agents"]),
+        orchestrator_agent_id=orchestrator_agent_id,
         goal_status=str((registry_goal or {}).get("status") or "active"),
         agent_profile=(
             agent_identity.get("agent_profile")

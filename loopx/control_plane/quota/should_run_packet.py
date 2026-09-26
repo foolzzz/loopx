@@ -774,6 +774,7 @@ def _resolve_quota_should_run_route(
         inbox_material_review_due=prepared.inbox_material_review_due,
         agent_frontier_id=prepared.agent_frontier_id,
         registered_agent_ids=prepared.registered_agent_ids,
+        orchestrator_agent_id=prepared.orchestrator_agent_id,
         goal_frontier_projection=prepared.goal_frontier_projection,
         task_orchestration_contract=prepared.task_orchestration_contract,
     )

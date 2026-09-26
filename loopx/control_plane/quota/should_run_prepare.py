@@ -162,6 +162,7 @@ class _QuotaDecisionPreparation:
     registered_agent_ids: list[str]
     replan_obligation: dict[str, Any] | None
     replan_scope: dict[str, Any]
+    orchestrator_agent_id: str | None
     goal_frontier_projection: dict[str, Any]
     projection_gap: dict[str, Any] | None
     boundary_projection_repair: dict[str, Any] | None
@@ -786,9 +787,15 @@ def _prepare_quota_should_run_item(
         if isinstance(agent_identity, dict)
         else []
     )
+    orchestrator_agent_id = (
+        normalize_todo_claimed_by(agent_identity.get("orchestrator_agent_id"))
+        if isinstance(agent_identity, dict)
+        else None
+    )
     goal_frontier_context = build_goal_frontier_projection_context_from_status(
         goal_id=safe_goal_id,
         agent_id=agent_frontier_id,
+        orchestrator_agent_id=orchestrator_agent_id,
         status_payload=status_payload,
         item=item,
         project_asset=project_asset,
@@ -898,6 +905,7 @@ def _prepare_quota_should_run_item(
         registered_agent_ids=registered_agent_ids,
         replan_obligation=replan_obligation,
         replan_scope=replan_scope,
+        orchestrator_agent_id=orchestrator_agent_id,
         goal_frontier_projection=goal_frontier_projection,
         projection_gap=projection_gap,
         boundary_projection_repair=boundary_projection_repair,
