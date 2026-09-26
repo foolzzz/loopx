@@ -250,12 +250,18 @@ schema, or the lease or guard semantics. None of these was changed.
     spent, and the journal can be left `in_progress`.
   - The delivery-workspace snapshot models one repository. It needs a per-repo
     snapshot list, or an S5 workspace identity.
-- **G2 (P1, needs approval). Plan acceptance criteria are lost.**
-  - Plan cards store `acceptance` in the mutable todo note. The Turn completion
+- **G2 (P1). Plan acceptance criteria are lost. Resolved** (approved contract
+  change; design-v0 decision 30).
+  - Plan cards stored `acceptance` in the mutable todo note. The Turn completion
     overwrites the note with the developer's `next_action`, so the acceptor
-    never sees the criteria; it saw only the todo text.
-  - The fix is a dedicated `acceptance_criteria` todo field, which is a change to
-    the coordination contract.
+    never saw the criteria; it saw only the todo text.
+  - Fix: a dedicated, orchestrator-owned `acceptance_criteria` todo field in the
+    coordination contract. Plan apply writes it; delivery and Turn writeback
+    never touch it; developer and acceptor Turns see it, with the goal
+    acceptance contract, on every Turn. See
+    [role-v1-protocol](role-v1-protocol.md#per-todo-acceptance-criteria-gap-g2).
+    A criteria change is recorded as a major change but not gated by a plan
+    card.
 - **G3 (P1, needs approval). Origin-less repos.** The delivery identity needs
   `remote.origin.url`. Local-only repos need a local identity, for example a
   digest of the common git dir; W1 is the stopgap.
@@ -294,7 +300,8 @@ schema, or the lease or guard semantics. None of these was changed.
   - A dispatcher decision can go stale while another Turn changes state. The
     Turn is then refused without a host call, which is harmless.
   - The orchestrator wrote its rework instructions only to the note, which
-    `review_feedback` would carry better.
+    `review_feedback` would carry better. Resolved with G2: `todo update
+    --review-feedback`, and the orchestrator prompt sends rework there.
   - Unverified: `todo update --reject-count 0` by the orchestrator did not seem
     to persist; the frontend todo still escalated at the next rejection.
 - **G11 (P3). One pre-existing TS test depends on the environment:** `a worktree

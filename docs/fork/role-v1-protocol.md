@@ -63,7 +63,10 @@ The following fields were added to `coordination_state_contract_v0.json`
 CLI flags (todo `add` and `update` only): `--required-role`,
 `--clear-required-role`, `--requires-acceptance true|false`,
 `--acceptor-agent`, `--clear-acceptor-agent`, `--reject-count N`,
-`--task-repo NAME` (repeatable) and `--clear-task-repos`.
+`--task-repo NAME` (repeatable), `--clear-task-repos` and
+`--acceptance-criteria TEXT` (G2). `todo update` also takes
+`--clear-acceptance-criteria`, `--review-feedback TEXT` and
+`--clear-review-feedback`.
 
 The Python API takes one `role_contract` patch. In that patch, present keys
 are written and `None` clears a field. The same patch reaches the TypeScript
@@ -73,7 +76,13 @@ authority paths use a single codec.
 Slice S2 adds two more role-contract fields, written by the acceptance
 flow rather than by hand: `delivered_by` (the developer who delivered the
 todo for review) and `review_feedback` (the acceptor's latest verdict text,
-at most 600 characters).
+at most 600 characters). `todo update --review-feedback TEXT` (and
+`--clear-review-feedback`) also writes it: the orchestrator's rework
+instructions go there, never into the note (E2E pilot gap G10).
+
+Gap G2 adds `acceptance_criteria`, the orchestrator-owned per-todo
+acceptance criteria. See
+[Per-todo acceptance criteria](#per-todo-acceptance-criteria-gap-g2).
 
 ## Role-aware selection
 
@@ -199,13 +208,17 @@ which binds one with `todo update --acceptor-agent`.
   auto-reassigned. A new agent todo is created with `required_role` set to
   `orchestrator`, `action_kind=replan` and `requires_acceptance=false`. It is
   claimed by the orchestrator, which decides whether to reassign, split,
-  change the criteria or open a user gate.
+  change the criteria or open a user gate. When it reopens the todo, its
+  rework instructions go to `review_feedback` (`todo update --review-feedback`),
+  not to the note.
 
 **Turn context.** The Turn envelope's selected todo carries `required_role`,
 `requires_acceptance`, `acceptor_agent`, `task_repositories`, `reject_count`,
-a bounded `review_feedback` and the todo's bounded `note`, and the shared
-Turn prompt spells out the review contract for an `in_review` todo and the
-feedback for a reopened one. The resolved acceptor may pin a delivered todo
+a bounded `review_feedback`, the todo's bounded `note`, its
+`acceptance_criteria` and, when the goal has an enabled goal acceptance
+contract, a bounded `goal_acceptance` brief (objective and criteria). The
+shared Turn prompt spells out the review contract for an `in_review` todo and
+the feedback for a reopened one, and shows both sets of criteria. The resolved acceptor may pin a delivered todo
 with `turn run-once --todo-id`, and a gate scoped to another agent does not
 keep its lane in `operator_gate`. A reject verdict from a Turn settles as
 `outcome_progress`.
@@ -273,3 +286,59 @@ directly, as before.
   Its delivery and verdict land, but the post-settlement refresh fails the
   multi-agent worktree guard, because a delivery-workspace snapshot models one
   repository. This needs a protocol decision (E2E pilot report, gap G1).
+
+## Per-todo acceptance criteria (gap G2)
+
+See [design-v0](design-v0.md), decisions 9, 12 and 30.
+
+Plan cards used to keep a todo's `acceptance` in the note, and a Turn
+completion overwrites the note with the developer's `next_action`, so the
+acceptor never saw the criteria (E2E pilot). The criteria now live in their own
+todo field.
+
+| field | type | notes |
+|---|---|---|
+| `acceptance_criteria` | text | optional; one line, at most 1000 characters. Old todos without it behave as before |
+
+The field is part of `coordination_state_contract_v0.json` (`todo_read_record`)
+as its own contract revision, so canonical heads written before it stay
+readable. It rides the role-contract patch, so the Markdown codec, the
+TypeScript field planner and the canonical providers share one path. The
+state event log carries it on `todo_added` and `todo_updated`, Markdown
+backfill emits it, and replay folds it.
+
+**Writers.**
+
+- Applying a plan card writes each item's `acceptance` into the field.
+- `loopx todo add --acceptance-criteria TEXT`.
+- `loopx todo update --goal-id G --todo-id T --agent-id ORCH
+  --acceptance-criteria TEXT` (or `--clear-acceptance-criteria`), on its own,
+  without other fields. The Python API is
+  `loopx.todo_acceptance_criteria.set_goal_todo_acceptance_criteria`.
+- Under role_v1 only the goal orchestrator, or the owner with no agent id,
+  may write the field. A developer or acceptor is refused with
+  `acceptance_criteria_requires_orchestrator`, through every surface: the
+  CLI, `add_goal_todo` and `update_goal_todo`. Agents without a registered
+  role and `peer_v1` goals keep the previous behaviour.
+- The orchestrator edits todos that a developer has claimed. As with the
+  acceptor's verdicts, the lifecycle write is attributed to the claim owner,
+  so the kernel's claim fence and task leases are unchanged. The
+  orchestrator's authority is checked first and recorded as `author` in the
+  returned `acceptance_criteria_change` packet.
+- Delivery, verdicts, escalation and the Turn writeback never write the
+  field: their role-contract patches name only their own fields.
+
+**Change audit (decision 12).** Changing acceptance criteria is a major
+change. A CLI update appends a `todo_update` rollout event whose details carry
+`acceptance_criteria_changed`, `acceptance_criteria_change_class=major`, the
+author, and the previous and new SHA-256 digests. The event never carries the
+criteria text. Known gap: the edit is recorded, not gated. A plan card is the
+preferred path for a criteria change, and the orchestrator prompt says so, but
+`todo update --acceptance-criteria` does not require an approved plan.
+
+**Readers.** The Turn decision reads the selected todo's durable
+`acceptance_criteria` (and the enabled goal acceptance contract, on canonical
+goals) before the envelope is signed, only on role_v1 goals. The developer
+prompt asks it to meet every criterion. The acceptor prompt asks it to check
+each criterion and the goal contract, and, when it rejects, to name each
+criterion that failed. The role board card shows the criteria.

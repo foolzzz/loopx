@@ -109,7 +109,9 @@ The code is in `goal-role-board-view.tsx`, with the model in `role-board-model.t
   shows its agents as chips coloured by activity. A card in review sits in the
   acceptor lane. Every other card sits in the lane of its effective role.
 - **Cards** show the title, the running or bound agent, the repos, a
-  "Rejected ×N" badge, the acceptor (or "No acceptance") and a link to the plan.
+  "Rejected ×N" badge, the acceptor (or "No acceptance"), the todo's
+  `acceptance_criteria` (gap G2; at most 300 characters, clamped to two lines,
+  full text on hover) and a link to the plan.
   The plan link opens the plan's gate while that gate is open. Clicking a card
   opens the Todo drawer.
 

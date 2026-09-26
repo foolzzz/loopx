@@ -173,7 +173,9 @@ Two layers tell every Turn to use repo-relative paths instead:
 Role guidance that every host needs lives in the shared Turn prompt instead: an
 `in_review` todo tells the acceptor that `validated_completion` accepts and
 `repair_required` rejects, and a reopened todo shows the developer the
-acceptor's `review_feedback`.
+acceptor's `review_feedback`. Both developer and acceptor see the todo's
+`acceptance_criteria` and the goal acceptance contract (gap G2); the acceptor
+must name each criterion that failed when it rejects.
 
 ## Files
 

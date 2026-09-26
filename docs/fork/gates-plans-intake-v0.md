@@ -134,7 +134,8 @@ Each todo accepts these fields:
 - `depends_on`, and its inverse `successors`
 - `requires_acceptance`
 - `task_repositories`, which must name repos the goal declares
-- `acceptance`, `validation_command`, `estimated_effort`, `action_kind`
+- `acceptance` (at most 1000 characters; it becomes the todo's `acceptance_criteria`),
+  `validation_command`, `estimated_effort`, `action_kind`
 
 Unknown fields are refused. Todos must be listed in dependency order.
 
@@ -156,7 +157,11 @@ Lifecycle:
    to its todo id. Plan fields map to todo fields as follows:
    - `bound_agent` becomes `claimed_by`.
    - The role fields map to the S1 role contract.
-   - `acceptance`, `estimated_effort` and the full dependency list go into the note.
+   - `acceptance` goes into the todo's orchestrator-owned `acceptance_criteria`
+     field (gap G2), which a Turn completion never overwrites. Developer and
+     acceptor Turns see it on every Turn. See
+     [role-v1-protocol](role-v1-protocol.md#per-todo-acceptance-criteria-gap-g2).
+   - `estimated_effort` and the full dependency list go into the note.
    - A todo with dependencies is created `deferred` with
      `resume_when=todo_done:<id of its last listed dependency>`. `resume_when`
      holds only one condition, and in dependency order the last listed
@@ -176,6 +181,11 @@ A plan is applied exactly once, and how depends on the goal's authority:
   apply is interrupted, the plan stays `applying`, and the next attempt (settlement
   or `loopx plan apply`) replays the same operation ids without creating
   duplicates.
+
+Changing a todo's acceptance criteria after the plan is applied is a major
+change (decision 12). Prefer a revised plan card. `loopx todo update
+--acceptance-criteria` by the orchestrator is recorded in the rollout event
+log as a major change, but it is not gated by a plan card.
 
 An applied plan is never re-applied. This slice does not add a single-CAS canonical
 batch. That would be an extension of `work_items/team_plan.ts`, whose lane model
