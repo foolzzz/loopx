@@ -31,6 +31,21 @@ const status = source("../../data/status.ts");
 const chatData = source("../../data/chat.ts");
 const actionReview = source("../../../../../../loopx/control_plane/presentation/action_review_plan.ts");
 
+const roleBoard = source("./goal-role-board-view.tsx");
+const roleBoardModel = source("./role-board-model.ts");
+// Fork slice S8: the role_v1 Role board tab.
+assert.match(model, /WorkspaceGoalTab = [^;]*"roles"/, "Goal views include the Role board tab");
+assert.match(header, /selectedGoal\.roleBoard \? <button[^\n]*onSelectGoalTab\("roles"\)/, "Role board tab only shows for role_v1 Goals");
+assert.match(page, /roles: \(<GoalRoleBoardView/, "Role board is a Goal workspace panel");
+assert.match(dashboard, /roleBoard: goal\.role_board \? roleBoardFromProjection\(goal\.role_board\) : null/, "Status role_board feeds the Goal model");
+assert.match(status, /role_board: roleBoardSchema\.optional\(\)\.nullable\(\)\.catch\(null\)/, "A malformed role board never fails the status payload");
+for (const stage of ["planned", "assigned", "running", "in_review", "rework", "done"]) {
+  assert.match(roleBoardModel, new RegExp(`"${stage}"`), `Role board derives the ${stage} stage`);
+  assert.match(i18n, new RegExp(`"roles\\.stage\\.${stage}"`), `Role board stage ${stage} is localized`);
+}
+assert.match(roleBoard, /kind: "attention"/, "Gates and plan links open the gate drawer");
+assert.match(roleBoard, /kind: "todo"/, "Role board cards open the Todo drawer");
+
 assert.match(model, /kind: "todo"/, "Todo has its own drawer selection");
 for (const field of ["dependencies", "nextTransition", "ownerLabel", "todoId", "taskClass"]) {
   assert.match(model, new RegExp(`${field}\\??:`), `Todo exposes ${field}`);

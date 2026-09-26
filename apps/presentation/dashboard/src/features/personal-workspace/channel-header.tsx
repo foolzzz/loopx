@@ -185,6 +185,7 @@ export function ChannelHeader({
         <nav aria-label={t("header.goalView")} className="personal-goal-tabs">
           <button aria-current={selectedGoalTab === "overview" ? "page" : undefined} onClick={() => onSelectGoalTab("overview")} type="button">{t("header.overview")}</button>
           <button aria-current={selectedGoalTab === "tasks" ? "page" : undefined} onClick={() => onSelectGoalTab("tasks")} type="button">{t("header.tasks")}</button>
+          {selectedGoal.roleBoard ? <button aria-current={selectedGoalTab === "roles" ? "page" : undefined} onClick={() => onSelectGoalTab("roles")} type="button">{t("header.roles")}</button> : null}
           <button aria-current={selectedGoalTab === "chat" ? "page" : undefined} onClick={() => onSelectGoalTab("chat")} type="button">{t("header.chat")}</button>
           <button aria-current={selectedGoalTab === "files" ? "page" : undefined} onClick={() => onSelectGoalTab("files")} type="button">{t("header.files")}</button>
         </nav>

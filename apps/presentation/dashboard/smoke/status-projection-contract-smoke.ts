@@ -110,6 +110,31 @@ assert(!todoIndexItemSchema.safeParse({ goal_id: "native", index: null, done: fa
 assert(!todoItemSchema.safeParse({ ...nativeTodo, index: "3" }).success,
   "non-numeric source coordinates remain invalid");
 
+// Fork slice S8: role_v1 goals carry a bounded role board; in_review (S2) is a plain status string.
+const roleBoardStatus = basePayload({
+  run_history: {
+    available: true, goal_count: 1, run_count: 0, recent_runs: [],
+    goals: [{
+      ...goal("roles", "active"),
+      coordination: { agent_model: "role_v1", registered_agents: ["dev"], agent_roles: { dev: "developer" } },
+      role_board: {
+        schema_version: "loopx_role_board_v0",
+        dispatcher: { available: true, serving: false },
+        agents: [{ agent_id: "dev", role: "developer", activity: "running", running_todo_ids: ["todo_r"] }],
+        todos: [{ todo_id: "todo_r", text: "Review me", status: "in_review", effective_role: "developer",
+          reject_count: 1, requires_acceptance: true, task_repositories: ["api"] }],
+        gates: [],
+      },
+    }],
+  },
+});
+const roleBoardGoal = roleBoardStatus.run_history.goals[0];
+equal(roleBoardGoal.coordination?.agent_roles.dev, "developer", "status keeps registry agent roles");
+equal(roleBoardGoal.role_board?.todos[0].status, "in_review", "status keeps the in_review role board card");
+equal(roleBoardGoal.role_board?.todos[0].reject_count, 1, "status keeps the reject count");
+equal(basePayload({ run_history: { available: true, goals: [{ ...goal("broken", "active"), role_board: { schema_version: 7 } }] } })
+  .run_history.goals[0].role_board, null, "a malformed role board never fails the status payload");
+
 const activePayload = basePayload({
   goal_projection: {
     schema_version: "loopx_goal_projection_scope_v0",
