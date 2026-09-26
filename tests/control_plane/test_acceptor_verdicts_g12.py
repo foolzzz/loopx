@@ -451,3 +451,22 @@ def test_blocked_verdict_and_gate_options_on_canonical_authority(tmp_path, optio
     assert todo["claimed_by"] == DEV
     assert _todo(registry, runtime, gate_id)["status"] == "done"
     assert blocked_review_todo_ids(registry, runtime, GOAL_ID) == set()
+
+
+def test_the_delivery_guard_recognises_only_this_todos_review_checkout(tmp_path, monkeypatch) -> None:
+    from loopx.control_plane.agents.workspace_guard import verify_todo_workspace
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, sha = _deliver_new_todo(fx)
+    prepared = prepare_acceptor_review(fx["goal"], _todo(fx, todo_id), fx["runtime"], attempt="run-9")
+    root = Path(prepared["workspace_root"])
+    verified = verify_todo_workspace(root, runtime_root=fx["runtime"], goal_id=GOAL, todo_id=todo_id,
+                                     goal=fx["goal"], repo_names=["api"])
+    assert verified is not None and verified["repos"][0]["head_sha"] == sha
+    assert verify_todo_workspace(root, runtime_root=fx["runtime"], goal_id=GOAL, todo_id="todo_other",
+                                 goal=fx["goal"], repo_names=["api"]) is None
+    # A detached worktree inside the todo's own workspace root is still refused.
+    workspace = git_workspace.todo_workspace_root(fx["runtime"], GOAL, todo_id)
+    git(workspace / "api", "checkout", "-q", "--detach")
+    assert verify_todo_workspace(workspace, runtime_root=fx["runtime"], goal_id=GOAL, todo_id=todo_id,
+                                 goal=fx["goal"], repo_names=["api"]) is None

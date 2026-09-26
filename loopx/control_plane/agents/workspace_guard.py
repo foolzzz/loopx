@@ -150,13 +150,14 @@ def _same_real_path(left: Path, right: Path) -> bool:
 
 
 def _todo_workspace_repo(
-    repo_dir: Path, *, branch: str, declared_path: Any = None
+    repo_dir: Path, *, branch: str | None, declared_path: Any = None
 ) -> dict[str, Any] | None:
     """One repo of a per-Todo workspace, or ``None`` if it is not verifiable.
 
     The directory must be the top of a linked git worktree (not a main
     checkout) checked out on the Todo branch. When the Goal declares the
-    repository, the worktree must belong to that repository.
+    repository, the worktree must belong to that repository. ``branch=None``
+    (an acceptor's review checkout, fork G12) accepts a detached HEAD.
     """
 
     root = _git_worktree_root(repo_dir)
@@ -166,7 +167,7 @@ def _todo_workspace_repo(
     git_dir = _git_dir(repo_dir)
     if common is None or git_dir is None or common == git_dir:
         return None
-    if _git_command_output(repo_dir, "symbolic-ref", "-q", "HEAD") != f"refs/heads/{branch}":
+    if branch is not None and _git_command_output(repo_dir, "symbolic-ref", "-q", "HEAD") != f"refs/heads/{branch}":
         return None
     head_sha = _git_command_output(repo_dir, "rev-parse", "--verify", "-q", "HEAD^{commit}")
     repo_id = _git_repository_identity(repo_dir)
@@ -178,6 +179,20 @@ def _todo_workspace_repo(
         if declared_common is None or declared_common != common:
             return None
     return {"head_sha": head_sha.lower(), "repo_id": repo_id}
+
+
+def _is_review_checkout_root(path: Path, runtime_root: Path | str, goal_id: str, todo_id: str) -> bool:
+    """Whether ``path`` is one attempt of this Todo's acceptor review checkout (fork G12).
+
+    ``<runtime_root>/goals/<goal>/reviews/<todo>/<attempt>``: the dispatcher's
+    throwaway detached checkout of the delivered commit, one repo per entry.
+    """
+
+    try:
+        reviews = Path(runtime_root).expanduser() / "goals" / goal_id / "reviews" / todo_id
+        return Path(path).is_dir() and _same_real_path(Path(os.path.realpath(str(path))).parent, reviews)
+    except (OSError, TypeError, ValueError):
+        return False
 
 
 def verify_todo_workspace(
@@ -198,7 +213,9 @@ def verify_todo_workspace(
     default every git entry under the root) must be a linked worktree on the
     Todo branch ``loopx/<goal>/<todo>``; with ``goal`` it must also be a
     worktree of the repository the Goal declares under that name. Anything
-    else fails closed.
+    else fails closed. An acceptor's review checkout root of the same Todo
+    (fork G12) is verified the same way, except that its repos are detached
+    at the delivered commit instead of on the Todo branch.
     """
 
     from ...workspace.git_workspace import todo_branch, todo_workspace_root
@@ -207,8 +224,11 @@ def verify_todo_workspace(
         root = todo_workspace_root(runtime_root, goal_id, todo_id)
     except (OSError, TypeError, ValueError):
         return None
-    if not root.is_dir() or not _same_real_path(path, root):
+    review = _is_review_checkout_root(path, runtime_root, goal_id, todo_id)
+    if not review and (not root.is_dir() or not _same_real_path(path, root)):
         return None
+    if review:
+        root = Path(os.path.realpath(str(path)))
     declared: dict[str, Any] | None = None
     if goal is not None:
         from ...workspace.repos import goal_repos
@@ -241,7 +261,7 @@ def verify_todo_workspace(
             return None
         verified = _todo_workspace_repo(
             root / name,
-            branch=branch,
+            branch=None if review else branch,
             declared_path=(declared or {}).get(name),
         )
         if verified is None:
@@ -631,7 +651,11 @@ def _in_registered_todo_workspace(
         root = todo_workspace_root(runtime_root, goal_id, todo_id)
     except (OSError, TypeError, ValueError):
         return False
-    if not _same_real_path(current_path, root) and not (
+    review_root = current_path if len(repo_names) > 1 else current_path.parent
+    if _is_review_checkout_root(review_root, runtime_root, goal_id, todo_id):
+        # Fork G12: the acceptor reviews in a detached checkout of the delivery.
+        root = review_root
+    elif not _same_real_path(current_path, root) and not (
         len(repo_names) == 1 and _same_real_path(current_path, root / repo_names[0])
     ):
         return False

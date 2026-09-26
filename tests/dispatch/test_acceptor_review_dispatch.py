@@ -33,32 +33,36 @@ class Clock:
         return self.now
 
 
-def _delivered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[dict[str, Any], str, str]:
+def _delivered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repo_names: tuple[str, ...] = ("api",),
+) -> tuple[dict[str, Any], str, str]:
     for key, value in git_env(tmp_path).items():
         monkeypatch.setenv(key, value)
-    api = make_repo(tmp_path, "api")
+    repos = {name: make_repo(tmp_path, name) for name in repo_names}
     # Multi-agent deliveries bind to a credential-free repository identity.
-    git(api, "remote", "add", "origin", "https://example.test/fixture/api.git")
+    git(repos["api"], "remote", "add", "origin", "https://example.test/fixture/api.git")
     fixture = write_fixture(
         tmp_path,
         agents={"dev": {"role": "developer"}, "acc": {"role": "acceptor"}},
-        repos={"api": api},
+        repos=repos,
     )
-    fixture["api"] = api
+    fixture.update(repos)
     api_kwargs = {"registry_path": fixture["registry"], "goal_id": GOAL_ID, "runtime_root_arg": str(fixture["runtime"])}
     added = add_goal_todo(**api_kwargs, role="agent", text="Build the api fixture", priority="P0",
                           task_class="advancement_task", claimed_by="dev",
                           validation_command_json=json.dumps(["true"]),
-                          role_contract={"task_repositories": ["api"]})
+                          role_contract={"task_repositories": list(repo_names)})
     todo_id = str(added["todo_id"])
     goal = json.loads(fixture["registry"].read_text())["goals"][0]
-    worktree = Path(git_workspace.prepare(goal, todo_id, None, fixture["runtime"])["paths"]["api"])
-    (worktree / "feature.txt").write_text("feature\n", encoding="utf-8")
-    git(worktree, "add", ".")
-    git(worktree, "commit", "-qm", "feature")
+    paths = git_workspace.prepare(goal, todo_id, None, fixture["runtime"])["paths"]
+    for name in repo_names:
+        worktree = Path(paths[name])
+        (worktree / "feature.txt").write_text("feature\n", encoding="utf-8")
+        git(worktree, "add", ".")
+        git(worktree, "commit", "-qm", "feature")
     delivered = complete_goal_todo(**api_kwargs, todo_id=todo_id, role="agent", agent_id="dev", evidence="built")
     assert delivered.get("in_review") is True, delivered
-    return fixture, todo_id, git(worktree, "rev-parse", "HEAD")
+    return fixture, todo_id, git(Path(paths["api"]), "rev-parse", "HEAD")
 
 
 def _dispatcher(fixture: dict[str, Any], **env: str) -> Dispatcher:
@@ -173,3 +177,18 @@ def test_the_dispatcher_skips_a_todo_with_an_open_blocked_gate(
     assert report["launched"] == []
     assert {"goal_id": GOAL_ID, "agent_id": "acc", "reason": "review_blocked_gate_open",
             "todo_id": todo_id} in report["skipped"]
+
+
+def test_a_multi_repo_acceptor_turn_runs_in_the_review_root_and_its_verdict_settles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, todo_id, sha = _delivered(tmp_path, monkeypatch, repo_names=("api", "web"))
+    _run_acceptor(fixture, todo_id, FAKE_CLAUDE_RESULT_KIND="validated_completion",
+                  FAKE_CLAUDE_SUMMARY="Both repos meet the criteria.")
+    [call] = read_jsonl(fixture["claude_log"])
+    cwd = Path(call["cwd"]).resolve()
+    assert cwd.parent == (fixture["runtime"] / "goals" / GOAL_ID / "reviews" / todo_id).resolve()
+    assert not cwd.exists()
+    assert _todo(fixture, todo_id)["status"] == "done"
+    for name in ("api", "web"):
+        assert git(fixture[name], "show", "main:feature.txt") == "feature"

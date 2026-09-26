@@ -117,4 +117,11 @@ creates a throwaway review checkout per acceptor Turn:
 A todo delivered before G12 has no recorded sha; its branch tips stand in for
 the review checkout, and its merge is not pinned.
 
+The delivery-identity guard above accepts a review checkout of the settling
+todo in place of its workspace root: `reviews/T/<attempt>` for a multi-repo
+todo (or its one repo for a one-repo todo), with every repo a linked worktree
+of the declared repository detached at any commit. The identity is still the
+todo workspace identity. A detached repo inside the todo's own workspace root
+is still refused.
+
 Nothing fetches or pushes. Pushing is a user gate.
