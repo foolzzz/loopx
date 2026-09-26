@@ -40,7 +40,56 @@ const INTENT_FIELDS = new Set<string>([...STRING_FIELDS, ...PRESENT_FIELDS, ...F
   "status", "claimed_by", "bound_agent", "goal_bound", "blocks_agent", "excluded_agents",
   "global_gate", "unblocks_todo_id", "successor_todo_ids", "completion_continuation",
   "completion_recovery", "completion_metadata_updates_override", "resume_when",
-  "resume_monitor_generation", "no_followup", "monitor_metadata", "text", "priority", "clear_priority"]);
+  "resume_monitor_generation", "no_followup", "monitor_metadata", "text", "priority", "clear_priority",
+  "role_contract"]);
+
+export const TODO_ROLE_CONTRACT_FIELDS = ["required_role", "requires_acceptance", "acceptor_agent",
+  "reject_count", "task_repositories"] as const;
+const TODO_REQUIRED_ROLES = ["orchestrator", "developer", "acceptor"];
+
+/** role_v1 routing/acceptance patch. Present keys are written; null clears.
+ * The implicit defaults (reject_count 0, empty repository list) clear too. */
+export function normalizeTodoRoleContract(value: unknown): JsonObject {
+  const patch = requireJsonObject(value, "Todo role contract");
+  const result: JsonObject = {};
+  for (const key of Object.keys(patch)) {
+    if (!(TODO_ROLE_CONTRACT_FIELDS as readonly string[]).includes(key)) {
+      throw new EffectRuntimeRequestError(`unknown todo role field: ${key}`);
+    }
+    const raw = patch[key];
+    if (raw === null || raw === undefined) { result[key] = null; continue; }
+    if (key === "required_role") {
+      const role = typeof raw === "string" ? stripPythonWhitespace(raw).toLowerCase() : "";
+      if (!TODO_REQUIRED_ROLES.includes(role)) {
+        throw new EffectRuntimeRequestError("required_role must be one of: orchestrator, developer, acceptor");
+      }
+      result[key] = role;
+    } else if (key === "requires_acceptance") {
+      if (typeof raw !== "boolean") throw new EffectRuntimeRequestError("requires_acceptance must be a boolean");
+      result[key] = raw;
+    } else if (key === "acceptor_agent") {
+      result[key] = normalizeTodoAgent(raw, "acceptor_agent");
+    } else if (key === "reject_count") {
+      if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
+        throw new EffectRuntimeRequestError("reject_count must be a non-negative integer");
+      }
+      result[key] = raw > 0 ? raw : null;
+    } else {
+      if (!Array.isArray(raw)) throw new EffectRuntimeRequestError("task_repositories must be a list");
+      const names: string[] = [];
+      for (const item of raw) {
+        const name = typeof item === "string" ? stripPythonWhitespace(item).toLowerCase() : "";
+        if (!/^[a-z0-9][a-z0-9_.-]{0,63}$/.test(name)) {
+          throw new EffectRuntimeRequestError("task_repositories must contain repository names");
+        }
+        if (!names.includes(name)) names.push(name);
+      }
+      if (names.length > 8) throw new EffectRuntimeRequestError("task_repositories accepts at most eight names");
+      result[key] = names.length ? names : null;
+    }
+  }
+  return result;
+}
 
 function optionalString(value: unknown, label: string): string | null {
   if (value === null || value === undefined) return null;
@@ -199,6 +248,7 @@ export function planTodoFieldUpdate(value: unknown): TodoFieldUpdatePlan {
   for (const field of PRESENT_FIELDS) {
     if (Object.hasOwn(intent, field)) updates[field] = intent[field];
   }
+  if (present(intent.role_contract)) Object.assign(updates, normalizeTodoRoleContract(intent.role_contract));
   // Public update carries the effective scope and raw observation once. The
   // field plan composes validation and generation without another RPC.
   const monitorPlan = request.monitor_context == null ? null : planMonitorMetadata({

@@ -48,6 +48,14 @@ TODO_OPTION_FIELDS = (
     ("--excluded-agent", "excluded_agents"),
     ("--clear-excluded-agents", "clear_excluded_agents"),
     ("--global-gate", "global_gate"),
+    ("--required-role", "required_role"),
+    ("--clear-required-role", "clear_required_role"),
+    ("--requires-acceptance", "requires_acceptance"),
+    ("--acceptor-agent", "acceptor_agent"),
+    ("--clear-acceptor-agent", "clear_acceptor_agent"),
+    ("--reject-count", "reject_count"),
+    ("--task-repo", "task_repositories"),
+    ("--clear-task-repos", "clear_task_repositories"),
     ("--clear-global-gate", "clear_global_gate"),
     ("--unblocks-todo-id", "unblocks_todo_id"),
     ("--successor-todo-id", "successor_todo_ids"),
@@ -94,7 +102,15 @@ _TODO_UPDATE_MUTABLE_FIELDS = (
     "resume_when", "clear_resume_when", "no_follow_up", "monitor_target_key",
     "cadence", "next_due_at", "expires_at", "watch_only", "clear_claim",
     "validation_command", "validation_command_json", "validation_label",
-    "validation_timeout_seconds",
+    "validation_timeout_seconds", "required_role", "clear_required_role",
+    "requires_acceptance", "acceptor_agent", "clear_acceptor_agent", "reject_count",
+    "task_repositories", "clear_task_repositories",
+)
+
+TODO_ROLE_CONTRACT_OPTION_FIELDS = (
+    "required_role", "clear_required_role", "requires_acceptance", "acceptor_agent",
+    "clear_acceptor_agent", "reject_count", "task_repositories",
+    "clear_task_repositories",
 )
 
 _TODO_UPDATE_UNSUPPORTED_FIELDS = (
@@ -134,6 +150,7 @@ _TODO_ADD_UNSUPPORTED_FIELDS = (
     "next_claimed_by", "next_task_repository", "next_required_capabilities",
     "next_continuation_policy", "next_excluded_agents", "clear_excluded_agents",
     "clear_blocks_agent", "self_merged", "no_follow_up", "clear_priority",
+    "clear_required_role", "clear_acceptor_agent", "clear_task_repositories",
 )
 _TODO_OPTION_FLAGS = {field: flag for flag, field in TODO_OPTION_FIELDS}
 
@@ -263,6 +280,99 @@ def register_todo_successor_creation_arguments(
     )
 
 
+def register_todo_role_contract_arguments(
+    todo_parser: argparse.ArgumentParser,
+) -> None:
+    """role_v1 routing/acceptance fields for todo add/update."""
+
+    todo_parser.add_argument(
+        "--required-role",
+        choices=["orchestrator", "developer", "acceptor"],
+        help=(
+            "For todo add/update under role_v1, route the todo to agents with this "
+            "role. Without it, advancement work defaults to developer and gates, "
+            "blockers and replans default to orchestrator."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-required-role",
+        action="store_true",
+        help="For todo update, remove the explicit required_role.",
+    )
+    todo_parser.add_argument(
+        "--requires-acceptance",
+        choices=["true", "false"],
+        help=(
+            "For todo add/update, whether completion must pass an acceptor. "
+            "Defaults to true for developer implementation todos."
+        ),
+    )
+    todo_parser.add_argument(
+        "--acceptor-agent",
+        help="For todo add/update, bind the registered acceptor agent for this todo.",
+    )
+    todo_parser.add_argument(
+        "--clear-acceptor-agent",
+        action="store_true",
+        help="For todo update, remove the bound acceptor agent.",
+    )
+    todo_parser.add_argument(
+        "--reject-count",
+        type=int,
+        help="For todo add/update, set the acceptance rejection count (default 0).",
+    )
+    todo_parser.add_argument(
+        "--task-repo",
+        dest="task_repositories",
+        action="append",
+        help=(
+            "For agent todo add/update, name one goal repository the todo targets "
+            "(multi-repo todos repeat the flag). Replaces the list on update."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-task-repos",
+        dest="clear_task_repositories",
+        action="store_true",
+        help="For todo update, remove all named task repositories.",
+    )
+
+
+def todo_role_contract_from_args(args: argparse.Namespace) -> dict[str, object] | None:
+    """Translate role_v1 todo flags into one explicit field patch.
+
+    Present keys are written; a ``None`` value is an explicit clear.
+    """
+
+    patch: dict[str, object] = {}
+    pairs = (
+        ("required_role", "clear_required_role"),
+        ("acceptor_agent", "clear_acceptor_agent"),
+        ("task_repositories", "clear_task_repositories"),
+    )
+    for field, clear_field in pairs:
+        value = getattr(args, field, None)
+        clear = bool(getattr(args, clear_field, False))
+        if value and clear:
+            raise ValueError(
+                f"{_TODO_OPTION_FLAGS[field]} cannot be combined with "
+                f"{_TODO_OPTION_FLAGS[clear_field]}"
+            )
+        if clear:
+            patch[field] = None
+        elif value:
+            patch[field] = value
+    requires_acceptance = getattr(args, "requires_acceptance", None)
+    if requires_acceptance is not None:
+        patch["requires_acceptance"] = requires_acceptance == "true"
+    reject_count = getattr(args, "reject_count", None)
+    if reject_count is not None:
+        if reject_count < 0:
+            raise ValueError("--reject-count must be a non-negative integer")
+        patch["reject_count"] = reject_count
+    return patch or None
+
+
 def unsupported_todo_options(
     args: argparse.Namespace,
     *,
@@ -389,7 +499,9 @@ def validate_todo_update_options(args: argparse.Namespace) -> None:
             "todo update accepts either --explore-result-node-ref or "
             "--clear-explore-result-node-refs, not both"
         )
-    if not any(getattr(args, field) for field in _TODO_UPDATE_MUTABLE_FIELDS):
+    if not any(getattr(args, field) for field in _TODO_UPDATE_MUTABLE_FIELDS) and (
+        getattr(args, "reject_count", None) is None
+    ):
         raise ValueError("todo update requires at least one mutable todo field")
     validation_fields = (
         args.validation_command,
@@ -606,6 +718,15 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
     if args.clear_global_gate and not clear_global_gate_allowed:
         raise ValueError(
             "--clear-global-gate is supported only by todo update for user_gate items"
+        )
+    role_contract_flags = [
+        _TODO_OPTION_FLAGS[field]
+        for field in TODO_ROLE_CONTRACT_OPTION_FIELDS
+        if getattr(args, field, None) not in (None, False, [])
+    ]
+    if role_contract_flags and args.todo_command not in {"add", "update"}:
+        raise ValueError(
+            f"{', '.join(role_contract_flags)} supported only by todo add/update"
         )
     if args.clear_resume_when and args.todo_command != "update":
         raise ValueError("--clear-resume-when is supported only by todo update")

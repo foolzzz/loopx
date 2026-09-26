@@ -7,6 +7,7 @@ from ..control_plane.todos.contract import TODO_CONTINUATION_POLICY_VALUES
 from ..todos import ARCHIVE_COMPLETED_DEFAULT_MAX_ACTIVE_DONE
 from .todo_argument_validation import (
     register_todo_linkage_arguments,
+    register_todo_role_contract_arguments,
     register_todo_successor_creation_arguments,
 )
 
@@ -363,6 +364,7 @@ def register_todo_command(
         ),
     )
     register_todo_linkage_arguments(todo_parser)
+    register_todo_role_contract_arguments(todo_parser)
     todo_parser.add_argument(
         "--target-key",
         "--monitor-target-key",
