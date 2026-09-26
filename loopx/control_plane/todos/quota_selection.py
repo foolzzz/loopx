@@ -12,6 +12,7 @@ from .contract import (
     normalize_required_capabilities, normalize_target_capabilities,
     normalize_todo_required_role, normalize_todo_replan_obligation_id,
     normalize_todo_action_kind, TODO_PLANNING_ACTION_KINDS,
+    normalize_todo_status, TODO_STATUS_IN_REVIEW, todo_review_agent,
 )
 from ..agents.runtime_model import normalize_agent_role
 
@@ -46,6 +47,13 @@ def project_quota_planning(
     agent = normalize_todo_claimed_by(identity.get("agent_id"))
     agent_model = str(identity.get("agent_model") or "peer_v1")
     agent_role = normalize_agent_role(identity.get("role")) if agent else None
+    raw_acceptors = identity.get("acceptor_agent_ids")
+    acceptor_ids = [
+        acceptor for acceptor in (
+            normalize_todo_claimed_by(value)
+            for value in (raw_acceptors if isinstance(raw_acceptors, list) else [])
+        ) if acceptor
+    ]
 
     def encode(item: dict[str, Any]) -> dict[str, Any]:
         priority, index = todo_projection_sort_key(item)
@@ -70,6 +78,8 @@ def project_quota_planning(
             "raw_claimed": bool(item.get("claimed_by")),
             "required_role": normalize_todo_required_role(item.get("required_role")),
             "planning": _todo_is_planning_work(item),
+            **({"in_review": True, "review_agent": todo_review_agent(item, acceptor_ids)}
+               if normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW else {}),
         }
 
     def active(key: str) -> list[dict[str, Any]]:
