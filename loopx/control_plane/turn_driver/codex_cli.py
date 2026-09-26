@@ -335,6 +335,31 @@ def _selected_todo_review_feedback(request: Mapping[str, Any]) -> str:
     return str(selected.get("review_feedback") or "").strip()[:600]
 
 
+def _selected_todo_acceptance_context(request: Mapping[str, Any]) -> str:
+    """Fork G2: the todo's acceptance criteria and the goal acceptance contract."""
+
+    envelope = request.get("turn_envelope")
+    action = envelope.get("action") if isinstance(envelope, Mapping) else None
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        return ""
+    parts = []
+    criteria = " ".join(str(selected.get("acceptance_criteria") or "").split())[:1000]
+    if criteria:
+        parts.append(f"Todo acceptance criteria (selected_todo.acceptance_criteria): {criteria}")
+    goal = selected.get("goal_acceptance")
+    if isinstance(goal, Mapping):
+        rows = [str(item) for item in goal.get("criteria") or [] if item][:12]
+        objective = str(goal.get("objective") or "").strip()
+        if objective or rows:
+            parts.append(
+                "Goal acceptance contract (selected_todo.goal_acceptance): "
+                + (f"objective: {objective}; " if objective else "")
+                + "criteria: " + ("; ".join(rows) or "none listed")
+            )
+    return " ".join(parts)
+
+
 def turn_completion_todo_id(request: Mapping[str, Any] | None) -> str | None:
     """Return the Todo a todo-scoped Turn may complete, if any.
 
@@ -482,6 +507,14 @@ def _prompt(request: Mapping[str, Any]) -> str:
             "and put concrete, actionable feedback for the developer in summary; LoopX reopens the "
             "Todo for the same developer, and a second rejection escalates to the orchestrator.",
         )
+        acceptance = _selected_todo_acceptance_context(request)
+        if acceptance:
+            instructions.insert(
+                -2,
+                "Check each acceptance criterion below and the goal acceptance contract one by one. "
+                "Accept only when every criterion holds. When you reject, name in summary each "
+                f"criterion that failed and why. {acceptance}",
+            )
     elif completion_todo_id:
         instructions.insert(
             -2,
@@ -496,6 +529,13 @@ def _prompt(request: Mapping[str, Any]) -> str:
                 -2,
                 "An acceptor rejected the previous delivery of this Todo. Address this feedback "
                 f"before delivering again (selected_todo.review_feedback): {feedback}",
+            )
+        acceptance = _selected_todo_acceptance_context(request)
+        if acceptance:
+            instructions.insert(
+                -2,
+                "The acceptor will check this Todo against its acceptance criteria and the goal "
+                f"acceptance contract; meet every criterion before delivering. {acceptance}",
             )
     boundary = _mapping(_mapping(request.get("turn_envelope")).get("boundary"))
     if boundary.get("checkpointed_boundary_authority"):

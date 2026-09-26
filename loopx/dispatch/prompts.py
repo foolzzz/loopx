@@ -69,15 +69,18 @@ def dispatch_prompt_addendum(
             )
     if role == "acceptor" and todo_id:
         lines.append(
-            f"- Todo `{todo_id}` was delivered for your review (status in_review). Verify it "
-            "against its acceptance criteria and validation. Return validated_completion to "
-            "accept it. To reject it, return repair_required with concrete feedback for the "
-            "developer in summary; LoopX reopens it for the same developer, and a second "
-            "rejection escalates to the orchestrator."
+            f"- Todo `{todo_id}` was delivered for your review (status in_review). Check each "
+            "criterion in its acceptance_criteria and in the goal acceptance contract "
+            "(selected_todo.goal_acceptance), plus its validation. Return validated_completion "
+            "to accept it only when every criterion holds. To reject it, return repair_required "
+            "and name in summary each criterion that failed and why; LoopX reopens it for the "
+            "same developer, and a second rejection escalates to the orchestrator."
         )
     elif role == "developer" and todo_id:
         lines.append(
-            "- If the todo carries review_feedback, an acceptor rejected an earlier delivery: "
+            "- The acceptor checks the todo against its acceptance_criteria and the goal "
+            "acceptance contract; meet every criterion. If the todo carries review_feedback, an "
+            "acceptor rejected an earlier delivery or the orchestrator left rework instructions: "
             "address that feedback first. Return validated_completion when the work is done; "
             "LoopX then runs its validation and sends it to the acceptor."
         )
@@ -98,10 +101,16 @@ def dispatch_prompt_addendum(
             "`validated_completion` for a planning todo only once its plan card is approved and "
             "applied; LoopX verifies that with `loopx plan list --require-status applied`.",
             "- An escalation todo names a todo the acceptor rejected twice (now blocked). Resolve "
-            "it by reopening it with clearer instructions (`loopx todo update --goal-id "
-            f"{goal_id} --todo-id T --status open --reject-count 0 --agent-id <its developer> "
-            "--note ...`), reassigning, splitting or superseding it, or open a user gate. Then "
-            "return validated_completion; LoopX checks that the todo is no longer blocked.",
+            "it by reopening it with rework instructions in review_feedback, never in the note "
+            f"(`loopx todo update --goal-id {goal_id} --todo-id T --status open --reject-count 0 "
+            "--agent-id <its developer> --review-feedback ...`), reassigning, splitting or "
+            "superseding it, or open a user gate. Then return validated_completion; LoopX checks "
+            "that the todo is no longer blocked.",
+            "- A todo's acceptance criteria live in its acceptance_criteria field; plan cards set "
+            "them from each item's `acceptance`. Changing criteria is a major change: prefer a "
+            "revised plan card, or `loopx todo update --goal-id "
+            f"{goal_id} --todo-id T --agent-id {agent_id} --acceptance-criteria ...` on its own, "
+            "which LoopX records as a major change.",
         ]
         if awaiting_gates:
             lines.append(

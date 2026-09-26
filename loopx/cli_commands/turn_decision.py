@@ -232,17 +232,33 @@ def _goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
         return False
 
 
+def _goal_acceptance_brief(contract: Any) -> dict[str, Any] | None:
+    """Bounded objective and criteria of an enabled goal acceptance contract."""
+
+    if not isinstance(contract, dict) or contract.get("enabled") is not True:
+        return None
+    criteria = []
+    for row in contract.get("criteria") or []:
+        if isinstance(row, dict) and (row.get("id") or row.get("description")):
+            label = " ".join(f"{row.get('id') or ''}: {row.get('description') or ''}".split())
+            criteria.append(label.strip(": ")[:240])
+    objective = " ".join(str(contract.get("objective") or "").split())[:300]
+    if not objective and not criteria:
+        return None
+    return {**({"objective": objective} if objective else {}), "criteria": criteria[:12]}
+
+
 def _with_durable_todo_note(
     build: Callable[..., dict[str, Any]], *, registry_path: Path, runtime_root: Path, goal_id: str,
 ) -> Callable[..., dict[str, Any]]:
-    """Attach the selected todo's durable note before the envelope is signed.
+    """Attach the selected todo's durable acceptance context before signing.
 
-    Fork role_v1: plan cards keep a todo's acceptance criteria, and the
-    orchestrator keeps rework instructions, in the todo note. The status
-    projection behind the decision carries no notes, so the host never saw
-    them (E2E pilot). Only the selected todo gets its bounded note, and only
-    on a role_v1 goal: other goals get the builder unchanged, with no extra
-    todo read and no envelope change.
+    Fork role_v1: the status projection behind the decision carries no notes
+    and no acceptance criteria, so the host never saw them (E2E pilot). The
+    selected todo gets its bounded note, its orchestrator-owned
+    ``acceptance_criteria`` (G2) and the goal-level acceptance contract when
+    one is enabled (decision 9). Only on a role_v1 goal: other goals get the
+    builder unchanged, with no extra todo read and no envelope change.
     """
 
     if not _goal_uses_role_v1(registry_path, goal_id):
@@ -252,7 +268,7 @@ def _with_durable_todo_note(
         decision = build(**kwargs)
         selected = decision.get("selected_todo") if isinstance(decision, dict) else None
         todo_id = selected.get("todo_id") if isinstance(selected, dict) else None
-        if not todo_id or selected.get("note"):
+        if not todo_id:
             return decision
         from ..todos import list_goal_todos
 
@@ -265,10 +281,17 @@ def _with_durable_todo_note(
             return decision
         for item in listed.get("todos") or []:
             if isinstance(item, dict) and item.get("todo_id") == todo_id:
-                note = " ".join(str(item.get("note") or "").split())
-                if note:
-                    selected["note"] = note[:600]
+                for field, limit in (("note", 600), ("acceptance_criteria", 1000)):
+                    value = " ".join(str(item.get(field) or "").split())
+                    if value and not selected.get(field):
+                        selected[field] = value[:limit]
                 break
+        agent_todos = listed.get("agent_todos")
+        brief = _goal_acceptance_brief(
+            agent_todos.get("goal_acceptance_contract") if isinstance(agent_todos, dict) else None
+        )
+        if brief and not selected.get("goal_acceptance"):
+            selected["goal_acceptance"] = brief
         return decision
 
     return wrapped
