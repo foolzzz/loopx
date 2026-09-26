@@ -57,6 +57,20 @@ def dispatch_prompt_addendum(
                 "- Commit your changes on the current branch in every repo you touch. "
                 "Do not push, merge or switch branches; LoopX merges after acceptance."
             )
+    if role == "acceptor" and todo_id:
+        lines.append(
+            f"- Todo `{todo_id}` was delivered for your review (status in_review). Verify it "
+            "against its acceptance criteria and validation. Return validated_completion to "
+            "accept it. To reject it, return repair_required with concrete feedback for the "
+            "developer in summary; LoopX reopens it for the same developer, and a second "
+            "rejection escalates to the orchestrator."
+        )
+    elif role == "developer" and todo_id:
+        lines.append(
+            "- If the todo carries review_feedback, an acceptor rejected an earlier delivery: "
+            "address that feedback first. Return validated_completion when the work is done; "
+            "LoopX then runs its validation and sends it to the acceptor."
+        )
     if role == "orchestrator":
         lines += [
             "- Talk to the user only through user gates: `loopx gate show|reply --goal-id "

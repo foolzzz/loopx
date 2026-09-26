@@ -2457,6 +2457,23 @@ json.dump({
     assert "todo_id=todo_fixture0001 status=in_review" in state
     assert "delivered_by=codex-fixture" in state
 
+    # The acceptor's Turn selects the delivered Todo; its validated_completion
+    # is the accept verdict and completes the Todo.
+    output = io.StringIO()
+    acceptor_argv = [
+        item if item != "codex-fixture" else "codex-acceptor" for item in argv
+    ]
+    with contextlib.redirect_stdout(output):
+        exit_code = cli_main(acceptor_argv)
+    accepted = json.loads(output.getvalue())
+    assert exit_code == 0, json.dumps(accepted)[:4000]
+    assert accepted["status"] == "committed"
+    state = (
+        project / ".codex" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
+    ).read_text(encoding="utf-8")
+    assert "todo_id=todo_fixture0001 status=done" in state
+    assert "accepted_by%3Dcodex-acceptor" in state or "accepted_by=codex-acceptor" in state
+
 
 def test_turn_run_once_cli_repairs_committed_quota_spend_after_receipt_crash(
     tmp_path: Path,

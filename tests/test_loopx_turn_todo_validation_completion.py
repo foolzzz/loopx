@@ -43,7 +43,8 @@ result = {
     "delivery_batch_scale": "implementation", "delivery_outcome": "primary_goal_outcome",
     "vision_unchanged_reason": "The fixture objective remains unchanged.",
     "path_delta_mode": "unchanged", "agent_vision_json": "",
-    "summary": "The fixture Todo is complete.", "reward_memory_reflection_json": "",
+    "summary": os.environ.get("FAKE_CLAUDE_SUMMARY", "The fixture Todo is complete."),
+    "reward_memory_reflection_json": "",
 }
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
                   "session_id": "s-1", "structured_output": result}))
@@ -75,8 +76,9 @@ def _fixture(tmp_path: Path, *, role_v1: bool) -> tuple[Path, Path, Path, Path, 
         payload = json.loads(registry.read_text(encoding="utf-8"))
         coordination = payload["goals"][0]["coordination"]
         coordination["agent_model"] = "role_v1"
-        coordination["registered_agents"] = ["codex-fixture", "codex-acceptor"]
-        coordination["agent_roles"] = {"codex-fixture": "developer", "codex-acceptor": "acceptor"}
+        coordination["registered_agents"] = ["codex-fixture", "codex-acceptor", "fable-orch"]
+        coordination["agent_roles"] = {"codex-fixture": "developer", "codex-acceptor": "acceptor",
+                                       "fable-orch": "orchestrator"}
         registry.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     executable = tmp_path / "bin" / "claude"
     executable.parent.mkdir(parents=True)
@@ -87,11 +89,12 @@ def _fixture(tmp_path: Path, *, role_v1: bool) -> tuple[Path, Path, Path, Path, 
     return project, runtime, registry, executable, workspace
 
 
-def _run_once(project: Path, runtime: Path, registry: Path, executable: Path, workspace: Path):
+def _run_once(project: Path, runtime: Path, registry: Path, executable: Path, workspace: Path,
+              agent: str = "codex-fixture"):
     return _run([
         "--registry", str(registry), "--runtime-root", str(runtime), "--format", "json",
         "turn", "run-once", "--host", "claude-code", "--goal-id", GOAL,
-        "--agent-id", "codex-fixture", "--project", str(workspace),
+        "--agent-id", agent, "--project", str(workspace),
         "--claude-bin", str(executable),
         # The dispatcher passes the Todo's own validation command as the Turn validator.
         "--validation-command-json", json.dumps([sys.executable, "-c", VALIDATION]),
@@ -128,3 +131,35 @@ def test_validated_completion_is_offered_only_for_todo_scoped_turns() -> None:
     assert "validated_completion" in kinds
     kinds = codex_cli_result_schema({"turn_envelope": {"action": {}}})["properties"]["result_kind"]["enum"]
     assert "validated_completion" not in kinds
+
+
+def test_acceptor_turns_reject_then_accept_a_delivery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fork S2 end to end through run-once: deliver, reject, redeliver, accept."""
+
+    monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
+    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    code, payload = _run_once(project, runtime, registry, executable, workspace)
+    assert code == 0, json.dumps(payload)[:3000]
+    assert f"todo_id={TODO} status=in_review" in _state(project)
+
+    # The acceptor's repair_required result is its reject verdict.
+    monkeypatch.setenv("FAKE_CLAUDE_KIND", "repair_required")
+    monkeypatch.setenv("FAKE_CLAUDE_SUMMARY", "Pagination is missing from the endpoint.")
+    code, payload = _run_once(project, runtime, registry, executable, workspace, "codex-acceptor")
+    assert code == 0, json.dumps(payload)[:3000]
+    state = _state(project)
+    assert f"todo_id={TODO} status=open" in state
+    assert "reject_count=1" in state
+    assert "Pagination%20is%20missing" in state
+
+    monkeypatch.setenv("FAKE_CLAUDE_KIND", "validated_completion")
+    monkeypatch.setenv("FAKE_CLAUDE_SUMMARY", "Pagination added.")
+    code, payload = _run_once(project, runtime, registry, executable, workspace)
+    assert code == 0, json.dumps(payload)[:3000]
+    assert f"todo_id={TODO} status=in_review" in _state(project)
+    code, payload = _run_once(project, runtime, registry, executable, workspace, "codex-acceptor")
+    assert code == 0, json.dumps(payload)[:3000]
+    assert payload["result_kind"] == "validated_completion"
+    assert f"todo_id={TODO} status=done" in _state(project)

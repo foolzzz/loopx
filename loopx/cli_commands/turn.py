@@ -507,6 +507,7 @@ def handle_turn_command(
                         note=str(result.get("summary") or result["classification"]),
                         evidence=f"LoopX Turn {result_kind}: {result['next_action']}",
                         agent_id=args.agent_id,
+                        result_kind=result_kind,
                     )
                 refresh = refresh_state_run(
                     registry_path=registry_path,

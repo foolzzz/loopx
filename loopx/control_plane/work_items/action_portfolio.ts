@@ -98,8 +98,10 @@ function requireRunnableAdvancement(
   candidate: ActionCandidate,
   label: string,
 ): void {
-  if (candidate.status !== "open") {
-    throw new EffectRuntimeRequestError(`${label}.status must be open`);
+  // role_v1 (fork S2): a delivered todo is the runnable review work of the
+  // acceptor it was addressed to by quota selection.
+  if (candidate.status !== "open" && candidate.status !== "in_review") {
+    throw new EffectRuntimeRequestError(`${label}.status must be open or in_review`);
   }
   if (candidate.task_class !== "advancement_task") {
     throw new EffectRuntimeRequestError(`${label}.task_class must be advancement_task`);

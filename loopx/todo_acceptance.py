@@ -237,6 +237,22 @@ def route_role_v1_completion(
             "in_review": True, "status": TODO_STATUS_IN_REVIEW, "changed": False,
             "idempotent_replay": True, "goal_id": goal_id, "todo_id": todo["todo_id"],
         }
+    if status == TODO_STATUS_IN_REVIEW and actor and actor == resolve_todo_acceptor(goal, todo)["agent_id"]:
+        # The resolved acceptor completing a delivered todo (for example an
+        # acceptor Turn returning validated_completion) is its accept verdict.
+        return accept_goal_todo(
+            registry_path=registry_path, goal_id=goal_id, todo_id=str(todo["todo_id"]),
+            agent_id=actor, note=kwargs.get("note"), evidence=kwargs.get("evidence"),
+            runtime_root_arg=kwargs.get("runtime_root_arg"),
+            project=kwargs.get("project"), state_file=kwargs.get("state_file"),
+            dry_run=bool(kwargs.get("dry_run")),
+            completion_options={
+                key: kwargs[key] for key in (
+                    "completion_turn_key", "completion_identity_source",
+                    "completion_delivery_workspace", "completion_validation_workspace_path",
+                ) if kwargs.get(key) is not None
+            },
+        )
     if status == TODO_STATUS_IN_REVIEW:
         reviewer = resolve_todo_acceptor(goal, todo)
         raise ValueError(
@@ -289,6 +305,14 @@ def deliver_goal_todo_for_review(
 
     from .todos import update_goal_todo
 
+    if _ignored_completion_options.get("next_user_todo"):
+        # Decision 11 (S6): only the orchestrator opens user gates, also on delivery.
+        from .gate_threads import require_user_gate_author
+
+        require_user_gate_author(
+            registry_path=registry_path, goal_id=goal_id,
+            actor_agent_id=agent_id or claimed_by, surface="--next-user-todo",
+        )
     author = (
         normalize_todo_claimed_by(agent_id)
         or normalize_todo_claimed_by(claimed_by)
@@ -382,8 +406,14 @@ def accept_goal_todo(
     *, registry_path: Path, goal_id: str, todo_id: str, agent_id: str | None,
     note: str | None = None, evidence: str | None = None, runtime_root_arg: str | None = None,
     project: Path | None = None, state_file: Path | None = None, dry_run: bool = False,
+    completion_options: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Acceptor verdict: accept a delivered todo (``in_review`` -> ``done``)."""
+    """Acceptor verdict: accept a delivered todo (``in_review`` -> ``done``).
+
+    ``completion_options`` carries Turn settlement identity (turn key,
+    identity source, delivery workspace) into the terminal completion so an
+    acceptor Turn's accept replays idempotently.
+    """
 
     from .todos import terminal_complete_goal_todo
 
@@ -410,6 +440,7 @@ def accept_goal_todo(
         runtime_root_arg=runtime_root_arg, evidence=completion_evidence,
         note=_clip(verdict, 400), agent_id=owner,
         project=project, state_file=state_file, dry_run=dry_run,
+        **dict(completion_options or {}),
     )
     return {
         **result,
@@ -500,3 +531,36 @@ def reject_goal_todo(
             "required_role": "orchestrator", "action_kind": "replan",
         }
     return {**result, "acceptance": acceptance}
+
+
+def reject_delivery_from_turn(
+    *, registry_path: Path, goal_id: str, todo_id: str, agent_id: str, feedback: str,
+    runtime_root_arg: str | None = None,
+) -> bool:
+    """Record an acceptor Turn's ``repair_required`` result as a reject verdict.
+
+    Returns ``False`` (nothing written) unless the Todo is ``in_review`` on a
+    role_v1 goal and ``agent_id`` is its resolved acceptor, so a retried Turn
+    that already reopened the Todo falls back to the ordinary repair note.
+    """
+
+    goal = load_goal_from_registry(registry_path, goal_id)
+    if not goal_uses_role_v1(goal):
+        return False
+    todo = _read_todo(
+        registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
+        runtime_root_arg=runtime_root_arg, project=None, state_file=None,
+    )
+    actor = normalize_todo_claimed_by(agent_id)
+    if (
+        todo is None
+        or normalize_todo_status(todo.get("status")) != TODO_STATUS_IN_REVIEW
+        or not actor
+        or actor != resolve_todo_acceptor(goal, todo)["agent_id"]
+    ):
+        return False
+    reject_goal_todo(
+        registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, agent_id=actor,
+        note=feedback or "rejected by the acceptor Turn", runtime_root_arg=runtime_root_arg,
+    )
+    return True

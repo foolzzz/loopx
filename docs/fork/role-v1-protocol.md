@@ -191,6 +191,15 @@ which binds one with `todo update --acceptor-agent`.
   claimed by the orchestrator, which decides whether to reassign, split,
   change the criteria or open a user gate.
 
+**Verdicts from a managed Turn.** An acceptor Turn (`loopx turn run-once`,
+for example launched by the dispatcher) selects the delivered todo. A
+`validated_completion` result is the accept verdict. A `repair_required`
+result is the reject verdict, and its summary becomes the feedback. A
+completion by the resolved acceptor through `loopx todo complete` is also
+treated as accept. Required replan obligations belong to the orchestrator
+(S1 routing), so they no longer fence the accountable writeback of another
+role's Turn.
+
 Lifecycle writes for a verdict are attributed to the todo's claim owner, so
 the kernel's claim fence and task leases are unchanged. The acceptor's
 authority is checked by the acceptance layer and recorded in the evidence,
