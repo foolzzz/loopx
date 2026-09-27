@@ -4,8 +4,12 @@ Totals answer "how much agent work did this drive": LoopX Turns, agent-hours
 (the sum of Turn wall-clock durations, so parallel agents add up), model
 turns, tokens and cost. Host-reported and estimated cost are kept apart, and
 Turns with no price stay visible as ``unpriced_turns``. Cost and Turns per
-accepted todo divide by the todos that are done now and had spend in the
-window.
+accepted todo divide by the todos that had spend in the window and are done
+with an accept record (completion evidence ``accepted_by=<acceptor>``,
+including the owner's manual accept); a todo that is merely done (the
+orchestrator's planning todo, a retired action todo, a todo without
+acceptance) does not count (pilot v1 gap N5). Orchestrator spend is reported
+separately, and a second per-accepted-todo figure leaves it out.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from .ledger import COST_SOURCE_ESTIMATED, COST_SOURCE_HOST_REPORTED, read_usage
 USAGE_REPORT_SCHEMA_VERSION = "loopx_usage_report_v0"
 USAGE_REPORT_GROUPINGS = ("role", "agent", "goal", "todo", "model", "day")
 USAGE_REPORT_DONE_STATUSES = frozenset({"done", "completed"})
+USAGE_REPORT_ORCHESTRATOR_ROLE = "orchestrator"
 _UNKNOWN_GROUP = "unknown"
 
 
@@ -79,6 +84,8 @@ class _Totals:
         self.cost_estimated = 0.0
         self.unpriced_turns = 0
         self.todo_ids: set[str] = set()
+        self.orchestrator_turns = 0
+        self.orchestrator_cost = 0.0
 
     def add(self, row: Mapping[str, Any], *, cost: float | None = None, tokens: Mapping[str, Any] | None = None) -> None:
         self.turns += 1
@@ -91,6 +98,10 @@ class _Totals:
             for field in self.tokens:
                 self.tokens[field] += int(_number(source_tokens.get(field)))
         value = _number(row.get("cost_usd")) if cost is None else cost
+        if row.get("role") == USAGE_REPORT_ORCHESTRATOR_ROLE:
+            self.orchestrator_turns += 1
+            if row.get("cost_source") in {COST_SOURCE_HOST_REPORTED, COST_SOURCE_ESTIMATED}:
+                self.orchestrator_cost += value
         if row.get("cost_source") == COST_SOURCE_HOST_REPORTED:
             self.cost_reported += value
         elif row.get("cost_source") == COST_SOURCE_ESTIMATED:
@@ -113,11 +124,17 @@ class _Totals:
             "cost_estimated_usd": round(self.cost_estimated, 6),
             "unpriced_turns": self.unpriced_turns,
             "todos": len(self.todo_ids),
+            "orchestrator_turns": self.orchestrator_turns,
+            "orchestrator_cost_usd": round(self.orchestrator_cost, 6),
         }
         if accepted is not None:
             count = len(self.todo_ids & accepted)
+            work_cost = max(0.0, cost - self.orchestrator_cost)
             payload["accepted_todos"] = count
             payload["cost_per_accepted_todo_usd"] = round(cost / count, 6) if count else None
+            payload["cost_per_accepted_todo_excl_orchestrator_usd"] = (
+                round(work_cost / count, 6) if count else None
+            )
             payload["turns_per_accepted_todo"] = round(self.turns / count, 2) if count else None
         return payload
 
@@ -177,11 +194,20 @@ def aggregate_usage(
 
 
 def accepted_todo_keys_from_items(goal_id: str, todos: Iterable[Mapping[str, Any]]) -> set[str]:
+    """``goal/todo`` keys of done todos whose completion carries an accept record."""
+
+    from ..plan_dependencies import accepted_by
+
     keys = set()
     for todo in todos:
         status = str(todo.get("status") or ("done" if todo.get("done") else "")).strip().lower()
         todo_id = todo.get("todo_id")
-        if status in USAGE_REPORT_DONE_STATUSES and isinstance(todo_id, str) and todo_id:
+        if (
+            status in USAGE_REPORT_DONE_STATUSES
+            and isinstance(todo_id, str)
+            and todo_id
+            and accepted_by(todo)
+        ):
             keys.add(f"{goal_id}/{todo_id}")
     return keys
 
@@ -245,7 +271,7 @@ def _money(value: Any) -> str:
     return "-" if value is None else f"${float(value):,.2f}"
 
 
-def _line(label: str, data: Mapping[str, Any]) -> str:
+def _line(label: str, data: Mapping[str, Any], *, orchestrator_split: bool = False) -> str:
     estimated = data.get("cost_estimated_usd") or 0
     parts = [
         f"{label}: {_money(data.get('cost_usd'))}",
@@ -254,9 +280,18 @@ def _line(label: str, data: Mapping[str, Any]) -> str:
         f"{data.get('turns', 0)} turns",
         f"{data.get('tokens', {}).get('total', 0):,} tokens",
     ]
-    if data.get("accepted_todos"):
+    split = orchestrator_split and bool(data.get("orchestrator_turns"))
+    if split:
         parts.append(
-            f"{data['accepted_todos']} accepted, {_money(data.get('cost_per_accepted_todo_usd'))}/todo, "
+            f"(orchestrator {_money(data.get('orchestrator_cost_usd'))} in {data['orchestrator_turns']} turns)"
+        )
+    if data.get("accepted_todos"):
+        without = (
+            f" ({_money(data.get('cost_per_accepted_todo_excl_orchestrator_usd'))} without orchestrator)"
+            if split else ""
+        )
+        parts.append(
+            f"{data['accepted_todos']} accepted, {_money(data.get('cost_per_accepted_todo_usd'))}/todo{without}, "
             f"{data.get('turns_per_accepted_todo')} turns/todo"
         )
     if data.get("unpriced_turns"):
@@ -269,7 +304,7 @@ def render_usage_report_text(report: Mapping[str, Any]) -> str:
     lines = [f"Usage report ({report.get('scope')}: {goals})"]
     if report.get("since"):
         lines.append(f"since {report['since']}")
-    lines.append(_line("total", report.get("totals") or {}))
+    lines.append(_line("total", report.get("totals") or {}, orchestrator_split=True))
     for group in report.get("groups") or []:
         lines.append("  " + _line(f"{report.get('by')}={group['key']}", group))
     return "\n".join(lines) + "\n"

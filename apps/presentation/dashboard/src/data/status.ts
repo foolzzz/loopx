@@ -587,6 +587,10 @@ export const turnUsageSummarySchema = z.object({
   unpriced_turns: z.number().optional().default(0),
   accepted_todos: z.number().optional().default(0),
   cost_per_accepted_todo_usd: z.number().nullable().optional(),
+  // Pilot v1 N5: the same figure without the orchestrator's spend, and that spend.
+  cost_per_accepted_todo_excl_orchestrator_usd: z.number().nullable().optional().catch(null),
+  orchestrator_cost_usd: z.number().optional().catch(undefined),
+  orchestrator_turns: z.number().optional().catch(undefined),
   turns_per_accepted_todo: z.number().nullable().optional(),
   last_turn_at: z.string().nullable().optional(),
   by_role: z.array(z.object({

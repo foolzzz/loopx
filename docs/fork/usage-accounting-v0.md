@@ -109,8 +109,17 @@ The report covers these totals, and the same fields per group:
 | `cost_usd` | total cost; `cost_reported_usd` and `cost_estimated_usd` split it |
 | `unpriced_turns` | Turns with neither a reported cost nor a price |
 | `todos` | todos with spend in the window |
-| `accepted_todos` | those of them that are done now |
+| `accepted_todos` | those of them that are done with an accept record: completion evidence `accepted_by=<acceptor>`, which includes the owner's manual accept (`accepted_by=owner`) |
 | `cost_per_accepted_todo_usd`, `turns_per_accepted_todo` | cost and Turns per accepted todo |
+| `orchestrator_turns`, `orchestrator_cost_usd` | the part of the Turns and cost spent by `role=orchestrator` agents |
+| `cost_per_accepted_todo_excl_orchestrator_usd` | cost per accepted todo without the orchestrator's spend |
+
+A todo that is merely `done` is not accepted: the orchestrator's planning
+todo, a dispatcher action todo it retired, a superseded todo, or a todo
+completed without acceptance (pilot v1 gap N5). A goal without acceptors
+(`peer_v1`) therefore reports 0 accepted todos and no per-accepted-todo cost.
+The text report shows the orchestrator's share and the figure without it on
+its `total` line.
 
 Other rules:
 - Without `--goal`, the report covers every registry goal (`scope:
@@ -124,7 +133,9 @@ Other rules:
 contains:
 - turns, failed Turns, agent-hours, total tokens;
 - cost, with the estimated part and the unpriced Turns;
-- accepted todos, cost and Turns per accepted todo;
+- accepted todos (accept records only), cost and Turns per accepted todo,
+  and the cost per accepted todo without the orchestrator;
+- the orchestrator's cost and Turns;
 - the per-role split (at most 8 rows);
 - the budget share, when a budget is set.
 
@@ -132,7 +143,8 @@ It is attached to every goal that has a ledger, peer_v1 goals included. Its
 reads are bounded:
 - it aggregates only the latest 5000 rows (`truncated: true` when rows were
   cut);
-- accepted todos come from the status `todo_index`, which is capped;
+- accepted todos come from the status `todo_index` (its completion
+  evidence), which is capped;
 - a missing or broken ledger just leaves the summary out.
 
 Code: `loopx/control_plane/status/usage_projection.py`.

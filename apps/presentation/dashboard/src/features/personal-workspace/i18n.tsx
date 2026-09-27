@@ -1198,6 +1198,7 @@ const en = {
   "roles.usage.agentHours": "agent-hours",
   "roles.usage.turns": "Turns",
   "roles.usage.perAcceptedTodo": "per accepted todo ({count})",
+  "roles.usage.withoutOrchestrator": "{cost} without orchestrator",
   "roles.usage.budget": "of {budget} budget",
   "roles.omitted": "{count} more tasks are not shown.",
 };
@@ -2390,6 +2391,7 @@ const zhCN: Record<WorkspaceMessageKey, string> = {
   "roles.usage.agentHours": "Agent 小时",
   "roles.usage.turns": "轮次",
   "roles.usage.perAcceptedTodo": "每个已验收待办（{count}）",
+  "roles.usage.withoutOrchestrator": "不含编排 {cost}",
   "roles.usage.budget": "占预算 {budget}",
   "roles.omitted": "另有 {count} 项任务未显示。",
 };

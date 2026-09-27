@@ -146,7 +146,8 @@ Gap G9. When the goal's status row carries `turn_usage_summary` (see
 header shows:
 - the goal's cost, with the estimated part named separately;
 - agent-hours and Turns;
-- cost per accepted todo, with the count;
+- cost per accepted todo, with the count (todos with an accept record only),
+  and the same figure without the orchestrator's spend when it has any;
 - the budget share, amber from 80% and red from 100%;
 - the per-role split (cost and Turns).
 

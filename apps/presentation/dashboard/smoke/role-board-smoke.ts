@@ -95,11 +95,17 @@ equal(grid.userGates.map((gate) => gate.todoId), ["todo_rb_plan_gate", "todo_rb_
 const usage = turnUsageSummarySchema.parse({
   schema_version: "loopx_turn_usage_summary_v0", turns: 3, agent_hours: 1.25, cost_usd: 0.14,
   cost_estimated_usd: 0.02, accepted_todos: 1, cost_per_accepted_todo_usd: 0.14,
+  cost_per_accepted_todo_excl_orchestrator_usd: 0.09, orchestrator_cost_usd: 0.05,
   by_role: [{ role: "developer", turns: 2, agent_hours: 1, cost_usd: 0.09 }], budget: { budget_usd: 1, spent_ratio: 0.14 },
 });
 const strip = turnUsageFromProjection(usage);
 equal([strip.turns, strip.costUsd, strip.costEstimatedUsd, strip.budgetRatio, strip.byRole[0].role],
   [3, 0.14, 0.02, 0.14, "developer"], "usage summary maps to the strip model");
+equal([strip.costPerAcceptedTodoWithoutOrchestratorUsd, strip.orchestratorCostUsd], [0.09, 0.05],
+  "the strip carries the per-accepted-todo cost without orchestrator overhead");
+equal(turnUsageFromProjection(turnUsageSummarySchema.parse({ ...usage, schema_version: "loopx_turn_usage_summary_v0",
+  cost_per_accepted_todo_excl_orchestrator_usd: "bad" })).costPerAcceptedTodoWithoutOrchestratorUsd, null,
+  "a malformed orchestrator split degrades to null");
 equal(runGoalSchema.parse({ id: "g", turn_usage_summary: { schema_version: "other" } }).turn_usage_summary, null,
   "an unknown usage summary degrades to null");
 
