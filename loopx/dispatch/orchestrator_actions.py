@@ -36,6 +36,11 @@ _ACTION_TODO_LIVE_STATUSES = frozenset({"open", "in_review", "blocked"})
 _ORCHESTRATOR_TODO_LIVE_STATUSES = frozenset({"open", "in_review"})
 # The same effective action reopened this many times is escalated to the user.
 ORCHESTRATOR_ACTION_REPEAT_LIMIT = 2
+# An action todo whose orchestrator Turns failed this many times (for example
+# its validator never passes because nothing is left to do) is retired: the
+# dispatcher closes it and opens the repeat-limit gate (E2E pilot v1).
+ORCHESTRATOR_ACTION_FAILED_TURN_LIMIT = 2
+ORCHESTRATOR_ACTION_RETIRED_REASON = "orchestrator_action_retired"
 
 
 def is_orchestrator_action_todo(todo: Mapping[str, Any] | None) -> bool:
@@ -52,6 +57,21 @@ def action_gate_ids(todo: Mapping[str, Any] | None) -> list[str]:
         return []
     listed = text.split(_AWAITING_GATES_MARKER, 1)[1].split(".", 1)[0]
     return _TODO_TOKEN.findall(listed)
+
+
+def action_subject(todo: Mapping[str, Any] | None) -> str | None:
+    """The subject an action todo was opened for, as the repeat counter keys it."""
+
+    if not is_orchestrator_action_todo(todo):
+        return None
+    gates = action_gate_ids(todo)
+    if gates:
+        return ",".join(gates)
+    text = str((todo or {}).get("text") or "")
+    if _ACTION_MARKER not in text:
+        return None
+    action = text.split(_ACTION_MARKER, 1)[1].split(".", 1)[0].strip()
+    return f"effective_action={action}" if action else None
 
 
 def action_todo_text(effective_action: str | None, gate_ids: Sequence[str]) -> str:

@@ -74,6 +74,14 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      the orchestrator has another open todo; the text prefix finds it again when
      the dispatcher state is lost. If two action todos for the same subject
      finish without clearing it, a user gate opens instead of a third.
+     An action todo whose orchestrator Turns fail twice (the `failed`
+     outcome, typically its validator, when nothing is left to do; host and
+     provider failures do not count) is retired: the dispatcher closes it with
+     the ordinary supersede transition, attributed to its claim owner, reports
+     it under `orchestrator_todos_retired`, skips with reason
+     `orchestrator_action_retired`, and opens the same repeat-limit gate, which
+     holds the orchestrator until the user closes it. Before (E2E pilot v1) such
+     a todo relaunched a real orchestrator Turn on every backoff expiry.
      A role_v1 goal derives neither the vision-checkpoint obligation nor the
      no-follow-up replan (decision 31, [role_v1 protocol](role-v1-protocol.md)),
      so a completed orchestrator todo no longer opens an action todo. Nor
