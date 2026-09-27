@@ -646,6 +646,14 @@ def handle_todo_command(
             )
         elif args.todo_command == "supersede":
             validate_todo_supersede_options(args)
+            from ..plan_dependencies import orchestrator_supersede_actor
+
+            # Pilot v1 N11: the role_v1 orchestrator closes another agent's todo
+            # as that claim owner, like supersede --by; the event keeps the actor.
+            supersede_agent_id = orchestrator_supersede_actor(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id, agent_id=args.agent_id,
+            )
             payload = supersede_goal_todo(
                 registry_path=registry_path,
                 runtime_root_arg=runtime_root_arg,
@@ -663,7 +671,7 @@ def handle_todo_command(
                 next_required_capabilities=args.next_required_capabilities,
                 next_continuation_policy=args.next_continuation_policy,
                 next_excluded_agents=args.next_excluded_agents,
-                agent_id=args.agent_id,
+                agent_id=supersede_agent_id,
                 authority_reason=args.authority_reason,
                 task_lease_idempotency_key=args.task_lease_idempotency_key,
                 task_lease_expected_version=args.task_lease_expected_version,

@@ -23,7 +23,8 @@ loopx dispatch serve --goal-id G --once
 loopx dispatch serve --goal-id G [--goal-id G2 ...] [--project P] \
   [--tick-seconds 60] [--poll-seconds 3] [--max-global 4] \
   [--turn-timeout-seconds 3600] [--long-cooldown-seconds 3600] \
-  [--backoff-base-seconds 60] [--validation-command-json '["make","test"]']
+  [--backoff-base-seconds 60] [--validation-command-json '["make","test"]'] \
+  [--idle-heartbeat-seconds 900]
 
 loopx dispatch status            # running Turns, per-agent slots, cooldowns, gates
 loopx dispatch launchd-plist --goal-id G > ~/Library/LaunchAgents/com.loopx.dispatch.plist
@@ -34,6 +35,13 @@ The global `--registry` and `--runtime-root` options select the state home as us
 Only one dispatcher can run per runtime root. `serve` and `serve --once` take an
 exclusive `flock` on `<runtime-root>/dispatch/serve.lock`. A second dispatcher on the
 same runtime root exits with code 3 (`dispatcher_locked`).
+
+`serve` prints a pass as one JSON line only when it acts (launches, reaps, opens a
+gate or errors). So that an idle goal does not look like a dead dispatcher (pilot v1
+gap N11), it prints one `loopx_dispatch_idle_heartbeat_v0` line when nothing was
+printed for `--idle-heartbeat-seconds` (default 900, `0` disables): the idle time,
+the passes since the last line, their skip reasons (at most 8) and the running
+Turns. It is a log line only.
 
 The plist starts the dispatcher with `KeepAlive` and `RunAtLoad`, and uses the Python
 interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex` and

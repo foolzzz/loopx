@@ -632,6 +632,12 @@ The Python API is `loopx.plan_dependencies.supersede_goal_todo_by`.
 - Only the goal orchestrator, or the owner with no agent id, may supersede.
   Others are refused with `not_orchestrator`. On a `peer_v1` goal `--by` is
   refused (`role_v1_required`); plain `todo supersede` is unchanged.
+- Plain `todo supersede --agent-id ORCH` (without `--by`) by the role_v1 goal
+  orchestrator no longer needs the claim owner's `--agent-id` (pilot v1 gap
+  N11): its kernel write is attributed to the todo's claim owner, like the
+  `--by` path, and the `todo_supersede` event keeps the orchestrator as the
+  actor. Any other agent still meets the kernel's claim rule, and `peer_v1`
+  goals are unchanged.
 - A replacement that is itself a dependent of OLD is refused
   (`dependency_cycle`), as is a finished or superseded replacement.
 - Retrying the same supersede is a no-op (`already_superseded`); a different
