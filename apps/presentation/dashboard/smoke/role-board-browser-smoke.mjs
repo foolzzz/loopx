@@ -47,6 +47,15 @@ function statusFixture() {
     agent_roles: { "fable-orch": "orchestrator", "opus-dev": "developer", "opus-dev-2": "developer", "codex-acc": "acceptor" },
   };
   goal.role_board = structuredClone(require("./role-board-fixture.json"));
+  // Fork G9: the goal usage strip in the board header.
+  goal.turn_usage_summary = {
+    schema_version: "loopx_turn_usage_summary_v0", turns: 42, failed_turns: 3, agent_hours: 6.5,
+    tokens_total: 1200000, cost_usd: 18.4, cost_estimated_usd: 4.1, unpriced_turns: 0, accepted_todos: 4,
+    cost_per_accepted_todo_usd: 4.6, turns_per_accepted_todo: 10.5, last_turn_at: "2026-09-26T10:00:00+00:00",
+    by_role: [{ role: "developer", turns: 30, agent_hours: 5, cost_usd: 12.3, cost_estimated_usd: 0 },
+      { role: "acceptor", turns: 12, agent_hours: 1.5, cost_usd: 6.1, cost_estimated_usd: 4.1 }],
+    budget: { budget_usd: 20, spent_ratio: 0.92 },
+  };
   return fixture;
 }
 
@@ -82,6 +91,11 @@ async function main() {
     await page.getByRole("button", { name: "角色看板", exact: true }).click();
     const board = page.getByRole("region", { name: "角色看板" });
     await board.waitFor({ state: "visible" });
+
+    const usage = board.locator("[data-role-usage]");
+    assert.match(await usage.innerText(), /\$18\.40[\s\S]*含估算 \$4\.10[\s\S]*6\.5[\s\S]*Agent 小时[\s\S]*42[\s\S]*\$4\.60[\s\S]*92%[\s\S]*开发 \$12\.30 · 30/,
+      "Usage strip shows cost, estimated part, agent-hours, turns, cost per accepted todo, budget and role split");
+    assert.match(await usage.locator('[data-usage-metric="budget"]').getAttribute("class"), /is-near/, "Budget above 80% is flagged");
 
     // Stage columns, in order, with derived counts.
     const headers = await board.locator(".personal-role-grid-row.is-header [data-stage]").allInnerTexts();
@@ -140,6 +154,7 @@ async function main() {
     const englishBoard = english.getByRole("region", { name: "Role board" });
     await englishBoard.waitFor({ state: "visible" });
     assert.match(await englishBoard.innerText(), /Waiting on you[\s\S]*Plan approval[\s\S]*Planned[\s\S]*Assigned[\s\S]*Running[\s\S]*In review[\s\S]*Rework[\s\S]*Done[\s\S]*Rejected ×2/, "English copy");
+    assert.match(await englishBoard.locator("[data-role-usage]").innerText(), /incl\. \$4\.10 estimated[\s\S]*agent-hours[\s\S]*per accepted todo \(4\)/, "English usage strip");
     await english.close();
     console.log("role board browser smoke passed");
   } finally {

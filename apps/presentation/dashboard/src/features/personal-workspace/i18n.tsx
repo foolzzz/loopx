@@ -1182,6 +1182,12 @@ const en = {
   "roles.noRole": "Agents without a role",
   "roles.dispatcherMissing": "No dispatcher state yet; agent activity is unknown.",
   "roles.dispatcherOffline": "The dispatcher is not running; agent activity may be stale.",
+  "roles.usage.title": "Agent usage",
+  "roles.usage.estimated": "incl. {cost} estimated",
+  "roles.usage.agentHours": "agent-hours",
+  "roles.usage.turns": "Turns",
+  "roles.usage.perAcceptedTodo": "per accepted todo ({count})",
+  "roles.usage.budget": "of {budget} budget",
   "roles.omitted": "{count} more tasks are not shown.",
 };
 
@@ -2357,6 +2363,12 @@ const zhCN: Record<WorkspaceMessageKey, string> = {
   "roles.noRole": "未登记角色的 Agent",
   "roles.dispatcherMissing": "尚无调度器状态，Agent 活动未知。",
   "roles.dispatcherOffline": "调度器未运行，Agent 活动可能已过期。",
+  "roles.usage.title": "Agent 用量",
+  "roles.usage.estimated": "含估算 {cost}",
+  "roles.usage.agentHours": "Agent 小时",
+  "roles.usage.turns": "轮次",
+  "roles.usage.perAcceptedTodo": "每个已验收待办（{count}）",
+  "roles.usage.budget": "占预算 {budget}",
   "roles.omitted": "另有 {count} 项任务未显示。",
 };
 
