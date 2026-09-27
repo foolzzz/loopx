@@ -39,6 +39,8 @@ MAX_ROLE_BOARD_TEXT = 160
 MAX_ROLE_BOARD_REPOS = 8
 # Fork G2: the orchestrator-owned per-todo acceptance criteria on the card.
 MAX_ROLE_BOARD_CRITERIA_TEXT = 300
+# Fork G6: why a deferred plan todo is still waiting on its dependencies.
+MAX_ROLE_BOARD_DEPENDENCY_WAIT_TEXT = 300
 
 _DONE_STATUSES = {"done", "completed"}
 _HIDDEN_STATUSES = {"superseded", "cancelled", "canceled", "obsolete", "archived"}
@@ -174,6 +176,15 @@ def _plan_links(runtime_root: Path, goal_id: str) -> tuple[dict[str, dict[str, A
             if isinstance(todo_id, str) and todo_id:
                 by_todo[todo_id] = {"plan_id": summary["plan_id"], "plan_gate_todo_id": summary["gate_todo_id"]}
     return by_todo, by_gate
+
+
+def _dependency_waits(runtime_root: Path, goal_id: str) -> dict[str, list[str]]:
+    try:
+        from ...plan_dependencies import read_dependency_wait_snapshot
+
+        return read_dependency_wait_snapshot(runtime_root, goal_id)
+    except Exception:  # noqa: BLE001 - the wait read model is advisory for the board
+        return {}
 
 
 def _gate_index(runtime_root: Path, goal_id: str) -> dict[str, dict[str, Any]]:
@@ -316,6 +327,7 @@ def build_goal_role_board(
     for todo_id, owner in leases.items():
         running_by_todo.setdefault(todo_id, owner)
     plan_by_todo, plan_by_gate = _plan_links(runtime_root, goal_id)
+    dependency_waits = _dependency_waits(runtime_root, goal_id)
 
     agents = []
     for agent_id in roster[:MAX_ROLE_BOARD_AGENTS]:
@@ -363,6 +375,9 @@ def build_goal_role_board(
         criteria = _text(todo.get("acceptance_criteria"), MAX_ROLE_BOARD_CRITERIA_TEXT)
         if criteria:
             card["acceptance_criteria"] = criteria
+        wait = _text("; ".join(dependency_waits.get(todo_id) or []), MAX_ROLE_BOARD_DEPENDENCY_WAIT_TEXT)
+        if wait and status == "deferred":
+            card["dependency_wait"] = wait
         if not done and todo_id in running_by_todo:
             card["running"] = True
             card["running_agent_id"] = running_by_todo[todo_id] or None

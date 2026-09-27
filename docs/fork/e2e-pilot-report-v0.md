@@ -300,7 +300,16 @@ schema, or the lease or guard semantics. None of these was changed.
     orchestrator stays serial. Parallel settlement of one agent's Turns keeps
     spend, journals and state refresh per Turn. See
     [dispatcher-v0](dispatcher-v0.md) and [role-v1-protocol](role-v1-protocol.md).
-- **G6 (P2). Superseded todos count as done.**
+- **G6 (P2). Superseded todos count as done. Resolved by design decision 37,
+  approved by the user; see
+  [role-v1-protocol](role-v1-protocol.md#dependency-release-and-supersession-gap-g6).**
+  Under role_v1 a dependency that requires acceptance releases its dependents
+  only when it is accepted and merged, and a superseded or manually closed todo
+  never counts. `loopx todo supersede --todo-id OLD --by NEW[,NEW2]` closes OLD
+  as superseded and rewires every dependent to all replacements; only the
+  orchestrator or the owner may run it, and the orchestrator prompt says to use
+  it. `todo list` and the role board say why a todo still waits. The original
+  finding:
   - The orchestrator closed the superseded frontend todo as `done`, which resumed
     integration before the replacement merged. The integration branch was cut
     from a stale task branch, which caused the merge conflict above.

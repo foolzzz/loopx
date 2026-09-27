@@ -216,7 +216,9 @@ Two layers tell every Turn to use repo-relative paths instead:
   acceptors. The orchestrator's addendum names the exact CLI prefix
   (interpreter, `--registry`, `--runtime-root`) for its gate and plan commands,
   how to open a question gate, to return `user_action_required` while it waits
-  on the user, and how to resolve an escalation.
+  on the user, and how to resolve an escalation. When it replaces or splits a
+  todo it uses `loopx todo supersede --by`, never marking the replaced todo
+  done (gap G6).
 
 Role guidance that every host needs lives in the shared Turn prompt instead: an
 `in_review` todo tells the acceptor that it only reviews and never modifies
