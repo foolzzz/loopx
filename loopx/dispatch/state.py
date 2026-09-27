@@ -114,6 +114,11 @@ def empty_state() -> dict[str, Any]:
         "orchestrator_baselines": {},
         "agent_slots": {},
         "review_warnings": {},
+        # Kept across restarts (E2E pilot v1): load_state drops unlisted keys,
+        # which reset the action repeat counters and budget alert memory.
+        "orchestrator_actions": {},
+        "orchestrator_action_failures": {},
+        "budget_alerts": {},
         "last_pass": None,
     }
 

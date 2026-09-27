@@ -74,6 +74,14 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      the orchestrator has another open todo; the text prefix finds it again when
      the dispatcher state is lost. If two action todos for the same subject
      finish without clearing it, a user gate opens instead of a third.
+     An action todo whose orchestrator Turns fail twice (the `failed`
+     outcome, typically its validator, when nothing is left to do; host and
+     provider failures do not count) is retired: the dispatcher closes it with
+     the ordinary supersede transition, attributed to its claim owner, reports
+     it under `orchestrator_todos_retired`, skips with reason
+     `orchestrator_action_retired`, and opens the same repeat-limit gate, which
+     holds the orchestrator until the user closes it. Before (E2E pilot v1) such
+     a todo relaunched a real orchestrator Turn on every backoff expiry.
      A role_v1 goal derives neither the vision-checkpoint obligation nor the
      no-follow-up replan (decision 31, [role_v1 protocol](role-v1-protocol.md)),
      so a completed orchestrator todo no longer opens an action todo. Nor
@@ -100,6 +108,14 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
      ordinary Todo update).
+   - **Deferred offers (E2E pilot v1).** Upstream should-run can still select a
+     deferred todo for a developer or acceptor once its single `resume_when`
+     dependency is done (`successor_replan_required`), while another plan
+     dependency waits for accept+merge (decision 37). A todo-lane Turn is
+     pinned, and run-once refuses a pinned deferred todo without a host call,
+     so the pass never launches one: it fills the slot with the lane's next
+     executable todo, or skips with reason `selected_todo_deferred` and the
+     todo's `dependency_wait` from the wait read model. No backoff accrues.
 5. **Auth preflight** (S3 `preflight_agent`) runs before the first launch per agent
    per pass. If it fails:
    - the agent is marked unavailable for `auth_cooldown_seconds` (default 300s);

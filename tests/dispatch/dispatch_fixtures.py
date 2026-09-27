@@ -137,6 +137,11 @@ if mode == "crash":
 if mode == "ok":
     print(json.dumps({"ok": True, "status": "committed", "effects": {"host_invoked": True}}))
     raise SystemExit(0)
+if mode == "failed":
+    # A Turn whose independent validation failed: no host failure kind.
+    print(json.dumps({"ok": False, "status": "failed", "reason": "validation_failed",
+                      "effects": {"host_invoked": True}}))
+    raise SystemExit(1)
 kind = {"rate_limited": "rate_limited", "quota": "quota_exhausted", "auth": "auth_failed"}[mode]
 print(json.dumps({"ok": False, "status": "failed", "host_failure": {"kind": kind, "retryable": True}}))
 raise SystemExit(1)

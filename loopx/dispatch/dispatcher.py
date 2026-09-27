@@ -26,9 +26,13 @@ from typing import Any
 from . import policy
 from ..gate_threads import gates_awaiting_orchestrator
 from ..plan_criteria_changes import CRITERIA_CHANGE_PENDING_REASON, criteria_change_pending_todo_ids
+from ..plan_dependencies import read_dependency_wait_snapshot
 from .orchestrator_actions import (
     ORCHESTRATOR_ACTION_REPEAT_LIMIT,
     action_todo_text,
+    ORCHESTRATOR_ACTION_FAILED_TURN_LIMIT,
+    ORCHESTRATOR_ACTION_RETIRED_REASON,
+    action_subject,
     action_validator_argv,
     is_orchestrator_action_todo,
     live_orchestrator_todo,
@@ -396,6 +400,18 @@ class Dispatcher:
                     if role == policy.ROLE_ACCEPTOR else set()
                 )
                 held = review_blocked | criteria_held
+                # A deferred todo can still be offered by upstream should-run
+                # (its single ``resume_when`` is met) while a decision-37 plan
+                # dependency waits. A pinned todo-lane Turn on it is refused by
+                # run-once without a host call, so launching it only grows the
+                # todo's backoff (E2E pilot v1). Fill the slot with an
+                # executable todo instead, or skip.
+                deferred = (
+                    {str(todo_id)}
+                    if todo_lane and todo_id and decision.get("todo_status") == "deferred"
+                    else set()
+                )
+                held |= deferred
                 if todo_id and (todo_id in in_flight | cooling | held) and role != policy.ROLE_ORCHESTRATOR:
                     # Fill a free slot of this agent with its next executable todo.
                     alternate = policy.alternate_todo(payload, exclude=in_flight | cooling | held)
@@ -405,11 +421,26 @@ class Dispatcher:
                 if todo_id and todo_id in in_flight:
                     skip("todo_in_flight", todo_id=todo_id)
                     break
+                if (
+                    role == policy.ROLE_ORCHESTRATOR and todo_id
+                    and self._action_todo_failures(goal_id, str(todo_id)) >= ORCHESTRATOR_ACTION_FAILED_TURN_LIMIT
+                ):
+                    self._retire_action_todo(goal_id, agent_id, str(todo_id), report)
+                    skip(ORCHESTRATOR_ACTION_RETIRED_REASON, todo_id=todo_id)
+                    break
                 if todo_id and todo_id in review_blocked:
                     skip("review_blocked_gate_open", todo_id=todo_id)
                     break
                 if todo_id and todo_id in criteria_held:
                     skip(CRITERIA_CHANGE_PENDING_REASON, todo_id=todo_id)
+                    break
+                if todo_id and todo_id in deferred:
+                    waits = read_dependency_wait_snapshot(self.runtime_root, goal_id).get(str(todo_id))
+                    skip(
+                        policy.SELECTED_TODO_DEFERRED_REASON,
+                        todo_id=todo_id,
+                        **({"dependency_wait": "; ".join(waits)[:400]} if waits else {}),
+                    )
                     break
                 if todo_id and self._todo_cooling(goal_id, str(todo_id), agent_id, now):
                     skip("todo_cooldown", todo_id=todo_id)
@@ -680,6 +711,49 @@ class Dispatcher:
             {"goal_id": goal_id, "agent_id": agent_id, "todo_id": todo_id, "subject": subject}
         )
 
+    def _action_todo_failures(self, goal_id: str, todo_id: str) -> int:
+        return int((self.state.get("orchestrator_action_failures") or {}).get(f"{goal_id}/{todo_id}") or 0)
+
+    def _retire_action_todo(
+        self, goal_id: str, agent_id: str, todo_id: str, report: dict[str, Any],
+    ) -> None:
+        """Close an action todo whose Turns keep failing and tell the user once.
+
+        Its validator can never pass when the orchestrator has nothing left to
+        do (E2E pilot v1: a finished goal), so relaunching it spent a Turn per
+        backoff expiry without end. The dispatcher opened the todo; it closes
+        it through the ordinary supersede transition, attributed to the claim
+        owner, and opens the repeat-limit gate, which holds the orchestrator's
+        lane until the user closes it. Every relaunch of this loop therefore
+        needs a user decision instead of spending Turns on its own.
+        """
+
+        from ..todos import supersede_goal_todo
+
+        todo = self._todo_record(goal_id, todo_id) or {}
+        subject = action_subject(todo) or todo_id
+        failures = self._action_todo_failures(goal_id, todo_id)
+        try:
+            supersede_goal_todo(
+                registry_path=self.registry_path, goal_id=goal_id, runtime_root_arg=str(self.runtime_root),
+                todo_id=todo_id, agent_id=str(todo.get("claimed_by") or agent_id),
+                reason=f"dispatcher: the orchestrator's Turns failed {failures} times on this action todo",
+            )
+        except Exception as exc:  # noqa: BLE001 - report; the todo stays held by its failure count
+            report["errors"].append({"goal_id": goal_id, "todo_id": todo_id, "error": f"retire_action: {exc}"[:400]})
+            return
+        self.state.setdefault("orchestrator_action_failures", {}).pop(f"{goal_id}/{todo_id}", None)
+        report.setdefault("orchestrator_todos_retired", []).append(
+            {"goal_id": goal_id, "agent_id": agent_id, "todo_id": todo_id, "subject": subject, "failed_turns": failures}
+        )
+        self._open_gate(
+            goal_id, key=f"orchestrator-action:{agent_id}",
+            text=(f"Orchestrator {agent_id} did not settle {subject}: its Turns on action todo {todo_id} "
+                  f"failed {failures} times, so the dispatcher closed that todo. Inspect the goal (a stale "
+                  "Next Action can raise this), then close this gate."),
+            blocks_agent=agent_id, report=report,
+        )
+
     def _todo_cooling(self, goal_id: str, todo_id: str, agent_id: str, now: float) -> bool:
         """A todo-wide cooldown (workspace prepare) or this agent's failure backoff."""
 
@@ -919,6 +993,8 @@ class Dispatcher:
             "started_at": self.clock(),
             "project": str(run_project),
             "workspace_repos": sorted(repo_paths),
+            **({"orchestrator_action": True}
+               if role == policy.ROLE_ORCHESTRATOR and todo_id and is_orchestrator_action_todo(todo) else {}),
             **({"review_checkout": review_checkout} if review_checkout is not None else {}),
             "stdout_path": str(stdout_path),
             "stderr_path": str(stderr_path),
@@ -1012,6 +1088,16 @@ class Dispatcher:
                 "failures": failures,
                 "reason": outcome["outcome"],
             }
+        if run.get("orchestrator_action") and run.get("todo_id"):
+            # A failed Turn on an action todo (typically its validator, when
+            # nothing is left to do) counts toward retiring it; host and
+            # provider failures do not, and a committed Turn clears the count.
+            failures = self.state.setdefault("orchestrator_action_failures", {})
+            action_key = f"{goal_id}/{run['todo_id']}"
+            if outcome["outcome"] == policy.OUTCOME_FAILED:
+                failures[action_key] = int(failures.get(action_key) or 0) + 1
+            elif outcome["outcome"] == policy.OUTCOME_COMMITTED:
+                failures.pop(action_key, None)
         if outcome["outcome"] not in {policy.OUTCOME_CRASHED, policy.OUTCOME_COMMITTED}:
             self._keep_unsettled_turn(goal_id, agent_id, run, stdout_text, outcome, now)
         if run.get("role") == policy.ROLE_ORCHESTRATOR:
