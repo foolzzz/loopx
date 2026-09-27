@@ -609,10 +609,12 @@ def settle_gate_decision(
 ) -> dict[str, Any] | None:
     """After a gate closed: apply (approve) or close (reject/cancel) its plan.
 
-    An acceptor-blocked gate (G12) applies its chosen option instead.
+    An acceptor-blocked gate (G12) applies its chosen option instead, and a
+    push_request gate (G8) pushes on approve.
     """
 
     from .gate_threads import mark_gate_closed
+    from .push_requests import settle_push_gate
     from .todo_review_blocked import settle_review_gate
 
     review = settle_review_gate(
@@ -621,6 +623,12 @@ def settle_gate_decision(
     )
     if review is not None:
         return review
+    push = settle_push_gate(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,
+        decision=decision, runtime_root_arg=runtime_root_arg,
+    )
+    if push is not None:
+        return push
     index_entry = read_gate_index(runtime_root, goal_id)["gates"].get(str(todo_id))
     if index_entry is not None:
         mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision)

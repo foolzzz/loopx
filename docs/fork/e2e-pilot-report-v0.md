@@ -237,7 +237,7 @@ Fixes from the PR review, one commit each, with regression tests.
   kernel suggested. It did not clear the orchestrator's vision-checkpoint replan
   obligation (gap G4).
 - **W6.** The push decision gate was opened by the owner through the CLI
-  (`--blocks-agent orch`). Nothing in the fork opens it (gap G8).
+  (`--blocks-agent orch`). Nothing in the fork opened it (gap G8, since resolved).
 
 ## Remaining gaps, in priority order
 
@@ -324,9 +324,17 @@ schema, or the lease or guard semantics. None of these was changed.
   on G4 is resolved: the vision-checkpoint and no-follow-up obligations no
   longer open action todos. The `todos-changed-since` validator is coarse: a
   concurrent todo write by another agent also satisfies it.
-- **G8 (P2). No push flow.** Nothing opens the push gate when a goal's work is
-  merged, and approving it does not push. Both should be orchestrator or
-  dispatcher steps.
+- **G8 (P2). No push flow. Resolved** (design-v0 decision 38).
+  - Nothing opened the push gate when a goal's work was merged, and approving
+    it did not push.
+  - Fix: once no agent todo is open, in review or blocked and a merge target
+    has this goal's unpushed merges, the dispatcher opens one `push_request`
+    user gate per goal (the orchestrator can also ask with `loopx goal
+    request-push`). Approve pushes each repo's merge target with a plain `git
+    push` (never force) and records a `push_result` event per repo; a failure
+    leaves a follow-up gate with the error; reject records the decision and
+    waits for new merges; local-only repos are skipped. See
+    [workspaces-v0](workspaces-v0.md#pushing-merged-work-g8).
 - **G9 (P2). No cost or token accounting. Resolved** (see
   [usage-accounting-v0](usage-accounting-v0.md)).
   - The claude-code and codex adapters dropped `total_cost_usd`, `num_turns`

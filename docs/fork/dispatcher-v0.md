@@ -8,7 +8,8 @@ agent it asks LoopX whether the agent should run now (the quota `should-run`
 decision, called through the Python API). It then applies slot, cooldown and auth
 rules, and launches `loopx turn run-once` as a child process. The Turn pipeline owns
 the typed result, validation, idempotent writeback and quota spend. The dispatcher
-never writes goal state directly. Its only goal writes are user gates, which it
+never writes goal state directly. Its only goal writes are user gates (re-login,
+long cooldown, orchestrator repeat limit and push request), which it
 creates through the normal Todo API (`add_goal_todo`, the same path as
 `todo add --role user --task-class user_gate`).
 
@@ -165,6 +166,16 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   developer's failures do not hold back the acceptor's review of the same todo;
   a workspace-prepare failure cools the todo down for everyone. LoopX's repair and replan routing still decides what
   happens to the todo itself.
+- **Push request (G8, decision 38).** Every pass over a role_v1 goal asks
+  `loopx.push_requests.request_push(require_all_merged=True)`. Once no agent
+  todo of the goal is `open`, `in_review` or `blocked`, and a merge target has
+  this goal's merge commits (`LoopX-Goal` trailer) that its remote does not
+  have yet, one `push_request` user gate opens (report key
+  `gates_opened[].key=push_request`). It blocks the goal's orchestrator. At
+  most one is open per goal, and a push the user rejected or cancelled is not
+  offered again until new merges move a merge target. The dispatcher never
+  pushes; the gate's approve does. See
+  [workspaces-v0](workspaces-v0.md#pushing-merged-work-g8).
 
 ## Parallel Turns of one agent
 
