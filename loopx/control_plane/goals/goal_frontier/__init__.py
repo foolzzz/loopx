@@ -11,6 +11,7 @@ from ...agents.agent_scope import (
 from ...agents.profile import agent_profile_requires_vision
 from ...agents.runtime_model import AgentRuntimeModel, orchestrator_owns_planning_review
 from ...agents.runtime_model import peer_work_key, select_peer_for_work
+from .role_v1_cadence import replan_obligation_sources
 from ...runtime.time import parse_timestamp
 # Refs #4447: the todo contract owns this vocabulary; import it instead of
 # restating the literal in every module that classifies a Todo.
@@ -1562,12 +1563,9 @@ def build_goal_frontier_projection_context_from_status(
     """
 
     vision_replan_derived = not orchestrator_owns_planning_review(agent_runtime_model)
-
-    replan_obligation = select_autonomous_replan_obligation(
-        item,
-        project_asset,
-        agent_id=agent_id,
-        orchestrator_agent_id=orchestrator_agent_id,
+    replan_obligation = select_autonomous_replan_obligation(  # role_v1: no cadence replan (39)
+        *replan_obligation_sources(item, project_asset, agent_runtime_model),
+        agent_id=agent_id, orchestrator_agent_id=orchestrator_agent_id,
     )
     if replan_obligation:
         replan_obligation = ensure_replan_novelty_policy(replan_obligation)

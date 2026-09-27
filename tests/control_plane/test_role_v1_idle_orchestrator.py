@@ -7,6 +7,10 @@ event-triggered and idles by design; its Next Action ("Orchestrator idles ...
 re-engages only if ... a user gate appears") read as such a wait, and the
 dispatcher opened an orchestrator action todo for the repair (E2E pilot gap
 G13). role_v1 goals no longer raise that demand; peer_v1 goals still do.
+
+The sibling cadence replan (``periodic_review_due``, raised after a number of
+durable runs of any lane and routed to the orchestrator) is not derived for
+role_v1 either; stall replans from run history still are.
 """
 
 from __future__ import annotations
@@ -18,10 +22,14 @@ from typing import Any
 import pytest
 
 from loopx.control_plane.agents.runtime_model import AgentRuntimeModel
+from loopx.control_plane.goals.goal_frontier.role_v1_cadence import replan_obligation_sources
 from loopx.control_plane.quota.projection_repair import build_state_projection_gap
 from loopx.control_plane.testing.canary_harness import (
     run_json_cli_result,
     write_fixture_registry,
+)
+from loopx.control_plane.status.autonomous_replan_projection import (
+    AUTONOMOUS_REPLAN_PERIODIC_RUN_THRESHOLD,
 )
 from loopx.state_projection import state_projection_gap_warning
 
@@ -174,3 +182,72 @@ def test_the_pilot_state_demands_no_projection_repair_under_role_v1(tmp_path: Pa
         _assert_no_projection_demand(packet)
         assert packet["effective_action"] == "normal_run"
         assert packet.get("autonomous_replan_obligation") is None
+
+
+# --- sibling: the cadence replan from run history -------------------------------
+
+
+def _refresh_dev(goal: dict[str, Path], *extra: str) -> None:
+    code, payload = run_json_cli_result(
+        "refresh-state", "--goal-id", GOAL_ID, "--agent-id", DEV, "--progress-scope", "agent_lane", *extra,
+        registry_path=goal["registry"], runtime_root=goal["runtime"],
+    )
+    assert code == 0, payload
+
+
+def _replan_triggers(packet: dict[str, Any]) -> list[str]:
+    obligation = packet.get("autonomous_replan_obligation") or {}
+    return [str(item.get("kind")) for item in obligation.get("triggers") or []]
+
+
+def _run_obligation(kind: str) -> dict[str, Any]:
+    return {"schema_version": "autonomous_replan_obligation_v0", "required": True, "agent_id": DEV,
+            "triggers": [{"kind": kind, "section": "run_history"}]}
+
+
+@pytest.mark.parametrize("model", [AgentRuntimeModel.ROLE_V1, AgentRuntimeModel.PEER_V1, None])
+def test_replan_sources_drop_only_cadence_obligations_under_role_v1(model: AgentRuntimeModel | None) -> None:
+    item = {
+        "autonomous_replan_obligation": _run_obligation("periodic_review_due"),
+        "autonomous_replan_obligations_by_agent": {
+            DEV: _run_obligation("periodic_review_due"),
+            ACC: _run_obligation("typed_progress_repeat"),
+        },
+    }
+    asset = {"autonomous_replan_obligations_by_agent": {DEV: _run_obligation("periodic_review_due")}}
+    selected_item, selected_asset = replan_obligation_sources(item, asset, model)
+    if model is not AgentRuntimeModel.ROLE_V1:
+        assert (selected_item, selected_asset) == (item, asset)
+        return
+    assert selected_item == {"autonomous_replan_obligations_by_agent": {ACC: _run_obligation("typed_progress_repeat")}}
+    assert selected_asset == {}
+    assert "autonomous_replan_obligation" in item  # the sources are not mutated
+
+
+def test_role_v1_developer_turns_raise_no_periodic_replan_for_the_orchestrator(tmp_path: Path) -> None:
+    """20 durable developer runs made the idle orchestrator owe a periodic replan."""
+
+    goal = _goal(tmp_path, "role_v1", _state(IDLE_NEXT_ACTION))
+    for _ in range(AUTONOMOUS_REPLAN_PERIODIC_RUN_THRESHOLD):
+        _refresh_dev(
+            goal, "--classification", "validated_progress", "--delivery-outcome", "outcome_progress",
+            "--delivery-batch-scale", "single_surface",
+        )
+    for agent in (ORCH, DEV):
+        packet = _should_run(goal, agent)
+        assert packet["effective_action"] == "normal_run", _replan_triggers(packet)
+        assert packet.get("autonomous_replan_obligation") is None
+
+
+def test_role_v1_developer_stall_still_routes_a_replan_to_the_orchestrator(tmp_path: Path) -> None:
+    """A stall from run history is a real stuck case: the orchestrator still owes the replan."""
+
+    goal = _goal(tmp_path, "role_v1", _state(IDLE_NEXT_ACTION))
+    for _ in range(2):
+        _refresh_dev(
+            goal, "--classification", "blocked_on_review", "--progress-result-class", "blocked",
+            "--progress-blocker-id", "blocker-review", "--progress-evidence-id", "evidence-review",
+        )
+    packet = _should_run(goal, ORCH)
+    assert packet["effective_action"] == "autonomous_replan_required"
+    assert _replan_triggers(packet) == ["typed_progress_repeat"]
