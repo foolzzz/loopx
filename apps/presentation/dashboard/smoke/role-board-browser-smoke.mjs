@@ -64,6 +64,13 @@ async function openBoard(browser, url, locale) {
   const fixture = statusFixture();
   await page.route(`http://127.0.0.1:${port}/status.json**`, (route) => route.fulfill({ contentType: "application/json", json: fixture, status: 200 }));
   await page.route("**/api/**", (route) => route.fulfill({ contentType: "application/json", json: { ok: true }, status: 200 }));
+  // Decision 40: the plan gate's thread carries its acceptance-criteria changes.
+  await page.route("**/api/chat/gate-thread?**", (route) => route.fulfill({ contentType: "application/json", status: 200, json: {
+    ok: true, goal_id: "loopx-meta", todo_id: "todo_rb_plan_gate", status: "open", kind: "plan_approval",
+    awaiting: "awaiting_user", plan_id: "plan_fedcba987654", messages: [],
+    criteria_changes: [{ todo_id: "todo_rb_review", old: "GET /todos returns 200; tests pass",
+      new: "GET /todos returns 200 paged by 50", reason: "the user asked for paging" }],
+  } }));
   await page.goto(url, { waitUntil: "networkidle" });
   await page.locator(".personal-goal-link").filter({ hasText: GOAL_TITLE }).click();
   return page;
@@ -138,6 +145,16 @@ async function main() {
     const drawer = page.locator("[data-context-drawer]");
     await drawer.waitFor({ state: "visible" });
     assert.match(await drawer.innerText(), /Approve plan: Todo app v2/, "Plan link opens the gate");
+    // Decision 40: the in-review card flags its pending criteria change; the link opens the
+    // plan gate, which shows the old and new criteria side by side.
+    const criteriaLink = review.locator('[data-criteria-change-plan="plan_fedcba987654"]');
+    assert.match(await criteriaLink.innerText(), /验收标准变更待批准（plan_fedcba987654），暂不验收/, "Criteria change badge");
+    await criteriaLink.click();
+    const criteriaTable = drawer.locator('[data-testid="gate-criteria-changes"]');
+    await criteriaTable.waitFor({ state: "visible" });
+    assert.equal(await criteriaTable.locator('[data-side="old"]').innerText(), "GET /todos returns 200; tests pass", "Old criteria");
+    assert.equal(await criteriaTable.locator('[data-side="new"]').innerText(), "GET /todos returns 200 paged by 50", "New criteria");
+    assert.match(await criteriaTable.innerText(), /当前标准[\s\S]*拟改标准[\s\S]*the user asked for paging/, "Criteria table headers and reason");
     // A card opens the Todo drawer.
     await review.getByRole("button", { name: /Implement the todo API/ }).click();
     await page.waitForFunction(() => document.querySelector("[data-context-drawer]")?.textContent?.includes("Implement the todo API"));

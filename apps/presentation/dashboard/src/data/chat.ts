@@ -1281,6 +1281,14 @@ const gateThreadViewSchema = z.object({
   // G12: an acceptor_blocked gate names the review todo and its resolution options.
   review_todo_id: z.string().optional(),
   options: z.array(z.string()).optional(),
+  // Decision 40: a plan card's acceptance-criteria changes, old and new side by side.
+  criteria_changes: z.array(z.object({
+    todo_id: z.string(),
+    old: z.string().nullable().optional(),
+    new: z.string().nullable().optional(),
+    reason: z.string().nullable().optional(),
+    result: z.string().nullable().optional(),
+  })).optional(),
   messages: z.array(gateThreadMessageSchema),
 });
 
