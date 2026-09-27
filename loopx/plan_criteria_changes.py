@@ -271,7 +271,8 @@ def notify_orchestrator(
     orchestrator = record.get("proposed_by")
     if not todo_ids or not orchestrator:
         return None
-    what = "was rejected" if decision == "reject" else "was cancelled" if decision == "cancel" else "went stale"
+    what = ("was rejected" if decision == "reject" else "was cancelled" if decision == "cancel"
+            else "was not applied (the todo changed after the proposal)")
     text = (
         f"{ORCHESTRATOR_ACTION_TEXT_PREFIX}the acceptance-criteria change of plan {record['plan_id']} {what}; "
         f"{', '.join(todo_ids)} keep their current acceptance criteria. Read the gate thread "

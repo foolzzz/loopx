@@ -191,7 +191,7 @@ def test_a_stale_proposal_is_refused_on_apply(tmp_path: Path, provider: str | No
     [event] = _events(runtime, "todo_criteria_change")
     assert event["status"] == "stale"
     [notice] = _orchestrator_notices(registry)
-    assert "went stale" in notice["text"]
+    assert "was not applied" in notice["text"]
 
 
 def test_propose_validates_the_change(tmp_path: Path) -> None:
@@ -302,3 +302,31 @@ def test_peer_v1_goals_are_unaffected(tmp_path: Path) -> None:
                      role_contract={"acceptance_criteria": "peer criteria"})
     assert rows(registry)[todo_id]["acceptance_criteria"] == "peer criteria"
     assert criteria_change_pending_todo_ids(runtime, GOAL) == []
+
+
+def test_an_interrupted_apply_resumes_without_duplicates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import loopx.todo_acceptance_criteria as criteria_module
+
+    registry, runtime = fixture(tmp_path)
+    todo_id = _initial(registry, runtime)
+    batch = propose_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, agent_id=ORCH, plan={
+        **_change_plan(todo_id), "todos": [{"key": "docs", "text": "Document the paging", "bound_agent": DEV}],
+    })["plan"]
+    real_write = criteria_module.write_goal_todo_acceptance_criteria
+
+    def crash(**_kwargs):
+        raise RuntimeError("synthetic crash before the criteria write")
+
+    monkeypatch.setattr(criteria_module, "write_goal_todo_acceptance_criteria", crash)
+    done = _decide(registry, batch["gate_todo_id"], "approve")
+    assert done["plan_card"]["ok"] is False and "loopx plan apply" in done["plan_card"]["recovery"]
+    record = read_plan(runtime, GOAL, batch["plan_id"])
+    assert record["status"] == "applying" and record["todos_applied"] is True
+    assert rows(registry)[todo_id]["acceptance_criteria"] == OLD_CRITERIA
+    monkeypatch.setattr(criteria_module, "write_goal_todo_acceptance_criteria", real_write)
+    before = set(rows(registry))
+    resumed = apply_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, plan_id=batch["plan_id"])
+    assert resumed["plan"]["status"] == "applied"
+    assert set(rows(registry)) == before  # the docs todo is not created twice
+    assert rows(registry)[todo_id]["acceptance_criteria"] == NEW_CRITERIA
+    assert [item["status"] for item in resumed["plan"]["criteria_change_results"]] == ["applied"]

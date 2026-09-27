@@ -537,7 +537,9 @@ def apply_plan(
         record["updated_at"] = _now()
         atomic_write_json(path, record)
         promoted = read_canonical_todos_if_promoted(runtime_root=runtime_root, goal_id=goal_id) is not None
-        if not record["plan"]["todos"]:
+        if record.get("todos_applied"):  # an interrupted criteria-change apply resumes after the todos
+            ids = dict(record.get("todo_id_map") or {})
+        elif not record["plan"]["todos"]:
             ids = {}
         elif promoted:
             ids = _apply_canonical_sequence(registry_path, goal_id, plan_id, record["plan"], runtime_root_arg)
@@ -546,6 +548,9 @@ def apply_plan(
         from .plan_criteria_changes import apply_criteria_changes
 
         record["todo_id_map"] = ids
+        if record["plan"].get("criteria_changes") and not record.get("todos_applied"):
+            record["todos_applied"] = True
+            atomic_write_json(path, record)
         criteria = apply_criteria_changes(
             registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, record=record,
             persist=lambda current: atomic_write_json(path, current), runtime_root_arg=runtime_root_arg,
