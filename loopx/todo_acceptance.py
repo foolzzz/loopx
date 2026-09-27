@@ -653,9 +653,10 @@ def reject_goal_todo(
     feedback stored on it. The second escalates to the orchestrator.
     """
 
+    from .control_plane.todos.review_feedback import fit_review_feedback, strip_trailing_host_glyphs
     from .todos import add_goal_todo, update_goal_todo
 
-    feedback = compact_todo_text(note)
+    feedback = strip_trailing_host_glyphs(compact_todo_text(note))
     if not feedback:
         raise ValueError(
             "todo reject requires --note with the acceptor's feedback naming each failed acceptance "
@@ -674,7 +675,8 @@ def reject_goal_todo(
     # is recorded in review_feedback and the returned verdict.
     owner = normalize_todo_claimed_by(todo.get("claimed_by")) or actor
     count = (normalize_todo_reject_count(todo.get("reject_count")) or 0) + 1
-    review_feedback = f"rejected by {actor} (#{count}): {feedback}"
+    # Pilot v1 N6: use the whole review_feedback contract (600), criteria first.
+    review_feedback = fit_review_feedback(f"rejected by {actor} (#{count}): ", feedback)
     escalate = count >= REJECT_ESCALATION_THRESHOLD
     orchestrator = orchestrator_agent_for_goal(dict(goal) if goal else None)
     role_contract = {"reject_count": count, "review_feedback": review_feedback}

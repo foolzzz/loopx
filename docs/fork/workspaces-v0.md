@@ -47,6 +47,26 @@ loopx workspace prepare|status|merge|cleanup --goal-id G --todo-id T [--repo NAM
 Without `--repo`, the CLI actions use the todo's `task_repositories` and fall
 back to every Goal repo only when the todo names none.
 
+### Stale todo branches on release (pilot v1 gap N10)
+
+A deferred plan todo may already have a branch: `workspace prepare` run by hand
+before its dependencies merged cuts `loopx/G/T` from the merge target as it was
+then. When the todo is released (`resume_ready_plan_todos`, from the dispatcher
+pass or an accept verdict), each of its repos is checked
+(`loopx.workspace.todo_branch_refresh`):
+
+| state of `loopx/G/T` | action |
+|---|---|
+| missing | nothing (`no_branch`) |
+| at the merge target | nothing (`up_to_date`) |
+| an ancestor of the merge target (no commits of its own) | fast-forward to the target: `git merge --ff-only` inside its worktree, or a compare-and-swap `update-ref` when no worktree holds it |
+| has commits the target lacks | never touched (`branch_has_own_commits`) |
+| its worktree has uncommitted or untracked changes | never touched (`worktree_dirty`) |
+
+The merge target is the one `prepare` uses: the task branch when
+`merge_target=task_branch` and it exists, else the default branch. Nothing is
+forced, reset or rebased, and a failed refresh never holds back the release.
+
 After acceptance (S2) the accept verdict merges a todo automatically, all repos or
 none, before it completes the todo. A todo is merge-eligible when its branch
 `loopx/G/T` exists in its repos, even if the worktree directories were removed. A

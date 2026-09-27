@@ -20,6 +20,7 @@ from ..dispatch import (
     dispatch_status,
     render_launchd_plist,
 )
+from ..dispatch.serve_heartbeat import DEFAULT_IDLE_HEARTBEAT_SECONDS, IdleHeartbeat, pass_is_loggable
 
 
 def register_dispatch(subparsers, add_format) -> None:
@@ -43,6 +44,12 @@ def register_dispatch(subparsers, add_format) -> None:
             help="A provider cooldown this long opens one user gate.",
         )
         sub.add_argument("--backoff-base-seconds", type=float, default=60.0)
+        sub.add_argument(
+            "--idle-heartbeat-seconds",
+            type=float,
+            default=DEFAULT_IDLE_HEARTBEAT_SECONDS,
+            help="Print one idle line when no pass was printed for this long (0 disables).",
+        )
         sub.add_argument("--no-global-sync", action="store_true", help="Pass --no-global-sync to every Turn.")
         sub.add_argument(
             "--validation-command-json",
@@ -104,6 +111,7 @@ def _serve_args(args) -> list[str]:
             "--turn-timeout-seconds", str(args.turn_timeout_seconds),
             "--long-cooldown-seconds", str(args.long_cooldown_seconds),
             "--backoff-base-seconds", str(args.backoff_base_seconds),
+            "--idle-heartbeat-seconds", str(args.idle_heartbeat_seconds),
         ]
     )
     if args.no_global_sync:
@@ -148,9 +156,15 @@ def handle_dispatch(args, registry_path, runtime_root, print_payload, output_for
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
 
+    heartbeat = IdleHeartbeat(args.idle_heartbeat_seconds)
+
     def log_pass(report) -> None:
-        if report["launched"] or report["reaped"] or report["errors"] or report["gates_opened"]:
+        if pass_is_loggable(report):
             print(json.dumps(report, ensure_ascii=False, default=str), flush=True)
+        # Pilot v1 N11: an idle goal still shows a sign of life at a low rate.
+        idle = heartbeat.observe(report, running_turns=len(dispatcher.state.get("runs") or {}))
+        if idle is not None:
+            print(json.dumps(idle, ensure_ascii=False, default=str), flush=True)
 
     try:
         dispatcher.serve(stop=lambda: stopping["flag"], on_pass=log_pass)

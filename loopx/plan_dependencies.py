@@ -152,7 +152,9 @@ def accepted_by(row: Mapping[str, Any]) -> str | None:
     return match.group(1) if match else None
 
 
-def _is_superseded(row: Mapping[str, Any], mapping: Mapping[str, Sequence[str]]) -> bool:
+def todo_is_superseded(row: Mapping[str, Any], mapping: Mapping[str, Sequence[str]]) -> bool:
+    """Whether a todo row was closed by a supersede (`--by` log, successor link or note)."""
+
     return (
         str(row.get("todo_id") or "") in mapping
         or bool(row.get("superseded_by"))
@@ -177,7 +179,7 @@ def dependency_wait_reason(
         return f"waiting for dependency {dependency_id} (status {status or 'unknown'})"
     if not goal_uses_role_v1(goal):
         return None
-    if _is_superseded(row, mapping):
+    if todo_is_superseded(row, mapping):
         return (
             f"dependency {dependency_id} was superseded without a replacement; the orchestrator "
             f"rewires its dependents with `loopx todo supersede --todo-id {dependency_id} --by NEW`"
@@ -424,6 +426,32 @@ def _rewrite_event(runtime_root: Path, goal_id: str, record: Mapping[str, Any]) 
         },
     )
     append_rollout_event(rollout_event_log_path(runtime_root, goal_id), event)
+
+
+def orchestrator_supersede_actor(
+    *, registry_path: Path, goal_id: str, todo_id: str, agent_id: str | None,
+    runtime_root_arg: str | None = None,
+) -> str | None:
+    """The agent a plain ``todo supersede`` write is attributed to (pilot v1 gap N11).
+
+    Under role_v1 the goal orchestrator may close another agent's todo, like
+    ``supersede --by`` does: the kernel write is attributed to the todo's claim
+    owner, so the claim fence and task leases are unchanged, while the CLI
+    event keeps the orchestrator as the actor. Every other caller is returned
+    unchanged and meets the kernel's own claim rules.
+    """
+
+    from .agent_registry import load_goal_from_registry, orchestrator_agent_for_goal
+    from .todo_acceptance import goal_uses_role_v1
+
+    if not agent_id:
+        return agent_id
+    goal = load_goal_from_registry(Path(registry_path), goal_id)
+    if not goal_uses_role_v1(goal) or agent_id != orchestrator_agent_for_goal(dict(goal or {})):
+        return agent_id
+    row = _rows(registry_path, goal_id, runtime_root_arg).get(str(todo_id or ""))
+    owner = str((row or {}).get("claimed_by") or "")
+    return owner or agent_id
 
 
 def supersede_goal_todo_by(

@@ -425,6 +425,38 @@ def _plan_size(plan: Mapping[str, Any]) -> str:
     return size + (f", {changes} acceptance-criteria change{'s' if changes != 1 else ''}" if changes else "")
 
 
+def _plan_gate_text(plan: Mapping[str, Any], plan_id: str) -> str:
+    return f"Approve plan: {plan['title']} ({_plan_size(plan)}) [{plan_id}]"
+
+
+def _plan_gate_note(plan: Mapping[str, Any], goal_id: str, plan_id: str) -> str:
+    return (plan.get("summary") or f"Review with `loopx plan show --goal-id {goal_id} --plan-id {plan_id}`.")[:600]
+
+
+def _refresh_plan_gate_text(
+    *, registry_path: Path, goal_id: str, runtime_root_arg: str | None, record: Mapping[str, Any], agent_id: str,
+) -> None:
+    """Rewrite the open plan gate's title and note for a revised plan (pilot v1 gap N8).
+
+    The gate text named the rev-1 todo count after ``plan propose --revise``.
+    The write is the ordinary Todo update by the proposing orchestrator; a
+    failure leaves the old text and never fails the revision, whose card, thread
+    message and event already carry the new revision.
+    """
+
+    from .todos import update_goal_todo
+
+    plan, plan_id = record["plan"], str(record["plan_id"])
+    try:
+        update_goal_todo(
+            registry_path=registry_path, goal_id=goal_id, runtime_root_arg=runtime_root_arg,
+            todo_id=str(record["gate_todo_id"]), role="user", agent_id=agent_id,
+            text=_plan_gate_text(plan, plan_id), note=_plan_gate_note(plan, goal_id, plan_id),
+        )
+    except Exception:  # noqa: BLE001 - the card is the authority; the gate text is its label
+        return
+
+
 def propose_plan(
     *, registry_path: Path, runtime_root: Path, goal_id: str, agent_id: str,
     plan: Any, revise_plan_id: str | None = None, runtime_root_arg: str | None = None,
@@ -467,6 +499,10 @@ def propose_plan(
                 "updated_at": _now(),
             })
             atomic_write_json(path, record)
+        _refresh_plan_gate_text(
+            registry_path=registry_path, goal_id=goal_id, runtime_root_arg=runtime_root_arg,
+            record=record, agent_id=agent_id,
+        )
         append_gate_message(
             runtime_root, goal_id, record["gate_todo_id"], author=AUTHOR_ORCHESTRATOR, agent_id=agent_id,
             text=f"Revised plan {record['plan_id']} to revision {record['revision']} "
@@ -485,8 +521,8 @@ def propose_plan(
     gate = add_goal_todo(
         registry_path=registry_path, goal_id=goal_id, runtime_root_arg=runtime_root_arg,
         role="user", task_class="user_gate", agent_id=agent_id,
-        text=f"Approve plan: {normalized['title']} ({_plan_size(normalized)}) [{plan_id}]",
-        note=(normalized.get("summary") or f"Review with `loopx plan show --goal-id {goal_id} --plan-id {plan_id}`.")[:600],
+        text=_plan_gate_text(normalized, plan_id),
+        note=_plan_gate_note(normalized, goal_id, plan_id),
     )
     if not gate.get("ok", True) or not gate.get("todo_id"):
         raise PlanCardError("plan_gate_failed", str(gate.get("error") or "could not open the plan approval gate"))
@@ -739,6 +775,7 @@ def render_plan_markdown(payload: Mapping[str, Any]) -> str:
 
 def resume_ready_plan_todos(
     *, registry_path: Path, goal_id: str, runtime_root: Path, runtime_root_arg: str | None = None,
+    branch_refreshes: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     """Reopen deferred plan todos whose plan dependencies are all satisfied.
 
@@ -752,6 +789,11 @@ def resume_ready_plan_todos(
     superseded todo never counts as done). The reopen is the ordinary Todo
     update, attributed to its claim owner (else the plan's orchestrator).
     Idempotent: an open or finished todo is left alone.
+
+    A released todo whose branch was cut earlier and carries no commits of its
+    own is fast-forwarded to the current merge target (pilot v1 gap N10, see
+    :mod:`loopx.workspace.todo_branch_refresh`); ``branch_refreshes`` collects
+    those that moved. A refresh never blocks the release.
     """
 
     from .plan_dependencies import plan_dependency_states, write_dependency_wait_snapshot
@@ -783,5 +825,27 @@ def resume_ready_plan_todos(
         )
         if result.get("ok", True):
             resumed.append(todo_id)
+            refreshed = _refresh_released_todo_branch(registry_path, goal_id, row, runtime_root)
+            if refreshed and branch_refreshes is not None:
+                branch_refreshes.append(refreshed)
     write_dependency_wait_snapshot(runtime_root, goal_id, waits)
     return resumed
+
+
+def _refresh_released_todo_branch(
+    registry_path: Path, goal_id: str, row: Mapping[str, Any], runtime_root: Path,
+) -> dict[str, Any] | None:
+    """Fast-forward a released todo's untouched branches; ``None`` when nothing moved."""
+
+    try:
+        from .agent_registry import load_goal_from_registry
+        from .workspace.todo_branch_refresh import refresh_untouched_todo_branches
+
+        goal = load_goal_from_registry(registry_path, goal_id)
+        if not goal or not goal.get("repos"):
+            return None
+        repos = [str(name) for name in row.get("task_repositories") or [] if str(name)]
+        refreshed = refresh_untouched_todo_branches(goal, str(row.get("todo_id")), repos or None, runtime_root)
+    except Exception:  # noqa: BLE001 - a stale branch must never hold back the release
+        return None
+    return refreshed if refreshed.get("refreshed") else None

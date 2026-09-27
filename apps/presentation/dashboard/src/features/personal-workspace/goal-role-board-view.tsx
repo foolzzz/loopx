@@ -36,6 +36,9 @@ function UsageSummary({ usage }: { usage: WorkspaceTurnUsage }) {
   const estimated = usage.costEstimatedUsd > 0 ? t("roles.usage.estimated", { cost: formatUsd(usage.costEstimatedUsd) }) : null;
   const roleLabel = (role: string) => (ROLE_BOARD_ROLES as readonly string[]).includes(role)
     ? t(`roles.role.${role as RoleBoardRole}`) : role;
+  // Pilot v1 N5: "accepted" is an accept record; show the figure without orchestrator overhead too.
+  const withoutOrchestrator = usage.costPerAcceptedTodoWithoutOrchestratorUsd != null && (usage.orchestratorCostUsd ?? 0) > 0
+    ? t("roles.usage.withoutOrchestrator", { cost: formatUsd(usage.costPerAcceptedTodoWithoutOrchestratorUsd) }) : null;
   const roles = usage.byRole.map((row) => `${roleLabel(row.role)} ${formatUsd(row.costUsd)} · ${row.turns}`).join(" / ");
   return (
     <section aria-label={t("roles.usage.title")} className="personal-role-usage" data-role-usage>
@@ -46,6 +49,7 @@ function UsageSummary({ usage }: { usage: WorkspaceTurnUsage }) {
         <span data-usage-metric="per-todo">
           <strong>{formatUsd(usage.costPerAcceptedTodoUsd)}</strong>
           <small>{t("roles.usage.perAcceptedTodo", { count: usage.acceptedTodos })}</small>
+          {withoutOrchestrator ? <small data-usage-metric="per-todo-without-orchestrator">{withoutOrchestrator}</small> : null}
         </span>
       ) : null}
       {usage.budgetUsd != null && usage.budgetRatio != null ? (

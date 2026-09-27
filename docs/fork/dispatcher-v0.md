@@ -23,7 +23,8 @@ loopx dispatch serve --goal-id G --once
 loopx dispatch serve --goal-id G [--goal-id G2 ...] [--project P] \
   [--tick-seconds 60] [--poll-seconds 3] [--max-global 4] \
   [--turn-timeout-seconds 3600] [--long-cooldown-seconds 3600] \
-  [--backoff-base-seconds 60] [--validation-command-json '["make","test"]']
+  [--backoff-base-seconds 60] [--validation-command-json '["make","test"]'] \
+  [--idle-heartbeat-seconds 900]
 
 loopx dispatch status            # running Turns, per-agent slots, cooldowns, gates
 loopx dispatch launchd-plist --goal-id G > ~/Library/LaunchAgents/com.loopx.dispatch.plist
@@ -34,6 +35,13 @@ The global `--registry` and `--runtime-root` options select the state home as us
 Only one dispatcher can run per runtime root. `serve` and `serve --once` take an
 exclusive `flock` on `<runtime-root>/dispatch/serve.lock`. A second dispatcher on the
 same runtime root exits with code 3 (`dispatcher_locked`).
+
+`serve` prints a pass as one JSON line only when it acts (launches, reaps, opens a
+gate or errors). So that an idle goal does not look like a dead dispatcher (pilot v1
+gap N11), it prints one `loopx_dispatch_idle_heartbeat_v0` line when nothing was
+printed for `--idle-heartbeat-seconds` (default 900, `0` disables): the idle time,
+the passes since the last line, their skip reasons (at most 8) and the running
+Turns. It is a log line only.
 
 The plist starts the dispatcher with `KeepAlive` and `RunAtLoad`, and uses the Python
 interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex` and
@@ -107,7 +115,10 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      same should-run lane runs instead, pinned with `--todo-id`.
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
-     ordinary Todo update).
+     ordinary Todo update). A released todo whose branch was cut earlier and
+     has no commits of its own is fast-forwarded to the current merge target
+     (pilot v1 gap N10, see [workspaces-v0](workspaces-v0.md#stale-todo-branches-on-release-pilot-v1-gap-n10));
+     the pass reports it under `todo_branches_refreshed`.
    - **Deferred offers (E2E pilot v1).** Upstream should-run can still select a
      deferred todo for a developer or acceptor once its single `resume_when`
      dependency is done (`successor_replan_required`), while another plan
@@ -173,6 +184,18 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   text to these). Only that provider then enters a cooldown: 60s, 120s, 240s and so
   on, capped at 6h. Other providers keep running. A committed Turn on the provider
   resets the backoff.
+- **Unavailable upstream (pilot v1 gap N9).** codex-cli maps what a proxy such as
+  CLIProxyAPI reports for an unavailable upstream to `provider_capacity`: an HTTP
+  500, 502 or 504 status, a `5xx` status in an error message, `auth_unavailable`,
+  `dial upstream`, a refused or reset connection, or an `error sending request`.
+  The Turn is retryable, and the dispatcher backs off the provider, not the todo.
+  A structured HTTP 503 stays `provider_overloaded`, as before. On a failed or
+  timed-out Turn the codex host writes the last 20 stderr lines to the Turn's own
+  stderr (`runs/<run>.err.log`), each at most 400 characters and redacted first:
+  bearer/basic credentials, `Authorization` headers, key/token/secret/password
+  assignments, `sk-`/JWT-shaped and other long opaque strings, URL user info and
+  absolute local paths never reach the log. Nothing of it is persisted in Turn
+  journals or events.
 - **Long cooldown.** Once a single cooldown reaches `--long-cooldown-seconds`
   (default 1h), one user gate opens: "Provider X is in a long cooldown …". It blocks
   the agent that hit the limit.

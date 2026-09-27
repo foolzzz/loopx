@@ -172,7 +172,10 @@ Lifecycle:
    returns the existing pending card.
 2. **discuss.** The user requests changes in the gate thread. The orchestrator
    revises the plan in place with `--revise PLAN_ID`. This increments `revision`,
-   keeps the earlier revisions and the same gate, and posts a thread message.
+   keeps the earlier revisions and the same gate, and posts a thread message. It
+   also rewrites the gate's title and note for the new revision ("Approve plan:
+   TITLE (N todos) [PLAN_ID]", pilot v1 gap N8), as the orchestrator; a failed
+   rewrite leaves the old label and does not fail the revision.
 3. **approve.** Before the gate is allowed to close, the plan is validated again.
    If it no longer validates, for example because a repo or agent was removed,
    the approve is refused and the gate stays open. After the gate closes, the plan

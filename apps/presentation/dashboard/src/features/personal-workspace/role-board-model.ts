@@ -243,7 +243,9 @@ export type WorkspaceTurnUsage = {
   byRole: Array<{ agentHours: number; costUsd: number; role: string; turns: number }>;
   costEstimatedUsd: number;
   costPerAcceptedTodoUsd: number | null;
+  costPerAcceptedTodoWithoutOrchestratorUsd: number | null;
   costUsd: number;
+  orchestratorCostUsd: number | null;
   turns: number;
   unpricedTurns: number;
 };
@@ -256,7 +258,9 @@ export type TurnUsageProjectionInput = {
   by_role: Array<{ agent_hours: number; cost_usd: number; role: string; turns: number }>;
   cost_estimated_usd: number;
   cost_per_accepted_todo_usd?: number | null;
+  cost_per_accepted_todo_excl_orchestrator_usd?: number | null;
   cost_usd: number;
+  orchestrator_cost_usd?: number;
   turns: number;
   unpriced_turns: number;
 };
@@ -275,7 +279,9 @@ export function turnUsageFromProjection(projection: TurnUsageProjectionInput): W
     })),
     costEstimatedUsd: projection.cost_estimated_usd,
     costPerAcceptedTodoUsd: projection.cost_per_accepted_todo_usd ?? null,
+    costPerAcceptedTodoWithoutOrchestratorUsd: projection.cost_per_accepted_todo_excl_orchestrator_usd ?? null,
     costUsd: projection.cost_usd,
+    orchestratorCostUsd: projection.orchestrator_cost_usd ?? null,
     turns: projection.turns,
     unpricedTurns: projection.unpriced_turns,
   };

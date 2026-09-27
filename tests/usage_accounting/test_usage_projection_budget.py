@@ -29,7 +29,8 @@ def test_usage_summary_is_bounded_and_splits_roles(tmp_path: Path) -> None:
     _record(runtime, "g", "2", role="acceptor", todo="todo_a1", seconds=900)
     _record(runtime, "g", "3", role="developer", todo="todo_b2")
     write_usage_budget(runtime, "g", 1.0)
-    todos = [{"todo_id": "todo_a1", "status": "done"}, {"todo_id": "todo_b2", "status": "open"}]
+    todos = [{"todo_id": "todo_a1", "status": "done", "evidence": "accepted_by=acc: ok"},
+             {"todo_id": "todo_b2", "status": "open"}]
 
     summary = build_goal_usage_summary(goal_id="g", runtime_root=runtime, todos=todos)
     assert summary["schema_version"] == TURN_USAGE_SUMMARY_SCHEMA_VERSION

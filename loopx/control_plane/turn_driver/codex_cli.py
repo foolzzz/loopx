@@ -9,6 +9,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -33,6 +34,7 @@ from .executor import (
 )
 from .execution_profile import require_supported_reasoning_effort
 from .host_failure import BuiltInHostError
+from .host_stderr import HostStderrTail, upstream_unavailable
 from .transaction import LOOPX_TURN_RESULT_SCHEMA_VERSION, TRANSACTION_PHASES
 from .turn_usage import attach_turn_usage, codex_cli_turn_usage, codex_event_token_usage
 
@@ -96,7 +98,10 @@ _STRUCTURED_FAILURE_CATEGORIES = {
 _STRUCTURED_HTTP_STATUS_CATEGORIES = {
     401: "auth_failed",
     429: "rate_limited",
+    500: "provider_capacity",
+    502: "provider_capacity",
     503: "provider_overloaded",
+    504: "provider_capacity",
 }
 _FAILURE_CATEGORY_PRIORITY = {
     # Conflicting observations fail closed before any retryable category. Among
@@ -390,7 +395,9 @@ def codex_cli_result_kinds(request: Mapping[str, Any] | None = None) -> list[str
 def codex_cli_result_schema(
     request: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    text_limits = dict(HOST_RESULT_TEXT_LIMITS)
+    from .acceptor_verdict import host_result_text_limits
+
+    text_limits = host_result_text_limits(HOST_RESULT_TEXT_LIMITS, request)
     properties: dict[str, Any] = {
         "schema_version": {
             "type": "string",
@@ -527,7 +534,9 @@ def _prompt(request: Mapping[str, Any]) -> str:
             "the developer. Check the delivered commit in this workspace against the "
             "Todo's text, acceptance criteria and validation. Return validated_completion to accept "
             "it. To reject it, return repair_required and put concrete, actionable feedback for the "
-            "developer in summary; LoopX reopens the Todo for the same developer, and a second "
+            "developer in summary, the failed criteria first and the details after, in at most 550 "
+            "characters (LoopX keeps that much as the developer's review_feedback); LoopX reopens "
+            "the Todo for the same developer, and a second "
             "rejection escalates to the orchestrator. If you cannot review for your own reasons "
             "(broken tooling, environment, missing dependencies), return user_action_required with "
             "the reason in summary: this blocked verdict asks the user and is not a rejection.",
@@ -655,6 +664,10 @@ def _diagnostic_failure_category(line: str) -> str | None:
         return "rate_limited"
     if "session" in text and "not found" in text:
         return "session_missing"
+    # Pilot v1 N9: a proxy such as CLIProxyAPI reports an unavailable upstream
+    # (5xx, auth_unavailable, a failed dial) that the provider will recover from.
+    if upstream_unavailable(text):
+        return "provider_capacity"
     return None
 
 
@@ -851,6 +864,17 @@ def _select_failure_category(categories: list[str]) -> str | None:
             category,
         ),
     )
+
+
+def _emit_stderr_tail(tail: HostStderrTail) -> None:
+    rendered = tail.render("codex-cli")
+    if not rendered:
+        return
+    try:
+        sys.stderr.write(rendered)
+        sys.stderr.flush()
+    except (OSError, ValueError):
+        pass  # diagnostics only; never fail the Turn on them
 
 
 def _terminate_process(proc: subprocess.Popen[str]) -> None:
@@ -1056,9 +1080,12 @@ def run_codex_cli_host(
 
         reader = threading.Thread(target=discard_events, daemon=True)
 
+        stderr_tail = HostStderrTail()
+
         def discard_stderr() -> None:
             assert proc.stderr is not None
             for line in proc.stderr:
+                stderr_tail.add(line)
                 category = _diagnostic_failure_category(line)
                 if category:
                     diagnostic_failure_categories.append(category)
@@ -1092,6 +1119,10 @@ def run_codex_cli_host(
             session_id=observed_session[0] if observed_session else session_id,
             resumed=session_id is not None,
         )
+        if timed_out or returncode != 0:
+            # Pilot v1 N9: keep a bounded, redacted tail on the Turn's own
+            # stderr (the dispatcher's runs/<id>.err.log) for diagnosis.
+            _emit_stderr_tail(stderr_tail)
         if timed_out:
             if observed_session:
                 _store_codex_cli_session(

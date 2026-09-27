@@ -51,6 +51,11 @@ def build_goal_usage_summary(
         "unpriced_turns": totals["unpriced_turns"],
         "accepted_todos": totals.get("accepted_todos", 0),
         "cost_per_accepted_todo_usd": totals.get("cost_per_accepted_todo_usd"),
+        "cost_per_accepted_todo_excl_orchestrator_usd": totals.get(
+            "cost_per_accepted_todo_excl_orchestrator_usd"
+        ),
+        "orchestrator_cost_usd": totals["orchestrator_cost_usd"],
+        "orchestrator_turns": totals["orchestrator_turns"],
         "turns_per_accepted_todo": totals.get("turns_per_accepted_todo"),
         "last_turn_at": report.get("last_turn_at"),
         "by_role": [

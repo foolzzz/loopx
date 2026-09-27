@@ -337,7 +337,23 @@ keep its lane in `operator_gate`. A reject verdict from a Turn settles as
 for example launched by the dispatcher) selects the delivered todo. A
 `validated_completion` result is the accept verdict. A `repair_required`
 result is the reject verdict, and its summary becomes the feedback; with an
-empty or blank summary it is the blocked verdict instead. A
+empty or blank summary it is the blocked verdict instead.
+
+**Verdict feedback length (pilot v1 gap N6).** The Turn result `summary` is
+bounded at 400 characters, but on a Turn that reviews an `in_review` todo
+the bound is 2000 (`ACCEPTOR_VERDICT_SUMMARY_LIMIT`, in both the executor
+and the codex/claude result schema), so a host never runs into it while it
+names the failed criteria. `review_feedback` keeps its 600-character
+contract (the Python codec and the TypeScript field planner share it; raising
+it would be a contract change). Every reject, from a Turn or from `todo reject
+--note`, is fitted into it (`loopx.control_plane.todos.review_feedback`):
+trailing host or terminal glyphs are stripped (control, replacement and
+box-drawing characters, and a short CJK or fullwidth run after text that has
+none), feedback that fits is kept verbatim, and longer feedback moves the
+sentences that name a failed criterion first and is cut once at a word
+boundary with `...`, so the whole 600 characters are used. The review prompt
+asks the acceptor to put the failed criteria first and stay within 550
+characters. A
 `user_action_required` result is the blocked verdict, and its summary is the
 reason (G12). A host crash or timeout (`iteration_failed`, host failure) is
 not a verdict and does not count. A
@@ -616,6 +632,12 @@ The Python API is `loopx.plan_dependencies.supersede_goal_todo_by`.
 - Only the goal orchestrator, or the owner with no agent id, may supersede.
   Others are refused with `not_orchestrator`. On a `peer_v1` goal `--by` is
   refused (`role_v1_required`); plain `todo supersede` is unchanged.
+- Plain `todo supersede --agent-id ORCH` (without `--by`) by the role_v1 goal
+  orchestrator no longer needs the claim owner's `--agent-id` (pilot v1 gap
+  N11): its kernel write is attributed to the todo's claim owner, like the
+  `--by` path, and the `todo_supersede` event keeps the orchestrator as the
+  actor. Any other agent still meets the kernel's claim rule, and `peer_v1`
+  goals are unchanged.
 - A replacement that is itself a dependent of OLD is refused
   (`dependency_cycle`), as is a finished or superseded replacement.
 - Retrying the same supersede is a no-op (`already_superseded`); a different
