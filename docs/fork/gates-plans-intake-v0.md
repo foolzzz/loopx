@@ -35,6 +35,9 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   repo's merge target, reject and cancel push nothing and are not offered
   again until new merges arrive; see
   [workspaces-v0](workspaces-v0.md#pushing-merged-work-g8).
+  A `budget_exhausted` gate (decision 41) takes `--option raise_budget|
+  continue_without_limit|stop_goal` (the note carries a raised amount); see
+  [usage-accounting-v0](usage-accounting-v0.md#budget-optional).
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The
@@ -58,8 +61,10 @@ The thread state is durable under the runtime root:
 - `goals/<G>/gates/index.json` holds one entry per gate:
   `{kind, plan_id?, awaiting, message_count, last_author, last_at, closed,
   decision_outcome?}`. `kind` is `decision`, `plan_approval`,
-  `acceptor_blocked` (G12) or `push_request` (G8, with `push_reason`,
-  `push_repos` and, once decided, `push_outcome`). It is updated in the same lock as the append. The
+  `acceptor_blocked` (G12), `push_request` (G8, with `push_reason`,
+  `push_repos` and, once decided, `push_outcome`) or `budget_exhausted`
+  (decision 41, with `budget_revision`, the spend fields, `options` and, once
+  decided, `budget_outcome`). It is updated in the same lock as the append. The
   dispatcher can watch this file, or call
   `loopx.gate_threads.gates_awaiting_orchestrator(runtime_root, goal_id)`.
 - Every reply also appends a `gate_thread_reply` event to the goal's
@@ -104,7 +109,8 @@ gates:
 - the owner or CLI when no agent id is given;
 - LoopX itself: the dispatcher's re-login and cooldown gates (decision 17),
   the `acceptor_blocked` gate a blocked acceptor verdict opens (G12), and the
-  `push_request` gate once a goal's work is merged (G8, decision 38);
+  `push_request` gate once a goal's work is merged (G8, decision 38), and the
+  `budget_exhausted` gate at 100% of a goal's budget (decision 41);
 - the orchestrator;
 - agents that have no registered role;
 - every agent on `peer_v1` goals.

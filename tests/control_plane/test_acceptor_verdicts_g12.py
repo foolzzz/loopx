@@ -369,7 +369,7 @@ def test_an_option_on_an_ordinary_gate_is_refused(tmp_path, monkeypatch) -> None
                          task_class="user_gate", blocks_agent="orch")
     code, payload = _cli(fx, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate["todo_id"],
                          "--option", "retry_acceptance")
-    assert code == 1 and "only to an acceptor-blocked gate" in payload["error"]
+    assert code == 1 and "only to an acceptor-blocked" in payload["error"]
     code, payload = _cli(fx, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate["todo_id"],
                          "--decision", "approve")
     assert code == 0 and _todo(fx, gate["todo_id"])["status"] == "done"

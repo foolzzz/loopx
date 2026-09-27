@@ -49,6 +49,8 @@ ROLLOUT_EVENT_KINDS = {
     "todo_review_blocked",
     "todo_supersede",
     "todo_update",
+    "usage_budget_decided",
+    "usage_budget_exhausted",
     "validation",
 }
 

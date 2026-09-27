@@ -9,8 +9,8 @@ decision, called through the Python API). It then applies slot, cooldown and aut
 rules, and launches `loopx turn run-once` as a child process. The Turn pipeline owns
 the typed result, validation, idempotent writeback and quota spend. The dispatcher
 never writes goal state directly. Its only goal writes are user gates (re-login,
-long cooldown, orchestrator repeat limit and push request), which it
-creates through the normal Todo API (`add_goal_todo`, the same path as
+long cooldown, orchestrator repeat limit, push request and budget exhausted),
+which it creates through the normal Todo API (`add_goal_todo`, the same path as
 `todo add --role user --task-class user_gate`).
 
 ## Running it
@@ -177,6 +177,17 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   pushes; the gate's approve does. See
   [workspaces-v0](workspaces-v0.md#pushing-merged-work-g8).
 
+- **Usage budget (G9, decision 41).** Only goals with a budget (`loopx usage
+  budget --set`) are affected. At 80% of the budget the pass opens one
+  non-blocking `user_action` alert. At 100% it opens one `budget_exhausted`
+  user gate per goal and budget crossing (report key `usage_budget:100`). While
+  that gate is open the pass launches no new Turn of the goal for any role: each
+  agent is skipped with `budget_exhausted_gate_open`. Turns already running
+  finish and are reaped as usual; other goals keep running. The owner raises the
+  budget, continues without a limit, or stops the goal. A goal stopped there is
+  skipped with `budget_stopped_by_owner` until `loopx goal-lifecycle
+  --operation resume`. See [usage-accounting-v0](usage-accounting-v0.md#budget-optional).
+
 ## Parallel Turns of one agent
 
 When one agent has several Turns of a goal in flight, each Turn keeps its own
@@ -275,7 +286,7 @@ must name each criterion that failed when it rejects.
 
 - `serve.lock`
 - `state.json`: running children, history, provider, agent and todo cooldowns,
-  opened gates, orchestrator action todos, crash-retry identities, orchestrator
+  opened gates, budget alerts, orchestrator action todos, crash-retry identities, orchestrator
   baselines, per-agent slots and acceptor review warnings (G12).
 - `runs/`: child output.
 - `logs/`: launchd output.

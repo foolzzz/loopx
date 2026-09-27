@@ -59,12 +59,14 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 31. role_v1 goals do not raise the upstream vision-checkpoint or no-follow-up replan obligations; planning review is the orchestrator's job every Turn, and developers/acceptors escalate through orchestrator todos. Approved by the user.
 32. Under role_v1 the developer/acceptor Turn lane is per todo; one agent runs up to max_concurrency todos of a goal in parallel, the orchestrator stays serial per goal. Approved by the user.
 33. `in_review` under canonical hard_lease stays unsupported for now (default soft_claim covers MVP). Decided by the user.
+34. AOSP development runs at concurrency 1: phase 2 uses one exclusive local lock (covering edit, build, flash and acceptance) instead of a resource pool; the lock is the future resource-pool seam. Decided by the user.
 35. The acceptor only reviews: it runs unsandboxed on a throwaway detached checkout of the delivered commit; merge uses the recorded delivered sha. Approved by the user.
 36. Acceptor verdicts are accept / reject (feedback naming failed criteria required) / blocked; blocked opens a system user_gate (retry, accept manually, return to developer, cancel) and does not count as a rejection. Approved by the user.
 37. A dependency that requires acceptance releases its dependents only when accepted and merged; replacing or splitting a todo uses `todo supersede`, which rewires dependents and never counts as done. Approved by the user.
 38. When a goal's work is all merged, the dispatcher opens one push_request user gate per goal; approval pushes the merge target (never force) per repo, rejection records and waits for new merges.
 39. role_v1 goals do not raise the upstream self-reported-wait / projection-repair demand for an idle orchestrator; stuck work is detected by the dispatcher (gate replies, escalations, replan obligations). Approved by the user. The periodic-review replan (`periodic_review_due`), a sibling found by the survey, is not derived for role_v1 either; stall replans from run history are.
 40. After initial planning, a change to a todo's acceptance criteria takes effect only through a user-approved plan card; the acceptor does not review that todo while the card is pending. Approved by the user.
+41. Budgets are optional (usually unset). When set: a non-blocking alert at 80%; at 100% a system budget_exhausted gate pauses new Turns for that goal (running Turns finish) with options raise budget / continue without limit / stop. Approved by the user.
 
 ## Kernel seams (from code exploration)
 - **Registry roster:** `loopx/agent_registry.py`, `loopx/configure_goal.py`, `loopx/cli_commands/registry_admin.py`. The runtime model enum is in `loopx/control_plane/agents/runtime_model.py`; the anti-hierarchy rules are in `control_plane/agents/profile.py` and `legacy_migration.py`.

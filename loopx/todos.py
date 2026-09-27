@@ -1668,7 +1668,7 @@ def complete_goal_todo(
     runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     plan_id = gate_decision_preflight(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
-        decision=decision_outcome, option=gate_option, runtime_root_arg=runtime_root_arg,
+        decision=decision_outcome, option=gate_option, runtime_root_arg=runtime_root_arg, note=options.get("note"),
     )
     from .todo_acceptance import route_role_v1_completion  # S2: may deliver to in_review
 

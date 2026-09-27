@@ -44,6 +44,7 @@ from .review_checkouts import (
     settle_acceptor_review,
 )
 from .usage_budget import alert_usage_budget
+from ..usage_budget_gate import budget_hold
 from .state import (
     DispatchLock,
     dispatch_dir,
@@ -262,14 +263,21 @@ class Dispatcher:
         project = self._goal_project(goal)
         self._resume_plan_dependents(goal_id, report)
         role_v1 = policy.goal_is_role_v1(goal)
-        try:  # G9: a spend alert never blocks scheduling.
+        try:  # G9: the 80% alert never blocks; 100% opens the budget gate (decision 41).
             alert_usage_budget(registry_path=self.registry_path, runtime_root=self.runtime_root,
                                goal_id=goal_id, state=self.state, report=report, now=self.clock())
         except Exception as exc:  # noqa: BLE001 - report and retry next pass
             report["errors"].append({"goal_id": goal_id, "error": f"usage_budget: {exc}"[:400]})
         if role_v1:
             self._request_push_when_merged(goal_id, report)
+        budget_held = self._budget_hold(goal_id, goal, report)
         for agent_id, registry_role in self._agents_for_goal(goal):
+            if budget_held is not None:
+                # Decision 41: no new Turn of this goal for any role while its
+                # budget gate is open (or the owner stopped it there); running
+                # Turns are left to finish.
+                report["skipped"].append({"goal_id": goal_id, "agent_id": agent_id, **budget_held})
+                continue
             skip = lambda reason, **extra: report["skipped"].append(  # noqa: E731
                 {"goal_id": goal_id, "agent_id": agent_id, "reason": reason, **extra}
             )
@@ -556,6 +564,13 @@ class Dispatcher:
         if len(paths) == 1:
             return True, Path(next(iter(paths.values()))), paths, review
         return True, Path(str(prepared["workspace_root"])), paths, review
+
+    def _budget_hold(self, goal_id: str, goal: Mapping[str, Any], report: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            return budget_hold(self.registry_path, self.runtime_root, goal_id, goal)
+        except Exception as exc:  # noqa: BLE001 - fail closed: only goals with budget gates get here
+            report["errors"].append({"goal_id": goal_id, "error": f"usage_budget_hold: {exc}"[:400]})
+            return {"reason": "budget_hold_unreadable"}
 
     def _request_push_when_merged(self, goal_id: str, report: dict[str, Any]) -> None:
         """Open the goal's push_request user gate once all its work is merged (G8).

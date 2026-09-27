@@ -92,6 +92,12 @@ const reviewGateOptions = [
   { key: "drawer.reviewOption.returnToDeveloper", option: "return_to_developer", resolution: "reject" },
   { key: "drawer.reviewOption.cancelTodo", option: "cancel_todo", resolution: "cancel" },
 ] as const;
+// Decision 41: resolution options of a budget_exhausted gate (the note carries a raised amount).
+const budgetGateOptions = [
+  { key: "drawer.budgetOption.raiseBudget", option: "raise_budget", resolution: "approve" },
+  { key: "drawer.budgetOption.continueWithoutLimit", option: "continue_without_limit", resolution: "approve" },
+  { key: "drawer.budgetOption.stopGoal", option: "stop_goal", resolution: "reject" },
+] as const;
 const DECISION_NOTE_LIMIT = 600;
 
 const subagentChildLimits = Array.from({ length: 32 }, (_, index) => index + 1);
@@ -587,8 +593,8 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 <summary><MoreHorizontal size={17} />{t("drawer.decisionMore")}</summary>
                 <div>
                   <button onClick={() => void callbacks.onExplainDecision?.(selection.item)} type="button"><MessageCircleQuestion size={16} />{t("drawer.explainDecision")}</button>
-                  {gateKind === "acceptor_blocked"
-                    ? reviewGateOptions.map((choice) => (
+                  {gateKind === "acceptor_blocked" || gateKind === "budget_exhausted"
+                    ? (gateKind === "budget_exhausted" ? budgetGateOptions : reviewGateOptions).map((choice) => (
                       <button key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
                     ))
                     : decisionTransitions.map((transition) => (
