@@ -5,6 +5,7 @@ import fnmatch
 from typing import Any
 
 from ...state_projection import actions_are_projection_aligned, is_user_wait_text
+from ..agents.runtime_model import AgentRuntimeModel, next_action_wait_demands_user_todo
 from ..todos.contract import (
     TODO_TASK_CLASS_ADVANCEMENT,
     normalize_required_write_scopes,
@@ -28,7 +29,15 @@ def open_todo_count(summary: dict[str, Any] | None) -> int:
 def build_state_projection_gap(
     item: dict[str, Any],
     project_asset: dict[str, Any],
+    *,
+    agent_runtime_model: AgentRuntimeModel | None = None,
 ) -> dict[str, Any] | None:
+    """Return the state-projection gap should-run must repair, if any.
+
+    The gap is recorded at refresh time; the demand is re-derived here on
+    read. A role_v1 goal drops the "Next Action waits without a User Todo"
+    evidence, including from a persisted gap (fork decision 39).
+    """
     gap = (
         item.get("state_projection_gap")
         if isinstance(item.get("state_projection_gap"), dict)
@@ -40,10 +49,17 @@ def build_state_projection_gap(
         return None
     if gap.get("requires_todo_expansion") is not True:
         return None
-    return revalidate_state_projection_gap(gap)
+    return revalidate_state_projection_gap(
+        gap,
+        user_wait_demand=next_action_wait_demands_user_todo(agent_runtime_model),
+    )
 
 
-def revalidate_state_projection_gap(gap: dict[str, Any]) -> dict[str, Any] | None:
+def revalidate_state_projection_gap(
+    gap: dict[str, Any],
+    *,
+    user_wait_demand: bool = True,
+) -> dict[str, Any] | None:
     if not isinstance(gap, dict):
         return None
     evidence_items = gap.get("first_evidence")
@@ -59,7 +75,9 @@ def revalidate_state_projection_gap(gap: dict[str, Any]) -> dict[str, Any] | Non
             item.get("target_role") == "user"
             and item.get("kind") == "next_action_waits_without_user_todo"
         )
-        if is_user_wait_evidence and not is_user_wait_text(item.get("text")):
+        if is_user_wait_evidence and (
+            not user_wait_demand or not is_user_wait_text(item.get("text"))
+        ):
             removed_user_wait = True
             continue
         retained.append(item)

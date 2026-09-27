@@ -869,7 +869,12 @@ def _prepare_quota_should_run_item(
         if isinstance(goal_frontier_context.get("goal_frontier_projection"), dict)
         else {}
     )
-    projection_gap = build_state_projection_gap(item, project_asset)
+    projection_gap = build_state_projection_gap(
+        item,
+        project_asset,
+        # role_v1: an idle orchestrator's Next Action is no user wait (decision 39).
+        agent_runtime_model=goal_agent_runtime_model_or_none(item),
+    )
     projection_gap_repair = build_state_projection_gap_repair_hint(
         projection_gap,
         candidate_should_run=bool(
