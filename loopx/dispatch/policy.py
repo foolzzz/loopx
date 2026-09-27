@@ -15,6 +15,9 @@ from typing import Any
 ROLE_ORCHESTRATOR = "orchestrator"
 ROLE_DEVELOPER = "developer"
 ROLE_ACCEPTOR = "acceptor"
+# A pinned todo-lane Turn on a deferred todo is always refused by run-once
+# (the requested todo is not eligible), so the pass never launches one.
+SELECTED_TODO_DEFERRED_REASON = "selected_todo_deferred"
 
 # BuiltInHostError failure kinds (claude_code.py / codex_cli.py) that mean the
 # provider, not the agent or the task, refused work for now.
@@ -110,6 +113,7 @@ def decide_turn(
             "reason": "selected_todo",
             "todo_id": str(todo_id),
             "todo_is_agent_todo": todo_role in {None, "agent"},
+            "todo_status": str(selected.get("status") or ""),
         }
     if role in {ROLE_DEVELOPER, ROLE_ACCEPTOR}:
         return {"launch": False, "reason": "no_selected_todo"}

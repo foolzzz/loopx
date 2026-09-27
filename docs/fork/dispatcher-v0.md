@@ -100,6 +100,14 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
      ordinary Todo update).
+   - **Deferred offers (E2E pilot v1).** Upstream should-run can still select a
+     deferred todo for a developer or acceptor once its single `resume_when`
+     dependency is done (`successor_replan_required`), while another plan
+     dependency waits for accept+merge (decision 37). A todo-lane Turn is
+     pinned, and run-once refuses a pinned deferred todo without a host call,
+     so the pass never launches one: it fills the slot with the lane's next
+     executable todo, or skips with reason `selected_todo_deferred` and the
+     todo's `dependency_wait` from the wait read model. No backoff accrues.
 5. **Auth preflight** (S3 `preflight_agent`) runs before the first launch per agent
    per pass. If it fails:
    - the agent is marked unavailable for `auth_cooldown_seconds` (default 300s);

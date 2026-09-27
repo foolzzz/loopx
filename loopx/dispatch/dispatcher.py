@@ -26,6 +26,7 @@ from typing import Any
 from . import policy
 from ..gate_threads import gates_awaiting_orchestrator
 from ..plan_criteria_changes import CRITERIA_CHANGE_PENDING_REASON, criteria_change_pending_todo_ids
+from ..plan_dependencies import read_dependency_wait_snapshot
 from .orchestrator_actions import (
     ORCHESTRATOR_ACTION_REPEAT_LIMIT,
     action_todo_text,
@@ -396,6 +397,18 @@ class Dispatcher:
                     if role == policy.ROLE_ACCEPTOR else set()
                 )
                 held = review_blocked | criteria_held
+                # A deferred todo can still be offered by upstream should-run
+                # (its single ``resume_when`` is met) while a decision-37 plan
+                # dependency waits. A pinned todo-lane Turn on it is refused by
+                # run-once without a host call, so launching it only grows the
+                # todo's backoff (E2E pilot v1). Fill the slot with an
+                # executable todo instead, or skip.
+                deferred = (
+                    {str(todo_id)}
+                    if todo_lane and todo_id and decision.get("todo_status") == "deferred"
+                    else set()
+                )
+                held |= deferred
                 if todo_id and (todo_id in in_flight | cooling | held) and role != policy.ROLE_ORCHESTRATOR:
                     # Fill a free slot of this agent with its next executable todo.
                     alternate = policy.alternate_todo(payload, exclude=in_flight | cooling | held)
@@ -410,6 +423,14 @@ class Dispatcher:
                     break
                 if todo_id and todo_id in criteria_held:
                     skip(CRITERIA_CHANGE_PENDING_REASON, todo_id=todo_id)
+                    break
+                if todo_id and todo_id in deferred:
+                    waits = read_dependency_wait_snapshot(self.runtime_root, goal_id).get(str(todo_id))
+                    skip(
+                        policy.SELECTED_TODO_DEFERRED_REASON,
+                        todo_id=todo_id,
+                        **({"dependency_wait": "; ".join(waits)[:400]} if waits else {}),
+                    )
                     break
                 if todo_id and self._todo_cooling(goal_id, str(todo_id), agent_id, now):
                     skip("todo_cooldown", todo_id=todo_id)
