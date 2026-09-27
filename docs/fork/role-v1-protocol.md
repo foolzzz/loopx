@@ -316,6 +316,9 @@ in `review_feedback` and in the returned `acceptance` packet.
   to the acceptor (by `blocks_agent` or its claim) no longer blocks the
   acceptor's lane. Global gates still block every lane. Developers and the
   orchestrator keep the previous gate rules.
+- **Criteria changes (decision 40).** An in_review todo whose acceptance
+  criteria change awaits the user on a plan card is held from its acceptor;
+  see [below](#criteria-changes-need-a-plan-card-decision-40).
 
 ### Event log
 
@@ -465,30 +468,38 @@ backfill emits it, and replay folds it.
 
 - Applying a plan card writes each item's `acceptance` into the field.
 - `loopx todo add --acceptance-criteria TEXT`.
-- `loopx todo update --goal-id G --todo-id T --agent-id ORCH
-  --acceptance-criteria TEXT` (or `--clear-acceptance-criteria`), on its own,
+- An approved plan card with `criteria_changes` (decision 40, see
+  [below](#criteria-changes-need-a-plan-card-decision-40)).
+- `loopx todo update --goal-id G --todo-id T --acceptance-criteria TEXT` (or
+  `--clear-acceptance-criteria`) by the owner, with no agent id, on its own,
   without other fields. The Python API is
   `loopx.todo_acceptance_criteria.set_goal_todo_acceptance_criteria`.
 - Under role_v1 only the goal orchestrator, or the owner with no agent id,
-  may write the field. A developer or acceptor is refused with
-  `acceptance_criteria_requires_orchestrator`, through every surface: the
-  CLI, `add_goal_todo` and `update_goal_todo`. Agents without a registered
-  role and `peer_v1` goals keep the previous behaviour.
-- The orchestrator edits todos that a developer has claimed. As with the
-  acceptor's verdicts, the lifecycle write is attributed to the claim owner,
-  so the kernel's claim fence and task leases are unchanged. The
-  orchestrator's authority is checked first and recorded as `author` in the
-  returned `acceptance_criteria_change` packet.
+  may write the field on a new todo (`todo add`). A developer or acceptor is
+  refused with `acceptance_criteria_requires_orchestrator`, through every
+  surface: the CLI, `add_goal_todo` and `update_goal_todo`.
+- On an existing todo, under role_v1 with a registered orchestrator, every
+  agent, the orchestrator included, is refused with
+  `acceptance_criteria_change_requires_plan`; the message points the
+  orchestrator to `loopx plan propose` with `criteria_changes`. A role_v1 goal
+  without an orchestrator keeps the rule above, and `peer_v1` goals keep the
+  previous behaviour (any agent may write).
+- An owner or plan-card write on a todo that a developer has claimed is
+  attributed, as a lifecycle write, to the claim owner (else the goal
+  orchestrator), as a gate decision is, so the kernel's claim fence and task
+  leases are unchanged. The real author (`null` for the owner) and the
+  `source` (`owner`, `plan_card` or `agent`) are recorded in the returned
+  `acceptance_criteria_change` packet.
 - Delivery, verdicts, escalation and the Turn writeback never write the
   field: their role-contract patches name only their own fields.
 
 **Change audit (decision 12).** Changing acceptance criteria is a major
 change. A CLI update appends a `todo_update` rollout event whose details carry
 `acceptance_criteria_changed`, `acceptance_criteria_change_class=major`, the
-author, and the previous and new SHA-256 digests. The event never carries the
-criteria text. Known gap: the edit is recorded, not gated. A plan card is the
-preferred path for a criteria change, and the orchestrator prompt says so, but
-`todo update --acceptance-criteria` does not require an approved plan.
+author, the source, and the previous and new SHA-256 digests. A plan-card
+change appends a `todo_criteria_change` event instead. Neither event carries
+the criteria text. The gap that the edit was recorded but not gated is closed
+by decision 40.
 
 **Readers.** The Turn decision reads the selected todo's durable
 `acceptance_criteria` (and the enabled goal acceptance contract, on canonical
@@ -584,3 +595,47 @@ CLI appends its usual `todo_supersede` event. Each resume pass refreshes
 
 The dispatcher's orchestrator prompt says to use `todo supersede` when
 replacing or splitting a todo, and never to mark the replaced todo done.
+
+## Criteria changes need a plan card (decision 40)
+
+See [design-v0](design-v0.md), decisions 12 and 40, and
+[gates-plans-intake](gates-plans-intake-v0.md#acceptance-criteria-changes-decision-40).
+
+After initial planning, a change to a todo's acceptance criteria takes effect
+only through a user-approved plan card. The criteria are the contract the
+acceptor holds the developer to, so the user, not an agent, changes them.
+
+- **Initial criteria are unaffected.** Criteria written when a plan card is
+  applied (the item's `acceptance`), and criteria on a new todo (`todo add`),
+  are written directly; they were approved with the plan.
+- **Direct edits.** On an existing todo, `todo update --acceptance-criteria`
+  and `update_goal_todo` refuse every agent under role_v1 with
+  `acceptance_criteria_change_requires_plan`. The owner (no agent id) may
+  still edit directly; the edit is logged as a major change.
+- **The plan-card path.** The orchestrator runs `loopx plan propose` with a
+  plan file whose `criteria_changes` list has `{todo_id, new, reason}` entries
+  (`old` optional). The card may carry only criteria changes or batch them
+  with new todos. Approve applies them; reject or cancel changes nothing and
+  opens one orchestrator action todo, so the dispatcher wakes the
+  orchestrator. An entry whose criteria changed after the proposal is refused
+  as `stale` (compared with `old`), and the orchestrator is told the same way.
+- **The acceptor waits.** While a card with a change for a todo is `pending`
+  (or `applying`), the acceptor does not review that todo:
+  - should-run gives a role_v1 acceptor `criteria_change_pending_todo_ids`
+    in its identity;
+  - role-aware selection holds the in_review todo from the acceptor and
+    reports it under `role_scope.review_held` with reason
+    `criteria_change_pending`;
+  - a pinned `turn run-once --todo-id` does not select it;
+  - the dispatcher skips it with reason `criteria_change_pending`, and when
+    the acceptor has nothing else, its `no_selected_todo` or
+    `should_run_false` skip lists `criteria_change_pending_todo_ids`.
+
+  The developer keeps working on the todo, and other todos continue. Once the
+  card is approved, rejected or cancelled, the acceptor reviews it against the
+  criteria then in force.
+- **Visibility.** The role board card carries `criteria_change_plan_id` and
+  `criteria_change_gate_todo_id`, and the dashboard links the card to the plan
+  gate ("review on hold"). `plan show`, `gate show` and the dashboard gate
+  panel show the old and new criteria side by side.
+- **peer_v1** goals are unaffected.

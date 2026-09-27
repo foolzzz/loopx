@@ -62,6 +62,7 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 35. The acceptor only reviews: it runs unsandboxed on a throwaway detached checkout of the delivered commit; merge uses the recorded delivered sha. Approved by the user.
 36. Acceptor verdicts are accept / reject (feedback naming failed criteria required) / blocked; blocked opens a system user_gate (retry, accept manually, return to developer, cancel) and does not count as a rejection. Approved by the user.
 37. A dependency that requires acceptance releases its dependents only when accepted and merged; replacing or splitting a todo uses `todo supersede`, which rewires dependents and never counts as done. Approved by the user.
+40. After initial planning, a change to a todo's acceptance criteria takes effect only through a user-approved plan card; the acceptor does not review that todo while the card is pending. Approved by the user.
 
 ## Kernel seams (from code exploration)
 - **Registry roster:** `loopx/agent_registry.py`, `loopx/configure_goal.py`, `loopx/cli_commands/registry_admin.py`. The runtime model enum is in `loopx/control_plane/agents/runtime_model.py`; the anti-hierarchy rules are in `control_plane/agents/profile.py` and `legacy_migration.py`.
