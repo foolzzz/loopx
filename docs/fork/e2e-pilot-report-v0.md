@@ -367,15 +367,37 @@ schema, or the lease or guard semantics. None of these was changed.
     detached checkout of the delivered commit, and the accept merge merges the
     recorded delivered sha (`delivery_moved` blocks a branch that moved). See
     [role-v1-protocol](role-v1-protocol.md#acceptor-verdicts-and-isolation-gap-g12).
-- **G13 (P2, found while verifying G4, not changed). A Next Action heuristic
-  can still wake the orchestrator for nothing.** On the pilot state copy, once
-  the G4 obligation is gone, should-run reports
-  `effective_action=state_projection_gap_repair` for every agent. The cause is
-  the orchestrator's last Next Action ("Orchestrator idles … re-engages only if
-  …"), which the upstream prose check reads as a wait without a user todo.
-  With no todo selected, the dispatcher would open an orchestrator action todo
-  for it. Options: skip that prose check under role_v1, or restrict action todos
-  to gate replies and replan obligations.
+- **G13 (P2, found while verifying G4). A Next Action heuristic can still wake
+  the orchestrator for nothing. Resolved by design decision 39.**
+  - On the pilot state copy, once the G4 obligation was gone, should-run
+    reported `effective_action=state_projection_gap_repair` for every agent.
+    The cause was the orchestrator's last Next Action ("Orchestrator idles …
+    re-engages only if … a user gate appears"), which the upstream prose check
+    reads as a wait without a user todo. With no todo selected, the dispatcher
+    opened an orchestrator action todo for it, and after two a user gate.
+  - The fix: for role_v1 goals should-run no longer derives that demand. It
+    drops the self-reported-wait evidence where it computes the repair, also
+    from a gap recorded earlier. The prose check itself still records the
+    evidence as a diagnostic. peer_v1 is unchanged. See
+    [role_v1 protocol](role-v1-protocol.md#idle-orchestrator-decision-39).
+  - Sibling found by the survey and gated too: the periodic-review replan
+    (`periodic_review_due`). After 20 durable developer or acceptor runs it
+    made the idle orchestrator owe `autonomous_replan_required`, reproduced
+    with 20 real `refresh-state` runs. role_v1 goals no longer derive it; stall
+    replans from run history still reach the orchestrator.
+  - Surveyed and unchanged: `next_action_executable_without_agent_todo` (fires
+    only when every agent todo is done; its broad verb list is a watch item),
+    the stall replans (`typed_progress_repeat`, `dead_monitor_repeat`,
+    `blocked_successor_no_progress_repeat`, `monitor_no_change_streak`),
+    `successor_replan_required` for a cleared handoff gate without a successor,
+    and the opt-in `waiting_without_owner_projection` stall repair. Checks that
+    guard data integrity were not considered.
+  - Readback on a copy of the pilot state: before, should-run was
+    `state_projection_gap_repair` for `orch`, `dev` and `acc`, and the
+    dispatcher decision for `orch` was `orchestrator_action_without_todo`.
+    After, all three are `normal_run` with no selected todo, and `orch` is
+    skipped as `orchestrator_idle`. Gate replies, escalations and a developer
+    stall still wake the orchestrator (dispatcher tests).
 
 ## Evidence
 

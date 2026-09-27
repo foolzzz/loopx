@@ -181,9 +181,54 @@ the host to leave `path_delta_mode`, `agent_vision_json` and
 instead of validating them, so an invalid vision packet no longer fails the
 Turn (E2E pilot gap G4).
 
-**Unchanged.** peer_v1 goals raise both obligations as before. Replan
-obligations from run history (stalls, repeated progress, dead monitors,
-periodic review) are still derived and still routed to the orchestrator.
+**Unchanged.** peer_v1 goals raise both obligations as before. Stall replan
+obligations from run history (repeated typed progress, dead monitors, a
+blocked successor without progress, a monitor no-change streak) are still
+derived and still routed to the orchestrator. The periodic review is not, see
+the next section.
+
+## Idle orchestrator (decision 39)
+
+Under role_v1 an idle orchestrator is the normal state: it is event-triggered
+through its todos. Its Next Action typically reads "Orchestrator idles. Next
+eligible work is acc reviewing todo_X. Orchestrator re-engages only if acc
+rejects it or a user gate appears." Two upstream checks read that state as a
+demand on the orchestrator. A role_v1 goal raises neither (E2E pilot gap G13):
+
+- **Self-reported wait.** The state-projection check records a Next Action
+  that reads as a wait on the user/owner/gate without an open User Todo as
+  `next_action_waits_without_user_todo`, and should-run then demanded
+  `effective_action=state_projection_gap_repair` from every agent. should-run
+  re-derives that demand on read (`build_state_projection_gap`), and for a
+  role_v1 goal it drops the wait evidence, including from a gap persisted
+  before this change. The evidence is still recorded by `refresh-state` and
+  still shown by `status` and `contract check` as a diagnostic.
+- **Periodic review.** The run-history cadence trigger `periodic_review_due`
+  (a lane recorded 20 durable runs since the last replan ACK, whether it
+  progressed or not) was routed to the orchestrator as
+  `autonomous_replan_required`. The goal frontier selects the replan
+  obligation from sources without cadence-only obligations
+  (`goal_frontier/role_v1_cadence.py`), so the refresh-state replan gate
+  follows too.
+
+Real stuck work still wakes the orchestrator through the dispatcher: a gate
+reply awaiting it, an S2 escalation todo, and a stall replan from run history
+(see [dispatcher-v0](dispatcher-v0.md)). peer_v1 goals keep both checks.
+
+Surveyed and unchanged, because they did not fire on the pilot state and a
+realistic role_v1 flow gives them real work:
+
+- `next_action_executable_without_agent_todo`, the other half of the
+  state-projection check: an executable-sounding Next Action with no open agent
+  todo (`in_review` and `blocked` count as open). Under role_v1 it can only
+  fire once every agent todo is done, where waking the orchestrator to plan
+  more work or record the goal's outcome is the next step. Its verb list is
+  broad ("run", "record", "todo" match), so a stale Next Action left by the
+  last Turn of a finished goal can trigger it; watch for it in the next pilot.
+- The stall triggers above, and `successor_replan_required` from a cleared
+  handoff gate without a successor (`agent_scope._cleared_handoff_frontier`).
+- `waiting_without_owner_projection` (`stall_repair.py`): opt-in through
+  `control_plane.self_repair.enabled`, off by default.
 
 ## Acceptance flow (slice S2)
 
