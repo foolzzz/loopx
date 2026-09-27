@@ -124,4 +124,85 @@ of the declared repository detached at any commit. The identity is still the
 todo workspace identity. A detached repo inside the todo's own workspace root
 is still refused.
 
-Nothing fetches or pushes. Pushing is a user gate.
+Nothing here fetches or pushes. Pushing is a user gate; see below.
+
+## Pushing merged work (G8)
+
+Design decisions 18 and 38. Code: `loopx/push_requests.py`.
+
+**When the gate opens.** On every pass over a role_v1 goal, the dispatcher
+opens one `push_request` user gate for the goal when both hold:
+
+- no agent todo of the goal is `open`, `in_review` or `blocked` (all of its
+  work is accepted and merged);
+- a repo's merge target has commits of this goal (merge commits with the
+  `LoopX-Goal: <goal>` trailer) that are not on the repo's remote.
+
+The orchestrator can ask earlier, and the owner at any time:
+
+```sh
+loopx goal request-push --goal-id G [--agent-id ORCH] [--dry-run]
+```
+
+An explicit request does not wait for pending todos and offers any unpushed
+commits on the merge target. `--agent-id` must be the goal's orchestrator.
+
+The gate is a system gate, like the re-login gate (decision 17): LoopX opens
+it through the Todo API, and it blocks the goal's orchestrator. At most one
+`push_request` gate is open per goal; further passes and requests return it.
+
+**What the gate shows.** Per repo: the merge target branch (`loopx-task/<goal>`
+or the configured task branch; the default branch when `merge_target=main`),
+the remote, the commit range (`<remote tip>..<head>`, or `(new branch)..<head>`)
+and at most 10 lines of `git log --oneline`. The gate text has a one-line
+summary; `loopx gate show` and the dashboard gate view return the full
+`push_repos` list from the gate index. Nothing touches the network to build
+it: "not on the remote" means not reachable from any `refs/remotes/<remote>/*`
+ref.
+
+**Which remote.** The target branch's upstream remote (`branch.<b>.remote`),
+else `origin`. A repo with neither is local-only (G3): it is listed as
+skipped with a note and never pushed. A goal whose repos are all local-only
+opens no gate.
+
+**Decisions** (`loopx gate resolve --decision ...`, `loopx todo complete --role
+user --decision-outcome ...`, or the dashboard `gate.resolve`):
+
+| decision | effect |
+|---|---|
+| approve | per repo, `git push <remote> <branch>` (never force). Each result is a `push_result` event (`ok`, or `error` with a redacted stderr tail). |
+| reject | nothing is pushed; `push_declined` is recorded and the same heads are not offered again until new merges arrive |
+| cancel | like reject |
+
+**Safety.**
+
+- Nothing is pushed unless the gate todo is closed with `approve` in the goal
+  state; the push runs only after that write.
+- Only the configured merge target is pushed, and only when it still is the
+  configured target at approve time: a `loopx-task/` or `loopx/` branch, or
+  the default branch when `merge_target=main` (this is the only way `main` is
+  ever pushed).
+- Exactly the approved commits: if the branch moved after the gate opened, the
+  repo is not pushed (`head_moved`), and the dispatcher offers the new work in
+  a new gate.
+- A non-fast-forward is rejected by git and never forced.
+
+**Failures.** If any push fails (or is refused), LoopX opens a follow-up
+`push_request` gate (reason `push_failed`) whose text carries the error; its
+index entry keeps the errors in `previous_errors`. Approving it retries.
+
+**Idempotency.** The gate's outcome is stored in its index entry
+(`push_outcome`); settling it again replays the outcome and pushes nothing, and
+a closed gate cannot be resolved again. After a successful push the remote
+tracking ref has the head, so no new gate opens.
+
+**`on_push_command` (opt-in).** A goal entry in the registry may set
+`on_push_command` (an argv list, or a string split with shell rules, never run
+through a shell), for example `["gh", "pr", "create", "--fill"]`. It runs in the
+repo after each successful push, with a 300s timeout; its exit status is
+recorded on the `push_result` event and its output tail in the gate outcome.
+It is off by default.
+
+**State.** `goals/<G>/push/state.json` holds the declined heads and the last
+push results; `goals/<G>/gates/index.json` holds the gate entries
+(`kind=push_request`, `push_reason`, `push_repos`, `push_outcome`).

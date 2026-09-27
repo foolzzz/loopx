@@ -31,6 +31,10 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   `gate.resolve` action (S7). An `acceptor_blocked` gate (G12) also takes
   `--option` / `option`; see
   [role-v1-protocol](role-v1-protocol.md#acceptor-verdicts-and-isolation-gap-g12).
+  A `push_request` gate (G8) takes the plain decisions: approve pushes each
+  repo's merge target, reject and cancel push nothing and are not offered
+  again until new merges arrive; see
+  [workspaces-v0](workspaces-v0.md#pushing-merged-work-g8).
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The
@@ -53,7 +57,9 @@ The thread state is durable under the runtime root:
   under a lock.
 - `goals/<G>/gates/index.json` holds one entry per gate:
   `{kind, plan_id?, awaiting, message_count, last_author, last_at, closed,
-  decision_outcome?}`. It is updated in the same lock as the append. The
+  decision_outcome?}`. `kind` is `decision`, `plan_approval`,
+  `acceptor_blocked` (G12) or `push_request` (G8, with `push_reason`,
+  `push_repos` and, once decided, `push_outcome`). It is updated in the same lock as the append. The
   dispatcher can watch this file, or call
   `loopx.gate_threads.gates_awaiting_orchestrator(runtime_root, goal_id)`.
 - Every reply also appends a `gate_thread_reply` event to the goal's
@@ -96,8 +102,9 @@ from the requirement docs, or opens a gate itself. The following can still open
 gates:
 
 - the owner or CLI when no agent id is given;
-- LoopX itself: the dispatcher's re-login and cooldown gates (decision 17), and
-  the `acceptor_blocked` gate a blocked acceptor verdict opens (G12);
+- LoopX itself: the dispatcher's re-login and cooldown gates (decision 17),
+  the `acceptor_blocked` gate a blocked acceptor verdict opens (G12), and the
+  `push_request` gate once a goal's work is merged (G8, decision 38);
 - the orchestrator;
 - agents that have no registered role;
 - every agent on `peer_v1` goals.
