@@ -86,10 +86,11 @@ def _rollout_event_todo_status(event: Mapping[str, Any]) -> str:
     if status:
         return status
     kind = str(event.get("event_kind") or "")
-    if kind in {"todo_complete", "todo_archive_completed"}:
+    # The kernel's supersede transition closes the todo as ``done`` (completion
+    # note ``superseded``); an event whose status is only the command name must
+    # not project it as deferred work.
+    if kind in {"todo_complete", "todo_archive_completed", "todo_supersede"}:
         return "done"
-    if kind == "todo_supersede":
-        return "deferred"
     return "open"
 
 
@@ -215,7 +216,13 @@ def build_todo_index(
                 existing["latest_event_kind"] = latest_kind
                 existing["latest_event_at"] = event_item.get("latest_event_at")
                 existing["latest_event_status"] = event_item.get("latest_event_status")
-                if event_item.get("status"):
+                # The attention queue reads the goal state itself, so its status
+                # is current. Rollout events are history: several lifecycle
+                # writes (``gate resolve``, ``todo supersede --by``, system
+                # gates) append no ``todo_*`` event or one without a todo
+                # status, so an older event must never overwrite it. Events
+                # fold status only into todos the queue does not carry.
+                if event_item.get("status") and existing.get("source") != "attention_queue":
                     existing["status"] = event_item.get("status")
                     existing["done"] = bool(event_item.get("done"))
                 if event_item.get("agent_id"):

@@ -152,7 +152,9 @@ def accepted_by(row: Mapping[str, Any]) -> str | None:
     return match.group(1) if match else None
 
 
-def _is_superseded(row: Mapping[str, Any], mapping: Mapping[str, Sequence[str]]) -> bool:
+def todo_is_superseded(row: Mapping[str, Any], mapping: Mapping[str, Sequence[str]]) -> bool:
+    """Whether a todo row was closed by a supersede (`--by` log, successor link or note)."""
+
     return (
         str(row.get("todo_id") or "") in mapping
         or bool(row.get("superseded_by"))
@@ -177,7 +179,7 @@ def dependency_wait_reason(
         return f"waiting for dependency {dependency_id} (status {status or 'unknown'})"
     if not goal_uses_role_v1(goal):
         return None
-    if _is_superseded(row, mapping):
+    if todo_is_superseded(row, mapping):
         return (
             f"dependency {dependency_id} was superseded without a replacement; the orchestrator "
             f"rewires its dependents with `loopx todo supersede --todo-id {dependency_id} --by NEW`"

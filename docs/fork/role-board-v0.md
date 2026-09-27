@@ -51,7 +51,18 @@ is resolved in this order:
 
 Todos are the goal's agent todos from the status `todo_index`, so they come
 from the same source as the Tasks tab. Continuous monitors and superseded or
-cancelled todos are left out. `effective_role` and `requires_acceptance` use
+cancelled todos are left out. The kernel closes a superseded todo as `done`, so
+the board also drops a done todo whose completion note is `superseded`, that
+has a `superseded_by` link, or that is named in `plans/supersessions.jsonl`
+(`todo supersede --by`); it is replaced work, not finished work.
+
+The `todo_index` status comes from the attention queue, which reads the goal
+state file. Rollout events add history (`event_kinds`, `latest_event_*`) but
+never overwrite the status of a todo the queue carries, because several
+lifecycle writes append no `todo_*` event (`gate resolve`, system gates such as
+`acceptor_blocked`, `push_request` and `budget_exhausted`) or one without a
+todo status (`todo supersede --by`). A todo known only from events projects
+`todo_supersede` as `done` (pilot v1 gap N3). `effective_role` and `requires_acceptance` use
 the kernel rules (`todo_effective_required_role`, `todo_requires_acceptance`),
 so an absent `requires_acceptance` shows its derived default. `running` is set
 when an active dispatcher run or an unexpired lease covers the todo. A todo

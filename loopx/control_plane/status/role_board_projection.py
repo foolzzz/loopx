@@ -200,6 +200,21 @@ def _dependency_waits(runtime_root: Path, goal_id: str) -> dict[str, list[str]]:
         return {}
 
 
+def _supersession_map(runtime_root: Path, goal_id: str) -> dict[str, list[str]]:
+    try:
+        from ...plan_dependencies import read_supersessions, supersession_map
+
+        return supersession_map(read_supersessions(runtime_root, goal_id))
+    except Exception:  # noqa: BLE001 - the supersession log is advisory for the board
+        return {}
+
+
+def _superseded(todo: Mapping[str, Any], mapping: Mapping[str, list[str]]) -> bool:
+    from ...plan_dependencies import todo_is_superseded
+
+    return todo_is_superseded(todo, mapping)
+
+
 def _gate_index(runtime_root: Path, goal_id: str) -> dict[str, dict[str, Any]]:
     try:
         from ...gate_threads import read_gate_index
@@ -343,6 +358,7 @@ def build_goal_role_board(
         running_by_todo.setdefault(todo_id, owner)
     plan_by_todo, plan_by_gate = _plan_links(runtime_root, goal_id)
     dependency_waits = _dependency_waits(runtime_root, goal_id)
+    supersessions = _supersession_map(runtime_root, goal_id)
 
     agents = []
     for agent_id in roster[:MAX_ROLE_BOARD_AGENTS]:
@@ -370,6 +386,10 @@ def build_goal_role_board(
                 gate_rows.append(dict(todo))
             continue
         if todo.get("role") != "agent" or todo.get("task_class") == "continuous_monitor":
+            continue
+        # A superseded todo is closed as ``done`` by the kernel (note
+        # ``superseded``), but it is replaced work, not finished work (N3).
+        if _superseded(todo, supersessions):
             continue
         done = status in _DONE_STATUSES
         card: dict[str, Any] = {
