@@ -126,6 +126,20 @@ The zod schema (`roleBoardSchema` in `src/data/status.ts`) maps unknown enum
 values to fallbacks, and turns a malformed board into `null`. As a result, a
 newer backend can never blank the status payload.
 
+### Usage strip
+
+Gap G9. When the goal's status row carries `turn_usage_summary` (see
+[usage-accounting-v0](usage-accounting-v0.md)), a strip under the board
+header shows:
+- the goal's cost, with the estimated part named separately;
+- agent-hours and Turns;
+- cost per accepted todo, with the count;
+- the budget share, amber from 80% and red from 100%;
+- the per-role split (cost and Turns).
+
+The zod `turnUsageSummarySchema` turns a malformed summary into `null`, which
+hides the strip without breaking the board.
+
 ## Verification
 
 ```sh

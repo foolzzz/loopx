@@ -61,7 +61,8 @@ All paths below are relative to the pilot dir `/Users/a/ai/loopx-pilots/`.
   args: `service_tier`, `model_provider=cpa`, and name, `base_url`, `wire_api`,
   `env_key` and `requires_openai_auth=false`.
 - **Cost and tokens.** Not available. Neither adapter persists `total_cost_usd`,
-  `num_turns` or token usage (gap G9).
+  `num_turns` or token usage (gap G9, since resolved; see
+  [usage-accounting-v0](usage-accounting-v0.md)).
 
 ## Scenario steps
 
@@ -305,8 +306,20 @@ schema, or the lease or guard semantics. None of these was changed.
 - **G8 (P2). No push flow.** Nothing opens the push gate when a goal's work is
   merged, and approving it does not push. Both should be orchestrator or
   dispatcher steps.
-- **G9 (P2). No cost or token accounting.** The claude-code and codex adapters
-  drop `total_cost_usd`, `num_turns` and usage.
+- **G9 (P2). No cost or token accounting. Resolved** (see
+  [usage-accounting-v0](usage-accounting-v0.md)).
+  - The claude-code and codex adapters dropped `total_cost_usd`, `num_turns`
+    and usage.
+  - Fix, capture: every Turn journals a typed `turn_usage` block, failed Turns
+    included, and appends it to `goals/<goal>/usage.jsonl`. Replays are
+    idempotent; codex session totals become per-Turn deltas.
+  - Fix, pricing: codex cost is estimated from an optional `pricing` table in
+    `providers.yaml`.
+  - Fix, readback: `loopx usage report` gives agent-hours, cost and Turns per
+    role, agent, goal, todo, model or day, and cost per accepted todo. The
+    role board shows a usage strip.
+  - Fix, budget: an optional goal budget opens a non-blocking user action at
+    80% and at 100% of spend.
 - **G10 (P3). Smaller items.**
   - `gate show` truncates the gate text.
   - A dispatcher decision can go stale while another Turn changes state. The
