@@ -891,3 +891,91 @@ def test_a_completed_orchestrator_planning_todo_opens_no_action_todo_under_role_
     assert report["launched"] == [] and "orchestrator_todos_opened" not in report
     assert [item["reason"] for item in orch] == ["orchestrator_idle"]
     assert [row for row in _orch_rows(fixture) if row["status"] != "done"] == []
+
+
+# --- G13: an idle role_v1 orchestrator (decision 39) ------------------------------
+
+IDLE_ORCHESTRATOR_NEXT_ACTION = (
+    "Orchestrator idles. Next eligible work is acc reviewing todo_api (integration check, in_review). "
+    "Orchestrator re-engages only if acc rejects it a second time (new escalation) or a user gate appears."
+)
+
+
+def _idle_orchestrator_fixture(tmp_path: Path, *, agent_model: str = "role_v1") -> dict[str, Any]:
+    """A goal whose last Turn left the pilot's idle orchestrator Next Action."""
+
+    fixture = write_fixture(
+        tmp_path,
+        agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}},
+        agent_model=agent_model,
+    )
+    state = fixture["state"]
+    state.write_text(
+        state.read_text(encoding="utf-8") + f"\n## Next Action\n\n- {IDLE_ORCHESTRATOR_NEXT_ACTION}\n",
+        encoding="utf-8",
+    )
+    return fixture
+
+
+@pytest.mark.parametrize("model", ["role_v1", "peer_v1"])
+def test_an_idle_role_v1_orchestrator_gets_no_action_todo(tmp_path: Path, model: str) -> None:
+    """G13: the idle Next Action read as a user wait and became an action todo, then a gate."""
+
+    fixture = _idle_orchestrator_fixture(tmp_path, agent_model=model)
+    report = _dispatcher(fixture).run_once()
+    orch = [item for item in report["skipped"] if item["agent_id"] == "orch"]
+    if model == "peer_v1":
+        [opened] = report["orchestrator_todos_opened"]
+        assert opened["subject"] == "effective_action=state_projection_gap_repair"
+        return
+    assert report["launched"] == [] and "orchestrator_todos_opened" not in report
+    assert [item["reason"] for item in orch] == ["orchestrator_idle"]
+    assert _orch_rows(fixture) == [] and _user_gates(fixture) == []
+
+
+def test_a_gate_reply_still_wakes_an_idle_role_v1_orchestrator(tmp_path: Path) -> None:
+    from loopx.gate_threads import reply_to_gate
+
+    fixture = _idle_orchestrator_fixture(tmp_path)
+    gate_id = add_goal_todo(registry_path=fixture["registry"], goal_id=GOAL_ID, role="user", task_class="user_gate",
+                            agent_id="orch", text="Which database?",
+                            runtime_root_arg=str(fixture["runtime"]))["todo_id"]
+    dispatcher = _dispatcher(fixture)
+    assert "orchestrator_todos_opened" not in dispatcher.run_once()
+    reply_to_gate(registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_id=GOAL_ID,
+                  todo_id=gate_id, text="Use sqlite")
+    [opened] = dispatcher.run_once()["orchestrator_todos_opened"]
+    assert opened["subject"] == gate_id
+    [row] = _orch_rows(fixture)
+    assert f"awaiting you: {gate_id}." in row["text"]
+
+
+def test_an_escalation_still_launches_an_idle_role_v1_orchestrator(tmp_path: Path) -> None:
+    fixture = _idle_orchestrator_fixture(tmp_path)
+    escalation = add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text="Escalation: todo_api was rejected 2 times by acc. Decide: reassign.",
+        task_class="advancement_task", action_kind="replan", claimed_by="orch",
+        role_contract={"required_role": "orchestrator", "requires_acceptance": False},
+    )["todo_id"]
+    report = _dispatcher(fixture).run_once()
+    assert [(item["agent_id"], item["todo_id"]) for item in report["launched"]] == [("orch", escalation)]
+    assert "orchestrator_todos_opened" not in report
+
+
+def test_a_developer_stall_still_opens_an_action_todo_for_an_idle_role_v1_orchestrator(tmp_path: Path) -> None:
+    """A replan obligation from run history is a real stuck case (typed_progress_repeat)."""
+
+    from loopx.control_plane.testing.canary_harness import run_json_cli_result
+
+    fixture = _idle_orchestrator_fixture(tmp_path)
+    for _ in range(2):
+        code, payload = run_json_cli_result(
+            "refresh-state", "--goal-id", GOAL_ID, "--agent-id", "dev", "--progress-scope", "agent_lane",
+            "--classification", "blocked_on_review", "--progress-result-class", "blocked",
+            "--progress-blocker-id", "blocker-review", "--progress-evidence-id", "evidence-review",
+            registry_path=fixture["registry"], runtime_root=fixture["runtime"],
+        )
+        assert code == 0, payload
+    [opened] = _dispatcher(fixture).run_once()["orchestrator_todos_opened"]
+    assert opened["subject"] == "effective_action=autonomous_replan_required"

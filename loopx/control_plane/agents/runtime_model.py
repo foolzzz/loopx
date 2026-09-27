@@ -79,6 +79,22 @@ def orchestrator_owns_planning_review(
     return agent_runtime_model is AgentRuntimeModel.ROLE_V1
 
 
+def next_action_wait_demands_user_todo(
+    agent_runtime_model: AgentRuntimeModel | None,
+) -> bool:
+    """Whether a Next Action that reads as a wait demands a User Todo (fork decision 39).
+
+    peer_v1 agents self-report a wait in their Next Action, so a wait without
+    an open User Todo is a state-projection gap to repair. Under role_v1 an
+    idle orchestrator is the normal state: it is event-triggered, and a Next
+    Action such as "re-engages only if ... a user gate appears" is not a wait
+    on the user. Stuck work is detected by the dispatcher instead (gate
+    replies, escalations, replan obligations from run history).
+    """
+
+    return agent_runtime_model is not AgentRuntimeModel.ROLE_V1
+
+
 def agent_identity_is_peer(agent_identity: Mapping[str, Any] | None) -> bool:
     return bool(
         isinstance(agent_identity, Mapping)
