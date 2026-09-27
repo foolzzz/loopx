@@ -173,6 +173,18 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   text to these). Only that provider then enters a cooldown: 60s, 120s, 240s and so
   on, capped at 6h. Other providers keep running. A committed Turn on the provider
   resets the backoff.
+- **Unavailable upstream (pilot v1 gap N9).** codex-cli maps what a proxy such as
+  CLIProxyAPI reports for an unavailable upstream to `provider_capacity`: an HTTP
+  500, 502 or 504 status, a `5xx` status in an error message, `auth_unavailable`,
+  `dial upstream`, a refused or reset connection, or an `error sending request`.
+  The Turn is retryable, and the dispatcher backs off the provider, not the todo.
+  A structured HTTP 503 stays `provider_overloaded`, as before. On a failed or
+  timed-out Turn the codex host writes the last 20 stderr lines to the Turn's own
+  stderr (`runs/<run>.err.log`), each at most 400 characters and redacted first:
+  bearer/basic credentials, `Authorization` headers, key/token/secret/password
+  assignments, `sk-`/JWT-shaped and other long opaque strings, URL user info and
+  absolute local paths never reach the log. Nothing of it is persisted in Turn
+  journals or events.
 - **Long cooldown.** Once a single cooldown reaches `--long-cooldown-seconds`
   (default 1h), one user gate opens: "Provider X is in a long cooldown …". It blocks
   the agent that hit the limit.
