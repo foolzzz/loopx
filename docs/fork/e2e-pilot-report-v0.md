@@ -348,7 +348,9 @@ schema, or the lease or guard semantics. None of these was changed.
     role, agent, goal, todo, model or day, and cost per accepted todo. The
     role board shows a usage strip.
   - Fix, budget: an optional goal budget opens a non-blocking user action at
-    80% and at 100% of spend.
+    80% of spend. At 100% a `budget_exhausted` gate pauses the goal's new
+    Turns until the owner raises the budget, drops the limit or stops the
+    goal (decision 41).
 - **G10 (P3). Smaller items.**
   - `gate show` truncates the gate text.
   - A dispatcher decision can go stale while another Turn changes state. The

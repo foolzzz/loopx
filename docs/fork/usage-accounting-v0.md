@@ -142,6 +142,9 @@ The dashboard's role board shows it as one strip under its header (see
 
 ## Budget (optional)
 
+Budgets are optional and usually unset (design decision 41). Without a
+budget, nothing below happens: no alert, no gate, no pause.
+
 ```sh
 loopx usage budget --goal G --set 50    # USD; --clear removes it; no flag shows spend vs budget
 ```
@@ -150,18 +153,63 @@ The budget lives in `<runtime_root>/goals/<goal>/usage-budget.json`. It is not
 in the registry, so no goal-config schema changes.
 
 On every pass, the dispatcher compares the ledger's total cost with the budget
-(`loopx/dispatch/usage_budget.py`):
-- Once per threshold and budget value, it opens one user todo when spend
-  crosses 80% and again at 100%. If both are crossed at once, one todo covers
-  both.
-- The todo is a `user_action`, not a `user_gate`. A user gate blocks agent
-  lanes in LoopX selection, and the budget must not stop work by itself.
-- The pass reports the todo as `gates_opened` with key `usage_budget:80` or
-  `usage_budget:100`.
+(`loopx/dispatch/usage_budget.py`).
+
+**80%: a non-blocking alert.**
+- Once per budget value, it opens one user todo when spend crosses 80%.
+- The todo is a `user_action`, not a `user_gate`, so it never pauses work.
+- The pass reports it as `gates_opened` with key `usage_budget:80`.
 - The dispatcher state (`budget_alerts`) remembers which alerts it opened. It
   also adopts an open alert by its text, so a lost state file does not
   duplicate it.
-- Raising the budget re-arms both thresholds.
+
+**100%: the `budget_exhausted` gate.** Code: `loopx/usage_budget_gate.py`.
+- The dispatcher opens one system user gate of kind `budget_exhausted`
+  (report key `usage_budget:100`) instead of a second alert. If spend jumps
+  past 80% and 100% at once, the gate covers both.
+- The gate text shows the spend against the budget, the estimated part of the
+  spend and its share, unpriced Turns, the per-role split and the default
+  raise. `loopx gate show` also lists them (`budget_usd`, `spent_usd`,
+  `estimated_usd`, `by_role`, `default_raise_usd`).
+- While the gate is open, the dispatcher launches no new Turn of that goal
+  for any role (skip reason `budget_exhausted_gate_open`). Turns already
+  running finish normally and are never killed. Other goals are unaffected.
+- On role_v1 goals the gate blocks the orchestrator's lane (like the push
+  gate); otherwise it is goal-bound.
+- One gate per goal and crossing. A crossing is one budget revision: the
+  value and `updated_at` of `usage-budget.json`. The gate index remembers the
+  revision, so a replayed tick, a restarted dispatcher or a lost state file
+  never opens a second gate, and more spend on the same budget does not either.
+- If the budget is cleared or raised above the spend with `loopx usage
+  budget` while the gate is open, the hold ends; close the stale gate with
+  any option.
+
+Resolve the gate with `loopx gate resolve --goal-id G --todo-id <gate>
+--option …` or the dashboard's `gate.resolve` (the drawer lists the three
+options; the decision note carries the amount):
+
+| option | decision | effect |
+|---|---|---|
+| `raise_budget` | approve | Sets the budget to the first number in the note (`--note 75`, `$75`, `raise to 1,200`), or +50% of the current budget without one. Dispatching resumes, and the 80% alert and 100% gate re-arm for the new value. A raise that does not cover the spend is refused and the gate stays open. |
+| `continue_without_limit` | approve | Clears the budget. Dispatching resumes. |
+| `stop_goal` | reject (or cancel) | Records the owner's decision and stops the goal with the existing reversible goal stop (`loopx goal-lifecycle`). Todos are kept. The budget stays. |
+
+`--decision approve` alone means `raise_budget`; `reject` or `cancel` alone
+means `stop_goal`. The outcome is recorded on the gate (`budget_outcome`,
+`decision_option`) and as `usage_budget_exhausted` / `usage_budget_decided`
+rollout events.
+
+**Resuming a stopped goal.** The dispatcher holds a goal stopped at its
+budget gate (skip reason `budget_stopped_by_owner`) until the owner resumes
+it:
+
+```sh
+loopx goal-lifecycle --goal-id G --operation resume --actor-kind owner --execute
+```
+
+The resumed goal runs on. Its crossing is already decided, so no new gate
+opens until the budget changes. To keep a limit, set a higher budget with
+`loopx usage budget --goal G --set USD` before or after resuming.
 
 ## Known gaps
 
@@ -175,3 +223,6 @@ On every pass, the dispatcher compares the ledger's total cost with the budget
   settles a previously failed settlement does not rewrite it. Accepted todos
   come from current todo state, so the per-todo numbers stay right.
 - Generic-cli and dsh hosts record no usage.
+- The budget pause acts on the spend already in the ledger. Turns running
+  when the gate opens still finish and add their cost, so the spend can end
+  above the budget.
