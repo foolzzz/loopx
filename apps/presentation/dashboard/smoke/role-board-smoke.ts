@@ -55,6 +55,10 @@ equal(board.cards.find((card) => card.todoId === "todo_rb_running")?.acceptanceC
 equal(board.cards.find((card) => card.todoId === "todo_rb_planned")?.dependencyWait,
   "waiting for dependency todo_rb_review (status in_review)", "G6: the card carries its dependency wait");
 equal(board.cards.find((card) => card.todoId === "todo_rb_running")?.dependencyWait, null, "cards without a wait stay empty");
+equal(board.cards.find((card) => card.todoId === "todo_rb_review")?.criteriaChangePlanId, "plan_fedcba987654",
+  "decision 40: the card names the pending criteria-change plan card");
+equal(board.cards.find((card) => card.todoId === "todo_rb_running")?.criteriaChangePlanId, null,
+  "cards without a pending criteria change stay empty");
 equal(board.omittedCardCount, 3, "omitted card count is surfaced");
 const stages = Object.fromEntries(board.cards.map((card) => [card.todoId, roleBoardStage(card)]));
 equal(stages, {

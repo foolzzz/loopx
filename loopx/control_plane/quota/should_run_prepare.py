@@ -468,10 +468,14 @@ def _deferred_receipt_bound_work_lane(
     return None
 
 
-def _with_gate_threads_awaiting_orchestrator(
+def _with_role_v1_lane_facts(
     identity: dict[str, Any] | None, *, runtime_root: Any, goal_id: str,
 ) -> dict[str, Any] | None:
-    """Name the gates whose discussion thread waits on this orchestrator.
+    """Add role_v1 lane facts read from gate and plan-card state.
+
+    An acceptor gets the todos whose acceptance-criteria change awaits the
+    user on a plan card (decision 40); it does not review them meanwhile.
+    An orchestrator gets the gates whose discussion thread waits on it.
 
     Design decision 10: a user reply on a gate thread triggers an orchestrator
     Turn. The orchestrator's own clarification or plan gate otherwise blocks
@@ -479,6 +483,12 @@ def _with_gate_threads_awaiting_orchestrator(
     orchestrators get the list; every other lane keeps the gate rules.
     """
 
+    if isinstance(identity, dict) and identity.get("role") == "acceptor" and identity.get("agent_model") == "role_v1":
+        # Decision 40: no review of a todo whose criteria change awaits the user.
+        from ...plan_criteria_changes import criteria_change_pending_todo_ids
+
+        held = criteria_change_pending_todo_ids(runtime_root, goal_id)
+        return {**identity, "criteria_change_pending_todo_ids": held[:64]} if held else identity
     if not isinstance(identity, dict) or identity.get("role") != "orchestrator":
         return identity
     if identity.get("agent_model") != "role_v1" or not runtime_root:
@@ -523,7 +533,7 @@ def _prepare_quota_should_run_item(
     reason = str(quota.get("reason") or "quota state is not eligible")
     if not goal_health_ok:
         reason = "status or contract health is not ok; skip automatic compute"
-    agent_identity = _with_gate_threads_awaiting_orchestrator(
+    agent_identity = _with_role_v1_lane_facts(
         build_quota_agent_identity(item, agent_id=requested_agent_id),
         runtime_root=status_payload.get("runtime_root"),
         goal_id=safe_goal_id,

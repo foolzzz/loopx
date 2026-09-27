@@ -267,8 +267,12 @@ schema, or the lease or guard semantics. None of these was changed.
     never touch it; developer and acceptor Turns see it, with the goal
     acceptance contract, on every Turn. See
     [role-v1-protocol](role-v1-protocol.md#per-todo-acceptance-criteria-gap-g2).
-    A criteria change is recorded as a major change but not gated by a plan
-    card.
+    The remaining gap, that a criteria change was recorded but not gated, is
+    closed by design decision 40: after initial planning an orchestrator's
+    criteria change takes effect only through a user-approved plan card with
+    `criteria_changes`, and the acceptor does not review the todo while the
+    card is pending. See
+    [role-v1-protocol](role-v1-protocol.md#criteria-changes-need-a-plan-card-decision-40).
 - **G3 (P1). Origin-less repos. Resolved by design decision 29.** Without a
   usable `remote.origin.url`, `repo_id` is `local:` + sha256 of the realpath of
   the git common dir, so local-only repos deliver and W1 is no longer needed.

@@ -540,6 +540,9 @@ export const roleBoardTodoSchema = z.object({
   running_agent_id: z.string().nullable().optional(),
   plan_id: z.string().nullable().optional(),
   plan_gate_todo_id: z.string().nullable().optional(),
+  // Decision 40: a pending plan card changes this todo's criteria; the acceptor waits.
+  criteria_change_plan_id: z.string().nullable().optional(),
+  criteria_change_gate_todo_id: z.string().nullable().optional(),
 });
 
 export const roleBoardGateSchema = z.object({

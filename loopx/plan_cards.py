@@ -10,6 +10,10 @@ revises the plan in place (``--revise``). The owner closes the gate:
   before the gate is allowed to close, so an invalid plan keeps the gate open.
 - **reject** / **cancel** apply nothing.
 
+A card may also carry ``criteria_changes`` for existing todos (design decision
+40, ``loopx.plan_criteria_changes``): approve sets each todo's
+``acceptance_criteria`` unless it changed after the proposal (stale).
+
 Application is exactly-once. A Markdown (legacy) goal writes the whole batch
 in one locked state-file write. A goal with promoted canonical authority
 creates each todo with a deterministic operation id
@@ -58,7 +62,7 @@ _TODO_FIELDS = {
     "depends_on", "successors", "requires_acceptance", "task_repositories",
     "acceptance", "validation_command", "estimated_effort", "action_kind",
 }
-_PLAN_FIELDS = {"schema_version", "title", "summary", "todos"}
+_PLAN_FIELDS = {"schema_version", "title", "summary", "todos", "criteria_changes"}
 _ROLES = ("developer", "acceptor", "orchestrator")
 
 
@@ -141,9 +145,14 @@ def normalize_plan(raw: Any, *, goal: Mapping[str, Any]) -> dict[str, Any]:
         raise PlanCardError("invalid_plan", f"plan schema_version must be {PLAN_INPUT_SCHEMA}")
     title = _text(raw.get("title"), "title", limit=160)
     summary = _text(raw.get("summary"), "summary", limit=2000, required=False)
-    items = raw.get("todos")
-    if not isinstance(items, list) or not 1 <= len(items) <= MAX_PLAN_TODOS:
-        raise PlanCardError("invalid_plan", f"plan todos must be a list of 1..{MAX_PLAN_TODOS} items")
+    from .plan_criteria_changes import normalize_criteria_changes
+
+    criteria_changes = normalize_criteria_changes(raw.get("criteria_changes"))
+    # A card that only changes acceptance criteria (decision 40) needs no todos.
+    items = raw.get("todos", [] if criteria_changes else None)
+    minimum = 0 if criteria_changes else 1
+    if not isinstance(items, list) or not minimum <= len(items) <= MAX_PLAN_TODOS:
+        raise PlanCardError("invalid_plan", f"plan todos must be a list of {minimum}..{MAX_PLAN_TODOS} items")
 
     registered = set(registered_agent_ids_for_goal(dict(goal)))
     roles = agent_roles_for_goal(dict(goal))
@@ -243,7 +252,10 @@ def normalize_plan(raw: Any, *, goal: Mapping[str, Any]) -> dict[str, Any]:
                 )
         todo["depends_on"] = sorted(depends[todo["key"]], key=position.__getitem__)
         del todo["successors"]
-    return {"title": title, "summary": summary, "todos": todos}
+    plan: dict[str, Any] = {"title": title, "summary": summary, "todos": todos}
+    if criteria_changes:
+        plan["criteria_changes"] = criteria_changes
+    return plan
 
 
 def _plan_digest(plan: Mapping[str, Any]) -> str:
@@ -407,6 +419,12 @@ def _event(runtime_root: Path, goal_id: str, kind: str, plan: Mapping[str, Any],
     append_rollout_event(rollout_event_log_path(runtime_root, goal_id), event)
 
 
+def _plan_size(plan: Mapping[str, Any]) -> str:
+    size = f"{len(plan['todos'])} todos"
+    changes = len(plan.get("criteria_changes") or [])
+    return size + (f", {changes} acceptance-criteria change{'s' if changes != 1 else ''}" if changes else "")
+
+
 def propose_plan(
     *, registry_path: Path, runtime_root: Path, goal_id: str, agent_id: str,
     plan: Any, revise_plan_id: str | None = None, runtime_root_arg: str | None = None,
@@ -421,6 +439,12 @@ def propose_plan(
     except GateThreadError as error:
         raise PlanCardError(error.code, str(error)) from None
     normalized = normalize_plan(plan, goal=goal)
+    from .plan_criteria_changes import bind_criteria_changes
+
+    bind_criteria_changes(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, plan=normalized,
+        runtime_root_arg=runtime_root_arg, exclude_plan_id=revise_plan_id,
+    )
     digest = _plan_digest(normalized)
 
     if revise_plan_id:
@@ -446,7 +470,7 @@ def propose_plan(
         append_gate_message(
             runtime_root, goal_id, record["gate_todo_id"], author=AUTHOR_ORCHESTRATOR, agent_id=agent_id,
             text=f"Revised plan {record['plan_id']} to revision {record['revision']} "
-            f"({len(normalized['todos'])} todos). See `loopx plan show --goal-id {goal_id} --plan-id {record['plan_id']}`.",
+            f"({_plan_size(normalized)}). See `loopx plan show --goal-id {goal_id} --plan-id {record['plan_id']}`.",
         )
         _event(runtime_root, goal_id, "plan_proposed", record)
         return {"ok": True, "changed": True, "plan": record}
@@ -461,7 +485,7 @@ def propose_plan(
     gate = add_goal_todo(
         registry_path=registry_path, goal_id=goal_id, runtime_root_arg=runtime_root_arg,
         role="user", task_class="user_gate", agent_id=agent_id,
-        text=f"Approve plan: {normalized['title']} ({len(normalized['todos'])} todos) [{plan_id}]",
+        text=f"Approve plan: {normalized['title']} ({_plan_size(normalized)}) [{plan_id}]",
         note=(normalized.get("summary") or f"Review with `loopx plan show --goal-id {goal_id} --plan-id {plan_id}`.")[:600],
     )
     if not gate.get("ok", True) or not gate.get("todo_id"):
@@ -486,7 +510,7 @@ def propose_plan(
     register_gate_kind(runtime_root, goal_id, gate["todo_id"], kind=GATE_KIND_PLAN_APPROVAL, plan_id=plan_id)
     append_gate_message(
         runtime_root, goal_id, gate["todo_id"], author=AUTHOR_ORCHESTRATOR, agent_id=agent_id,
-        text=f"Proposed plan {plan_id}: {normalized['title']} ({len(normalized['todos'])} todos). "
+        text=f"Proposed plan {plan_id}: {normalized['title']} ({_plan_size(normalized)}). "
         f"Approve, reject, cancel, or reply here to request changes.",
     )
     _event(runtime_root, goal_id, "plan_proposed", record)
@@ -513,16 +537,36 @@ def apply_plan(
         record["updated_at"] = _now()
         atomic_write_json(path, record)
         promoted = read_canonical_todos_if_promoted(runtime_root=runtime_root, goal_id=goal_id) is not None
-        if promoted:
+        if record.get("todos_applied"):  # an interrupted criteria-change apply resumes after the todos
+            ids = dict(record.get("todo_id_map") or {})
+        elif not record["plan"]["todos"]:
+            ids = {}
+        elif promoted:
             ids = _apply_canonical_sequence(registry_path, goal_id, plan_id, record["plan"], runtime_root_arg)
         else:
             ids = _apply_legacy_batch(registry_path, runtime_root, goal_id, plan_id, record["plan"])
+        from .plan_criteria_changes import apply_criteria_changes
+
+        record["todo_id_map"] = ids
+        if record["plan"].get("criteria_changes") and not record.get("todos_applied"):
+            record["todos_applied"] = True
+            atomic_write_json(path, record)
+        criteria = apply_criteria_changes(
+            registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, record=record,
+            persist=lambda current: atomic_write_json(path, current), runtime_root_arg=runtime_root_arg,
+        )
         record.update({
             "status": PLAN_APPLIED, "todo_id_map": ids, "applied_at": _now(), "updated_at": _now(),
             "apply_mode": "canonical_sequence" if promoted else "legacy_batch",
         })
         atomic_write_json(path, record)
     _event(runtime_root, goal_id, "plan_decided", record, decision="approve")
+    not_applied = [item["todo_id"] for item in criteria if item.get("status") != "applied"]
+    if not_applied:
+        from .plan_criteria_changes import notify_orchestrator
+
+        notify_orchestrator(registry_path=registry_path, goal_id=goal_id, record=record, decision="stale",
+                            todo_ids=not_applied, runtime_root_arg=runtime_root_arg)
     return {"ok": True, "applied": True, "already_applied": False, "plan": record}
 
 
@@ -595,7 +639,10 @@ def settle_gate_decision(
                 "recovery": f"loopx plan apply --goal-id {goal_id} --plan-id {plan_id}",
             }
         plan = result["plan"]
-        return {"ok": True, "plan_id": plan_id, "status": plan["status"], "todo_id_map": plan["todo_id_map"]}
+        settled = {"ok": True, "plan_id": plan_id, "status": plan["status"], "todo_id_map": plan["todo_id_map"]}
+        if plan.get("criteria_change_results"):
+            settled["criteria_change_results"] = plan["criteria_change_results"]
+        return settled
     path = plan_path(runtime_root, goal_id, plan_id)
     with exclusive_file_lock(path):
         record = read_plan(runtime_root, goal_id, plan_id)
@@ -604,6 +651,13 @@ def settle_gate_decision(
             record["decided_at"] = record["updated_at"] = _now()
             atomic_write_json(path, record)
             _event(runtime_root, goal_id, "plan_decided", record, decision=str(decision))
+            changed_todos = [item["todo_id"] for item in record["plan"].get("criteria_changes") or []]
+            if changed_todos:  # decision 40: nothing changes; tell the orchestrator
+                from .plan_criteria_changes import notify_orchestrator
+
+                notify_orchestrator(registry_path=registry_path, goal_id=goal_id, record=record,
+                                    decision=str(decision), todo_ids=changed_todos, note=note,
+                                    runtime_root_arg=runtime_root_arg)
     return {"ok": True, "plan_id": plan_id, "status": record.get("status"), "todo_id_map": {}}
 
 
@@ -631,7 +685,9 @@ def render_plan_markdown(payload: Mapping[str, Any]) -> str:
     ]
     if body.get("summary"):
         lines += ["", body["summary"]]
-    lines += ["", "| key | todo | role | agent | acceptor | depends on | repos | estimate | todo id |", "|---|---|---|---|---|---|---|---|---|"]
+    if body.get("todos"):
+        lines += ["", "| key | todo | role | agent | acceptor | depends on | repos | estimate | todo id |",
+                  "|---|---|---|---|---|---|---|---|---|"]
     mapping = plan.get("todo_id_map") or {}
     for todo in body.get("todos") or []:
         lines.append(
@@ -648,6 +704,9 @@ def render_plan_markdown(payload: Mapping[str, Any]) -> str:
                 f"\n- `{todo['key']}` acceptance: {todo.get('acceptance') or '-'}; "
                 f"validation: `{todo.get('validation_command') or '-'}`"
             )
+    from .plan_criteria_changes import criteria_changes_view, render_criteria_changes_markdown
+
+    lines += render_criteria_changes_markdown(criteria_changes_view(plan))
     return "\n".join(lines) + "\n"
 
 

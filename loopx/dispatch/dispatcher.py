@@ -25,6 +25,7 @@ from typing import Any
 
 from . import policy
 from ..gate_threads import gates_awaiting_orchestrator
+from ..plan_criteria_changes import CRITERIA_CHANGE_PENDING_REASON, criteria_change_pending_todo_ids
 from .orchestrator_actions import (
     ORCHESTRATOR_ACTION_REPEAT_LIMIT,
     action_todo_text,
@@ -335,10 +336,17 @@ class Dispatcher:
                 decision = policy.decide_turn(payload, role=role, state_changed=state_changed)
                 if not decision["launch"] and role == policy.ROLE_ORCHESTRATOR:
                     self._open_orchestrator_action(goal_id, agent_id, decision, report)
+                # Decision 40: the acceptor does not review a todo while a plan
+                # card changing its acceptance criteria awaits the user.
+                criteria_held = (
+                    set(criteria_change_pending_todo_ids(self.runtime_root, goal_id))
+                    if role == policy.ROLE_ACCEPTOR else set()
+                )
                 if not decision["launch"]:
                     skip(
                         decision["reason"],
                         **{key: value for key, value in decision.items() if key not in {"launch", "reason"}},
+                        **({"criteria_change_pending_todo_ids": sorted(criteria_held)} if criteria_held else {}),
                     )
                     break
                 todo_id = decision.get("todo_id")
@@ -362,9 +370,10 @@ class Dispatcher:
                     blocked_review_todo_ids(self.registry_path, self.runtime_root, goal_id)
                     if role == policy.ROLE_ACCEPTOR else set()
                 )
-                if todo_id and (todo_id in in_flight | cooling | review_blocked) and role != policy.ROLE_ORCHESTRATOR:
+                held = review_blocked | criteria_held
+                if todo_id and (todo_id in in_flight | cooling | held) and role != policy.ROLE_ORCHESTRATOR:
                     # Fill a free slot of this agent with its next executable todo.
-                    alternate = policy.alternate_todo(payload, exclude=in_flight | cooling | review_blocked)
+                    alternate = policy.alternate_todo(payload, exclude=in_flight | cooling | held)
                     if alternate:
                         decision = {**decision, "todo_id": alternate, "reason": "alternate_todo", "pinned": True}
                         todo_id = alternate
@@ -373,6 +382,9 @@ class Dispatcher:
                     break
                 if todo_id and todo_id in review_blocked:
                     skip("review_blocked_gate_open", todo_id=todo_id)
+                    break
+                if todo_id and todo_id in criteria_held:
+                    skip(CRITERIA_CHANGE_PENDING_REASON, todo_id=todo_id)
                     break
                 if todo_id and self._todo_cooling(goal_id, str(todo_id), agent_id, now):
                     skip("todo_cooldown", todo_id=todo_id)

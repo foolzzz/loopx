@@ -86,13 +86,19 @@ def test_plan_apply_stores_the_criteria_and_delivery_keeps_them(tmp_path: Path, 
 
 
 @pytest.mark.parametrize("promoted", [False, True])
-def test_orchestrator_writes_criteria_on_a_claimed_todo(tmp_path: Path, promoted: bool) -> None:
+def test_owner_writes_criteria_on_a_claimed_todo(tmp_path: Path, promoted: bool) -> None:
     registry, runtime = _setup(tmp_path, promoted=promoted)
+    # Decision 40: the orchestrator's direct edit is refused (see test_criteria_change_plan_cards).
+    with pytest.raises(AcceptanceCriteriaAuthorError, match="user-approved plan card"):
+        set_goal_todo_acceptance_criteria(
+            **_api(registry, runtime), todo_id="todo_orders_api", acceptance_criteria=CRITERIA, agent_id=ROLE_ORCH,
+        )
     result = set_goal_todo_acceptance_criteria(
-        **_api(registry, runtime), todo_id="todo_orders_api", acceptance_criteria=CRITERIA, agent_id=ROLE_ORCH,
+        **_api(registry, runtime), todo_id="todo_orders_api", acceptance_criteria=CRITERIA,
     )
     change = result["acceptance_criteria_change"]
-    assert (change["author"], change["lifecycle_actor"], change["change_class"]) == (ROLE_ORCH, ROLE_DEV, "major")
+    assert (change["author"], change["source"], change["lifecycle_actor"], change["change_class"]) == (
+        None, "owner", ROLE_DEV, "major")
     assert change["changed"] is True and change["previous_sha256"] is None and len(change["sha256"]) == 64
     todo = _todo(registry, runtime, "todo_orders_api")
     assert todo["acceptance_criteria"] == CRITERIA and todo["claimed_by"] == ROLE_DEV
@@ -108,7 +114,7 @@ def test_orchestrator_writes_criteria_on_a_claimed_todo(tmp_path: Path, promoted
     assert todo["status"] == "open" and todo["acceptance_criteria"] == CRITERIA
 
     cleared = set_goal_todo_acceptance_criteria(
-        **_api(registry, runtime), todo_id="todo_orders_api", acceptance_criteria=None, agent_id=ROLE_ORCH,
+        **_api(registry, runtime), todo_id="todo_orders_api", acceptance_criteria=None,
     )
     assert cleared["acceptance_criteria_change"]["sha256"] is None
     assert "acceptance_criteria" not in _todo(registry, runtime, "todo_orders_api")
@@ -139,7 +145,7 @@ def test_non_orchestrator_writes_are_rejected(tmp_path: Path, promoted: bool, ag
 def test_criteria_are_bounded_single_line(tmp_path: Path) -> None:
     registry, runtime = _setup(tmp_path, promoted=False)
     set_goal_todo_acceptance_criteria(
-        **_api(registry, runtime), todo_id="todo_orders_api", agent_id=ROLE_ORCH,
+        **_api(registry, runtime), todo_id="todo_orders_api",
         acceptance_criteria="line one\nline two " + "x" * 2000,
     )
     stored = _todo(registry, runtime, "todo_orders_api")["acceptance_criteria"]
@@ -169,24 +175,31 @@ def test_cli_update_records_a_major_change_and_refuses_other_writers(tmp_path: P
             "--goal-id", "goal-acc", "--todo-id", "todo_orders_api"]
     assert main([*base, "--agent-id", ROLE_DEV, "--acceptance-criteria", "lower the bar"]) == 1
     assert "only the goal orchestrator" in json.loads(capsys.readouterr().out)["error"]
-    assert main([*base, "--agent-id", ROLE_ORCH, "--acceptance-criteria", CRITERIA, "--note", "x"]) == 1
+    assert main([*base, "--acceptance-criteria", CRITERIA, "--note", "x"]) == 1
     assert "without other fields" in json.loads(capsys.readouterr().out)["error"]
+    # Decision 40: the orchestrator is pointed at the plan-card path.
+    assert main([*base, "--agent-id", ROLE_ORCH, "--acceptance-criteria", CRITERIA]) == 1
+    error = json.loads(capsys.readouterr().out)["error"]
+    assert "user-approved plan card" in error and "loopx plan propose" in error and "criteria_changes" in error
+    assert "acceptance_criteria" not in _todo(registry, runtime, "todo_orders_api")
 
-    assert main([*base, "--agent-id", ROLE_ORCH, "--acceptance-criteria", CRITERIA]) == 0
+    # The owner (no agent id) edits directly; the edit is logged as a major change.
+    assert main([*base, "--acceptance-criteria", CRITERIA]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["acceptance_criteria_change"]["change_class"] == "major"
     assert _todo(registry, runtime, "todo_orders_api")["acceptance_criteria"] == CRITERIA
     events = [event for event in load_rollout_events(rollout_event_log_path(runtime, "goal-acc"))
               if event["event_kind"] == "todo_update"]
     details = events[-1]["details"]
-    assert events[-1]["agent_id"] == ROLE_ORCH
     assert details["acceptance_criteria_changed"] is True
     assert details["acceptance_criteria_change_class"] == "major"
-    assert details["acceptance_criteria_author"] == ROLE_ORCH
+    assert details["acceptance_criteria_author"] is None
+    assert details["acceptance_criteria_source"] == "owner"
+    assert details["acceptance_criteria_previous_sha256"] is None
     assert details["acceptance_criteria_sha256"] == payload["acceptance_criteria_change"]["sha256"]
     assert CRITERIA not in json.dumps(events)  # digests only, never the text
 
-    assert main([*base, "--agent-id", ROLE_ORCH, "--clear-acceptance-criteria"]) == 0
+    assert main([*base, "--clear-acceptance-criteria"]) == 0
     capsys.readouterr()
     assert "acceptance_criteria" not in _todo(registry, runtime, "todo_orders_api")
 
@@ -278,7 +291,7 @@ def test_turn_decision_reads_the_durable_criteria(tmp_path: Path, promoted: bool
 
     registry, runtime = _setup(tmp_path, promoted=promoted)
     set_goal_todo_acceptance_criteria(**_api(registry, runtime), todo_id="todo_orders_api",
-                                      acceptance_criteria=CRITERIA, agent_id=ROLE_ORCH)
+                                      acceptance_criteria=CRITERIA)
 
     def build(**_kwargs):
         return {"selected_todo": {"todo_id": "todo_orders_api"}}

@@ -15,6 +15,7 @@ interface Row {
   profileRank: number; missing: readonly string[]; rawClaimed: boolean;
   requiredRole: string | null; planning: boolean;
   inReview: boolean; reviewAgent: string | null; awaitsOrchestrator: boolean;
+  criteriaChangePending: boolean;
 }
 
 const AGENT_ROLES = ["orchestrator", "developer", "acceptor"] as const;
@@ -60,7 +61,8 @@ function decodeRow(value: unknown, available?: readonly string[]): Row {
     planning: raw.planning === undefined ? false : boolean("planning"),
     inReview: raw.in_review === undefined ? false : boolean("in_review"),
     reviewAgent: optional("review_agent"),
-    awaitsOrchestrator: raw.awaits_orchestrator === undefined ? false : boolean("awaits_orchestrator")};
+    awaitsOrchestrator: raw.awaits_orchestrator === undefined ? false : boolean("awaits_orchestrator"),
+    criteriaChangePending: raw.criteria_change_pending === undefined ? false : boolean("criteria_change_pending")};
 }
 
 function rows(value: unknown, available?: readonly string[]): Row[] {
@@ -178,7 +180,11 @@ export function projectQuotaSelection(value: unknown): JsonObject {
   // A delivered (in_review) todo is addressed to its resolved acceptor only;
   // unresolved review falls back to the orchestrator (design decision 5).
   const roleAllows = (row: Row) => !roleScoped || (effectiveRequiredRole(row) === agentRole &&
-    (!row.inReview || agentRole !== "acceptor" || row.reviewAgent === agent));
+    (!row.inReview || agentRole !== "acceptor" || (row.reviewAgent === agent && !row.criteriaChangePending)));
+  // Decision 40: a delivered todo whose acceptance-criteria change awaits the
+  // user on a plan card is held from its acceptor until the card is decided.
+  const criteriaHeld = (row: Row) => roleScoped && agentRole === "acceptor" && row.inReview &&
+    row.reviewAgent === agent && row.criteriaChangePending;
   // The developer's claim stays on delivered work; review addressing replaces it.
   const executable = (row: Row) => roleScoped && row.inReview ? !row.removed : executableBy(row, agent);
   const reviewable = (row: Row) => roleScoped && row.inReview && roleAllows(row);
@@ -227,7 +233,11 @@ export function projectQuotaSelection(value: unknown): JsonObject {
       policy: "role_v1 agents receive only todos whose required_role matches; unset required_role routes gates, blockers and planning to the orchestrator and all other work to the developer; in_review todos go to their resolved acceptor, else the orchestrator",
       selectable_open_count: open.length, role_filtered_open_count: roleFiltered.length,
       review_open_count: open.filter(row => row.inReview).length,
-      role_filtered_items: compact(roleFiltered, diagnostic)}} : {}),
+      role_filtered_items: compact(roleFiltered, diagnostic),
+      ...(roleFiltered.some(criteriaHeld) ? {review_held: {reason: "criteria_change_pending",
+        policy: "the acceptor does not review a todo while a plan card changing its acceptance criteria awaits the user",
+        count: roleFiltered.filter(criteriaHeld).length,
+        items: compact(roleFiltered.filter(criteriaHeld), diagnostic)}} : {})}} : {}),
     executable_items: payloads(open.filter(row => (row.actionable || reviewable(row)) && row.taskClass === "advancement_task")),
     monitor_items: payloads(monitors), monitor_due_items: payloads(admittedDue),
     watch_only_monitor_items: payloads(watchOnlyMonitors),

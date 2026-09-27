@@ -69,6 +69,31 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
         {view ? <small data-awaiting={view.awaiting}>{t(`gateThread.${view.awaiting}`)}</small> : null}
       </header>
       {view?.kind === "plan_approval" && view.plan_id ? <p className="personal-gate-thread-plan">{t("gateThread.planCard", { planId: view.plan_id })}</p> : null}
+      {view?.criteria_changes?.length ? (
+        <div className="personal-gate-thread-criteria" data-testid="gate-criteria-changes">
+          <p className="personal-gate-thread-plan">{t("gateThread.criteriaChanges")}</p>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{t("gateThread.criteriaTodo")}</th>
+                <th scope="col">{t("gateThread.criteriaOld")}</th>
+                <th scope="col">{t("gateThread.criteriaNew")}</th>
+                <th scope="col">{t("gateThread.criteriaReason")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.criteria_changes.map((change) => (
+                <tr data-result={change.result ?? undefined} key={change.todo_id}>
+                  <td><code>{change.todo_id}</code></td>
+                  <td data-side="old">{change.old || t("gateThread.criteriaNone")}</td>
+                  <td data-side="new">{change.new || t("gateThread.criteriaNone")}</td>
+                  <td>{change.reason ?? ""}{change.result ? ` (${change.result})` : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
       {view?.kind === "acceptor_blocked" ? <p className="personal-gate-thread-plan">{t("gateThread.acceptorBlocked", { todoId: view.review_todo_id ?? "" })}</p> : null}
       {loadError ? <p className="personal-gate-thread-empty">{t("gateThread.loadError")}</p> : null}
       {view && view.messages.length === 0 ? <p className="personal-gate-thread-empty">{t("gateThread.empty")}</p> : null}

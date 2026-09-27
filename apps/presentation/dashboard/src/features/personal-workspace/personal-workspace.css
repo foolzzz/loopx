@@ -1162,6 +1162,9 @@
 .personal-gate-thread header small { color: var(--pw-muted); font-size: 11px; }
 .personal-gate-thread header small[data-awaiting="awaiting_user"] { color: var(--pw-blue); }
 .personal-gate-thread-plan, .personal-gate-thread-empty { margin: 8px 0 0; color: var(--pw-muted); font-size: 12px; }
+.personal-gate-thread-criteria table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.personal-gate-thread-criteria th, .personal-gate-thread-criteria td { padding: 4px 6px; border-top: 1px solid var(--pw-line-strong); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.personal-gate-thread-criteria th { color: var(--pw-muted); font-weight: 600; }
 .personal-gate-thread-messages { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; max-height: 320px; overflow-y: auto; }
 .personal-gate-thread-messages li { padding: 8px 10px; border: 1px solid var(--pw-line-strong); border-radius: 10px; }
 .personal-gate-thread-messages li.is-user { margin-left: 24px; background: var(--pw-surface-muted, #f5f7fb); }
@@ -1893,6 +1896,7 @@
 .personal-role-card-agent { color: var(--pw-text); font-weight: 600; }
 .personal-role-card-link { display: inline-flex; align-items: center; justify-self: start; gap: 4px; margin: 0 9px 8px; overflow-wrap: anywhere; text-align: left; padding: 0; border: 0; background: transparent; color: var(--pw-blue-ink); cursor: pointer; font-size: 10.5px; }
 small.personal-role-card-link { color: var(--pw-muted); cursor: default; }
+.personal-role-card-link.is-criteria-change, small.personal-role-card-link.is-criteria-change { color: var(--pw-amber); }
 @media (max-width: 720px) {
   .personal-channel-scroll[data-active-goal-view="roles"] { padding-inline: 12px; }
 }

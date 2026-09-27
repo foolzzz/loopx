@@ -1,7 +1,7 @@
 # Gate threads, plan cards and goal intake (S6)
 
 Status: implemented in slice S6. This slice covers decisions 10, 11, 12, 13 and 21 of
-[design-v0](design-v0.md). It builds on the role_v1 roles (S1, see
+[design-v0](design-v0.md); acceptance-criteria changes (decision 40) were added later. It builds on the role_v1 roles (S1, see
 [role-v1-protocol](role-v1-protocol.md)), the goal `repos` list (S5, see
 [workspaces-v0](workspaces-v0.md)) and the web gate apply path (S7).
 
@@ -145,6 +145,10 @@ Each todo accepts these fields:
 
 Unknown fields are refused. Todos must be listed in dependency order.
 
+A plan may also carry `criteria_changes` for existing todos (decision 40, see
+[below](#acceptance-criteria-changes-decision-40)). A plan with criteria
+changes may have no `todos`.
+
 Lifecycle:
 
 1. **propose.** The goal's orchestrator is the only agent that can propose. The
@@ -190,9 +194,7 @@ A plan is applied exactly once, and how depends on the goal's authority:
   duplicates.
 
 Changing a todo's acceptance criteria after the plan is applied is a major
-change (decision 12). Prefer a revised plan card. `loopx todo update
---acceptance-criteria` by the orchestrator is recorded in the rollout event
-log as a major change, but it is not gated by a plan card.
+change (decision 12) and goes through a plan card (decision 40, below).
 
 An applied plan is never re-applied. This slice does not add a single-CAS canonical
 batch. That would be an extension of `work_items/team_plan.ts`, whose lane model
@@ -218,6 +220,65 @@ next to the plan cards, applied on top of each applied plan's `depends_on`.
 
 `loopx todo list` and the role board say why a deferred plan todo is still
 waiting. Details: [role-v1-protocol](role-v1-protocol.md#dependency-release-and-supersession-gap-g6).
+
+## Acceptance-criteria changes (decision 40)
+
+After initial planning, a change to a todo's `acceptance_criteria` takes
+effect only through a user-approved plan card. Under role_v1, `loopx todo
+update --acceptance-criteria` refuses every agent, the orchestrator included,
+with `acceptance_criteria_change_requires_plan`; only the owner (no agent id)
+still edits directly. Criteria written at plan apply and on new todos are
+unaffected. See
+[role-v1-protocol](role-v1-protocol.md#criteria-changes-need-a-plan-card-decision-40)
+for selection and the dispatcher.
+
+The orchestrator proposes the change through the ordinary plan-card flow:
+
+```json
+{
+  "title": "Page the orders list",
+  "criteria_changes": [
+    {"todo_id": "todo_…", "new": "GET /orders returns 200 paged by 50",
+     "reason": "the user asked for paging"}
+  ],
+  "todos": []
+}
+```
+
+Each entry has `todo_id`, `new` (null clears the criteria), `reason` and an
+optional `old`. At most 20 entries; one per todo. The card can batch criteria
+changes with new `todos`.
+
+1. **propose.** Each entry's `old` is set to the todo's current criteria. A
+   supplied `old` that no longer matches is refused as `criteria_change_stale`.
+   An unknown or closed todo, a user todo, a change that sets the current value,
+   and a todo that already has a change on another pending card
+   (`criteria_change_already_pending`; revise that card instead) are refused.
+   The gate text counts the changes, for example `(0 todos, 1
+   acceptance-criteria change)`.
+2. **discuss.** `loopx plan show` and `loopx gate show` print an
+   "Acceptance-criteria changes" table with the old and new criteria side by
+   side. The dashboard gate panel shows the same table (`criteria_changes` in
+   `GET /api/chat/gate-thread`). While the card is pending, the acceptor does
+   not review the todo; the developer keeps working.
+3. **approve** (CLI, `loopx gate resolve` or the dashboard `gate.resolve`).
+   New todos are created first, then each entry is applied once and recorded
+   in the plan record's `criteria_change_results` (`applied`, `stale` or
+   `refused`). Each entry appends a `todo_criteria_change` rollout event with
+   the plan id, revision, `approved_by=user` and the old and new digests
+   (never the text). An entry whose todo's criteria changed after the
+   proposal (compared with `old`) is refused as `stale`; the other entries
+   and the new todos still apply. The field write is attributed like an owner
+   edit: the lifecycle actor is the claim owner, else the orchestrator.
+4. **reject / cancel.** Nothing changes.
+
+After a reject, a cancel, or a stale or refused entry, LoopX opens one
+orchestrator action todo (`Orchestrator action: the acceptance-criteria
+change of plan … was rejected …`, claimed by the orchestrator). The dispatcher
+launches the orchestrator for it through the ordinary action-todo path, and
+its validator passes once the orchestrator has changed some other todo, for
+example a revised plan card, updated review feedback, or a user gate. The
+user's decision note is kept in the todo's note.
 
 ## Goal intake (decisions 13 and 21)
 

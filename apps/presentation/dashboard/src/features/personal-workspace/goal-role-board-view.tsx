@@ -173,6 +173,7 @@ export function GoalRoleBoardView({
                 <div className="personal-role-cell" data-stage={stage} key={stage} role="cell">
                   {lane.cells[stage].map((card) => {
                     const planGate = card.planGateTodoId ? gateById.get(card.planGateTodoId) : undefined;
+                    const criteriaGate = card.criteriaChangeGateTodoId ? gateById.get(card.criteriaChangeGateTodoId) : undefined;
                     return (
                       <article
                         className={`personal-role-card is-${stage}${selectedTodoId === card.todoId ? " is-selected" : ""}`}
@@ -213,6 +214,13 @@ export function GoalRoleBoardView({
                               <ClipboardCheck aria-hidden size={12} />{t("roles.plan", { plan: card.planId })}
                             </button>
                           ) : <small className="personal-role-card-link"><ClipboardCheck aria-hidden size={12} />{t("roles.plan", { plan: card.planId })}</small>
+                        ) : null}
+                        {card.criteriaChangePlanId ? (
+                          criteriaGate ? (
+                            <button className="personal-role-card-link is-criteria-change" data-criteria-change-plan={card.criteriaChangePlanId} onClick={() => openGate(criteriaGate)} type="button">
+                              <ClipboardCheck aria-hidden size={12} />{t("roles.criteriaChangePending", { plan: card.criteriaChangePlanId })}
+                            </button>
+                          ) : <small className="personal-role-card-link is-criteria-change" data-criteria-change-plan={card.criteriaChangePlanId}><ClipboardCheck aria-hidden size={12} />{t("roles.criteriaChangePending", { plan: card.criteriaChangePlanId })}</small>
                         ) : null}
                       </article>
                     );
