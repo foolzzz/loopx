@@ -4,12 +4,16 @@ import { ClipboardCheck, GitBranch, MessageSquareText, ShieldCheck } from "lucid
 import type { WorkspaceDrawerSelection, WorkspaceGoal, WorkspaceModel } from "./personal-workspace-model";
 import { useWorkspaceI18n } from "./i18n";
 import {
+  ROLE_BOARD_ROLES,
   ROLE_BOARD_STAGES,
   buildRoleBoardGrid,
+  formatUsd,
   roleBoardStage,
   type WorkspaceRoleBoardAgent,
   type WorkspaceRoleBoardCard,
   type WorkspaceRoleBoardGate,
+  type RoleBoardRole,
+  type WorkspaceTurnUsage,
 } from "./role-board-model";
 
 function AgentChip({ agent }: { agent: WorkspaceRoleBoardAgent }) {
@@ -22,6 +26,36 @@ function AgentChip({ agent }: { agent: WorkspaceRoleBoardAgent }) {
       <strong>{agent.agentId}</strong>
       <small>{activity}</small>
     </span>
+  );
+}
+
+/** Fork G9: compact spend strip — cost, agent-hours, Turns, per-role split, cost per accepted todo. */
+function UsageSummary({ usage }: { usage: WorkspaceTurnUsage }) {
+  const { t } = useWorkspaceI18n();
+  const cost = formatUsd(usage.costUsd);
+  const estimated = usage.costEstimatedUsd > 0 ? t("roles.usage.estimated", { cost: formatUsd(usage.costEstimatedUsd) }) : null;
+  const roleLabel = (role: string) => (ROLE_BOARD_ROLES as readonly string[]).includes(role)
+    ? t(`roles.role.${role as RoleBoardRole}`) : role;
+  const roles = usage.byRole.map((row) => `${roleLabel(row.role)} ${formatUsd(row.costUsd)} · ${row.turns}`).join(" / ");
+  return (
+    <section aria-label={t("roles.usage.title")} className="personal-role-usage" data-role-usage>
+      <span data-usage-metric="cost"><strong>{cost}</strong>{estimated ? <small>{estimated}</small> : null}</span>
+      <span data-usage-metric="hours"><strong>{usage.agentHours.toFixed(1)}</strong><small>{t("roles.usage.agentHours")}</small></span>
+      <span data-usage-metric="turns"><strong>{usage.turns}</strong><small>{t("roles.usage.turns")}</small></span>
+      {usage.costPerAcceptedTodoUsd != null ? (
+        <span data-usage-metric="per-todo">
+          <strong>{formatUsd(usage.costPerAcceptedTodoUsd)}</strong>
+          <small>{t("roles.usage.perAcceptedTodo", { count: usage.acceptedTodos })}</small>
+        </span>
+      ) : null}
+      {usage.budgetUsd != null && usage.budgetRatio != null ? (
+        <span className={usage.budgetRatio >= 1 ? "is-over" : usage.budgetRatio >= 0.8 ? "is-near" : undefined} data-usage-metric="budget">
+          <strong>{Math.round(usage.budgetRatio * 100)}%</strong>
+          <small>{t("roles.usage.budget", { budget: formatUsd(usage.budgetUsd) })}</small>
+        </span>
+      ) : null}
+      {roles ? <small className="personal-role-usage-roles" title={roles}>{roles}</small> : null}
+    </section>
   );
 }
 
@@ -82,6 +116,7 @@ export function GoalRoleBoardView({
         {!board.dispatcherAvailable ? <small className="personal-role-board-note">{t("roles.dispatcherMissing")}</small>
           : !board.dispatcherServing ? <small className="personal-role-board-note">{t("roles.dispatcherOffline")}</small> : null}
       </header>
+      {goal.turnUsage ? <UsageSummary usage={goal.turnUsage} /> : null}
 
       <section aria-label={t("roles.gatesTitle")} className="personal-role-gates">
         <header><strong>{t("roles.gatesTitle")}</strong><span>{grid.userGates.length}</span></header>

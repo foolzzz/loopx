@@ -32,6 +32,34 @@ providers:
     auth: {type: api_key, env: LOCAL_KEY}
 ```
 
+### Pricing
+
+Gap G9. A provider can declare a price table in `providers.yaml`. The
+[usage ledger](usage-accounting-v0.md) uses it to estimate a Turn's cost when
+the host reports none, for example Codex through CPA. Prices are USD per 1M
+tokens:
+
+```yaml
+providers:
+  cpa:
+    kind: codex-cpa
+    auth: {type: api_key}
+    pricing:
+      input: 1.25            # uncached input
+      cached_input: 0.125    # cache reads
+      output: 10             # output, reasoning included
+      # cache_creation_input: 1.5   # optional, defaults to input
+      models:                # optional, exact model id wins over the default
+        gpt-5.6-sol: {input: 2.5, cached_input: 0.25, output: 20}
+```
+
+- `input`, `cached_input` and `output` are required, whether the prices are
+  the provider default or a model's.
+- Values must be between 0 and 10000.
+- A cost computed from this table is marked `estimated: true`.
+- Claude Code reports its own `total_cost_usd`, which the ledger uses as is
+  (`estimated: false`). An anthropic provider therefore needs no table.
+
 Secret values are never stored: fields such as `api_key`, `token`, `secret`,
 `password` are rejected on load.
 

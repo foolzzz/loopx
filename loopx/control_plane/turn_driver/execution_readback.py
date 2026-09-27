@@ -82,5 +82,7 @@ def execution_payload(
         **turn_lane_in_flight_projection(journal),
         **managed_executor_remediation_projection(journal),
         **project_host_failure(journal),
+        **({"turn_usage": dict(journal["turn_usage"])}
+           if isinstance(journal.get("turn_usage"), Mapping) else {}),
         **({"recovery": dict(recovery)} if isinstance(recovery, Mapping) else {}),
     }

@@ -11,6 +11,7 @@ from .cli_commands.agent_capabilities import register_agent_capabilities, handle
 from .cli_commands.agent_directory import register_agent_directory, handle_agent_directory
 from .cli_commands.workspace import register_workspace, handle_workspace
 from .cli_commands.dispatch import register_dispatch, handle_dispatch
+from .cli_commands.usage import register_usage_commands, handle_usage_command
 from .cli_commands.gate_plan_goal import register_gate_plan_goal_commands, handle_gate_plan_goal_command
 from .cli_commands.agent_config import register_agent_config_commands, handle_agent_config_command
 from .cli_commands.agent_context import register_agent_context, handle_agent_context
@@ -355,6 +356,7 @@ def build_parser() -> LoopXArgumentParser:
     register_agent_directory(sub, add_subcommand_format)
     register_workspace(sub, add_subcommand_format)
     register_dispatch(sub, add_subcommand_format)
+    register_usage_commands(sub, add_subcommand_format)
     register_gate_plan_goal_commands(sub, add_subcommand_format)
     register_agent_config_commands(sub, add_subcommand_format)
     register_lark_inbox_commands(sub, add_subcommand_format)
@@ -833,6 +835,13 @@ def main(argv: list[str] | None = None) -> int:
             args, registry_path, effective_runtime_root(registry_path, args.runtime_root),
             print_payload, output_format,
         )
+    usage_result = handle_usage_command(
+        args, registry_path=registry_path,
+        runtime_root=effective_runtime_root(registry_path, args.runtime_root),
+        print_payload=print_payload, output_format=output_format,
+    )
+    if usage_result is not None:
+        return usage_result
     if args.command in {"agent", "provider"}:
         return handle_agent_config_command(
             args,

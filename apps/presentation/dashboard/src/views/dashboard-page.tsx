@@ -114,7 +114,7 @@ import {
   type WorkspaceActionPreviewRequest,
 } from "../features/personal-workspace/personal-workspace-model";
 import { routeWorkspaceInput } from "../features/personal-workspace/personal-workspace-router";
-import { roleBoardFromProjection, type WorkspaceRoleBoard } from "../features/personal-workspace/role-board-model";
+import { roleBoardFromProjection, turnUsageFromProjection, type WorkspaceRoleBoard } from "../features/personal-workspace/role-board-model";
 
 const protectedOperationLabels: Record<ProtectedActionProposal["operation"], string> = {
   delete: "删除",
@@ -1211,6 +1211,7 @@ function buildPersonalHomeModel(
         || row.latestRun
         || payload.event_ledger_summary?.goals.some((item) => item.goal_id === goal.id)),
       roleBoard: goal.role_board ? roleBoardFromProjection(goal.role_board) : null,
+      turnUsage: goal.turn_usage_summary ? turnUsageFromProjection(goal.turn_usage_summary) : null,
       state,
       ...(goalSubagentConfigurationEnabled ? {
         subagentExecution: {

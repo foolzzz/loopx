@@ -11,6 +11,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ from .executor import (
 from .execution_profile import require_supported_reasoning_effort
 from .host_failure import BuiltInHostError
 from .transaction import LOOPX_TURN_RESULT_SCHEMA_VERSION, TRANSACTION_PHASES
+from .turn_usage import attach_turn_usage, codex_cli_turn_usage, codex_event_token_usage
 
 
 CODEX_CLI_SESSION_SCHEMA_VERSION = "loopx_codex_cli_session_v1"
@@ -912,6 +914,22 @@ def _codex_command(
     return command
 
 
+def _override_model(config_overrides: Sequence[str]) -> str | None:
+    """The ``model=...`` config override, when the launch sets the model that way."""
+
+    for item in reversed(list(config_overrides)):
+        key, _, value = item.partition("=")
+        if key.strip() != "model":
+            continue
+        value = value.strip()
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = value.strip("'")
+        return parsed if isinstance(parsed, str) and parsed else None
+    return None
+
+
 def run_codex_cli_host(
     request: Mapping[str, Any],
     *,
@@ -980,6 +998,7 @@ def run_codex_cli_host(
             mcp_server=mcp_server,
             config_overrides=config_overrides,
         )
+        started_at = time.time()
         proc = subprocess.Popen(
             command,
             cwd=project,
@@ -992,6 +1011,7 @@ def run_codex_cli_host(
             start_new_session=True,
         )
         observed_session: list[str] = []
+        observed_tokens: list[dict[str, int]] = []
         structured_failure_categories: list[str] = []
         diagnostic_failure_categories: list[str] = []
 
@@ -1006,6 +1026,9 @@ def run_codex_cli_host(
                     candidate = codex_cli_event_session_id(event)
                     if candidate and not observed_session:
                         observed_session.append(candidate)
+                    tokens = codex_event_token_usage(event)
+                    if tokens is not None:
+                        observed_tokens[:] = [tokens]
                     structured, diagnostic = _event_failure_categories(event)
                     if structured:
                         structured_failure_categories.append(structured)
@@ -1041,6 +1064,15 @@ def run_codex_cli_host(
             reader.join(timeout=OUTPUT_DRAIN_TIMEOUT_SECONDS)
             stderr_reader.join(timeout=OUTPUT_DRAIN_TIMEOUT_SECONDS)
         output_observation_incomplete = reader.is_alive() or stderr_reader.is_alive()
+        # G9: token totals from the event stream; failed Turns keep them too.
+        usage = codex_cli_turn_usage(
+            observed_tokens[-1] if observed_tokens else None,
+            started_at=started_at,
+            finished_at=time.time(),
+            model=model or _override_model(config_overrides),
+            session_id=observed_session[0] if observed_session else session_id,
+            resumed=session_id is not None,
+        )
         if timed_out:
             if observed_session:
                 _store_codex_cli_session(
@@ -1052,6 +1084,7 @@ def run_codex_cli_host(
                 "codex_cli_timeout",
                 failure_kind="executor_timeout",
                 recovery_kind=("resume_session" if observed_session else None),
+                turn_usage=usage,
             )
         category = (
             "unknown"
@@ -1082,11 +1115,12 @@ def run_codex_cli_host(
                     and category in _SESSION_RESUMABLE_FAILURE_CATEGORIES
                     else None
                 ),
+                turn_usage=usage,
             )
         try:
             result = json.loads(output_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise BuiltInHostError("codex_cli_final_result_missing") from exc
+            raise BuiltInHostError("codex_cli_final_result_missing", turn_usage=usage) from exc
         if not isinstance(result, dict):
-            raise BuiltInHostError("codex_cli_final_result_not_object")
-        return result
+            raise BuiltInHostError("codex_cli_final_result_not_object", turn_usage=usage)
+        return attach_turn_usage(result, usage)

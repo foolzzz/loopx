@@ -569,6 +569,32 @@ export const roleBoardSchema = z.object({
   omitted: z.record(z.string(), z.number()).optional(),
 });
 
+// Fork G9: compact per-goal Turn usage (loopx/control_plane/status/usage_projection.py).
+// Cost is host-reported plus estimated; the estimated part is shown separately.
+export const turnUsageSummarySchema = z.object({
+  schema_version: z.literal("loopx_turn_usage_summary_v0"),
+  turns: z.number().catch(0),
+  failed_turns: z.number().optional().default(0),
+  agent_hours: z.number().catch(0),
+  tokens_total: z.number().optional().default(0),
+  cost_usd: z.number().catch(0),
+  cost_estimated_usd: z.number().optional().default(0),
+  unpriced_turns: z.number().optional().default(0),
+  accepted_todos: z.number().optional().default(0),
+  cost_per_accepted_todo_usd: z.number().nullable().optional(),
+  turns_per_accepted_todo: z.number().nullable().optional(),
+  last_turn_at: z.string().nullable().optional(),
+  by_role: z.array(z.object({
+    role: z.string(),
+    turns: z.number().catch(0),
+    agent_hours: z.number().catch(0),
+    cost_usd: z.number().catch(0),
+    cost_estimated_usd: z.number().optional().default(0),
+  })).optional().default([]),
+  budget: z.object({ budget_usd: z.number(), spent_ratio: z.number() }).nullable().optional(),
+  truncated: z.boolean().optional(),
+});
+
 export const runGoalSchema = z.object({
   acceptance_observation: goalAcceptanceObservationSchema.optional().nullable().catch(null),
   id: z.string(),
@@ -593,6 +619,7 @@ export const runGoalSchema = z.object({
     agent_roles: z.record(z.string(), z.string()).optional().default({}),
   }).optional().nullable(),
   role_board: roleBoardSchema.optional().nullable().catch(null),
+  turn_usage_summary: turnUsageSummarySchema.optional().nullable().catch(null),
   index_exists: z.boolean().optional().default(false),
   raw_index_records: z.number().optional().default(0),
   unique_runs: z.number().optional().default(0),
@@ -1184,6 +1211,7 @@ export function withoutGoal(payload: StatusPayload, goalId: string): StatusPaylo
 
 export type TodoGroup = z.infer<typeof todoGroupSchema>;
 export type RoleBoardProjection = z.infer<typeof roleBoardSchema>;
+export type TurnUsageSummaryProjection = z.infer<typeof turnUsageSummarySchema>;
 export type TodoItem = z.infer<typeof todoItemSchema>;
 export type TodoIndexItem = z.infer<typeof todoIndexItemSchema>;
 export type TodoIndexSummary = z.infer<typeof todoIndexSchema>;

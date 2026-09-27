@@ -275,6 +275,10 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "purpose": "Run the resident dispatcher that launches role_v1 agent Turns on state events and a periodic tick.",
             },
             {
+                "command": "loopx usage report|budget",
+                "purpose": "Turn cost, tokens and agent-hours per role, agent, goal, todo, model or day; optional goal budget.",
+            },
+            {
                 "command": "loopx goal create",
                 "purpose": "Create a role_v1 goal from a requirements doc: agents, repos, authority source and the orchestrator's first todo.",
             },

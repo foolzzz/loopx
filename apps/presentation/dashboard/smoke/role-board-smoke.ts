@@ -3,12 +3,13 @@
 // the board model derives stages and swimlanes from it.
 import fixture from "./role-board-fixture.json";
 
-import { roleBoardSchema, runGoalSchema } from "../src/data/status";
+import { roleBoardSchema, runGoalSchema, turnUsageSummarySchema } from "../src/data/status";
 import {
   buildRoleBoardGrid,
   roleBoardFromProjection,
   roleBoardLane,
   roleBoardStage,
+  turnUsageFromProjection,
 } from "../src/features/personal-workspace/role-board-model";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -82,5 +83,17 @@ equal(lane("orchestrator").cells.assigned.map((card) => card.todoId), ["todo_rb_
 equal(grid.stageCounts, { planned: 1, assigned: 2, running: 1, in_review: 1, rework: 1, done: 1 }, "stage counts");
 equal(grid.userGates.map((gate) => gate.todoId), ["todo_rb_plan_gate", "todo_rb_decision"],
   "gates waiting on the user come first");
+
+// Fork G9: the usage summary parses, degrades to null when malformed, and maps to the strip model.
+const usage = turnUsageSummarySchema.parse({
+  schema_version: "loopx_turn_usage_summary_v0", turns: 3, agent_hours: 1.25, cost_usd: 0.14,
+  cost_estimated_usd: 0.02, accepted_todos: 1, cost_per_accepted_todo_usd: 0.14,
+  by_role: [{ role: "developer", turns: 2, agent_hours: 1, cost_usd: 0.09 }], budget: { budget_usd: 1, spent_ratio: 0.14 },
+});
+const strip = turnUsageFromProjection(usage);
+equal([strip.turns, strip.costUsd, strip.costEstimatedUsd, strip.budgetRatio, strip.byRole[0].role],
+  [3, 0.14, 0.02, 0.14, "developer"], "usage summary maps to the strip model");
+equal(runGoalSchema.parse({ id: "g", turn_usage_summary: { schema_version: "other" } }).turn_usage_summary, null,
+  "an unknown usage summary degrades to null");
 
 console.log("role board smoke: ok");

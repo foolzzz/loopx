@@ -224,3 +224,54 @@ export function buildRoleBoardGrid(board: WorkspaceRoleBoard): RoleBoardGrid {
       || Number(left.kind !== "plan_approval") - Number(right.kind !== "plan_approval")),
   };
 }
+
+/** Fork G9: the goal's usage summary shown in the role board header. */
+export type WorkspaceTurnUsage = {
+  acceptedTodos: number;
+  agentHours: number;
+  budgetRatio: number | null;
+  budgetUsd: number | null;
+  byRole: Array<{ agentHours: number; costUsd: number; role: string; turns: number }>;
+  costEstimatedUsd: number;
+  costPerAcceptedTodoUsd: number | null;
+  costUsd: number;
+  turns: number;
+  unpricedTurns: number;
+};
+
+/** Structural view of the parsed `turn_usage_summary` projection. */
+export type TurnUsageProjectionInput = {
+  accepted_todos: number;
+  agent_hours: number;
+  budget?: { budget_usd: number; spent_ratio: number } | null;
+  by_role: Array<{ agent_hours: number; cost_usd: number; role: string; turns: number }>;
+  cost_estimated_usd: number;
+  cost_per_accepted_todo_usd?: number | null;
+  cost_usd: number;
+  turns: number;
+  unpriced_turns: number;
+};
+
+export function turnUsageFromProjection(projection: TurnUsageProjectionInput): WorkspaceTurnUsage {
+  return {
+    acceptedTodos: projection.accepted_todos,
+    agentHours: projection.agent_hours,
+    budgetRatio: projection.budget?.spent_ratio ?? null,
+    budgetUsd: projection.budget?.budget_usd ?? null,
+    byRole: projection.by_role.map((row) => ({
+      agentHours: row.agent_hours,
+      costUsd: row.cost_usd,
+      role: row.role,
+      turns: row.turns,
+    })),
+    costEstimatedUsd: projection.cost_estimated_usd,
+    costPerAcceptedTodoUsd: projection.cost_per_accepted_todo_usd ?? null,
+    costUsd: projection.cost_usd,
+    turns: projection.turns,
+    unpricedTurns: projection.unpriced_turns,
+  };
+}
+
+export function formatUsd(value: number): string {
+  return `$${value.toFixed(value >= 100 ? 0 : 2)}`;
+}

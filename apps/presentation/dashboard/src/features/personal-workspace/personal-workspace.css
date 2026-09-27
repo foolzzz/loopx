@@ -1841,6 +1841,14 @@
 .personal-channel-scroll[data-active-goal-view="roles"] { padding-inline: 20px; }
 .personal-role-board { display: grid; gap: 14px; padding: 18px 0 28px; min-width: 0; }
 .personal-role-board-note { color: var(--pw-amber); font-size: 11px; }
+/* Fork G9: goal usage strip in the role board header. */
+.personal-role-usage { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 8px 14px; border: 1px solid var(--pw-line); border-radius: 12px; background: var(--pw-card); }
+.personal-role-usage > span { display: inline-flex; align-items: baseline; gap: 5px; }
+.personal-role-usage strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.personal-role-usage small { color: var(--pw-muted); font-size: 10.5px; }
+.personal-role-usage > span.is-near strong { color: var(--pw-amber); }
+.personal-role-usage > span.is-over strong { color: var(--pw-red); }
+.personal-role-usage-roles { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .personal-role-gates { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--pw-line); border-radius: 12px; background: var(--pw-card); }
 .personal-role-gates > header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
 .personal-role-gates > header span { color: var(--pw-muted); font-size: 11px; }

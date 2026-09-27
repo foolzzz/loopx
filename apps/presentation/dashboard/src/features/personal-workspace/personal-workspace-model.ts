@@ -4,7 +4,7 @@ import type { ActionReviewPlan } from "../../../../../../loopx/control_plane/pre
 import type { GoalAcceptanceObservation } from "../../data/goal-acceptance-observation";
 import type { AttentionDetails } from "./attention-details";
 import type { WorkspaceLoadError } from "../../data/workspace-progressive-status";
-import type { WorkspaceRoleBoard } from "./role-board-model";
+import type { WorkspaceRoleBoard, WorkspaceTurnUsage } from "./role-board-model";
 export type WorkspaceGoalState =
   | "需修复"
   | "等你"
@@ -111,6 +111,7 @@ export type WorkspaceGoal = {
   repository?: WorkspaceRepositoryContext;
   /** role_v1 role board (fork slice S8); absent for Goals without registered roles. */
   roleBoard?: WorkspaceRoleBoard | null;
+  turnUsage?: WorkspaceTurnUsage | null;
   state: WorkspaceGoalState;
   subagentExecution?: WorkspaceGoalSubagentConfiguration;
   title: string;

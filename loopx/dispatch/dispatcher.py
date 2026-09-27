@@ -41,6 +41,7 @@ from .review_checkouts import (
     review_run_record,
     settle_acceptor_review,
 )
+from .usage_budget import alert_usage_budget
 from .state import (
     DispatchLock,
     dispatch_dir,
@@ -259,6 +260,11 @@ class Dispatcher:
         project = self._goal_project(goal)
         self._resume_plan_dependents(goal_id, report)
         role_v1 = policy.goal_is_role_v1(goal)
+        try:  # G9: a spend alert never blocks scheduling.
+            alert_usage_budget(registry_path=self.registry_path, runtime_root=self.runtime_root,
+                               goal_id=goal_id, state=self.state, report=report, now=self.clock())
+        except Exception as exc:  # noqa: BLE001 - report and retry next pass
+            report["errors"].append({"goal_id": goal_id, "error": f"usage_budget: {exc}"[:400]})
         for agent_id, registry_role in self._agents_for_goal(goal):
             skip = lambda reason, **extra: report["skipped"].append(  # noqa: E731
                 {"goal_id": goal_id, "agent_id": agent_id, "reason": reason, **extra}
