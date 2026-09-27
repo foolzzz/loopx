@@ -100,3 +100,17 @@ def test_host_failures_do_not_retire_an_action_todo(tmp_path: Path) -> None:
     assert not (dispatcher.state.get("orchestrator_action_failures") or {})
     listed = list_goal_todos(registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]))
     assert next(row for row in listed["todos"] if row["todo_id"] == opened["todo_id"])["status"] == "open"
+
+
+def test_action_counters_survive_a_dispatcher_restart(tmp_path: Path) -> None:
+    from loopx.dispatch.state import load_state, save_state
+
+    state = load_state(tmp_path)
+    state["orchestrator_actions"] = {"g/orch": {"subject": f"effective_action={ACTION}", "count": 2}}
+    state["orchestrator_action_failures"] = {"g/todo_a": 1}
+    state["budget_alerts"] = {"g": {"80": {"todo_id": "todo_b"}}}
+    save_state(tmp_path, state)
+    reloaded = load_state(tmp_path)
+    assert reloaded["orchestrator_actions"] == state["orchestrator_actions"]
+    assert reloaded["orchestrator_action_failures"] == {"g/todo_a": 1}
+    assert reloaded["budget_alerts"] == state["budget_alerts"]
