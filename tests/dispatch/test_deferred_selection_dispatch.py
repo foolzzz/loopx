@@ -19,7 +19,7 @@ import pytest
 from loopx.dispatch import DispatchConfig, Dispatcher, policy
 from loopx.plan_dependencies import write_dependency_wait_snapshot
 from loopx.todos import add_goal_todo
-from tests.dispatch.dispatch_fixtures import GOAL_ID, git_env, write_fixture
+from tests.dispatch.dispatch_fixtures import GOAL_ID, git, git_env, make_repo, write_fixture
 from tests.dispatch.test_acceptor_review_dispatch import Clock
 
 WAIT = "waiting for dependency todo_backend (status in_review)"
@@ -106,3 +106,26 @@ def test_a_free_slot_takes_an_executable_todo_instead_of_the_deferred_offer(
     report = _dispatcher(fixture, offer).run_once()
     launched = [(item["agent_id"], item["todo_id"], item["reason"]) for item in report["launched"]]
     assert launched == [("dev", docs, "alternate_todo")], report
+
+
+def test_no_workspace_is_cut_for_a_deferred_offer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # E2E pilot v1: the refused launch had already prepared the todo's
+    # worktree, so its branch was cut from a task branch that still lacked
+    # the backend merge, and the accept merge later conflicted.
+    for key, value in git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    api = make_repo(tmp_path, "api")
+    fixture = write_fixture(
+        tmp_path,
+        agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}, "acc": {"role": "acceptor"}},
+        repos={"api": api},
+    )
+    integration = str(add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text="Integrate api", task_class="advancement_task", claimed_by="dev",
+        role_contract={"task_repositories": ["api"]},
+    )["todo_id"])
+    report = _dispatcher(fixture, _deferred_offer(integration)).run_once()
+    assert report["launched"] == [], report
+    assert not (fixture["runtime"] / "goals" / GOAL_ID / "workspaces" / integration).exists()
+    assert git(api, "branch", "--list", f"loopx/{GOAL_ID}/{integration}").strip() == ""
