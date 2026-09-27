@@ -1908,6 +1908,14 @@
       "kind": "codec_read",
       "api": "load_registry",
       "classification": "codec_api"
+    },
+    {
+      "site": "loopx/usage_accounting/report.py::<module>.registry_goal_ids::codec_read:load_registry#1",
+      "line": 210,
+      "column": 60,
+      "kind": "codec_read",
+      "api": "load_registry",
+      "classification": "codec_api"
     }
   ]
 }
