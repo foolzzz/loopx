@@ -1230,7 +1230,11 @@ def run_loopx_turn_once(
     post_settlement: PostSettlement | None = None,
     admit_start: Callable[[Mapping[str, Any]], dict[str, Any]] | None = None,
     confirm_start: Callable[[], None] | None = None,
+    turn_lane_todo_id: str | None = None,
 ) -> dict[str, Any]:
+    # ``turn_lane_todo_id`` is consumed by the lane fence decorator: it selects
+    # the role_v1 (goal, todo) lane instead of the (agent, goal) lane.
+    del turn_lane_todo_id
     if host_runner is not None and host_argv is not None:
         raise ValueError("run-once accepts either host_argv or host_runner, not both")
     if host_runner is None:

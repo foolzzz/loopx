@@ -92,6 +92,12 @@ def _todo_agent_key(goal_id: str, todo_id: str, agent_id: str) -> str:
     return f"{goal_id}/{todo_id}@{agent_id}"
 
 
+def _retry_key(goal_id: str, agent_id: str, todo_id: Any) -> str:
+    """Crash-retry identity key: per todo and agent, else per agent."""
+
+    return _todo_agent_key(goal_id, str(todo_id), agent_id) if todo_id else _agent_key(goal_id, agent_id)
+
+
 class Dispatcher:
     def __init__(
         self,
@@ -252,6 +258,7 @@ class Dispatcher:
             return
         project = self._goal_project(goal)
         self._resume_plan_dependents(goal_id, report)
+        role_v1 = policy.goal_is_role_v1(goal)
         for agent_id, registry_role in self._agents_for_goal(goal):
             skip = lambda reason, **extra: report["skipped"].append(  # noqa: E731
                 {"goal_id": goal_id, "agent_id": agent_id, "reason": reason, **extra}
@@ -268,6 +275,10 @@ class Dispatcher:
                 continue
             role = registry_role or definition.role
             limit = policy.slot_limit(role, definition.max_concurrency)
+            # run-once fences role_v1 developer/acceptor Turns per todo, so the
+            # agent fills its slots with different todos of this goal; every
+            # other Turn keeps one lane per agent and goal (decision 32).
+            todo_lane = policy.todo_scoped_lane(role_v1=role_v1, registry_role=registry_role)
             self.state.setdefault("agent_slots", {})[agent_id] = {
                 "role": role,
                 "max": limit,
@@ -292,10 +303,9 @@ class Dispatcher:
                 if len(agent_runs) >= limit:
                     skip("slots_full", running=len(agent_runs), max=limit)
                     break
-                if any(run.get("goal_id") == goal_id for run in agent_runs):
-                    # The Turn lane fence admits one in-flight Turn per agent and
-                    # goal (run-once: turn_lane_in_flight); max_concurrency spans
-                    # goals. Parallel work in one goal needs several agent ids.
+                if not todo_lane and any(run.get("goal_id") == goal_id for run in agent_runs):
+                    # The orchestrator and peer_v1 lanes admit one in-flight Turn
+                    # per agent and goal (run-once: turn_lane_in_flight).
                     skip("turn_lane_in_flight")
                     break
                 if role == policy.ROLE_ORCHESTRATOR and any(
@@ -368,6 +378,10 @@ class Dispatcher:
                         self._agent_unavailable(goal_id, agent_id, str(record.get("status") or "unknown"), report)
                         break
                     self._agent_available(goal_id, agent_id)
+                if todo_lane and todo_id:
+                    # Pin every todo-lane Turn: run-once must work exactly the
+                    # todo this pass reserved, not re-select one of its own.
+                    decision = {**decision, "pinned": True}
                 try:
                     launched = self._launch(goal, definition, role, decision, project, report)
                 except Exception as exc:  # noqa: BLE001 - one agent's launch never stops the others
@@ -668,8 +682,15 @@ class Dispatcher:
         run_project = cwd or project
         run_project.mkdir(parents=True, exist_ok=True)
 
-        retry_key = _agent_key(goal_id, agent_id)
-        retry = self.state.setdefault("retry_turns", {}).get(retry_key)
+        retries = self.state.setdefault("retry_turns", {})
+        retry_key = _retry_key(goal_id, agent_id, todo_id)
+        # Crash identities are kept per todo, so two Turns of one agent in one
+        # goal never reuse or drop each other's identity. The agent key is the
+        # todo-less form, and the state layout before per-todo lanes.
+        retry = retries.get(retry_key)
+        legacy = retries.get(_agent_key(goal_id, agent_id)) if todo_id else None
+        if not retry and legacy and legacy.get("todo_id") == todo_id:
+            retry = legacy
         crashes = 0
         if retry and retry.get("todo_id") == todo_id:
             turn_instance_id = str(retry["turn_instance_id"])
@@ -678,7 +699,8 @@ class Dispatcher:
         else:
             turn_instance_id = mint_turn_instance_id(prefix="dispatch")
             reused = False
-        self.state["retry_turns"].pop(retry_key, None)
+        retries.pop(retry_key, None)
+        retries.pop(_agent_key(goal_id, agent_id), None)
 
         run_dir = dispatch_dir(self.runtime_root) / "runs"
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -861,7 +883,7 @@ class Dispatcher:
             # Relaunch with the same Turn identity: run-once settles by
             # turn_instance_id, so a replay never double-settles.
             crashes = int(run.get("crashes") or 0) + 1
-            self.state.setdefault("retry_turns", {})[_agent_key(goal_id, agent_id)] = {
+            self.state.setdefault("retry_turns", {})[_retry_key(goal_id, agent_id, run.get("todo_id"))] = {
                 "turn_instance_id": run.get("turn_instance_id"),
                 "todo_id": run.get("todo_id"),
                 "crashed_at": now,

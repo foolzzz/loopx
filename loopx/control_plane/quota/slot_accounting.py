@@ -377,11 +377,30 @@ def _is_quota_neutral_state_refresh(run: dict[str, Any]) -> bool:
     )
 
 
+def _run_settlement_effect_id(run: dict[str, Any]) -> str | None:
+    """The Turn settlement effect a run belongs to, when it records one.
+
+    A Turn's delivery run carries its ``settlement_identity``; its quota spend
+    run carries the ``effect_ref`` ``<effect_id>#quota_spend``.
+    """
+
+    identity = run.get("settlement_identity")
+    if isinstance(identity, dict):
+        effect_id = str(identity.get("effect_id") or "").strip()
+        if effect_id:
+            return effect_id
+    effect_ref = str(run.get("effect_ref") or "").strip()
+    if effect_ref:
+        return effect_ref.split("#", 1)[0] or None
+    return None
+
+
 def _latest_unspent_turn_settlement_run(
     runtime_root: Path,
     goal_id: str,
     *,
     agent_id: str | None = None,
+    settlement_effect_id: str | None = None,
 ) -> dict[str, Any] | None:
     """Return the latest same-agent Turn settlement that still needs accounting.
 
@@ -391,13 +410,23 @@ def _latest_unspent_turn_settlement_run(
     with a non-settling delivery outcome and other non-delivery events remain
     fail closed. A typed blocked ``outcome_gap`` settles the Turn without being
     reclassified as delivery progress.
+
+    ``settlement_effect_id`` scopes the lookup to one Turn: runs that belong
+    to another Turn's settlement are skipped. Under role_v1 one agent can run
+    several todos of a goal at once (design-v0 decision 32), so the latest
+    same-agent run may be a sibling Turn's delivery or spend.
     """
 
     safe_agent_id = normalize_todo_claimed_by(agent_id)
+    scope = str(settlement_effect_id or "").strip() or None
     for run in reversed(_load_goal_run_index_records(runtime_root, goal_id)):
         run_agent_id = normalize_todo_claimed_by(run.get("agent_id"))
         if safe_agent_id and run_agent_id and safe_agent_id != run_agent_id:
             continue
+        if scope is not None:
+            run_effect_id = _run_settlement_effect_id(run)
+            if run_effect_id is not None and run_effect_id != scope:
+                continue
         classification = str(run.get("classification") or "").strip()
         if classification == QUOTA_SLOT_VOIDED_CLASSIFICATION:
             continue
@@ -579,6 +608,7 @@ def build_quota_slot_preview_for_decision(
     replan_obligation_id: str | None = None,
     turn_instance_id: str | None = None,
     source: str = DEFAULT_SLOT_SPEND_SOURCE,
+    effect_ref: str | None = None,
 ) -> dict[str, Any]:
     safe_goal_id = _validate_goal_id_path_segment(str(goal_id or ""))
     safe_slots = max(1, _int_number(slots, default=1))
@@ -698,6 +728,10 @@ def build_quota_slot_preview_for_decision(
             Path(str(raw_runtime_root)).expanduser(),
             safe_goal_id,
             agent_id=safe_requested_agent_id,
+            # An effect-bound spend accounts for its own Turn's delivery.
+            settlement_effect_id=(
+                str(effect_ref or "").strip().split("#", 1)[0] or None
+            ),
         )
         if raw_runtime_root
         else None

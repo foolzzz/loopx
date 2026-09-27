@@ -49,8 +49,9 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
    agents and agents whose config is invalid, and reports why.
 3. **Slots.** An orchestrator is limited to 1 per goal, whatever its
    `max_concurrency` says. Developers and acceptors run up to their
-   `max_concurrency`, counted per agent across goals. Every launch counts against
-   `--max-global`.
+   `max_concurrency`, counted per agent across goals, and under role_v1 that
+   includes several todos of the same goal (decision 32). Every launch counts
+   against `--max-global`.
 4. **Ask LoopX.** The pass calls `collect_status` and then `build_quota_should_run`
    for that agent:
    - `should_run=false`: the agent is idle.
@@ -72,14 +73,20 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      the orchestrator has another open todo; the text prefix finds it again when
      the dispatcher state is lost. If two action todos for the same subject
      finish without clearing it, a user gate opens instead of a third.
-   - One in-flight Turn per agent and goal: run-once's lane fence answers
-     `turn_lane_in_flight` for a second one, so the dispatcher skips with that
-     reason. `max_concurrency` caps an agent across goals; parallel work inside
-     one goal needs several agent ids of the same role.
-   - A todo that already has a running Turn is never launched a second time. When
-     the selected todo is cooling down for this agent, the next open (or
-     in_review) todo from the same should-run lane runs instead, pinned with
-     `--todo-id`.
+   - **Turn lanes (decision 32).** Under role_v1, run-once fences a registered
+     developer's or acceptor's Turn per todo: its lane is (goal, todo). The
+     dispatcher therefore fills a free slot of the same agent with another todo
+     of the goal, up to `max_concurrency` and `--max-global`. Each such Turn is
+     pinned with `--todo-id` to the todo the pass reserved for it. The
+     orchestrator (lane per agent and goal, one slot) stays serial per goal.
+     peer_v1 goals, and agents without a registered role, keep one in-flight
+     Turn per agent and goal: the pass skips a second one with
+     `turn_lane_in_flight`, which is what run-once would answer.
+   - A todo that already has a running Turn is never launched a second time
+     (`todo_in_flight`), whichever agent runs it; run-once's todo lane refuses a
+     second executor for it as well. When the selected todo is in flight or
+     cooling down for this agent, the next open (or in_review) todo from the
+     same should-run lane runs instead, pinned with `--todo-id`.
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
      ordinary Todo update).
@@ -149,6 +156,28 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   developer's failures do not hold back the acceptor's review of the same todo;
   a workspace-prepare failure cools the todo down for everyone. LoopX's repair and replan routing still decides what
   happens to the todo itself.
+
+## Parallel Turns of one agent
+
+When one agent has several Turns of a goal in flight, each Turn keeps its own
+state:
+
+- Turn journals are keyed by turn key, and codex-cli sessions by (goal, agent,
+  todo), so they never collide. Run records live under `dispatch/runs/<run>`.
+- Crash-retry identities (`retry_turns` in `state.json`) are keyed by
+  `<goal>/<todo>@<agent>`.
+- Quota spend is recorded per Turn: an effect-bound spend (the Turn pipeline's
+  `<effect_id>#quota_spend`) accounts for its own Turn's delivery run, not the
+  agent's latest one, which may belong to a sibling Turn.
+- Settlement tolerates a sibling settling at the same moment. The quota spend
+  commit is a compare-and-swap on the goal's run index; on a conflict the
+  Turn rebuilds its status and retries (bounded). A refresh-state that finds
+  the state file changed under it by a sibling's todo write retries from the
+  current state before persisting anything (bounded). refresh-state itself
+  runs under the goal's run-index lock.
+
+`hard_lease` canonical goals are out of scope: the lane change does not touch
+leases, and `in_review` stays unsupported there (decision 33).
 
 ## Crash recovery
 

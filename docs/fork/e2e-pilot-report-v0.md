@@ -281,12 +281,16 @@ schema, or the lease or guard semantics. None of these was changed.
     obligation stays open.
   - Proposal: exempt role_v1 orchestrator todos from the vision checkpoint, or
     let a Turn result record no-follow-up.
-- **G5 (P1). Parallel development in one goal.**
-  - The Turn lane fence allows one in-flight Turn per agent and goal, so
-    `max_concurrency` 2 does not parallelise one developer. The backend and
+- **G5 (P1, resolved). Parallel development in one goal.**
+  - The Turn lane fence allowed one in-flight Turn per agent and goal, so
+    `max_concurrency` 2 did not parallelise one developer. The backend and
     frontend todos ran one after the other.
-  - Short term: register several developer agent ids. Long term: a per-todo
-    lane, which needs approval because it is a lease semantic.
+  - Resolved by a per-todo lane, approved by the user (design-v0 decision 32):
+    under role_v1 developer and acceptor Turns are fenced per (goal, todo), the
+    dispatcher fills an agent's slots with different todos of a goal, and the
+    orchestrator stays serial. Parallel settlement of one agent's Turns keeps
+    spend, journals and state refresh per Turn. See
+    [dispatcher-v0](dispatcher-v0.md) and [role-v1-protocol](role-v1-protocol.md).
 - **G6 (P2). Superseded todos count as done.**
   - The orchestrator closed the superseded frontend todo as `done`, which resumed
     integration before the replacement merged. The integration branch was cut

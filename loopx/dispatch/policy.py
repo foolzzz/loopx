@@ -37,6 +37,28 @@ def slot_limit(role: str | None, max_concurrency: int) -> int:
     return max(1, int(max_concurrency or 1))
 
 
+def goal_is_role_v1(goal: Mapping[str, Any] | None) -> bool:
+    """Whether the goal runs the role_v1 agent model (the default)."""
+
+    from ..todo_acceptance import goal_uses_role_v1
+
+    return goal_uses_role_v1(goal)
+
+
+def todo_scoped_lane(*, role_v1: bool, registry_role: str | None) -> bool:
+    """Whether this agent's Turns run in per-todo lanes (design-v0 decision 32).
+
+    Mirrors run-once's lane choice (``lane_fence.turn_lane_todo_scope``): under
+    role_v1 a registered developer or acceptor is fenced per (goal, todo), so it
+    may run up to ``max_concurrency`` todos of one goal at once. The
+    orchestrator stays serial per goal, and peer_v1 keeps one lane per agent.
+    """
+
+    from ..control_plane.turn_driver.lane_fence import TURN_LANE_TODO_SCOPED_ROLES
+
+    return role_v1 and registry_role in TURN_LANE_TODO_SCOPED_ROLES
+
+
 def backoff_seconds(failures: int, *, base: float, cap: float) -> float:
     """Exponential backoff: base, 2*base, 4*base ... capped."""
 

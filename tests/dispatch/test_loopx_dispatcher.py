@@ -148,17 +148,25 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
 
     report = dispatcher.reconcile()
     launched = [(item["agent_id"], item["todo_id"]) for item in report["launched"]]
-    # One in-flight Turn per agent and goal: run-once's lane fence
-    # (turn_lane_in_flight) refuses a second one; max_concurrency spans goals.
-    assert launched == [("orch", "todo_orch"), ("dev", "todo_aaa")]
+    # role_v1 fences developer Turns per todo (decision 32): the developer
+    # fills both slots with different todos of the goal; the orchestrator
+    # stays serial.
+    assert launched == [("orch", "todo_orch"), ("dev", "todo_aaa"), ("dev", "todo_bbb")]
     assert {"agent_id": "acc", "goal_id": GOAL_ID, "reason": "should_run_false", "detail": "no eligible work"} in report["skipped"]
-    assert ("dev", "turn_lane_in_flight") in {(item["agent_id"], item["reason"]) for item in report["skipped"]}
+    assert ("dev", "slots_full") in {(item["agent_id"], item["reason"]) for item in report["skipped"]}
+    # Every todo-lane Turn is pinned to the todo this pass reserved for it.
+    dev_argv = [item["argv"] for item in read_jsonl(fixture["turn_log"]) if item["agent"] == "dev"]
+    deadline = time.monotonic() + 10
+    while len(dev_argv) < 2 and time.monotonic() < deadline:
+        time.sleep(0.05)
+        dev_argv = [item["argv"] for item in read_jsonl(fixture["turn_log"]) if item["agent"] == "dev"]
+    assert sorted(argv[argv.index("--todo-id") + 1] for argv in dev_argv) == ["todo_aaa", "todo_bbb"]
 
     second = dispatcher.reconcile()
     assert second["launched"] == []
     reasons = {(item["agent_id"], item["reason"]) for item in second["skipped"]}
     assert ("orch", "slots_full") in reasons
-    assert ("dev", "turn_lane_in_flight") in reasons
+    assert ("dev", "slots_full") in reasons
 
     status = dispatch_status(fixture["runtime"])
     assert status["agent_slots"]["orch"]["max"] == 1
@@ -166,12 +174,12 @@ def test_orchestrator_is_serial_and_developer_fills_its_slots(tmp_path: Path) ->
         "role": "developer",
         "max": 2,
         "provider": "anthropic-login",
-        "running": 1,
+        "running": 2,
     }
-    assert len(status["running"]) == 2
+    assert len(status["running"]) == 3
 
     finished = _release_and_wait(fixture, dispatcher)
-    assert sorted(item["outcome"] for item in finished) == ["committed"] * 2
+    assert sorted(item["outcome"] for item in finished) == ["committed"] * 3
     assert dispatch_status(fixture["runtime"])["running"] == []
 
 
@@ -187,7 +195,8 @@ def test_global_cap_limits_total_running_turns(tmp_path: Path) -> None:
     should_run = ScriptedShouldRun({"dev1": ["todo_aaa", "todo_bbb", "todo_ccc"], "dev2": ["todo_ddd", "todo_eee"]})
     dispatcher = _dispatcher(fixture, should_run=should_run, max_global=2)
     report = dispatcher.reconcile()
-    assert [item["todo_id"] for item in report["launched"]] == ["todo_aaa", "todo_ddd"]
+    # dev1 fills both global slots with its own todos (per-todo lanes).
+    assert [item["todo_id"] for item in report["launched"]] == ["todo_aaa", "todo_bbb"]
     assert any(item["reason"] == "global_cap" for item in report["skipped"])
     _release_and_wait(fixture, dispatcher)
 
@@ -205,7 +214,8 @@ def test_same_todo_is_not_launched_twice_and_disabled_agents_are_skipped(tmp_pat
     report = dispatcher.reconcile()
     assert [item["todo_id"] for item in report["launched"]] == ["todo_same"]
     reasons = {(item["agent_id"], item["reason"]) for item in report["skipped"]}
-    assert ("dev", "turn_lane_in_flight") in reasons
+    # A free slot never takes a todo that already has a running Turn.
+    assert ("dev", "todo_in_flight") in reasons
     assert ("off", "agent_disabled") in reasons
     _release_and_wait(fixture, dispatcher)
 
@@ -373,7 +383,8 @@ def test_child_crash_is_relaunched_with_the_same_turn_identity(tmp_path: Path) -
     first = dispatcher.run_once()
     assert first["finished"][0]["outcome"] == "crashed"
     crashed_id = first["launched"][0]["turn_instance_id"]
-    assert load_state(fixture["runtime"])["retry_turns"][f"{GOAL_ID}/dev"]["turn_instance_id"] == crashed_id
+    # Crash identities are kept per todo: two Turns of one agent never share one.
+    assert load_state(fixture["runtime"])["retry_turns"][f"{GOAL_ID}/todo_aaa@dev"]["turn_instance_id"] == crashed_id
 
     second = dispatcher.run_once()
     assert second["launched"][0]["turn_instance_id"] == crashed_id
@@ -424,8 +435,9 @@ def test_launch_passes_agent_host_args_and_a_repo_relative_path_prompt(tmp_path:
     assert dev[dev.index("--runtime-root") + 1] == str(fixture["runtime"])
     assert json.loads(dev[dev.index("--validation-command-json") + 1]) == ["true"]
     assert "--execute" in dev and "--no-global-sync" in dev
-    # Without task repositories there is no workspace and no --todo-id pin.
-    assert "--todo-id" not in dev
+    # Without task repositories there is no workspace, but a todo-lane Turn
+    # is still pinned to the todo the pass reserved for it.
+    assert dev[dev.index("--todo-id") + 1] == "todo_aaa"
     prompt = rows["dev"]["system_prompt"]
     assert prompt.startswith("Project conventions.")
     assert RESULT_PATH_HYGIENE_INSTRUCTION in prompt

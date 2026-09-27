@@ -54,14 +54,16 @@ from ..control_plane.turn_driver import (
 )
 from ..control_plane.turn_driver.host_binding import managed_executor_binding
 from ..control_plane.operator_provider import operator_provider_environ
+from ..control_plane.quota.spend_commit import retry_quota_spend_index_conflicts
 from ..quota import spend_quota_slot
-from ..state_refresh import refresh_state_run
+from ..state_refresh import refresh_state_run, retry_refresh_state_races
 from ..todos import resolve_todo_state_path
 from .lark_inbox import dispatch_goal_lark_turn_start_hooks
 from .turn_cadence import managed_cadence_start
 from .turn_decision import (
     build_fresh_turn_decision_owner,
     collect_turn_status_payload,
+    turn_lane_todo_id,
 )
 from .turn_claude_host import (
     build_claude_code_host_runner,
@@ -515,35 +517,37 @@ def handle_turn_command(
                         # Fork S2: the acceptor's reject verdict is its completed
                         # review, i.e. accountable progress, not a blocked gap.
                         delivery_outcome = "outcome_progress"
-                refresh = refresh_state_run(
-                    registry_path=registry_path,
-                    runtime_root_override=runtime_root_arg,
-                    goal_id=args.goal_id,
-                    project=state_project,
-                    state_file=None,
-                    classification=str(result["classification"]),
-                    recommended_action=str(result["recommended_action"]),
-                    next_action=str(result["next_action"]),
-                    delivery_batch_scale=str(result["delivery_batch_scale"]),
-                    delivery_outcome=delivery_outcome,
-                    delivery_workspace_path=delivery_workspace_path,
-                    todo_id=settlement_identity.todo_id,
-                    turn_instance_id=settlement_identity.turn_instance_id,
-                    agent_id=args.agent_id,
-                    progress_scope="goal",
-                    autonomous_replan_recorded=result_kind == "replan_required",
-                    agent_vision_packet=(
-                        dict(result["agent_vision"])
-                        if isinstance(result.get("agent_vision"), dict)
-                        else None
-                    ),
-                    vision_unchanged_reason=(
-                        str(result.get("vision_unchanged_reason") or "") or None
-                    ),
-                    completion_todo_id=completion_todo_id,
-                    completion_turn_key=completion_turn_key,
-                    dry_run=False,
-                    sync_global=not bool(args.no_global_sync),
+                refresh = retry_refresh_state_races(
+                    lambda: refresh_state_run(
+                        registry_path=registry_path,
+                        runtime_root_override=runtime_root_arg,
+                        goal_id=args.goal_id,
+                        project=state_project,
+                        state_file=None,
+                        classification=str(result["classification"]),
+                        recommended_action=str(result["recommended_action"]),
+                        next_action=str(result["next_action"]),
+                        delivery_batch_scale=str(result["delivery_batch_scale"]),
+                        delivery_outcome=delivery_outcome,
+                        delivery_workspace_path=delivery_workspace_path,
+                        todo_id=settlement_identity.todo_id,
+                        turn_instance_id=settlement_identity.turn_instance_id,
+                        agent_id=args.agent_id,
+                        progress_scope="goal",
+                        autonomous_replan_recorded=result_kind == "replan_required",
+                        agent_vision_packet=(
+                            dict(result["agent_vision"])
+                            if isinstance(result.get("agent_vision"), dict)
+                            else None
+                        ),
+                        vision_unchanged_reason=(
+                            str(result.get("vision_unchanged_reason") or "") or None
+                        ),
+                        completion_todo_id=completion_todo_id,
+                        completion_turn_key=completion_turn_key,
+                        dry_run=False,
+                        sync_global=not bool(args.no_global_sync),
+                    )
                 )
                 if refresh.get("ok") and (
                     refresh.get("appended")
@@ -767,22 +771,25 @@ def handle_turn_command(
 
             def spend(*, effect_ref: str) -> dict[str, object]:
                 require_effect_ref(effect_ref, SettlementStepKind.QUOTA_SPEND)
-                spent = spend_quota_slot(
-                    current_status(),
-                    goal_id=args.goal_id,
-                    slots=1,
-                    execute=True,
-                    source="adapter",
-                    agent_id=args.agent_id,
-                    workspace_path=delivery_workspace_path,
-                    available_capabilities=args.available_capabilities,
-                    scheduler_execution_context=(
-                        payload.get("scheduler_execution_context")
-                        if isinstance(payload.get("scheduler_execution_context"), dict)
-                        else None
-                    ),
-                    operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-                    effect_ref=effect_ref,
+                # Fresh status per attempt: it carries the run index basis.
+                spent = retry_quota_spend_index_conflicts(
+                    lambda: spend_quota_slot(
+                        current_status(),
+                        goal_id=args.goal_id,
+                        slots=1,
+                        execute=True,
+                        source="adapter",
+                        agent_id=args.agent_id,
+                        workspace_path=delivery_workspace_path,
+                        available_capabilities=args.available_capabilities,
+                        scheduler_execution_context=(
+                            payload.get("scheduler_execution_context")
+                            if isinstance(payload.get("scheduler_execution_context"), dict)
+                            else None
+                        ),
+                        operator_inbox_urgency_projector=operator_inbox_urgency_projector,
+                        effect_ref=effect_ref,
+                    )
                 )
                 if spent.get("ok") and (
                     spent.get("appended")
@@ -1169,6 +1176,9 @@ def handle_turn_command(
                 ),
                 admit_start=managed_cadence.admit if args.execute else None,
                 confirm_start=managed_cadence.confirm if args.execute else None,
+                turn_lane_todo_id=turn_lane_todo_id(
+                    registry_path, args.goal_id, args.agent_id, selected_todo
+                ),
             )
             if args.execute:
                 from ..todo_review_blocked import settle_turn_stop_verdict

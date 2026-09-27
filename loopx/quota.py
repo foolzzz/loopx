@@ -971,6 +971,7 @@ def build_quota_slot_preview(
         replan_obligation_id=replan_obligation_id,
         turn_instance_id=turn_instance_id,
         source=source,
+        effect_ref=effect_ref,
     )
     if preview.get("ok") and basis_available:
         preview["expected_index_digest"] = expected_index_digest
