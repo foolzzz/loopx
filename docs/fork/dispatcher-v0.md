@@ -107,7 +107,10 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      same should-run lane runs instead, pinned with `--todo-id`.
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
-     ordinary Todo update).
+     ordinary Todo update). A released todo whose branch was cut earlier and
+     has no commits of its own is fast-forwarded to the current merge target
+     (pilot v1 gap N10, see [workspaces-v0](workspaces-v0.md#stale-todo-branches-on-release-pilot-v1-gap-n10));
+     the pass reports it under `todo_branches_refreshed`.
    - **Deferred offers (E2E pilot v1).** Upstream should-run can still select a
      deferred todo for a developer or acceptor once its single `resume_when`
      dependency is done (`successor_replan_required`), while another plan

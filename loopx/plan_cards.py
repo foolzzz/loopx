@@ -739,6 +739,7 @@ def render_plan_markdown(payload: Mapping[str, Any]) -> str:
 
 def resume_ready_plan_todos(
     *, registry_path: Path, goal_id: str, runtime_root: Path, runtime_root_arg: str | None = None,
+    branch_refreshes: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     """Reopen deferred plan todos whose plan dependencies are all satisfied.
 
@@ -752,6 +753,11 @@ def resume_ready_plan_todos(
     superseded todo never counts as done). The reopen is the ordinary Todo
     update, attributed to its claim owner (else the plan's orchestrator).
     Idempotent: an open or finished todo is left alone.
+
+    A released todo whose branch was cut earlier and carries no commits of its
+    own is fast-forwarded to the current merge target (pilot v1 gap N10, see
+    :mod:`loopx.workspace.todo_branch_refresh`); ``branch_refreshes`` collects
+    those that moved. A refresh never blocks the release.
     """
 
     from .plan_dependencies import plan_dependency_states, write_dependency_wait_snapshot
@@ -783,5 +789,27 @@ def resume_ready_plan_todos(
         )
         if result.get("ok", True):
             resumed.append(todo_id)
+            refreshed = _refresh_released_todo_branch(registry_path, goal_id, row, runtime_root)
+            if refreshed and branch_refreshes is not None:
+                branch_refreshes.append(refreshed)
     write_dependency_wait_snapshot(runtime_root, goal_id, waits)
     return resumed
+
+
+def _refresh_released_todo_branch(
+    registry_path: Path, goal_id: str, row: Mapping[str, Any], runtime_root: Path,
+) -> dict[str, Any] | None:
+    """Fast-forward a released todo's untouched branches; ``None`` when nothing moved."""
+
+    try:
+        from .agent_registry import load_goal_from_registry
+        from .workspace.todo_branch_refresh import refresh_untouched_todo_branches
+
+        goal = load_goal_from_registry(registry_path, goal_id)
+        if not goal or not goal.get("repos"):
+            return None
+        repos = [str(name) for name in row.get("task_repositories") or [] if str(name)]
+        refreshed = refresh_untouched_todo_branches(goal, str(row.get("todo_id")), repos or None, runtime_root)
+    except Exception:  # noqa: BLE001 - a stale branch must never hold back the release
+        return None
+    return refreshed if refreshed.get("refreshed") else None

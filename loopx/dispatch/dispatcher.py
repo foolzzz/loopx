@@ -636,16 +636,22 @@ class Dispatcher:
 
         from ..plan_cards import resume_ready_plan_todos
 
+        refreshes: list[dict[str, Any]] = []
         try:
             resumed = resume_ready_plan_todos(
                 registry_path=self.registry_path, goal_id=goal_id, runtime_root=self.runtime_root,
-                runtime_root_arg=str(self.runtime_root),
+                runtime_root_arg=str(self.runtime_root), branch_refreshes=refreshes,
             )
         except (OSError, ValueError) as exc:
             report["errors"].append({"goal_id": goal_id, "error": f"plan_resume: {exc}"[:300]})
             return
         if resumed:
             report.setdefault("resumed", []).extend({"goal_id": goal_id, "todo_id": todo_id} for todo_id in resumed)
+        # Pilot v1 N10: untouched todo branches fast-forwarded on release.
+        for refresh in refreshes:
+            report.setdefault("todo_branches_refreshed", []).append(
+                {"goal_id": goal_id, "todo_id": refresh.get("todo_id"), "repos": list(refresh.get("refreshed") or [])}
+            )
 
     def _open_orchestrator_action(
         self, goal_id: str, agent_id: str, decision: Mapping[str, Any], report: dict[str, Any],
