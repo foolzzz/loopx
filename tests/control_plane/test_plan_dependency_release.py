@@ -183,6 +183,41 @@ def test_accept_and_merge_release_the_dependent(tmp_path: Path, monkeypatch) -> 
     assert _waits(registry, runtime) == {}
 
 
+def test_the_owners_manual_accept_through_a_blocked_gate_releases_the_dependent(
+    tmp_path: Path, monkeypatch, capsys,
+) -> None:
+    from loopx.todo_review_blocked import block_goal_todo_review
+
+    registry, runtime, goal = _fixture(tmp_path, monkeypatch)
+    ids = _apply(registry, runtime)
+    _finish_notes(registry, ids["notes"])
+    _deliver(registry, runtime, goal, ids["front"], {"web/ui.txt": "ui\n"})
+    blocked = block_goal_todo_review(registry_path=registry, goal_id=GOAL, todo_id=ids["front"], agent_id=ACC,
+                                     reason="the browser toolchain is missing")
+    gate_id = blocked["acceptance"]["gate_todo_id"]
+    assert main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json", "gate",
+                 "resolve", "--goal-id", GOAL, "--todo-id", gate_id, "--option", "accept_manually"]) == 0
+    capsys.readouterr()
+    # accept_manually merges first and records accepted_by=owner; that is an accept+merge record.
+    assert _rows(registry)[ids["front"]]["evidence"].startswith("accepted_by=owner")
+    assert _status(registry, ids["integrate"]) == "open"
+    assert git(tmp_path / "repos" / "web", "show", f"loopx-task/{GOAL}:ui.txt") == "ui"
+
+
+@pytest.mark.parametrize(("evidence", "actor"), [
+    ("accepted_by=acc", "acc"),
+    ("accepted_by=acc: looks good; delivered_by=dev", "acc"),
+    ("accepted_by=team:acc; branch=x", "team:acc"),
+    ("accepted_by=owner: accepted manually", "owner"),
+    ("built; accepted_by=acc", None),
+    ("", None),
+])
+def test_accepted_by_reads_the_verdict_marker(evidence: str, actor: str | None) -> None:
+    from loopx.plan_dependencies import accepted_by
+
+    assert accepted_by({"evidence": evidence}) == actor
+
+
 def test_done_suffices_for_a_dependency_without_acceptance(tmp_path: Path, monkeypatch) -> None:
     registry, runtime, _goal = _fixture(tmp_path, monkeypatch)
     plan = {**PLAN, "todos": [PLAN["todos"][0], {"key": "after", "text": "After the notes", "bound_agent": DEV,

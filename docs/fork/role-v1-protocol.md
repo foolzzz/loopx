@@ -517,6 +517,11 @@ one of its dependencies is satisfied:
   the acceptor is the todo's resolved acceptor or one of the goal's acceptors.
   Accept merges the todo branch before it completes the todo, so this is also
   the merge record.
+- The owner's manual accept through an acceptor-blocked gate (G12, option
+  `accept_manually`) records `accepted_by=owner` after the same merge-first
+  path, so it counts too. The gate's `cancel_todo` option supersedes the todo
+  without a replacement, which keeps its dependents waiting until the
+  orchestrator runs `todo supersede --by`.
 - `done` through any other path (a developer or owner completing a blocked
   todo, for example) does not count. The dependent keeps waiting.
 - A superseded todo never counts as done, even when it has no replacement.

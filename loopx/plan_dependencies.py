@@ -40,6 +40,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from .file_lock import exclusive_file_lock
 from .history import validate_goal_id_path_segment
+from .todo_review_blocked import OWNER_ACTOR
 
 SUPERSESSION_SCHEMA = "loopx_todo_supersession_v0"
 SUPERSESSION_LOG_NAME = "supersessions.jsonl"
@@ -49,7 +50,9 @@ SUPERSEDED_COMPLETION_NOTE = "superseded"
 DEPENDENCY_REWRITE_EVENT_KIND = "todo_dependency_rewrite"
 MAX_SUPERSEDING_TODOS = 8
 
-_ACCEPTED_BY_MARKER = re.compile(r"^accepted_by=([A-Za-z0-9][A-Za-z0-9_.@:-]*)")
+# ``accepted_by=<actor>`` then ``: <note>``, ``; <evidence>`` or the end; agent
+# ids may contain ``:`` but never a space.
+_ACCEPTED_BY_MARKER = re.compile(r"^accepted_by=([A-Za-z0-9][A-Za-z0-9_.:@-]*?)(?=: |;|$)")
 _TODO_DONE_CONDITION = "todo_done:"
 
 
@@ -183,7 +186,11 @@ def dependency_wait_reason(
         return None
     acceptor = accepted_by(row)
     reviewer = resolve_todo_acceptor(goal, row)
-    if acceptor and (acceptor == reviewer["agent_id"] or acceptor in reviewer["goal_acceptors"]):
+    # The acceptor's verdict, or the owner's manual accept through an
+    # acceptor-blocked gate (G12); both merge before they complete the todo.
+    if acceptor and (
+        acceptor in (reviewer["agent_id"], OWNER_ACTOR) or acceptor in reviewer["goal_acceptors"]
+    ):
         return None
     return (
         f"dependency {dependency_id} is done without an accept+merge record; it requires "
