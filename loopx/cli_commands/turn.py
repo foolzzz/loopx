@@ -1182,6 +1182,15 @@ def handle_turn_command(
             )
             if args.execute:
                 from ..todo_review_blocked import settle_turn_stop_verdict
+                from .turn_usage_record import record_turn_payload_usage
+
+                # G9: cost/tokens of this host attempt into the goal usage ledger.
+                usage_ledger = record_turn_payload_usage(
+                    payload, args=args, registry_path=registry_path,
+                    runtime_root=runtime_root, project=project, selected_todo=selected_todo,
+                )
+                if usage_ledger is not None:
+                    payload["usage_ledger"] = usage_ledger
 
                 # G12: an acceptor's user_action_required stop is its blocked verdict.
                 blocked = settle_turn_stop_verdict(

@@ -21,6 +21,7 @@ from ..runtime.runtime_projection_route import (
 )
 from ..todos.todo_index import MAX_TODO_INDEX_ROLLOUT_EVENTS_PER_GOAL
 from .role_board_projection import attach_goal_role_boards
+from .usage_projection import attach_goal_usage_summaries
 from ...registry import registry_goals
 from ...rollout_event_log import RolloutEventSnapshot
 
@@ -265,4 +266,5 @@ def collect_status(
     attach_goal_acceptance_observations(payload, history=history)
     attach_goal_artifact_lifecycle_projections(payload, history=history)
     attach_goal_role_boards(payload, runtime_root=runtime_root)
+    attach_goal_usage_summaries(payload, runtime_root=runtime_root)
     return payload

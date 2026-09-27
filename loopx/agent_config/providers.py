@@ -27,6 +27,7 @@ from typing import Any
 
 from ._yaml import load_yaml_file
 from .errors import AgentConfigError
+from .pricing import ProviderPricing, parse_provider_pricing
 
 PROVIDERS_FILENAME = "providers.yaml"
 PROVIDER_KINDS = ("anthropic", "openai", "openai-compatible", "codex-cpa")
@@ -49,6 +50,7 @@ _PROVIDER_FIELDS = {
     "display_name",
     "service_tier",
     "description",
+    "pricing",
 }
 _AUTH_FIELDS = {"type", "env", "keychain", "cli"}
 _KEYCHAIN_FIELDS = {"service", "account"}
@@ -104,6 +106,8 @@ class Provider:
     display_name: str | None = None
     service_tier: str | None = None
     description: str | None = None
+    # G9: optional USD-per-1M-token prices for an estimated Turn cost.
+    pricing: ProviderPricing | None = None
     source: str | None = field(default=None, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
@@ -117,6 +121,7 @@ class Provider:
             "display_name": self.display_name,
             "service_tier": self.service_tier,
             "description": self.description,
+            "pricing": self.pricing.to_dict() if self.pricing else None,
             "source": self.source,
         }
 
@@ -261,6 +266,7 @@ def parse_provider(
     display_name = _optional_str(raw, "display_name", where, issues)
     service_tier = _optional_str(raw, "service_tier", where, issues)
     description = _optional_str(raw, "description", where, issues)
+    pricing = parse_provider_pricing(raw.get("pricing"), where=where, issues=issues)
     codex_only = {
         "wire_api": wire_api,
         "model_provider_id": model_provider_id,
@@ -302,6 +308,7 @@ def parse_provider(
             display_name=display_name,
             service_tier=service_tier,
             description=description,
+            pricing=pricing,
         ),
         [],
     )
