@@ -731,9 +731,11 @@ class Dispatcher:
             crashes = int(retry.get("crashes") or 0)
             settlement_retries = int(retry.get("settlement_retries") or 0)
             reused = True
-            if retry.get("settlement") and retry.get("project"):
+            if retry.get("settlement") and retry.get("project") and Path(str(retry["project"])).is_dir():
                 # The settlement is bound to the delivery workspace the host
                 # ran in (the quota spend checks it), so resume from there.
+                # A removed workspace (an acceptor's review checkout) resumes
+                # from the goal project; the retry limit bounds that case.
                 run_project = Path(str(retry["project"]))
         else:
             turn_instance_id = mint_turn_instance_id(prefix="dispatch")
