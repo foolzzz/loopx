@@ -321,13 +321,17 @@ def validate_loopx_turn_host_result(
 
     material = kind in MATERIAL_HOST_RESULT_KINDS
     vision_checkpoint_required = turn_plan_requires_vision_checkpoint(plan)
+    # Pilot v1 N6: an acceptor review Turn carries its verdict feedback in summary.
+    from .acceptor_verdict import host_result_text_limits
+
+    text_limits = host_result_text_limits(HOST_RESULT_TEXT_LIMITS, plan)
     normalized = {
         "schema_version": LOOPX_TURN_RESULT_SCHEMA_VERSION,
         "turn_key": turn_key,
         "result_kind": kind.value if kind else None,
         "completed_phases": list(TRANSACTION_PHASES[:2]),
     }
-    for field, limit in HOST_RESULT_TEXT_LIMITS:
+    for field, limit in text_limits.items():
         if not vision_checkpoint_required and field in HOST_VISION_RESULT_FIELDS:
             continue
         text = _bounded_public_text(

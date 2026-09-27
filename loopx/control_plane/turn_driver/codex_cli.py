@@ -390,7 +390,9 @@ def codex_cli_result_kinds(request: Mapping[str, Any] | None = None) -> list[str
 def codex_cli_result_schema(
     request: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    text_limits = dict(HOST_RESULT_TEXT_LIMITS)
+    from .acceptor_verdict import host_result_text_limits
+
+    text_limits = host_result_text_limits(HOST_RESULT_TEXT_LIMITS, request)
     properties: dict[str, Any] = {
         "schema_version": {
             "type": "string",
@@ -527,7 +529,9 @@ def _prompt(request: Mapping[str, Any]) -> str:
             "the developer. Check the delivered commit in this workspace against the "
             "Todo's text, acceptance criteria and validation. Return validated_completion to accept "
             "it. To reject it, return repair_required and put concrete, actionable feedback for the "
-            "developer in summary; LoopX reopens the Todo for the same developer, and a second "
+            "developer in summary, the failed criteria first and the details after, in at most 550 "
+            "characters (LoopX keeps that much as the developer's review_feedback); LoopX reopens "
+            "the Todo for the same developer, and a second "
             "rejection escalates to the orchestrator. If you cannot review for your own reasons "
             "(broken tooling, environment, missing dependencies), return user_action_required with "
             "the reason in summary: this blocked verdict asks the user and is not a rejection.",
