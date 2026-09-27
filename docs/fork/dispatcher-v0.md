@@ -173,8 +173,10 @@ state:
 
 - Turn journals are keyed by turn key, and codex-cli sessions by (goal, agent,
   todo), so they never collide. Run records live under `dispatch/runs/<run>`.
-- Crash-retry identities (`retry_turns` in `state.json`) are keyed by
-  `<goal>/<todo>@<agent>`.
+- Crash-retry and settlement-retry identities (`retry_turns` in `state.json`)
+  are keyed by `<goal>/<todo>@<agent>`. A launch takes over an identity under
+  the older todo-less `<goal>/<agent>` key only when it is for the same todo,
+  and leaves another todo's identity in place.
 - Quota spend is recorded per Turn: an effect-bound spend (the Turn pipeline's
   `<effect_id>#quota_spend`) accounts for its own Turn's delivery run, not the
   agent's latest one, which may belong to a sibling Turn.
@@ -202,6 +204,29 @@ identity:
   derived from it, so a second writeback of the same effect is rejected.
 
 After 3 crashes in a row the todo backs off.
+
+### Settlement that fails after the host completed
+
+The bounded settlement retries above can run out under sustained contention.
+The child then exits with a failed payload, not a crash: either an error (the
+retry raised, and the journal stays `in_progress` with a prepared effect) or
+`status=failed` with a receipt whose `failed_phase` is a settlement phase
+(`durable_writeback`, `quota_spend`, `terminal_closeout`, `scheduler_*`). In
+both cases the journal already holds the host's typed result.
+
+The dispatcher keeps that Turn's identity. It records a `retry_turns` entry
+(`settlement: true`, the journal key, the failed phase and the delivery
+workspace the host ran in), and the todo takes the ordinary failure backoff.
+Once the backoff ends, the next pass resumes the Turn before asking
+should-run (launch reason `settlement_retry`), because the todo may already be
+`in_review` and would not be selected again. The resume passes
+`--resume-turn-key <key> --retry-failed-turn` from the same workspace, so
+run-once skips the host (`typed_result` is complete) and settles the cached
+result: the quota spend is kept and the host does not redo the work.
+
+A validation or host failure is not a settlement failure; it keeps starting a
+new host attempt. After 5 settlement resumes that still fail, the dispatcher
+drops the identity and the next launch mints a new Turn, as before.
 
 Children run in their own session. They survive a dispatcher restart and are
 adopted on the next start: the dispatcher tracks their pid, and reads their output
