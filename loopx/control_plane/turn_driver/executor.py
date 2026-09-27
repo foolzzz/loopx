@@ -33,6 +33,7 @@ from .host_binding import (
     managed_executor_unavailable_payload,
 )
 from .host_failure import BuiltInHostError, record_host_failure
+from .turn_usage import host_turn_usage
 from .journal_store import (
     LOOPX_TURN_JOURNAL_SCHEMA_VERSION,
     TURN_KEY_RE,
@@ -701,6 +702,7 @@ def _run_host_runner(
     try:
         value = runner(request)
     except BuiltInHostError as exc:
+        usage = host_turn_usage(exc)
         return {
             "ok": False,
             "reason": exc.reason,
@@ -711,6 +713,7 @@ def _run_host_runner(
                 if exc.recovery_kind is not None
                 else {}
             ),
+            **({"turn_usage": usage} if usage is not None else {}),
         }
     except Exception as exc:  # noqa: BLE001 - host adapters fail closed at boundary
         return {"ok": False, "reason": type(exc).__name__, "returncode": None}
@@ -724,7 +727,13 @@ def _run_host_runner(
             "ok": False,
             "reason": "built-in host result exceeded the result budget",
         }
-    return {"ok": True, "value": value, "returncode": 0}
+    usage = host_turn_usage(value)
+    return {
+        "ok": True,
+        "value": dict(value),
+        "returncode": 0,
+        **({"turn_usage": usage} if usage is not None else {}),
+    }
 
 
 def _compact_callback(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -780,6 +789,14 @@ def _host_result_stage(
             )
         )
         effects["host_invoked"] = True
+        # G9: journal what this host attempt cost, success or failure.
+        if isinstance(host_observation.get("turn_usage"), Mapping):
+            journal["turn_usage"] = {
+                **host_observation["turn_usage"],
+                "host_attempt": int(journal["host_attempt_count"]),
+            }
+        else:
+            journal.pop("turn_usage", None)
         if not host_observation.get("ok"):
             failure = _host_failure(
                 plan,

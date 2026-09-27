@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import threading
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,7 @@ from .codex_cli import (
 from .executor import LOOPX_TURN_HOST_REQUEST_SCHEMA_VERSION
 from .host_failure import BuiltInHostError
 from .transaction import LOOPX_TURN_RESULT_SCHEMA_VERSION, TRANSACTION_PHASES
+from .turn_usage import attach_turn_usage, claude_code_turn_usage
 
 CLAUDE_CODE_PERMISSION_MODES = (
     "acceptEdits",
@@ -248,6 +250,7 @@ def run_claude_code_host(
         system_prompt_file=prompt_path,
         extra_args=extra,
     )
+    started_at = time.time()
     proc = subprocess.Popen(
         command,
         cwd=project,
@@ -303,22 +306,37 @@ def run_claude_code_host(
     finally:
         for reader in readers:
             reader.join(timeout=OUTPUT_DRAIN_TIMEOUT_SECONDS)
+    finished_at = time.time()
+    envelope = (
+        None
+        if timed_out or stdout_size[0] > _STDOUT_MAX_BYTES
+        else _parse_envelope("".join(stdout_chunks))
+    )
+    # G9: usage is recorded for failed Turns too; the tokens were still spent.
+    usage = claude_code_turn_usage(
+        envelope, started_at=started_at, finished_at=finished_at, configured_model=model,
+    )
     if timed_out:
-        raise BuiltInHostError("claude_code_timeout", failure_kind="executor_timeout")
+        raise BuiltInHostError(
+            "claude_code_timeout", failure_kind="executor_timeout", turn_usage=usage,
+        )
     if stdout_size[0] > _STDOUT_MAX_BYTES:
-        raise BuiltInHostError("claude_code_output_too_large", failure_kind="unknown")
-    envelope = _parse_envelope("".join(stdout_chunks))
+        raise BuiltInHostError(
+            "claude_code_output_too_large", failure_kind="unknown", turn_usage=usage,
+        )
     stderr_text = "".join(stderr_tail)
     if returncode != 0 or envelope is None or envelope.get("is_error") is True:
         kind = _failure_kind(envelope, stderr_text)
         if returncode == 0 and envelope is None:
-            raise BuiltInHostError("claude_code_output_not_json", failure_kind="unknown")
-        raise BuiltInHostError(f"claude_code_{kind}", failure_kind=kind)
+            raise BuiltInHostError(
+                "claude_code_output_not_json", failure_kind="unknown", turn_usage=usage,
+            )
+        raise BuiltInHostError(f"claude_code_{kind}", failure_kind=kind, turn_usage=usage)
     result = _structured_result(envelope)
     if result is None:
-        raise BuiltInHostError("claude_code_final_result_missing")
+        raise BuiltInHostError("claude_code_final_result_missing", turn_usage=usage)
     if not isinstance(result, dict):
-        raise BuiltInHostError("claude_code_final_result_not_object")
+        raise BuiltInHostError("claude_code_final_result_not_object", turn_usage=usage)
     if (
         result.get("schema_version") != LOOPX_TURN_RESULT_SCHEMA_VERSION
         or str(result.get("turn_key") or "") != turn_key
@@ -327,5 +345,6 @@ def run_claude_code_host(
         raise BuiltInHostError(
             "claude_code_result_contract_mismatch",
             failure_kind="contract_rejected",
+            turn_usage=usage,
         )
-    return result
+    return attach_turn_usage(result, usage)
