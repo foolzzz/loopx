@@ -267,6 +267,8 @@ class Dispatcher:
                                goal_id=goal_id, state=self.state, report=report, now=self.clock())
         except Exception as exc:  # noqa: BLE001 - report and retry next pass
             report["errors"].append({"goal_id": goal_id, "error": f"usage_budget: {exc}"[:400]})
+        if role_v1:
+            self._request_push_when_merged(goal_id, report)
         for agent_id, registry_role in self._agents_for_goal(goal):
             skip = lambda reason, **extra: report["skipped"].append(  # noqa: E731
                 {"goal_id": goal_id, "agent_id": agent_id, "reason": reason, **extra}
@@ -554,6 +556,29 @@ class Dispatcher:
         if len(paths) == 1:
             return True, Path(next(iter(paths.values()))), paths, review
         return True, Path(str(prepared["workspace_root"])), paths, review
+
+    def _request_push_when_merged(self, goal_id: str, report: dict[str, Any]) -> None:
+        """Open the goal's push_request user gate once all its work is merged (G8).
+
+        A system gate like re-login (decision 17): LoopX opens it through the
+        push-request API, which keeps it to one open gate per goal and does
+        not reopen a declined push until new merges arrive.
+        """
+
+        from ..push_requests import PUSH_REASON_ALL_MERGED, request_push
+
+        try:
+            result = request_push(
+                registry_path=self.registry_path, goal_id=goal_id, runtime_root_arg=str(self.runtime_root),
+                reason=PUSH_REASON_ALL_MERGED, requested_by="dispatcher", require_all_merged=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - report and retry next pass
+            report["errors"].append({"goal_id": goal_id, "error": f"push_request: {exc}"[:400]})
+            return
+        if result.get("opened"):
+            report["gates_opened"].append(
+                {"goal_id": goal_id, "key": "push_request", "todo_id": result.get("gate_todo_id")}
+            )
 
     def _resume_plan_dependents(self, goal_id: str, report: dict[str, Any]) -> None:
         """Reopen plan todos whose dependencies are done, through the Todo API.

@@ -46,7 +46,9 @@ GATE_KIND_DECISION = "decision"
 GATE_KIND_PLAN_APPROVAL = "plan_approval"
 # G12: opened by LoopX when the acceptor cannot review (``loopx.todo_review_blocked``).
 GATE_KIND_ACCEPTOR_BLOCKED = "acceptor_blocked"
-GATE_KINDS = (GATE_KIND_DECISION, GATE_KIND_PLAN_APPROVAL, GATE_KIND_ACCEPTOR_BLOCKED)
+# G8: opened by LoopX when a goal's merged work is ready to push (``loopx.push_requests``).
+GATE_KIND_PUSH_REQUEST = "push_request"
+GATE_KINDS = (GATE_KIND_DECISION, GATE_KIND_PLAN_APPROVAL, GATE_KIND_ACCEPTOR_BLOCKED, GATE_KIND_PUSH_REQUEST)
 
 MAX_MESSAGE_CHARS = 4000
 
@@ -485,7 +487,8 @@ def gate_view(
         changes = plan_criteria_changes_view(runtime_root, goal_id, str(entry["plan_id"]))
         if changes:  # decision 40: old and new criteria side by side
             view["criteria_changes"] = changes
-    for key in ("review_todo_id", "acceptor_agent", "options", "decision_option"):
+    for key in ("review_todo_id", "acceptor_agent", "options", "decision_option",
+                "push_reason", "push_repos", "previous_errors", "push_outcome"):
         if entry.get(key):
             view[key] = entry[key]
     return view

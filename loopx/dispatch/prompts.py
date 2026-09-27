@@ -137,6 +137,9 @@ def dispatch_prompt_addendum(
             "\"reason\": ...}]}` (optionally with new `todos`). The change takes effect only when the "
             "user approves; until then the acceptor does not review T, and a reject or cancel leaves "
             "the criteria unchanged.",
+            "- Pushing to a remote is a user gate. LoopX opens a push_request gate once all of the "
+            "goal's work is merged; to ask for one earlier run `loopx goal request-push --goal-id "
+            f"{goal_id} --agent-id {agent_id}`. Never run git push yourself.",
         ]
         if awaiting_gates:
             lines.append(

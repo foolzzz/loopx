@@ -3,6 +3,7 @@
 - gate reply/show/list: user gate discussion threads (decision 10).
 - plan propose/show/list/apply: orchestrator plan cards (decision 12).
 - goal create: requirements-doc goal intake (decision 13).
+- goal request-push: open the push_request user gate (G8, decision 18).
 """
 
 from __future__ import annotations
@@ -96,12 +97,40 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     create.add_argument("--objective", help="Goal objective (defaults to the doc's first heading).")
     create.add_argument("--no-global-sync", action="store_true", help="Do not merge into the global registry.")
     create.add_argument("--dry-run", action="store_true")
+    request_push = goal_actions.add_parser(
+        "request-push",
+        help="Open the goal's push_request user gate for its merged, unpushed work (G8).",
+    )
+    add_format(request_push)
+    request_push.add_argument("--goal-id", required=True)
+    request_push.add_argument(
+        "--agent-id", help="The goal orchestrator when it asks; omit for the owner.",
+    )
+    request_push.add_argument("--dry-run", action="store_true")
 
 
 def _format(args) -> str:
     from ..cli_runtime import output_format
 
     return output_format(args)
+
+
+def _request_push(args, *, registry_path: Path, runtime_root_arg: str | None) -> dict:
+    from ..agent_registry import load_goal_from_registry
+    from ..gate_threads import require_goal_orchestrator
+    from ..push_requests import request_push
+
+    if args.agent_id:
+        goal = load_goal_from_registry(registry_path, args.goal_id)
+        if goal is None:
+            raise ValueError(f"goal {args.goal_id!r} is not registered")
+        require_goal_orchestrator(goal, args.agent_id)
+    # The orchestrator's request respects a push the user declined until new
+    # merges arrive; the owner may always ask again.
+    return request_push(
+        registry_path=registry_path, goal_id=args.goal_id, runtime_root_arg=runtime_root_arg,
+        requested_by=args.agent_id or "owner", respect_declined=bool(args.agent_id), dry_run=args.dry_run,
+    )
 
 
 def handle_gate_plan_goal_command(
@@ -116,7 +145,9 @@ def handle_gate_plan_goal_command(
 
     renderer = render_gate_markdown
     try:
-        if args.command == "goal":
+        if args.command == "goal" and args.goal_command == "request-push":
+            payload = _request_push(args, registry_path=registry_path, runtime_root_arg=runtime_root_arg)
+        elif args.command == "goal":
             renderer = render_goal_create_markdown
             payload = create_goal(
                 project=Path(args.project), goal_id=args.goal_id, doc=Path(args.doc),
