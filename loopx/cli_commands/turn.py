@@ -509,6 +509,7 @@ def handle_turn_command(
                         evidence=f"LoopX Turn {result_kind}: {result['next_action']}",
                         agent_id=args.agent_id,
                         result_kind=result_kind,
+                        verdict_feedback=str(result.get("summary") or ""),
                     )
                     if verdict_recorded:
                         # Fork S2: the acceptor's reject verdict is its completed
@@ -1169,6 +1170,17 @@ def handle_turn_command(
                 admit_start=managed_cadence.admit if args.execute else None,
                 confirm_start=managed_cadence.confirm if args.execute else None,
             )
+            if args.execute:
+                from ..todo_review_blocked import settle_turn_stop_verdict
+
+                # G12: an acceptor's user_action_required stop is its blocked verdict.
+                blocked = settle_turn_stop_verdict(
+                    payload, registry_path=registry_path, runtime_root=runtime_root,
+                    runtime_root_arg=runtime_root_arg, goal_id=args.goal_id,
+                    agent_id=args.agent_id, selected_todo=selected_todo,
+                )
+                if blocked is not None:
+                    payload["acceptance"] = blocked
         else:
             raise ValueError("turn requires the `plan` or `run-once` subcommand")
     except Exception as exc:  # noqa: BLE001 - CLI boundary renders typed JSON failure

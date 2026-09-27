@@ -33,6 +33,14 @@ from .orchestrator_actions import (
     live_orchestrator_todo,
 )
 from .prompts import compose_system_prompt, dispatch_prompt_addendum, replace_system_prompt_argument
+from .review_checkouts import (
+    blocked_review_todo_ids,
+    is_review_turn,
+    prepare_acceptor_review,
+    remove_acceptor_review,
+    review_run_record,
+    settle_acceptor_review,
+)
 from .state import (
     DispatchLock,
     dispatch_dir,
@@ -175,7 +183,7 @@ class Dispatcher:
         except OSError:
             children = []
         for child in children:
-            if child.name in {"workspaces"}:
+            if child.name in {"workspaces", "reviews"}:
                 continue
             paths.append(child)
             if child.name == "turns" and child.is_dir():
@@ -249,7 +257,9 @@ class Dispatcher:
                 {"goal_id": goal_id, "agent_id": agent_id, "reason": reason, **extra}
             )
             try:
-                definition = resolve_agent(agent_id, project, runtime_root=self.runtime_root)
+                definition = resolve_agent(
+                    agent_id, project, runtime_root=self.runtime_root, role=registry_role,
+                )
             except AgentConfigError as exc:
                 skip("agent_config_invalid", issues=list(exc.issues)[:5])
                 continue
@@ -330,14 +340,23 @@ class Dispatcher:
                     }
                     if self._todo_cooling(goal_id, candidate, agent_id, now)
                 }
-                if todo_id and (todo_id in in_flight or todo_id in cooling) and role != policy.ROLE_ORCHESTRATOR:
+                # G12: while an acceptor-blocked gate is open for a todo, its
+                # acceptor is not relaunched on it.
+                review_blocked = (
+                    blocked_review_todo_ids(self.registry_path, self.runtime_root, goal_id)
+                    if role == policy.ROLE_ACCEPTOR else set()
+                )
+                if todo_id and (todo_id in in_flight | cooling | review_blocked) and role != policy.ROLE_ORCHESTRATOR:
                     # Fill a free slot of this agent with its next executable todo.
-                    alternate = policy.alternate_todo(payload, exclude=in_flight | cooling)
+                    alternate = policy.alternate_todo(payload, exclude=in_flight | cooling | review_blocked)
                     if alternate:
                         decision = {**decision, "todo_id": alternate, "reason": "alternate_todo", "pinned": True}
                         todo_id = alternate
                 if todo_id and todo_id in in_flight:
                     skip("todo_in_flight", todo_id=todo_id)
+                    break
+                if todo_id and todo_id in review_blocked:
+                    skip("review_blocked_gate_open", todo_id=todo_id)
                     break
                 if todo_id and self._todo_cooling(goal_id, str(todo_id), agent_id, now):
                     skip("todo_cooldown", todo_id=todo_id)
@@ -441,18 +460,27 @@ class Dispatcher:
         todo: Mapping[str, Any],
         role: str | None,
         report: dict[str, Any],
-    ) -> tuple[bool, Path | None, dict[str, str]]:
-        """Return ``(ok, cwd, repo_paths)``; cwd is None when no workspace applies."""
+        *,
+        attempt: str,
+    ) -> tuple[bool, Path | None, dict[str, str], dict[str, Any] | None]:
+        """Return ``(ok, cwd, repo_paths, review_checkout)``; cwd is None when no workspace applies.
+
+        An acceptor reviewing a delivered todo gets a detached review checkout
+        of the delivered commit (G12), never the developer's todo worktree.
+        """
 
         if role not in {policy.ROLE_DEVELOPER, policy.ROLE_ACCEPTOR, None}:
-            return True, None, {}
+            return True, None, {}, None
         goal_id = str(goal.get("id"))
         repos = [str(item) for item in (todo.get("task_repositories") or []) if item]
         if not repos:
-            return True, None, {}
+            return True, None, {}, None
         from ..workspace import git_workspace
 
-        prepared = git_workspace.prepare(dict(goal), todo_id, repos, self.runtime_root)
+        if is_review_turn(role, todo):
+            prepared = prepare_acceptor_review(goal, todo, self.runtime_root, attempt=attempt)
+        else:
+            prepared = git_workspace.prepare(dict(goal), todo_id, repos, self.runtime_root)
         if not prepared.get("ok"):
             until = self.clock() + self.config.workspace_failure_cooldown_seconds
             self.state.setdefault("todo_cooldowns", {})[f"{goal_id}/{todo_id}"] = {
@@ -464,7 +492,7 @@ class Dispatcher:
                 {
                     "goal_id": goal_id,
                     "todo_id": todo_id,
-                    "error": "workspace_prepare_failed",
+                    "error": "review_checkout_failed" if is_review_turn(role, todo) else "workspace_prepare_failed",
                     "repos": [
                         {"name": item.get("name"), "error_code": item.get("error_code")}
                         for item in prepared.get("repos") or []
@@ -473,11 +501,12 @@ class Dispatcher:
                     or prepared.get("error_code"),
                 }
             )
-            return False, None, {}
+            return False, None, {}, None
         paths = {str(name): str(path) for name, path in (prepared.get("paths") or {}).items()}
+        review = review_run_record(prepared) if is_review_turn(role, todo) else None
         if len(paths) == 1:
-            return True, Path(next(iter(paths.values()))), paths
-        return True, Path(str(prepared["workspace_root"])), paths
+            return True, Path(next(iter(paths.values()))), paths, review
+        return True, Path(str(prepared["workspace_root"])), paths, review
 
     def _resume_plan_dependents(self, goal_id: str, report: dict[str, Any]) -> None:
         """Reopen plan todos whose dependencies are done, through the Todo API.
@@ -621,9 +650,13 @@ class Dispatcher:
         validation_argv: list[str] | None = None
         validation_timeout: int | None = None
         todo: Mapping[str, Any] = {}
+        review_checkout: dict[str, Any] | None = None
+        run_id = f"{int(self.clock())}-{uuid.uuid4().hex[:8]}"
         if todo_id and decision.get("todo_is_agent_todo", True):
             todo = self._todo_record(goal_id, str(todo_id)) or {}
-            ok, cwd, repo_paths = self._prepare_workspace(goal, str(todo_id), todo, role, report)
+            ok, cwd, repo_paths, review_checkout = self._prepare_workspace(
+                goal, str(todo_id), todo, role, report, attempt=run_id,
+            )
             if not ok:
                 return None
             try:
@@ -647,7 +680,6 @@ class Dispatcher:
             reused = False
         self.state["retry_turns"].pop(retry_key, None)
 
-        run_id = f"{int(self.clock())}-{uuid.uuid4().hex[:8]}"
         run_dir = dispatch_dir(self.runtime_root) / "runs"
         run_dir.mkdir(parents=True, exist_ok=True)
         stdout_path = run_dir / f"{run_id}.out.json"
@@ -666,6 +698,7 @@ class Dispatcher:
                     role=role,
                     todo_id=str(todo_id) if todo_id else None,
                     workspace_repos=repo_paths,
+                    review_checkout=review_checkout is not None,
                     awaiting_gates=(
                         gates_awaiting_orchestrator(self.runtime_root, goal_id)
                         if role == "orchestrator" else None
@@ -682,6 +715,8 @@ class Dispatcher:
                 env.update(provider_launch_env(provider, environ=self.environ))
             except AgentConfigError:
                 self._agent_unavailable(goal_id, agent_id, "missing_credential", report)
+                if review_checkout is not None:
+                    remove_acceptor_review(goal, review_checkout, self.runtime_root)
                 return None
 
         argv = [
@@ -744,16 +779,21 @@ class Dispatcher:
         if self.config.no_global_sync:
             argv.append("--no-global-sync")
         argv.extend(self.config.extra_turn_args)
-        with open(stdout_path, "wb") as stdout, open(stderr_path, "wb") as stderr:
-            child = subprocess.Popen(
-                argv,
-                cwd=str(run_project),
-                env=env,
-                stdin=subprocess.DEVNULL,
-                stdout=stdout,
-                stderr=stderr,
-                start_new_session=True,
-            )
+        try:
+            with open(stdout_path, "wb") as stdout, open(stderr_path, "wb") as stderr:
+                child = subprocess.Popen(
+                    argv,
+                    cwd=str(run_project),
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=stdout,
+                    stderr=stderr,
+                    start_new_session=True,
+                )
+        except OSError:
+            if review_checkout is not None:
+                remove_acceptor_review(goal, review_checkout, self.runtime_root)
+            raise
         self.children[run_id] = child
         record = {
             "run_id": run_id,
@@ -772,6 +812,7 @@ class Dispatcher:
             "started_at": self.clock(),
             "project": str(run_project),
             "workspace_repos": sorted(repo_paths),
+            **({"review_checkout": review_checkout} if review_checkout is not None else {}),
             "stdout_path": str(stdout_path),
             "stderr_path": str(stderr_path),
         }
@@ -868,7 +909,15 @@ class Dispatcher:
             self.state.setdefault("orchestrator_baselines", {})[
                 _agent_key(goal_id, agent_id)
             ] = self.goal_fingerprint(goal_id)
-        record = {**run, **outcome, "finished_at": now, "run_id": run_id}
+        review = settle_acceptor_review(self._goal(goal_id), run, self.runtime_root)
+        if review and review.get("modified") and run.get("todo_id"):
+            # The role board shows this warning on the todo's card (G12).
+            warnings = self.state.setdefault("review_warnings", {})
+            warnings[f"{goal_id}/{run['todo_id']}"] = {"agent_id": agent_id, "at": now, "repos": review.get("repos")}
+            for stale in list(warnings)[:-100]:
+                warnings.pop(stale, None)
+        record = {**run, **outcome, "finished_at": now, "run_id": run_id,
+                  **({"review_checkout_settled": review} if review is not None else {})}
         self._running().pop(run_id, None)
         self.state.setdefault("history", []).append(record)
         prompt = Path(str(run.get("stdout_path") or "")).with_name(f"{run_id}.system-prompt.md")

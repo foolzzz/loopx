@@ -579,8 +579,14 @@ def merge(
     runtime_root: str | Path,
     *,
     dry_run: bool = False,
+    expected_source_shas: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Merge the todo branch into each repo's target, all repos or none."""
+    """Merge the todo branch into each repo's target, all repos or none.
+
+    ``expected_source_shas`` pins each repo to the commit recorded at delivery
+    (fork gap G12): that exact sha is merged, and a todo branch whose tip moved
+    away from it blocks the merge with ``delivery_moved``.
+    """
 
     try:
         goal_id = _goal_id(goal)
@@ -591,7 +597,10 @@ def merge(
     payload = _envelope("merge", goal_id, todo_id, dry_run=dry_run)
     root = todo_workspace_root(runtime_root, goal_id, todo_id)
     with _goal_lock(runtime_root, goal_id):
-        plans = [_merge_preflight(repo, goal_id, todo_id, root) for repo in repos]
+        plans = [
+            _merge_preflight(repo, goal_id, todo_id, root, (expected_source_shas or {}).get(str(repo["name"])))
+            for repo in repos
+        ]
         payload["repos"] = [_public_plan(plan) for plan in plans]
         blocked = [plan for plan in plans if plan["blockers"]]
         if blocked:
@@ -639,7 +648,9 @@ def merge(
         return payload
 
 
-def _merge_preflight(repo: Mapping[str, Any], goal_id: str, todo_id: str, root: Path) -> dict[str, Any]:
+def _merge_preflight(
+    repo: Mapping[str, Any], goal_id: str, todo_id: str, root: Path, expected_sha: str | None = None,
+) -> dict[str, Any]:
     branch = todo_branch(goal_id, todo_id)
     plan: dict[str, Any] = {"name": repo["name"], "branch": branch, "blockers": [], "state": "blocked"}
     try:
@@ -653,6 +664,13 @@ def _merge_preflight(repo: Mapping[str, Any], goal_id: str, todo_id: str, root: 
     source_sha = _rev(repo_dir, f"refs/heads/{branch}")
     if source_sha is None:
         plan["blockers"].append({"error_code": "todo_branch_missing", "reason": f"{branch} does not exist"})
+        return plan
+    if expected_sha and source_sha.lower() != expected_sha.lower():
+        plan["blockers"].append({
+            "error_code": "delivery_moved",
+            "reason": f"{branch} moved after delivery (delivered {expected_sha[:12]}, now {source_sha[:12]})",
+            "delivered_sha": expected_sha, "branch_sha": source_sha,
+        })
         return plan
     todo_path = root / ctx["name"]
     todo_wt = _worktree_at(worktrees, todo_path)

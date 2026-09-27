@@ -23,10 +23,14 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
 - The thread only accepts replies while the gate is `open` or `blocked`. Once
   the gate closes, the thread is read-only.
 - Replying never closes a gate. You still close it with approve, reject or cancel,
-  either through `loopx todo complete --role user --decision-outcome ... --agent-id
+  either through `loopx gate resolve --goal-id G --todo-id T --decision
+  approve|reject|cancel` (the lifecycle actor defaults to the agent the gate
+  blocks), `loopx todo complete --role user --decision-outcome ... --agent-id
   <the agent the gate blocks>` (a multi-agent goal needs the lifecycle actor; the
   dashboard path uses the same attribution) or through the dashboard
-  `gate.resolve` action (S7).
+  `gate.resolve` action (S7). An `acceptor_blocked` gate (G12) also takes
+  `--option` / `option`; see
+  [role-v1-protocol](role-v1-protocol.md#acceptor-verdicts-and-isolation-gap-g12).
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The
@@ -92,6 +96,8 @@ from the requirement docs, or opens a gate itself. The following can still open
 gates:
 
 - the owner or CLI when no agent id is given;
+- LoopX itself: the dispatcher's re-login and cooldown gates (decision 17), and
+  the `acceptor_blocked` gate a blocked acceptor verdict opens (G12);
 - the orchestrator;
 - agents that have no registered role;
 - every agent on `peer_v1` goals.

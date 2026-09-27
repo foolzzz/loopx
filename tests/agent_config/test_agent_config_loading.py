@@ -296,7 +296,9 @@ def test_run_once_host_arguments_for_both_runtimes(roots: tuple[Path, Path]) -> 
         "--host", "codex-cli",
         "--codex-model", "gpt-5.6-sol",
         "--codex-reasoning-effort", "xhigh",
-        "--codex-sandbox", "read-only",
+        # G12: the acceptor's role-based default is unsandboxed (it reviews a
+        # throwaway checkout); see tests/test_acceptor_verdicts_g12.py.
+        "--codex-sandbox", "danger-full-access",
     ]
     assert '--codex-config=model_provider="cpa"' in acceptor_args
 

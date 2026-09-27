@@ -98,6 +98,20 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
    - The Turn is pinned with `--todo-id`.
    - If prepare fails, that todo cools down (default 300s) and the pass reports the
      failure.
+   - **Acceptor review checkout (G12).** An acceptor Turn on an `in_review` todo
+     does not get the developer's worktree. The dispatcher creates a throwaway
+     detached checkout of the delivered commit per repo at
+     `<runtime_root>/goals/G/reviews/T/<run_id>/<repo>` and runs the Turn there
+     (`review_checkout_failed` cools the todo down like a failed prepare). When
+     the child is reaped, the dispatcher inspects the checkout: changes or new
+     commits append an `acceptor_modified_review_checkout` warning event to the
+     goal's event log and a `review_warnings` entry to its state (the role board
+     flags the card); the verdict still stands. Then it removes the checkout,
+     also after a crash or a failed launch.
+   - **Blocked review (G12).** While an `acceptor_blocked` user gate is open for
+     a todo, the acceptor is not relaunched on it: the pass picks the lane's next
+     todo or skips with `review_blocked_gate_open`. The gate also blocks the
+     acceptor's lane in LoopX selection, like the re-login gate.
 7. **Launch** `python -m loopx.cli --registry … --runtime-root … --format json turn run-once --execute`
    with the following arguments:
    - the agent's host flags from `turn_run_once_host_arguments`;
@@ -171,9 +185,11 @@ Two layers tell every Turn to use repo-relative paths instead:
   on the user, and how to resolve an escalation.
 
 Role guidance that every host needs lives in the shared Turn prompt instead: an
-`in_review` todo tells the acceptor that `validated_completion` accepts and
-`repair_required` rejects, and a reopened todo shows the developer the
-acceptor's `review_feedback`. Both developer and acceptor see the todo's
+`in_review` todo tells the acceptor that it only reviews and never modifies
+code, that `validated_completion` accepts, `repair_required` rejects (with
+the required changes as feedback) and `user_action_required` is the blocked
+verdict when it cannot review (G12), and a reopened todo shows the developer
+the acceptor's `review_feedback`. Both developer and acceptor see the todo's
 `acceptance_criteria` and the goal acceptance contract (gap G2); the acceptor
 must name each criterion that failed when it rejects.
 
@@ -184,7 +200,7 @@ must name each criterion that failed when it rejects.
 - `serve.lock`
 - `state.json`: running children, history, provider, agent and todo cooldowns,
   opened gates, orchestrator action todos, crash-retry identities, orchestrator
-  baselines and per-agent slots.
+  baselines, per-agent slots and acceptor review warnings (G12).
 - `runs/`: child output.
 - `logs/`: launchd output.
 
@@ -200,3 +216,6 @@ must name each criterion that failed when it rejects.
 - Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
   concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
   todo.
+- The dispatcher selects an agent's config with its registry role, so the
+  acceptor's unsandboxed role default (G12) applies whatever the file's `role`
+  says, unless the file sets `sandbox` or `permission_mode` explicitly.

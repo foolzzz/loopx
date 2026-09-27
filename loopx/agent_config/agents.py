@@ -40,6 +40,19 @@ CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 CODEX_SANDBOXES = ("read-only", "workspace-write", "danger-full-access")
 DEFAULT_CLAUDE_PERMISSION_MODE = "dontAsk"
 DEFAULT_CODEX_SANDBOX = "read-only"
+# G12 (design decision 35): the acceptor only reviews, in a throwaway detached
+# checkout of the delivered commit, so it runs without a sandbox to build and
+# test freely. Explicit per-agent config still wins.
+ROLE_DEFAULT_CODEX_SANDBOX = {"acceptor": "danger-full-access"}
+ROLE_DEFAULT_CLAUDE_PERMISSION_MODE = {"acceptor": "bypassPermissions"}
+
+
+def default_codex_sandbox(role: str | None) -> str:
+    return ROLE_DEFAULT_CODEX_SANDBOX.get(str(role or ""), DEFAULT_CODEX_SANDBOX)
+
+
+def default_claude_permission_mode(role: str | None) -> str:
+    return ROLE_DEFAULT_CLAUDE_PERMISSION_MODE.get(str(role or ""), DEFAULT_CLAUDE_PERMISSION_MODE)
 RUNTIME_PROVIDER_KINDS = {
     "claude-code": ("anthropic",),
     "codex-cli": ("openai", "openai-compatible", "codex-cpa"),
@@ -186,6 +199,7 @@ def _validate(
     *,
     sources: list[str],
     providers: Mapping[str, Provider] | None,
+    registry_role: str | None = None,
 ) -> tuple[AgentDefinition | None, list[str]]:
     where = sources[-1] if sources else "agent"
     issues: list[str] = []
@@ -231,7 +245,7 @@ def _validate(
         if sandbox is not None:
             issues.append(f"{where}: sandbox applies to codex-cli; use permission_mode")
         if permission_mode is None:
-            permission_mode = DEFAULT_CLAUDE_PERMISSION_MODE
+            permission_mode = default_claude_permission_mode(registry_role or role)
         elif permission_mode not in CLAUDE_PERMISSION_MODES:
             issues.append(
                 f"{where}: permission_mode must be one of {', '.join(CLAUDE_PERMISSION_MODES)}"
@@ -240,7 +254,7 @@ def _validate(
         if permission_mode is not None:
             issues.append(f"{where}: permission_mode applies to claude-code; use sandbox")
         if sandbox is None:
-            sandbox = DEFAULT_CODEX_SANDBOX
+            sandbox = default_codex_sandbox(registry_role or role)
         elif sandbox not in CODEX_SANDBOXES:
             issues.append(f"{where}: sandbox must be one of {', '.join(CODEX_SANDBOXES)}")
     prompt = raw.get("system_prompt_file")
@@ -351,11 +365,14 @@ def resolve_agent(
     *,
     runtime_root: Path,
     providers: Mapping[str, Provider] | None = None,
+    role: str | None = None,
 ) -> AgentDefinition:
     """Return the merged, validated definition for one agent or raise.
 
     ``AgentConfigError.issues`` lists every problem found in the agent's files
-    and in providers.yaml, each prefixed with the file it concerns.
+    and in providers.yaml, each prefixed with the file it concerns. ``role``
+    is the agent's registry role when the caller knows it; it selects the
+    role-based sandbox and permission defaults (else the file's ``role``).
     """
 
     if providers is None:
@@ -370,7 +387,7 @@ def resolve_agent(
         )
     raw, sources, file_issues = merged[agent_id]
     definition, issues = (
-        _validate(raw, sources=sources, providers=providers)
+        _validate(raw, sources=sources, providers=providers, registry_role=role)
         if raw is not None
         else (None, [])
     )

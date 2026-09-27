@@ -93,4 +93,35 @@ todo it also accepts that repo's worktree inside the root.
 checkout and all of its worktrees share it. It never records a local path.
 Local-only repos therefore deliver without a fake origin.
 
+## Delivered sha and review checkouts (G12)
+
+At delivery the tip of `loopx/G/T` in each repo is recorded in the delivery
+evidence (`delivered_shas=<repo>@<sha>,...`). The accept merge passes these as
+`merge(..., expected_source_shas=...)`: each repo merges exactly its delivered
+sha, and a todo branch whose tip moved away from it blocks the merge with the
+blocker `delivery_moved` (nothing is merged; the todo returns to its
+developer).
+
+The acceptor never runs in the todo worktree. `loopx.workspace.review_checkout`
+creates a throwaway review checkout per acceptor Turn:
+
+- `prepare_review_checkout` adds a detached worktree per delivered repo at
+  `<runtime_root>/goals/G/reviews/T/<attempt>/<repo>` (`<attempt>` is the
+  dispatcher run id).
+- `inspect_review_checkout` reports uncommitted changes and a HEAD that is no
+  longer the delivered sha.
+- `remove_review_checkout` force-removes the attempt's worktrees and directory.
+  It is best-effort and idempotent, and it never touches the todo worktree or
+  branch.
+
+A todo delivered before G12 has no recorded sha; its branch tips stand in for
+the review checkout, and its merge is not pinned.
+
+The delivery-identity guard above accepts a review checkout of the settling
+todo in place of its workspace root: `reviews/T/<attempt>` for a multi-repo
+todo (or its one repo for a one-repo todo), with every repo a linked worktree
+of the declared repository detached at any commit. The identity is still the
+todo workspace identity. A detached repo inside the todo's own workspace root
+is still refused.
+
 Nothing fetches or pushes. Pushing is a user gate.

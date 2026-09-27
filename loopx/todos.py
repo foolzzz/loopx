@@ -1653,6 +1653,7 @@ def complete_goal_todo(
     runtime_root_arg: str | None = None,
     decision_outcome: str | None = None,
     dry_run: bool = False,
+    gate_option: str | None = None,
     **options: Any,
 ) -> dict[str, Any]:
     """Complete a todo; closing a user gate also settles its thread and plan card.
@@ -1666,8 +1667,8 @@ def complete_goal_todo(
 
     runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     plan_id = gate_decision_preflight(
-        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
-        todo_id=todo_id, decision=decision_outcome,
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
+        decision=decision_outcome, option=gate_option, runtime_root_arg=runtime_root_arg,
     )
     from .todo_acceptance import route_role_v1_completion  # S2: may deliver to in_review
 
@@ -1683,10 +1684,10 @@ def complete_goal_todo(
     settled = settle_gate_decision(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
         todo_id=todo_id, decision=payload.get("decision_outcome") or decision_outcome,
-        runtime_root_arg=runtime_root_arg,
+        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"),
     )
-    if settled is not None:
-        payload["plan_card"] = settled
+    if settled is not None:  # a plan card, or an acceptor-blocked gate option (G12)
+        payload[settled.pop("payload_key", "plan_card")] = settled
     return payload
 
 

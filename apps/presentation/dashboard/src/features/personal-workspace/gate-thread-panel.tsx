@@ -8,7 +8,9 @@ const HIDDEN_ERROR_CODES = new Set(["not_a_user_gate", "gate_not_found", "goal_n
 
 /** Discussion thread of a user gate: read the messages and append an owner reply.
  * Replying never closes the gate; approve/reject/cancel stay on gate.resolve. */
-export function GateThreadPanel({ goalId, todoId, readOnly }: { goalId: string; todoId: string; readOnly: boolean }) {
+export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
+  goalId: string; todoId: string; readOnly: boolean; onView?: (view: GateThreadView | null) => void;
+}) {
   const { t } = useWorkspaceI18n();
   const [view, setView] = useState<GateThreadView | null>(null);
   const [hidden, setHidden] = useState(false);
@@ -22,6 +24,7 @@ export function GateThreadPanel({ goalId, todoId, readOnly }: { goalId: string; 
       const next = await fetchGateThread(goalId, todoId);
       if (signal?.aborted) return;
       setView(next);
+      onView?.(next);
       setLoadError(false);
     } catch (error) {
       if (signal?.aborted) return;
@@ -29,7 +32,7 @@ export function GateThreadPanel({ goalId, todoId, readOnly }: { goalId: string; 
       if (HIDDEN_ERROR_CODES.has(code)) setHidden(true);
       else setLoadError(true);
     }
-  }, [goalId, todoId]);
+  }, [goalId, todoId, onView]);
 
   useEffect(() => {
     const signal = { aborted: false };
@@ -66,6 +69,7 @@ export function GateThreadPanel({ goalId, todoId, readOnly }: { goalId: string; 
         {view ? <small data-awaiting={view.awaiting}>{t(`gateThread.${view.awaiting}`)}</small> : null}
       </header>
       {view?.kind === "plan_approval" && view.plan_id ? <p className="personal-gate-thread-plan">{t("gateThread.planCard", { planId: view.plan_id })}</p> : null}
+      {view?.kind === "acceptor_blocked" ? <p className="personal-gate-thread-plan">{t("gateThread.acceptorBlocked", { todoId: view.review_todo_id ?? "" })}</p> : null}
       {loadError ? <p className="personal-gate-thread-empty">{t("gateThread.loadError")}</p> : null}
       {view && view.messages.length === 0 ? <p className="personal-gate-thread-empty">{t("gateThread.empty")}</p> : null}
       {view && view.messages.length ? (

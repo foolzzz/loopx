@@ -57,6 +57,13 @@ result = {
     "summary": "One public fixture advanced in fixture-artifact.txt.",
     "reward_memory_reflection_json": "",
 }
+if os.environ.get("FAKE_CLAUDE_RESULT_KIND"):
+    # G12 acceptor verdicts: accept, reject, blocked (user_action_required).
+    result["result_kind"] = os.environ["FAKE_CLAUDE_RESULT_KIND"]
+    result["summary"] = os.environ.get("FAKE_CLAUDE_SUMMARY", "")
+    if result["result_kind"] in {"user_action_required", "wait"}:
+        result["path_delta_mode"] = ""
+        result["vision_unchanged_reason"] = ""
 if os.environ.get("FAKE_CLAUDE_MODE") == "rate_limited":
     print(json.dumps({"type": "result", "subtype": "error_during_execution", "is_error": True,
                       "api_error_status": 429, "result": "API Error: 429"}))

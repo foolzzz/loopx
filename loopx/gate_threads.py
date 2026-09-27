@@ -44,7 +44,9 @@ GATE_CLOSED = "closed"
 
 GATE_KIND_DECISION = "decision"
 GATE_KIND_PLAN_APPROVAL = "plan_approval"
-GATE_KINDS = (GATE_KIND_DECISION, GATE_KIND_PLAN_APPROVAL)
+# G12: opened by LoopX when the acceptor cannot review (``loopx.todo_review_blocked``).
+GATE_KIND_ACCEPTOR_BLOCKED = "acceptor_blocked"
+GATE_KINDS = (GATE_KIND_DECISION, GATE_KIND_PLAN_APPROVAL, GATE_KIND_ACCEPTOR_BLOCKED)
 
 MAX_MESSAGE_CHARS = 4000
 
@@ -160,8 +162,9 @@ def _write_index_entry(
 
 def register_gate_kind(
     runtime_root: Path, goal_id: str, todo_id: str, *, kind: str, plan_id: str | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Record a gate's kind (and plan link) so readers can render it."""
+    """Record a gate's kind (and plan link or other kind fields) so readers can render it."""
 
     if kind not in GATE_KINDS:
         raise GateThreadError("invalid_gate_kind", f"gate kind must be one of: {', '.join(GATE_KINDS)}")
@@ -175,11 +178,13 @@ def register_gate_kind(
         entry["kind"] = kind
         if plan_id:
             entry["plan_id"] = plan_id
+        entry.update(dict(extra or {}))
         return _write_index_entry(runtime_root, goal_id, todo_id, entry)
 
 
 def mark_gate_closed(
     runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     todo_id = _safe_todo_id(todo_id)
     index_path = gate_index_path(runtime_root, goal_id)
@@ -190,6 +195,7 @@ def mark_gate_closed(
         entry = _index_entry(previous, messages, closed=True)
         if decision:
             entry["decision_outcome"] = decision
+        entry.update(dict(extra or {}))
         return _write_index_entry(runtime_root, goal_id, todo_id, entry)
 
 
@@ -404,6 +410,45 @@ def reply_to_gate(
     }
 
 
+GATE_RESOLVE_AUTHORITY_REASON = "owner decision via loopx gate resolve"
+
+
+def resolve_gate(
+    *, registry_path: Path, goal_id: str, todo_id: str, decision: str | None = None,
+    option: str | None = None, note: str | None = None, agent_id: str | None = None,
+    runtime_root_arg: str | None = None, dry_run: bool = False,
+) -> dict[str, Any]:
+    """Close a user gate with an owner decision (``loopx gate resolve``).
+
+    The same path as ``loopx todo complete --role user --decision-outcome`` and
+    the dashboard ``gate.resolve``; the lifecycle actor is the agent the gate
+    blocks. ``option`` picks one of an acceptor-blocked gate's options (G12)
+    and implies its decision.
+    """
+
+    from .todos import complete_goal_todo
+
+    todo_id = _safe_todo_id(todo_id)
+    gate = _gate_todo(registry_path, goal_id, todo_id, runtime_root_arg)
+    if not _gate_is_open(gate):
+        raise GateThreadError("gate_closed", f"gate {todo_id!r} is already {gate.get('status')}")
+    if option is not None and decision is None:
+        from .todo_review_blocked import REVIEW_GATE_OPTION_DECISIONS
+
+        decision = REVIEW_GATE_OPTION_DECISIONS.get(option)
+    if decision not in {"approve", "reject", "cancel"}:
+        raise GateThreadError("decision_required", "gate resolve requires --decision approve|reject|cancel or --option")
+    bound = gate.get("bound_agent") or gate.get("blocks_agent")
+    if agent_id and bound and agent_id != bound:
+        raise GateThreadError("gate_actor_mismatch", f"gate {todo_id!r} belongs to agent {bound!r}, not {agent_id!r}")
+    return complete_goal_todo(
+        registry_path=Path(registry_path), goal_id=goal_id, todo_id=todo_id, role="user",
+        decision_outcome=decision, gate_option=option, note=note, no_followup=True,
+        agent_id=agent_id or bound or None, authority_reason=GATE_RESOLVE_AUTHORITY_REASON,
+        runtime_root_arg=runtime_root_arg, dry_run=dry_run,
+    )
+
+
 def gate_view(
     *, registry_path: Path, runtime_root: Path, goal_id: str, todo_id: str,
     runtime_root_arg: str | None = None,
@@ -435,6 +480,9 @@ def gate_view(
     }
     if entry.get("plan_id"):
         view["plan_id"] = entry["plan_id"]
+    for key in ("review_todo_id", "acceptor_agent", "options", "decision_option"):
+        if entry.get(key):
+            view[key] = entry[key]
     return view
 
 
@@ -470,6 +518,8 @@ def list_gates(
         }
         if entry.get("plan_id"):
             row["plan_id"] = entry["plan_id"]
+        if entry.get("options"):
+            row["options"] = entry["options"]
         if awaiting and row["awaiting"] != awaiting:
             continue
         rows.append(row)
@@ -499,6 +549,13 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
         if len(lines) == 2:
             lines.append("- none")
         return "\n".join(lines) + "\n"
+    if "messages" not in payload and ("review_gate" in payload or "plan_card" in payload):
+        settled = payload.get("review_gate") or payload.get("plan_card") or {}
+        return (
+            f"Resolved gate `{payload.get('todo_id')}`: {payload.get('decision_outcome')}"
+            + (f" ({settled.get('option')})" if settled.get("option") else "")
+            + (f"; error: {settled.get('error')}" if settled.get("error") else "") + "\n"
+        )
     if "message" in payload and "messages" not in payload:
         message = payload["message"]
         return (

@@ -314,10 +314,21 @@ schema, or the lease or guard semantics. None of these was changed.
     to persist; the frontend todo still escalated at the next rejection.
 - **G11 (P3). One pre-existing TS test depends on the environment:** `a worktree
   venv wins over an unusable system python3`.
-- **G12 (P2, not changed). An acceptor's `repair_required` counts as a reject.**
-  An acceptor Turn that returns `repair_required` for its own reasons (for
-  example broken tooling) is recorded as a reject verdict, so it increments
-  `reject_count` and can escalate a todo whose delivery was not at fault.
+- **G12 (P2). An acceptor's `repair_required` counts as a reject. Resolved**
+  (approved by the user; design-v0 decisions 35 and 36).
+  - An acceptor Turn that returned `repair_required` for its own reasons (for
+    example broken tooling) was recorded as a reject verdict, so it incremented
+    `reject_count` and could escalate a todo whose delivery was not at fault.
+  - Fix: the acceptor has three verdicts. Reject needs feedback that names the
+    failed criteria; a blank `repair_required` is treated as blocked. The new
+    blocked verdict (`todo block-review`, or an acceptor Turn returning
+    `user_action_required`) keeps the todo `in_review`, does not count, and
+    opens a system user gate with four options: retry acceptance, accept
+    manually, return to developer, cancel the todo.
+  - The acceptor also only reviews now: it runs unsandboxed in a throwaway
+    detached checkout of the delivered commit, and the accept merge merges the
+    recorded delivered sha (`delivery_moved` blocks a branch that moved). See
+    [role-v1-protocol](role-v1-protocol.md#acceptor-verdicts-and-isolation-gap-g12).
 
 ## Evidence
 

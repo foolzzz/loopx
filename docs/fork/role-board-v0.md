@@ -60,6 +60,13 @@ that a plan card created carries `plan_id` and the plan's gate id.
 The projection passes `status` through unchanged, including `in_review` from
 slice S2.
 
+Gap G12 adds two card flags: `review_checkout_modified` when an acceptor Turn
+changed its throwaway review checkout (from the dispatcher's
+`review_warnings`), and `review_blocked_gate_todo_id` when an open
+`acceptor_blocked` gate holds the todo's review. A gate of that kind reports
+`kind=acceptor_blocked` with its `review_todo_id` and `options`; the dashboard
+falls back to rendering it as a decision.
+
 ### Gates
 
 The `gates` list holds open user gates (`role=user`, `task_class=user_gate`).

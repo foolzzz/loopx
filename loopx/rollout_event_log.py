@@ -15,6 +15,7 @@ ROLLOUT_EVENT_SUMMARY_SCHEMA_VERSION = "loopx_rollout_event_summary_v0"
 DEFAULT_ROLLOUT_EVENT_LOG_NAME = "rollout-event-log.jsonl"
 
 ROLLOUT_EVENT_KINDS = {
+    "acceptor_modified_review_checkout",
     "codex_session_observed",
     "capability_gap",
     "compact_blocker",
@@ -35,10 +36,12 @@ ROLLOUT_EVENT_KINDS = {
     "refresh_external_delivery",
     "research_evidence",
     "research_hypothesis",
+    "review_gate_decided",
     "todo_add",
     "todo_archive_completed",
     "todo_claim",
     "todo_complete",
+    "todo_review_blocked",
     "todo_supersede",
     "todo_update",
     "validation",

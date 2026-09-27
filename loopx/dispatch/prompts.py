@@ -26,6 +26,7 @@ def dispatch_prompt_addendum(
     workspace_repos: Mapping[str, str] | None,
     awaiting_gates: Sequence[str] | None = None,
     loopx_command: str = "loopx",
+    review_checkout: bool = False,
 ) -> str:
     """Render the dispatch context for one Turn.
 
@@ -44,7 +45,16 @@ def dispatch_prompt_addendum(
         "",
         f"- {RESULT_PATH_HYGIENE_RULE}",
     ]
-    if workspace_repos:
+    if workspace_repos and review_checkout:
+        names = sorted(workspace_repos)
+        lines.append(
+            "- Your working directory is a throwaway review checkout of the delivered commit of todo "
+            f"`{todo_id}` (detached HEAD; "
+            + (f"repo `{names[0]}`" if len(names) == 1 else "one directory per repo: "
+               + ", ".join(f"`{name}/`" for name in names))
+            + "). It is removed after this Turn; nothing you change here reaches the todo branch."
+        )
+    elif workspace_repos:
         names = sorted(workspace_repos)
         if len(names) == 1:
             lines.append(
@@ -69,12 +79,17 @@ def dispatch_prompt_addendum(
             )
     if role == "acceptor" and todo_id:
         lines.append(
-            f"- Todo `{todo_id}` was delivered for your review (status in_review). Check each "
+            f"- Todo `{todo_id}` was delivered for your review (status in_review). You only review "
+            "and deliver a verdict: never modify code, commit, push or merge. Put every change the "
+            "developer must make into the rejection feedback. Check each "
             "criterion in its acceptance_criteria and in the goal acceptance contract "
             "(selected_todo.goal_acceptance), plus its validation. Return validated_completion "
             "to accept it only when every criterion holds. To reject it, return repair_required "
             "and name in summary each criterion that failed and why; LoopX reopens it for the "
-            "same developer, and a second rejection escalates to the orchestrator."
+            "same developer, and a second rejection escalates to the orchestrator. If you cannot "
+            "review at all for reasons of your own (broken tooling, environment, missing "
+            "dependencies), return user_action_required and state the reason in summary: that is "
+            "the blocked verdict, which asks the user and does not count as a rejection."
         )
     elif role == "developer" and todo_id:
         lines.append(

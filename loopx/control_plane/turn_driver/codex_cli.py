@@ -501,11 +501,15 @@ def _prompt(request: Mapping[str, Any]) -> str:
         instructions.insert(
             -2,
             f"This Turn reviews Todo {completion_todo_id}, which a developer delivered for your "
-            "acceptance (status in_review). Check the committed work in this workspace against the "
-            "Todo's text, acceptance criteria and validation; do not modify, commit, push or merge "
-            "anything. Return validated_completion to accept it. To reject it, return repair_required "
-            "and put concrete, actionable feedback for the developer in summary; LoopX reopens the "
-            "Todo for the same developer, and a second rejection escalates to the orchestrator.",
+            "acceptance (status in_review). You only review and deliver a verdict: never modify "
+            "code, commit, push or merge; put every required change in the rejection feedback for "
+            "the developer. Check the delivered commit in this workspace against the "
+            "Todo's text, acceptance criteria and validation. Return validated_completion to accept "
+            "it. To reject it, return repair_required and put concrete, actionable feedback for the "
+            "developer in summary; LoopX reopens the Todo for the same developer, and a second "
+            "rejection escalates to the orchestrator. If you cannot review for your own reasons "
+            "(broken tooling, environment, missing dependencies), return user_action_required with "
+            "the reason in summary: this blocked verdict asks the user and is not a rejection.",
         )
         acceptance = _selected_todo_acceptance_context(request)
         if acceptance:

@@ -62,6 +62,7 @@ from .todo_argument_validation import (
     validate_todo_plan_options,
     validate_todo_supersede_options,
     validate_todo_update_options,
+    validate_todo_block_review_options,
     validate_todo_verdict_options,
 )
 from .todo_event import (
@@ -616,6 +617,15 @@ def handle_todo_command(
                 accept_goal_todo(evidence=args.evidence, **verdict_args)
                 if args.todo_command == "accept"
                 else reject_goal_todo(**verdict_args)
+            )
+        elif args.todo_command == "block-review":
+            validate_todo_block_review_options(args)
+            from ..todo_review_blocked import block_goal_todo_review
+
+            payload = block_goal_todo_review(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id, agent_id=args.agent_id,
+                reason=args.reason, **_todo_path_args(args), dry_run=bool(args.dry_run),
             )
         elif args.todo_command == "supersede":
             validate_todo_supersede_options(args)
