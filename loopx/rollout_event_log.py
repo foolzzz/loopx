@@ -41,6 +41,7 @@ ROLLOUT_EVENT_KINDS = {
     "todo_archive_completed",
     "todo_claim",
     "todo_complete",
+    "todo_criteria_change",
     "todo_dependency_rewrite",
     "todo_review_blocked",
     "todo_supersede",

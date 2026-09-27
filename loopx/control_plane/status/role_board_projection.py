@@ -172,9 +172,22 @@ def _plan_links(runtime_root: Path, goal_id: str) -> tuple[dict[str, dict[str, A
         }
         if summary["gate_todo_id"]:
             by_gate[summary["gate_todo_id"]] = summary
+        changes = [_dict(change) for change in _rows(body.get("criteria_changes"))]
+        if changes:
+            summary["plan_criteria_change_count"] = len(changes)
         for todo_id in _dict(plan.get("todo_id_map")).values():
             if isinstance(todo_id, str) and todo_id:
-                by_todo[todo_id] = {"plan_id": summary["plan_id"], "plan_gate_todo_id": summary["gate_todo_id"]}
+                by_todo.setdefault(todo_id, {}).update(
+                    {"plan_id": summary["plan_id"], "plan_gate_todo_id": summary["gate_todo_id"]}
+                )
+        if plan.get("status") in {"pending", "applying"}:
+            # Decision 40: the acceptor holds this todo until the card is decided.
+            for change in changes:
+                if isinstance(change.get("todo_id"), str) and change["todo_id"]:
+                    by_todo.setdefault(change["todo_id"], {}).update(
+                        {"criteria_change_plan_id": summary["plan_id"],
+                         "criteria_change_gate_todo_id": summary["gate_todo_id"]}
+                    )
     return by_todo, by_gate
 
 
@@ -289,6 +302,8 @@ def _gate_card(
     }
     if plan:
         gate.update({key: plan[key] for key in ("plan_id", "plan_status", "plan_title", "plan_revision", "plan_todo_count")})
+        if plan.get("plan_criteria_change_count"):
+            gate["plan_criteria_change_count"] = plan["plan_criteria_change_count"]
     if gate["kind"] == "acceptor_blocked":
         gate.update(review_todo_id=_text(entry.get("review_todo_id"), 80), options=list(entry.get("options") or []))
     return gate

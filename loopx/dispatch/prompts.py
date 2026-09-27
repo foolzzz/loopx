@@ -129,10 +129,14 @@ def dispatch_prompt_addendum(
             "acceptance releases its dependents only once an acceptor accepted it and LoopX "
             "merged it, so a manual done keeps them waiting (`loopx todo list` names the wait).",
             "- A todo's acceptance criteria live in its acceptance_criteria field; plan cards set "
-            "them from each item's `acceptance`. Changing criteria is a major change: prefer a "
-            "revised plan card, or `loopx todo update --goal-id "
-            f"{goal_id} --todo-id T --agent-id {agent_id} --acceptance-criteria ...` on its own, "
-            "which LoopX records as a major change.",
+            "them from each item's `acceptance`. Changing an existing todo's criteria is a major "
+            "change the user must approve (the criteria are the contract the acceptor holds the "
+            "developer to), so `loopx todo update --acceptance-criteria` refuses you. Propose it with "
+            f"`loopx plan propose --goal-id {goal_id} --agent-id {agent_id} --plan-file F`, where F "
+            "holds `{\"title\": ..., \"criteria_changes\": [{\"todo_id\": T, \"new\": ..., "
+            "\"reason\": ...}]}` (optionally with new `todos`). The change takes effect only when the "
+            "user approves; until then the acceptor does not review T, and a reject or cancel leaves "
+            "the criteria unchanged.",
         ]
         if awaiting_gates:
             lines.append(

@@ -65,6 +65,8 @@ def build_explicit_advancement_next_action(
             agent_identity.get("agent_model") == "role_v1"
             and normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW
             and todo_review_agent(item, agent_identity.get("acceptor_agent_ids")) == agent_id
+            # Decision 40: not while a plan card changing its criteria awaits the user.
+            and normalized_todo_id not in (agent_identity.get("criteria_change_pending_todo_ids") or [])
         )
         if (
             not (reviewing or _todo_item_is_actionable_open(item))

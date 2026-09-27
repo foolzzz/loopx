@@ -42,6 +42,21 @@ test("in_review todos are executable only by their resolved acceptor", () => {
   assert.deepEqual(ids(peer.executable_items), ["impl"]);
 });
 
+test("a pending criteria-change plan card holds the review from its acceptor (decision 40)", () => {
+  const items = [review("held", "agent-a"), review("free", "agent-a")];
+  (items[0] as JsonObject).criteria_change_pending = true;
+  const acceptor = projectQuotaSelection(request(items, {agent_id: "agent-a", agent_role: "acceptor"})).lanes as JsonObject;
+  assert.deepEqual(ids(acceptor.executable_items), ["free"]);
+  const held = (acceptor.role_scope as JsonObject).review_held as JsonObject;
+  assert.equal(held.reason, "criteria_change_pending");
+  assert.equal(held.count, 1);
+  assert.deepEqual(ids(held.items), ["held"]);
+  // Without the flag nothing is held.
+  const plain = projectQuotaSelection(request([review("free", "agent-a")],
+    {agent_id: "agent-a", agent_role: "acceptor"})).lanes as JsonObject;
+  assert.equal((plain.role_scope as JsonObject).review_held, undefined);
+});
+
 test("an unscoped user gate blocks developers but not the acceptor; a global gate blocks all", () => {
   const gates = [row("unscoped", {gate: true}), row("dev-scoped", {gate: true, blocks: "dev-1"})];
   const open = (agent: string, role: string, items = gates) => ids((projectQuotaSelection(

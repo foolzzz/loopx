@@ -61,6 +61,12 @@ def project_quota_planning(
         if isinstance(todo_id, str)
     }
 
+    raw_held = identity.get("criteria_change_pending_todo_ids")
+    criteria_held = {
+        str(todo_id) for todo_id in (raw_held if isinstance(raw_held, list) else [])
+        if isinstance(todo_id, str)
+    }
+
     def encode(item: dict[str, Any]) -> dict[str, Any]:
         priority, index = todo_projection_sort_key(item)
         display = compact_todo_summary_item(item, text=str(item.get("text") or "").strip())
@@ -87,7 +93,8 @@ def project_quota_planning(
             **({"awaits_orchestrator": True}
                if awaiting_gates and is_user_gate_todo_item(item)
                and str(item.get("todo_id") or "") in awaiting_gates else {}),
-            **({"in_review": True, "review_agent": todo_review_agent(item, acceptor_ids)}
+            **({"in_review": True, "review_agent": todo_review_agent(item, acceptor_ids),
+                **({"criteria_change_pending": True} if str(item.get("todo_id") or "") in criteria_held else {})}
                if normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW else {}),
         }
 

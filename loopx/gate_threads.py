@@ -480,6 +480,11 @@ def gate_view(
     }
     if entry.get("plan_id"):
         view["plan_id"] = entry["plan_id"]
+        from .plan_criteria_changes import plan_criteria_changes_view
+
+        changes = plan_criteria_changes_view(runtime_root, goal_id, str(entry["plan_id"]))
+        if changes:  # decision 40: old and new criteria side by side
+            view["criteria_changes"] = changes
     for key in ("review_todo_id", "acceptor_agent", "options", "decision_option"):
         if entry.get(key):
             view[key] = entry[key]
@@ -572,6 +577,10 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
     ]
     if payload.get("plan_id"):
         lines.append(f"- plan: `{payload['plan_id']}` (see `loopx plan show`)")
+    if payload.get("criteria_changes"):
+        from .plan_criteria_changes import render_criteria_changes_markdown
+
+        lines += render_criteria_changes_markdown(payload["criteria_changes"])
     lines += ["", "## Thread", ""]
     messages: Iterable[Mapping[str, Any]] = payload.get("messages") or []
     any_message = False
