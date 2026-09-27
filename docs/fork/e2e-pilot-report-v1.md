@@ -438,6 +438,23 @@ No core protocol, DB schema, lease or guard semantics were changed.
 - `scripts/generate_project_registry_io_manifest.py`: no diff.
 - Full suite `python -m pytest -q -n 8 -p no:cacheprovider`: 12814 passed, 61 skipped, 106 subtests passed.
 
+## Follow-up fixes (branch `fork/v1-gaps`)
+
+The P2/P3 gaps below, except N2 (awaiting a decision) and N7, were fixed after the run, one
+commit and one regression test module per gap. All of them are read-side, host-side or
+workspace-side: no status, lease, DB or event schema changed, and `review_feedback` keeps its
+600-character contract.
+
+| gap | status | fix | test |
+|---|---|---|---|
+| N3 | resolved | The status `todo_index` keeps the attention queue's status (it reads the goal state file); rollout events only add history, because `gate resolve` and system gates append no `todo_*` event and `supersede --by` appends one without a todo status. An event-only `todo_supersede` projects `done`. The role board omits superseded todos (note `superseded`, `superseded_by`, or the supersession log). Replayed on a copy of the pilot runtime: the closure gate shows `done`, `todo_cd6488c157b4` shows `done`, and the throwaways and the retired action todo leave the board. G12 `acceptor_blocked`, G8 `push_request` and budget gates are covered by the same rule. | `tests/control_plane/test_role_board_status_freshness.py` |
+| N5 | resolved | `usage report` and the status `turn_usage_summary` count a todo as accepted only with an `accepted_by=` record (the owner's manual accept included), report `orchestrator_cost_usd` / `orchestrator_turns`, and add `cost_per_accepted_todo_excl_orchestrator_usd`; the role board strip shows it. On the pilot ledger: 4 accepted, $4.39 per accepted todo, $1.66 without the orchestrator's $10.89. | `tests/usage_accounting/test_usage_accepted_counts.py` |
+| N6 | resolved (within the 600 contract) | A Turn that reviews an `in_review` todo gets a 2000-character `summary` bound (executor and codex/claude result schema). `review_feedback` stays at 600 (raising it is a contract change); every reject is fitted: trailing host glyphs stripped, failed-criteria sentences first, one cut at a word boundary, so the full 600 is used. The review prompt asks for criteria first within 550 characters. | `tests/control_plane/test_acceptor_verdict_feedback_n6.py` |
+| N8 | resolved | `plan propose --revise` rewrites the open plan gate's title and note for the new revision. | `tests/control_plane/test_plan_gate_text_revise_n8.py` |
+| N9 | resolved | codex-cli classifies an upstream 5xx, `auth_unavailable`, `dial upstream` and refused/reset connections as `provider_capacity` (retryable, provider backoff); structured HTTP 500/502/504 too, 503 stays `provider_overloaded`. A failed Turn writes the last 20 stderr lines, bounded and redacted, to its own stderr (`runs/<run>.err.log`). | `tests/test_codex_cli_upstream_failures_n9.py` |
+| N10 | resolved | On release (`resume_ready_plan_todos`, dispatcher pass or accept), a todo branch with no commits of its own that is behind the merge target is fast-forwarded to it (ff-only merge in a clean worktree, or a compare-and-swap ref update). A branch with developer commits or a dirty worktree is never touched. The pass reports `todo_branches_refreshed`. | `tests/control_plane/test_todo_branch_refresh_n10.py` |
+| N11 | partially resolved | Plain `todo supersede` by the role_v1 orchestrator is attributed to the claim owner (no owner `--agent-id` needed). `dispatch serve` prints an idle heartbeat line every `--idle-heartbeat-seconds` (default 900). Not changed: the `todo add --agent-id` refusal for agent todos (an upstream CLI contract; the orchestrator omits `--agent-id`), and the dashboard's `npm run build:chat` in a fresh worktree. | `tests/dispatch/test_serve_ergonomics_n11.py` |
+
 ## New gaps, in priority order
 
 - **N2 (P1, needs a decision). A stale Next Action wakes the orchestrator on a finished role_v1
@@ -456,7 +473,7 @@ No core protocol, DB schema, lease or guard semantics were changed.
       Fable Turn.
   - Recommendation: (a) plus (c). This changes the semantics of an approved decision, so it
     needs the user's decision.
-- **N3 (P2). The status `todo_index` goes stale for CLI lifecycle writes.** The role board reads
+- **N3 (P2, resolved on `fork/v1-gaps`). The status `todo_index` goes stale for CLI lifecycle writes.** The role board reads
   the status `todo_index` (source `attention_queue_and_rollout_event_log`). After the run it
   still showed:
   - the approved closure gate `todo_51978cd75fc1` as `open`;
@@ -466,30 +483,33 @@ No core protocol, DB schema, lease or guard semantics were changed.
 
   The goal state file is correct. The fold of `gate resolve` and `supersede --by` events looks
   incomplete. It is in the event-log and replay path (core-adjacent), so it was not changed here.
-- **N5 (P2). `usage report` "accepted" counts every todo that is done now**, including the
+  Later root cause: the status fold let an older event's status overwrite the goal state's
+  (see Follow-up fixes).
+- **N5 (P2, resolved on `fork/v1-gaps`). `usage report` "accepted" counts every todo that is done now**, including the
   orchestrator's planning todo and dispatcher action todos. Cost per accepted todo is understated
   (reported $2.92, real $4.39). Recommendation: count todos with an accept record
   (`accepted_by=`), and show orchestrator spend separately.
-- **N6 (P2). Reject feedback is cut at about 400 characters.**
+- **N6 (P2, resolved on `fork/v1-gaps` within the 600-character contract). Reject feedback is cut at about 400 characters.**
   - `review_feedback` allows 600, but the acceptor's summary arrives cut at about 400 characters
     (422 with the prefix).
   - The backend reject lost its last criterion ("README.md and the pre…"). The frontend feedback
     ends in stray host glyphs.
   - Recommendation: carry the verdict feedback in its own bounded result field, or raise the
     summary limit for acceptor verdicts.
-- **N9 (P2). A CPA upstream 503 is classified `unknown` and non-retryable.**
+- **N9 (P2, resolved on `fork/v1-gaps`). A CPA upstream 503 is classified `unknown` and non-retryable.**
   - The codex adapter discards stderr, so `503 auth_unavailable … dial upstream` became a todo
     backoff instead of a provider backoff.
   - Recommendation: map an upstream 5xx or `auth_unavailable` from CPA to `provider_capacity`.
-- **N10 (P3). A released plan todo keeps a branch cut earlier.** F1 removes the path seen here.
+- **N10 (P3, resolved on `fork/v1-gaps`). A released plan todo keeps a branch cut earlier.** F1 removes the path seen here.
   Any other early prepare (for example a manual `workspace prepare`) would still leave a stale
   branch. Recommendation: on release, fast-forward an untouched todo branch to the current merge
   target.
 - **N7 (P3).** The orchestrator put its clarification questions into the plan gate thread instead
   of a question gate. That worked here, but it means "clarify, then plan" is one gate, not two.
-- **N8 (P3).** The plan gate text keeps the rev-1 todo count after `--revise` ("(5 todos)" for a
+- **N8 (P3, resolved on `fork/v1-gaps`).** The plan gate text keeps the rev-1 todo count after `--revise` ("(5 todos)" for a
   4-todo card).
-- **N11 (P3).**
+- **N11 (P3, partially resolved on `fork/v1-gaps`: orchestrator supersede and the serve
+  heartbeat; the `todo add` refusal and `build:chat` are unchanged).**
   - Orchestrator ergonomics: `todo add --agent-id orch` is refused for agent todos, and plain
     `todo supersede` needs the claim owner as `--agent-id`.
   - The dashboard needs `npm run build:chat` in a fresh worktree.
