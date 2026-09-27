@@ -89,6 +89,16 @@ def decide_turn(
     """
 
     payload = payload if isinstance(payload, Mapping) else {}
+    if payload.get("settlement_resume") is True and payload.get("todo_id"):
+        # A Turn whose settlement failed after its host completed resumes
+        # under its own identity (dispatch.settlement_retry); run-once skips
+        # the host, so no workspace or todo selection applies.
+        return {
+            "launch": True,
+            "reason": "settlement_retry",
+            "todo_id": str(payload["todo_id"]),
+            "todo_is_agent_todo": False,
+        }
     if payload.get("should_run") is not True:
         return {"launch": False, "reason": "should_run_false", "detail": str(payload.get("reason") or "")[:200]}
     selected = payload.get("selected_todo")

@@ -34,6 +34,7 @@ from .orchestrator_actions import (
     live_orchestrator_todo,
 )
 from .prompts import compose_system_prompt, dispatch_prompt_addendum, replace_system_prompt_argument
+from . import settlement_retry
 from .review_checkouts import (
     blocked_review_todo_ids,
     is_review_turn,
@@ -321,8 +322,22 @@ class Dispatcher:
                 ):
                     skip("orchestrator_running")
                     break
+                resume_todo = settlement_retry.pending_resume_todo(
+                    self.state.get("retry_turns") or {}, goal_id=goal_id, agent_id=agent_id,
+                    excluded={
+                        str(run.get("todo_id")) for run in runs.values()
+                        if run.get("goal_id") == goal_id and run.get("todo_id")
+                    },
+                )
+                if resume_todo and self._todo_cooling(goal_id, resume_todo, agent_id, now):
+                    skip("todo_cooldown", todo_id=resume_todo)
+                    break
                 try:
-                    payload = self._should_run(goal_id, agent_id)
+                    payload = (
+                        settlement_retry.resume_payload(resume_todo)
+                        if resume_todo
+                        else self._should_run(goal_id, agent_id)
+                    )
                 except Exception as exc:  # noqa: BLE001 - LoopX decision failure is reported, not fatal
                     report["errors"].append(
                         {"goal_id": goal_id, "agent_id": agent_id, "error": f"should_run: {exc}"[:400]}
@@ -710,15 +725,24 @@ class Dispatcher:
         if not retry and legacy and legacy.get("todo_id") == todo_id:
             retry = legacy
         crashes = 0
+        settlement_retries = 0
         if retry and retry.get("todo_id") == todo_id:
             turn_instance_id = str(retry["turn_instance_id"])
             crashes = int(retry.get("crashes") or 0)
+            settlement_retries = int(retry.get("settlement_retries") or 0)
             reused = True
+            if retry.get("settlement") and retry.get("project"):
+                # The settlement is bound to the delivery workspace the host
+                # ran in (the quota spend checks it), so resume from there.
+                run_project = Path(str(retry["project"]))
         else:
             turn_instance_id = mint_turn_instance_id(prefix="dispatch")
             reused = False
         retries.pop(retry_key, None)
-        retries.pop(_agent_key(goal_id, agent_id), None)
+        if legacy is not None and legacy.get("todo_id") == todo_id:
+            # Only the legacy identity this launch took over; another todo's
+            # crash identity under the agent key stays for its own relaunch.
+            retries.pop(_agent_key(goal_id, agent_id), None)
 
         run_dir = dispatch_dir(self.runtime_root) / "runs"
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -847,6 +871,7 @@ class Dispatcher:
             "turn_instance_reused": reused,
             "resume_turn_key": resume_turn_key,
             "crashes": crashes,
+            "settlement_retries": settlement_retries,
             "reason": decision.get("reason"),
             "pid": child.pid,
             "started_at": self.clock(),
@@ -945,6 +970,8 @@ class Dispatcher:
                 "failures": failures,
                 "reason": outcome["outcome"],
             }
+        if outcome["outcome"] not in {policy.OUTCOME_CRASHED, policy.OUTCOME_COMMITTED}:
+            self._keep_unsettled_turn(goal_id, agent_id, run, stdout_text, outcome, now)
         if run.get("role") == policy.ROLE_ORCHESTRATOR:
             self.state.setdefault("orchestrator_baselines", {})[
                 _agent_key(goal_id, agent_id)
@@ -966,6 +993,43 @@ class Dispatcher:
         except OSError:
             pass
         return {key: record.get(key) for key in ("run_id", "goal_id", "agent_id", "todo_id", "outcome", "failure_kind", "returncode")}
+
+    def _keep_unsettled_turn(
+        self,
+        goal_id: str,
+        agent_id: str,
+        run: Mapping[str, Any],
+        stdout_text: str,
+        outcome: dict[str, Any],
+        now: float,
+    ) -> None:
+        """Keep the Turn identity of a settlement that failed after its host completed.
+
+        Like the crash branch: the next launch resumes the journaled Turn, so
+        run-once settles the cached host result instead of a new Turn redoing
+        the work or losing the quota spend (dispatch.settlement_retry).
+        """
+
+        unsettled = settlement_retry.unsettled_turn(self.runtime_root, goal_id, stdout_text)
+        if unsettled is None or not run.get("turn_instance_id"):
+            return
+        count = int(run.get("settlement_retries") or 0) + 1
+        if count > settlement_retry.SETTLEMENT_RETRY_LIMIT:
+            # Still failing after repeated resumes: fall back to a new Turn.
+            outcome["settlement_retry"] = {**unsettled, "exhausted": True, "attempts": count - 1}
+            return
+        self.state.setdefault("retry_turns", {})[_retry_key(goal_id, agent_id, run.get("todo_id"))] = {
+            "turn_instance_id": run.get("turn_instance_id"),
+            "todo_id": run.get("todo_id"),
+            "settlement": True,
+            "project": run.get("project"),
+            "turn_key": unsettled["turn_key"],
+            "failed_phase": unsettled["failed_phase"],
+            "failed_at": now,
+            "settlement_retries": count,
+            "crashes": int(run.get("crashes") or 0),
+        }
+        outcome["settlement_retry"] = {**unsettled, "attempt": count}
 
     def _expire_cooldowns(self, now: float) -> None:
         for key in ("agent_cooldowns",):
