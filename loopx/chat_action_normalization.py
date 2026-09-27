@@ -659,11 +659,17 @@ class ChatActionNormalizationMixin:
             decision = str(values.get("decision") or "").strip().lower()
             option = str(values.get("option") or "").strip().lower() or None
             if option is not None:
-                # Acceptor-blocked gates (G12): the option implies its decision.
+                # Acceptor-blocked (G12) and budget_exhausted (decision 41)
+                # gates: the option implies its decision.
                 from .todo_review_blocked import resolve_review_gate_option, REVIEW_GATE_OPTION_DECISIONS
+                from .usage_budget_gate import BUDGET_GATE_OPTION_DECISIONS, resolve_budget_gate_option
 
-                resolve_review_gate_option(decision or None, option)
-                decision = REVIEW_GATE_OPTION_DECISIONS[option]
+                if option in BUDGET_GATE_OPTION_DECISIONS:
+                    resolve_budget_gate_option(decision or None, option)
+                    decision = decision or BUDGET_GATE_OPTION_DECISIONS[option]
+                else:
+                    resolve_review_gate_option(decision or None, option)
+                    decision = REVIEW_GATE_OPTION_DECISIONS[option]
             if decision not in {"approve", "reject", "cancel", "defer"}:
                 raise ValueError(
                     "gate decision must be approve, reject, cancel, or defer"

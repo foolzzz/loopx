@@ -1,10 +1,10 @@
 """Optional per-goal spend budget (fork gap G9).
 
 ``goals/<goal>/usage-budget.json`` holds ``budget_usd``; ``loopx usage budget``
-sets or clears it. The dispatcher compares the ledger's total cost with it and
-opens one non-blocking user action when spend crosses 80% and again at 100%.
-Nothing stops on its own: the alert is a ``user_action`` todo, which never
-blocks an agent lane (a ``user_gate`` would).
+sets or clears it. The dispatcher compares the ledger's total cost with it:
+at 80% it opens one non-blocking ``user_action`` alert, at 100% one
+``budget_exhausted`` user gate that pauses the goal's new Turns until the
+owner decides (``loopx.usage_budget_gate``, design decision 41).
 """
 
 from __future__ import annotations
@@ -33,7 +33,9 @@ def usage_budget_path(runtime_root: Path, goal_id: str) -> Path:
     )
 
 
-def read_usage_budget(runtime_root: Path, goal_id: str) -> float | None:
+def read_usage_budget_record(runtime_root: Path, goal_id: str) -> dict[str, Any] | None:
+    """The valid budget file (``budget_usd`` and ``updated_at``), else None."""
+
     try:
         payload = json.loads(usage_budget_path(runtime_root, goal_id).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -41,7 +43,14 @@ def read_usage_budget(runtime_root: Path, goal_id: str) -> float | None:
     value = payload.get("budget_usd") if isinstance(payload, dict) else None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value) if math.isfinite(value) and value > 0 else None
+    if not (math.isfinite(value) and value > 0):
+        return None
+    return {"budget_usd": float(value), "updated_at": str(payload.get("updated_at") or "")}
+
+
+def read_usage_budget(runtime_root: Path, goal_id: str) -> float | None:
+    record = read_usage_budget_record(runtime_root, goal_id)
+    return record["budget_usd"] if record else None
 
 
 def write_usage_budget(runtime_root: Path, goal_id: str, budget_usd: float | None) -> dict[str, Any]:
