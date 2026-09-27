@@ -70,7 +70,8 @@ def _fixture(root: Path, *, state: str | None = None) -> tuple[Path, Path, dict]
         "id": "goal-a",
         "repo": str(root),
         "state_file": str(state_path),
-        "coordination": {"registered_agents": ["agent-a", "agent-b"]},
+        # Completion-cadence replans are a peer_v1 contract (fork decision 31).
+        "coordination": {"agent_model": "peer_v1", "registered_agents": ["agent-a", "agent-b"]},
     }
     runtime = root / "runtime"
     registry = root / "registry.json"

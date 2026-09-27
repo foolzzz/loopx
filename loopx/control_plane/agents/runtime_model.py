@@ -52,6 +52,33 @@ def agent_runtime_model_for_goal(goal: Mapping[str, Any] | None) -> AgentRuntime
     return DEFAULT_AGENT_RUNTIME_MODEL
 
 
+def goal_agent_runtime_model_or_none(
+    goal: Mapping[str, Any] | None,
+) -> AgentRuntimeModel | None:
+    """Return the goal's runtime model, or None without a goal or with an invalid model."""
+
+    if not isinstance(goal, Mapping):
+        return None
+    try:
+        return agent_runtime_model_for_goal(goal)
+    except ValueError:
+        return None
+
+
+def orchestrator_owns_planning_review(
+    agent_runtime_model: AgentRuntimeModel | None,
+) -> bool:
+    """Whether planning review belongs to the orchestrator (fork decision 31).
+
+    Under role_v1 every orchestrator Turn reviews the full goal state, and
+    developers and acceptors escalate through orchestrator todos. The upstream
+    per-agent vision checkpoint and the no-follow-up succession replan are
+    therefore not derived for role_v1 goals; peer_v1 goals keep them.
+    """
+
+    return agent_runtime_model is AgentRuntimeModel.ROLE_V1
+
+
 def agent_identity_is_peer(agent_identity: Mapping[str, Any] | None) -> bool:
     return bool(
         isinstance(agent_identity, Mapping)

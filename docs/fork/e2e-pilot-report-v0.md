@@ -274,14 +274,22 @@ schema, or the lease or guard semantics. None of these was changed.
   the git common dir, so local-only repos deliver and W1 is no longer needed.
   The original finding: the delivery identity needed `remote.origin.url`, and
   W1 was the stopgap.
-- **G4 (P1). The orchestrator and the upstream vision and replan machinery.**
+- **G4 (P1). The orchestrator and the upstream vision and replan machinery.
+  Resolved by design decision 31.**
   - A completed orchestrator todo raises vision-checkpoint and no-follow-up
     replan obligations that the orchestrator cannot settle through a Turn: the
     host route needs a todo, and `material_replan` needs a vision packet.
   - 3 orchestrator Turns failed with invalid `agent_vision_json`, and the
     obligation stays open.
-  - Proposal: exempt role_v1 orchestrator todos from the vision checkpoint, or
-    let a Turn result record no-follow-up.
+  - The fix: role_v1 goals no longer derive either obligation, for every
+    role. A role_v1 Turn is not asked for a vision, and the vision fields of
+    its result are ignored instead of validated. Obligations are derived on
+    read, so a goal that already carries one is no longer blocked. peer_v1 is
+    unchanged. See [role_v1 protocol](role-v1-protocol.md#planning-obligations-decision-31).
+  - Readback on a copy of the pilot state: before, the orchestrator's
+    should-run was `autonomous_replan_required` with the triggers
+    `completed_advancement_without_successor` and `vision_checkpoint_missing`.
+    After, no obligation and no vision gap remains for `orch`, `dev` or `acc`.
 - **G5 (P1, resolved). Parallel development in one goal.**
   - The Turn lane fence allowed one in-flight Turn per agent and goal, so
     `max_concurrency` 2 did not parallelise one developer. The backend and
@@ -299,10 +307,10 @@ schema, or the lease or guard semantics. None of these was changed.
   - Dependency resume should require accepted and merged work, or the
     orchestrator should use `todo supersede`, which the prompt should say.
 - **G7 (P2, mostly fixed by R3). Gate replies wake the orchestrator only if it has an open todo.**
-  The dispatcher now opens an orchestrator action todo for them. Whether that
-  Turn clears an upstream replan obligation is still the kernel's decision (G4).
-  The `todos-changed-since` validator is coarse: a concurrent todo write by
-  another agent also satisfies it.
+  The dispatcher now opens an orchestrator action todo for them. Its dependency
+  on G4 is resolved: the vision-checkpoint and no-follow-up obligations no
+  longer open action todos. The `todos-changed-since` validator is coarse: a
+  concurrent todo write by another agent also satisfies it.
 - **G8 (P2). No push flow.** Nothing opens the push gate when a goal's work is
   merged, and approving it does not push. Both should be orchestrator or
   dispatcher steps.
@@ -346,6 +354,15 @@ schema, or the lease or guard semantics. None of these was changed.
     detached checkout of the delivered commit, and the accept merge merges the
     recorded delivered sha (`delivery_moved` blocks a branch that moved). See
     [role-v1-protocol](role-v1-protocol.md#acceptor-verdicts-and-isolation-gap-g12).
+- **G13 (P2, found while verifying G4, not changed). A Next Action heuristic
+  can still wake the orchestrator for nothing.** On the pilot state copy, once
+  the G4 obligation is gone, should-run reports
+  `effective_action=state_projection_gap_repair` for every agent. The cause is
+  the orchestrator's last Next Action ("Orchestrator idles … re-engages only if
+  …"), which the upstream prose check reads as a wait without a user todo.
+  With no todo selected, the dispatcher would open an orchestrator action todo
+  for it. Options: skip that prose check under role_v1, or restrict action todos
+  to gate replies and replan obligations.
 
 ## Evidence
 

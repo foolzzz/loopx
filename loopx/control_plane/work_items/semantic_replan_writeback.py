@@ -10,6 +10,10 @@ from typing import Any
 from ...agent_registry import registered_agent_ids_for_goal
 from ..agents.agent_scope import agent_scope_item_matches_agent_or_unclaimed
 from ..agents.identity import build_quota_agent_identity
+from ..agents.runtime_model import (
+    goal_agent_runtime_model_or_none,
+    orchestrator_owns_planning_review,
+)
 from ..goals.goal_frontier import (
     build_goal_frontier_projection_context_from_status,
 )
@@ -309,6 +313,7 @@ def qualify_replan_writeback(
         ),
         registered_agent_ids=list(agent_identity["registered_agents"]),
         orchestrator_agent_id=orchestrator_agent_id,
+        agent_runtime_model=goal_agent_runtime_model_or_none(registry_goal),
         goal_status=str((registry_goal or {}).get("status") or "active"),
         agent_profile=(
             agent_identity.get("agent_profile")
@@ -353,6 +358,9 @@ def qualify_replan_writeback(
     if (
         "coverage_backed_no_followup"
         in set(semantic_delta.get("outcomes") or [])
+        and not orchestrator_owns_planning_review(
+            goal_agent_runtime_model_or_none(registry_goal)
+        )
         and todo_succession_gap_items(agent_todos, agent_id=safe_agent_id)
     ):
         semantic_delta = {

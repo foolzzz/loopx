@@ -56,6 +56,7 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 ## Decisions after the E2E pilot (2026-09-26)
 29. Delivery identity is a todo workspace identity (goal, todo, branch, per-repo name/path/head/repo_id); repo_id falls back to a local git-common-dir digest when there is no origin. Approved by the user.
 30. Per-todo acceptance criteria live in a dedicated orchestrator-owned `acceptance_criteria` todo field, shown to developer and acceptor every Turn; rework instructions go to `review_feedback`. Approved by the user.
+31. role_v1 goals do not raise the upstream vision-checkpoint or no-follow-up replan obligations; planning review is the orchestrator's job every Turn, and developers/acceptors escalate through orchestrator todos. Approved by the user.
 32. Under role_v1 the developer/acceptor Turn lane is per todo; one agent runs up to max_concurrency todos of a goal in parallel, the orchestrator stays serial per goal. Approved by the user.
 33. `in_review` under canonical hard_lease stays unsupported for now (default soft_claim covers MVP). Decided by the user.
 35. The acceptor only reviews: it runs unsandboxed on a throwaway detached checkout of the delivered commit; merge uses the recorded delivered sha. Approved by the user.

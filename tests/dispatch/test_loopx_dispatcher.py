@@ -14,7 +14,11 @@ from typing import Any
 import pytest
 
 from loopx.cli import main as cli_main
-from loopx.control_plane.turn_driver.codex_cli import RESULT_PATH_HYGIENE_INSTRUCTION, _prompt
+from loopx.control_plane.turn_driver.codex_cli import (
+    RESULT_PATH_HYGIENE_INSTRUCTION,
+    ROLE_V1_NO_VISION_INSTRUCTION,
+    _prompt,
+)
 from loopx.dispatch import DispatchConfig, Dispatcher, DispatchLock, DispatchLockError, dispatch_status
 from loopx.dispatch import policy
 from loopx.dispatch.state import load_state
@@ -502,6 +506,9 @@ def test_end_to_end_real_run_once_in_a_prepared_workspace_replays_idempotently(
     assert calls[0]["system_prompt"].startswith("Be precise.")
     assert "repo `api`" in calls[0]["system_prompt"]
     assert RESULT_PATH_HYGIENE_INSTRUCTION in calls[0]["prompt"]
+    # role_v1 (decision 31): the Turn is not asked for a per-agent vision.
+    assert ROLE_V1_NO_VISION_INSTRUCTION in calls[0]["prompt"]
+    assert "goal_path_delta_v0 in agent_vision_json" not in calls[0]["prompt"]
 
     # Pretend the child crashed after settling: the relaunch reuses the Turn
     # identity and run-once replays instead of invoking the host or spending again.
@@ -518,6 +525,39 @@ def test_end_to_end_real_run_once_in_a_prepared_workspace_replays_idempotently(
     assert payload["replayed"] is True
     assert load_state(fixture["runtime"])["history"][-1]["resume_turn_key"] == committed_key
     assert len(read_jsonl(fixture["claude_log"])) == 1
+
+
+def test_end_to_end_a_role_v1_turn_settles_despite_an_invalid_vision_packet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G4: the pilot's Turns failed on invalid agent_vision_json; role_v1 ignores it."""
+
+    for key, value in git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"}})
+    todo_id = add_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, runtime_root_arg=str(fixture["runtime"]),
+        role="agent", text="Build the fixture", priority="P0", task_class="advancement_task",
+        action_kind="fixture", claimed_by="dev",
+    )["todo_id"]
+    validator = (sys.executable, "-c", "import sys; sys.exit(0)")
+    config = DispatchConfig(
+        registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_ids=[GOAL_ID],
+        no_global_sync=True, turn_timeout_seconds=120, default_validation_argv=validator,
+        environ={**fixture["environ"], "PYTHONPATH": str(ROOT), "FAKE_CLAUDE_MODE": "invalid_vision"},
+    )
+    report = Dispatcher(config).run_once()
+    assert [(item["agent_id"], item["todo_id"]) for item in report["launched"]] == [("dev", todo_id)]
+    stdout = json.loads(Path(load_state(fixture["runtime"])["history"][-1]["stdout_path"]).read_text())
+    assert report["finished"][0]["outcome"] == "committed", json.dumps(stdout)[:4000]
+    runs = [
+        json.loads(line)
+        for line in (fixture["runtime"] / "goals" / GOAL_ID / "runs" / "index.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    checkpoints = [run["vision_checkpoint"] for run in runs if isinstance(run.get("vision_checkpoint"), dict)]
+    assert checkpoints and checkpoints[-1]["decision"] == "not_required"
+    assert not any("agent_vision" in run for run in runs)
 
 
 # --- serve loop and CLI -----------------------------------------------------------
@@ -799,3 +839,55 @@ def test_a_gate_reply_awaiting_an_orchestrator_without_todos_opens_one(tmp_path:
         reply_to_gate(registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_id=GOAL_ID,
                       todo_id=gate_id, text="Noted, sqlite it is.", author="orchestrator", agent_id="orch")
         assert check(base) == 0
+
+
+@pytest.mark.parametrize("model", ["role_v1", "peer_v1"])
+def test_a_completed_orchestrator_planning_todo_opens_no_action_todo_under_role_v1(
+    tmp_path: Path, model: str,
+) -> None:
+    """G4: role_v1 derives no vision-checkpoint or no-follow-up replan (decision 31).
+
+    With the real should-run, the orchestrator's completed planning todo left
+    an upstream replan obligation that no Turn could settle; the dispatcher
+    turned it into action todos and finally a user gate. peer_v1 still derives
+    it, so the dispatcher still opens an action todo there.
+    """
+
+    from loopx.state_refresh import refresh_state_run
+    from loopx.todos import complete_goal_todo
+
+    fixture = write_fixture(
+        tmp_path,
+        agents={"orch": {"role": "orchestrator"}, "dev": {"role": "developer"}},
+        todo_lines=[
+            "- [ ] [P1] Plan the goal.",
+            "  <!-- loopx:todo todo_id=todo_plan role=agent task_class=advancement_task "
+            "status=open claimed_by=orch action_kind=plan required_role=orchestrator -->",
+        ],
+    )
+    registry = json.loads(fixture["registry"].read_text(encoding="utf-8"))
+    registry["goals"][0]["coordination"]["agent_model"] = model
+    fixture["registry"].write_text(json.dumps(registry), encoding="utf-8")
+    done = complete_goal_todo(
+        registry_path=fixture["registry"], goal_id=GOAL_ID, todo_id="todo_plan", role="agent",
+        runtime_root_arg=str(fixture["runtime"]), evidence="plan applied", agent_id="orch",
+    )
+    assert done.get("ok") is not False, done
+    if model == "role_v1":
+        refreshed = refresh_state_run(
+            registry_path=fixture["registry"], runtime_root_override=str(fixture["runtime"]),
+            goal_id=GOAL_ID, project=None, state_file=None, classification="validated_progress",
+            recommended_action=None, agent_id="orch", delivery_outcome="outcome_progress",
+            delivery_batch_scale="single_surface", dry_run=False, sync_global=False,
+        )
+        assert refreshed["vision_checkpoint"]["decision"] == "not_required"
+
+    report = _dispatcher(fixture).run_once()
+    orch = [item for item in report["skipped"] if item["agent_id"] == "orch"]
+    if model == "peer_v1":
+        [opened] = report["orchestrator_todos_opened"]
+        assert opened["subject"] == "effective_action=autonomous_replan_required"
+        return
+    assert report["launched"] == [] and "orchestrator_todos_opened" not in report
+    assert [item["reason"] for item in orch] == ["orchestrator_idle"]
+    assert [row for row in _orch_rows(fixture) if row["status"] != "done"] == []

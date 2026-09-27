@@ -247,7 +247,7 @@ def turn_lane_todo_id(
     )
 
 
-def _goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
+def registry_goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
     from ..agent_registry import load_goal_from_registry
     from ..todo_acceptance import goal_uses_role_v1
 
@@ -286,7 +286,7 @@ def _with_durable_todo_note(
     builder unchanged, with no extra todo read and no envelope change.
     """
 
-    if not _goal_uses_role_v1(registry_path, goal_id):
+    if not registry_goal_uses_role_v1(registry_path, goal_id):
         return build
 
     def wrapped(**kwargs: Any) -> dict[str, Any]:

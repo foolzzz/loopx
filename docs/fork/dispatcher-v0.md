@@ -73,6 +73,11 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      the orchestrator has another open todo; the text prefix finds it again when
      the dispatcher state is lost. If two action todos for the same subject
      finish without clearing it, a user gate opens instead of a third.
+     A role_v1 goal derives neither the vision-checkpoint obligation nor the
+     no-follow-up replan (decision 31, [role_v1 protocol](role-v1-protocol.md)),
+     so a completed orchestrator todo no longer opens an action todo. Action
+     todos remain for gate replies awaiting the orchestrator and for replan
+     obligations from run history; escalations already arrive as S2 todos.
    - **Turn lanes (decision 32).** Under role_v1, run-once fences a registered
      developer's or acceptor's Turn per todo: its lane is (goal, todo). The
      dispatcher therefore fills a free slot of the same agent with another todo
@@ -239,9 +244,10 @@ must name each criterion that failed when it rejects.
   no declared validation command need `serve --validation-command-json`. Without it,
   their Turns fail validation and the todo backs off.
 - The `todos-changed-since` validator is coarse: another agent's concurrent todo
-  write also satisfies it. Whether the orchestrator's Turn clears an upstream
-  replan obligation is the kernel's decision (E2E pilot gap G4); if it does not,
-  the repeat limit turns it into a user gate.
+  write also satisfies it. If an orchestrator's Turns do not clear a remaining
+  replan obligation from run history, the repeat limit turns it into a user gate.
+  The vision-checkpoint and no-follow-up obligations no longer reach this path
+  (decision 31).
 - Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
   concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
   todo.

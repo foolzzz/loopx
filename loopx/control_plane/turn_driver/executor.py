@@ -17,6 +17,7 @@ from ..effect_program import (
     settlement_result_payload,
 )
 from ..goals.goal_vision import normalize_goal_vision_packet
+from ..goals.vision_checkpoint import VISION_CHECKPOINT_POLICY_NOT_REQUIRED
 from ..work_items.delivery_batch_scale import require_delivery_batch_scale
 from ..work_items.delivery_outcome import require_delivery_outcome
 from . import subagent_execution_topology as subagent
@@ -99,6 +100,13 @@ MATERIAL_HOST_RESULT_KINDS = {
     LoopXTurnResultKind.REPAIR_REQUIRED,
     LoopXTurnResultKind.REPLAN_REQUIRED,
 }
+# Fork decision 31: a role_v1 Turn owes no per-agent vision decision. The
+# command layer marks such a plan; hosts are then not asked for the vision
+# fields, and any they return are ignored rather than validated.
+TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD = "vision_checkpoint_policy"
+HOST_VISION_RESULT_FIELDS = frozenset(
+    {"vision_unchanged_reason", "path_delta_mode", "agent_vision_json"}
+)
 HOST_RESULT_FIELDS = {
     "schema_version",
     "turn_key",
@@ -126,6 +134,20 @@ Scheduler = Callable[[dict[str, Any]], dict[str, Any]]
 HostRunner = Callable[[Mapping[str, Any]], dict[str, Any]]
 
 
+def mark_turn_plan_vision_checkpoint_not_required(plan: dict[str, Any]) -> None:
+    """Record on a Turn plan that its goal owes no per-agent vision (role_v1)."""
+
+    plan[TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD] = VISION_CHECKPOINT_POLICY_NOT_REQUIRED
+
+
+def turn_plan_requires_vision_checkpoint(plan: Mapping[str, Any] | None) -> bool:
+    return not (
+        isinstance(plan, Mapping)
+        and plan.get(TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD)
+        == VISION_CHECKPOINT_POLICY_NOT_REQUIRED
+    )
+
+
 def build_loopx_turn_host_request(plan: Mapping[str, Any]) -> dict[str, Any]:
     transaction = (
         plan.get("transaction") if isinstance(plan.get("transaction"), dict) else {}
@@ -151,6 +173,10 @@ def build_loopx_turn_host_request(plan: Mapping[str, Any]) -> dict[str, Any]:
     reward_memory_recall = plan.get("reward_memory_recall")
     if isinstance(reward_memory_recall, Mapping):
         request["reward_memory_recall"] = dict(reward_memory_recall)
+    if not turn_plan_requires_vision_checkpoint(plan):
+        request[TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD] = (
+            VISION_CHECKPOINT_POLICY_NOT_REQUIRED
+        )
     request.update(subagent.subagent_host_request_projection(plan))
     return request
 
@@ -294,6 +320,7 @@ def validate_loopx_turn_host_result(
         errors.append("host result completed_phases must be host_execute, typed_result")
 
     material = kind in MATERIAL_HOST_RESULT_KINDS
+    vision_checkpoint_required = turn_plan_requires_vision_checkpoint(plan)
     normalized = {
         "schema_version": LOOPX_TURN_RESULT_SCHEMA_VERSION,
         "turn_key": turn_key,
@@ -301,6 +328,8 @@ def validate_loopx_turn_host_result(
         "completed_phases": list(TRANSACTION_PHASES[:2]),
     }
     for field, limit in HOST_RESULT_TEXT_LIMITS:
+        if not vision_checkpoint_required and field in HOST_VISION_RESULT_FIELDS:
+            continue
         text = _bounded_public_text(
             result,
             field,
@@ -338,6 +367,10 @@ def validate_loopx_turn_host_result(
         except ValueError as exc:
             errors.append(str(exc))
 
+    if material and not vision_checkpoint_required:
+        # role_v1: the orchestrator plans through todos, plans and gates.
+        normalized["path_delta_mode"] = "unchanged"
+    elif material:
         unchanged_reason = str(normalized.get("vision_unchanged_reason") or "")
         path_delta_mode, agent_vision = _normalize_host_path_delta(
             plan,
@@ -356,7 +389,7 @@ def validate_loopx_turn_host_result(
         normalized["path_delta_mode"] = path_delta_mode
         if agent_vision is not None:
             normalized["agent_vision"] = agent_vision
-    elif (
+    elif vision_checkpoint_required and (
         str(result.get("path_delta_mode") or "").strip()
         or str(result.get("agent_vision_json") or "").strip()
     ):

@@ -33,6 +33,7 @@ from ..goals.goal_frontier import (
 from ..quota.blocked_transition_notice import build_blocked_transition_notice
 from ..quota.error_codes import HeartbeatReceiptIdentityConflictError
 from ..agents.capability_memory import resolve_agent_capabilities
+from ..agents.runtime_model import goal_agent_runtime_model_or_none
 from ..quota.goal_boundary import (
     goal_boundary as _goal_boundary,
 )
@@ -841,6 +842,8 @@ def _prepare_quota_should_run_item(
         registered_agent_ids=registered_agent_ids,
         goal_status=str(registry_goal.get("status") or ""),
         agent_profile=_quota_agent_profile(agent_identity),
+        # The same goal view as the identity packet (its coordination block).
+        agent_runtime_model=goal_agent_runtime_model_or_none(item),
     )
     replan_obligation = (
         None

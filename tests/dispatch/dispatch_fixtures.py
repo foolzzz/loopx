@@ -83,6 +83,10 @@ if os.environ.get("FAKE_CLAUDE_RESULT_KIND"):
     if result["result_kind"] in {"user_action_required", "wait"}:
         result["path_delta_mode"] = ""
         result["vision_unchanged_reason"] = ""
+if os.environ.get("FAKE_CLAUDE_MODE") == "invalid_vision":
+    # The E2E pilot's orchestrator result: a vision packet the contract rejects.
+    result.update(vision_unchanged_reason="", path_delta_mode="material_replan",
+                  agent_vision_json=json.dumps({"vision_patch": {"advancement_policy": "sometimes"}}))
 if os.environ.get("FAKE_CLAUDE_MODE") == "rate_limited":
     print(json.dumps({"type": "result", "subtype": "error_during_execution", "is_error": True,
                       "api_error_status": 429, "result": "API Error: 429"}))
