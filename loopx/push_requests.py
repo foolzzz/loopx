@@ -36,6 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .control_plane.todos.contract import TODO_UNFINISHED_STATUS_VALUES
 from .file_lock import exclusive_file_lock
 from .gate_threads import GATE_KIND_PUSH_REQUEST, mark_gate_closed, read_gate_index, register_gate_kind
 from .history import validate_goal_id_path_segment
@@ -52,8 +53,6 @@ PUSH_COMMAND_TIMEOUT_SECONDS = 300
 PUSH_REASON_ALL_MERGED = "all_merged"
 PUSH_REASON_REQUESTED = "requested"
 PUSH_REASON_RETRY = "push_failed"
-# Agent todos in these statuses mean the goal's work is not all merged yet.
-PUSH_PENDING_TODO_STATUSES = frozenset({"open", "in_review", "blocked"})
 # Branch namespaces LoopX owns; any other branch must be the configured target.
 PUSH_OWNED_BRANCH_PREFIXES = ("loopx-task/", "loopx/")
 
@@ -220,7 +219,7 @@ def _pending_agent_todos(registry_path: Path, goal_id: str, runtime_root_arg: st
                              runtime_root_arg=runtime_root_arg)
     return [
         str(row.get("todo_id")) for row in listed.get("todos") or []
-        if isinstance(row, Mapping) and str(row.get("status") or "") in PUSH_PENDING_TODO_STATUSES
+        if isinstance(row, Mapping) and str(row.get("status") or "") in TODO_UNFINISHED_STATUS_VALUES
     ]
 
 
@@ -276,9 +275,11 @@ def request_push(
     """Open the goal's ``push_request`` gate when its merge targets have commits to push.
 
     Idempotent: an open push gate is returned instead of a second one. With
-    ``require_all_merged`` (the dispatcher) no agent todo may be open, in
-    review or blocked. With ``respect_declined`` a gate the user rejected or
-    cancelled is not reopened until a merge target moves.
+    ``require_all_merged`` (the dispatcher) no agent todo may be unfinished
+    (open, in review, blocked or deferred), so a partial goal is never offered;
+    an explicit request (the CLI) does not wait for them. With
+    ``respect_declined`` a gate the user rejected or cancelled is not reopened
+    until a merge target moves.
     """
 
     from .agent_registry import load_goal_from_registry, orchestrator_agent_for_goal

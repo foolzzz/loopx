@@ -141,6 +141,14 @@ TODO_STATUS_VALUES = {
     TODO_STATUS_IN_REVIEW,
 }
 TODO_TERMINAL_STATUS_VALUES = {TODO_STATUS_DONE, TODO_STATUS_DEFERRED}
+# Statuses of work that is not finished: every status but done. A deferred
+# todo is terminal for scheduling (nothing to work on now) yet unfinished, since
+# it waits on a dependency or resume condition. Goal-level checks that wait for
+# all of a goal's work (the automatic push gate, the goal completion gate) use
+# this set, so they agree on what is still pending.
+TODO_UNFINISHED_STATUS_VALUES = frozenset({
+    TODO_STATUS_OPEN, TODO_STATUS_IN_REVIEW, TODO_STATUS_BLOCKED, TODO_STATUS_DEFERRED,
+})
 TODO_LEGACY_TERMINAL_STATUS_VALUES = {"completed", "closed", "archived"}
 
 TODO_ACTION_KIND_ADVANCEMENT_VALUES = {

@@ -153,8 +153,11 @@ Design decisions 18 and 38. Code: `loopx/push_requests.py`.
 **When the gate opens.** On every pass over a role_v1 goal, the dispatcher
 opens one `push_request` user gate for the goal when both hold:
 
-- no agent todo of the goal is `open`, `in_review` or `blocked` (all of its
-  work is accepted and merged);
+- no agent todo of the goal is `open`, `in_review`, `blocked` or `deferred`
+  (all of its work is accepted and merged; a deferred todo, such as a plan
+  dependent that is not released yet, is unfinished work). This is the same
+  set of unfinished statuses the `goal_complete` gate waits for
+  (`TODO_UNFINISHED_STATUS_VALUES`);
 - a repo's merge target has commits of this goal (merge commits with the
   `LoopX-Goal: <goal>` trailer) that are not on the repo's remote.
 
@@ -164,8 +167,9 @@ The orchestrator can ask earlier, and the owner at any time:
 loopx goal request-push --goal-id G [--agent-id ORCH] [--dry-run]
 ```
 
-An explicit request does not wait for pending todos and offers any unpushed
-commits on the merge target. `--agent-id` must be the goal's orchestrator.
+An explicit request does not wait for pending todos (deferred ones included)
+and offers any unpushed commits on the merge target. `--agent-id` must be the
+goal's orchestrator.
 
 The gate is a system gate, like the re-login gate (decision 17): LoopX opens
 it through the Todo API, and it blocks the goal's orchestrator. At most one
