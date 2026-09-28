@@ -48,7 +48,12 @@ Turns. It is a log line only.
 
 The plist starts the dispatcher with `KeepAlive` and `RunAtLoad`, and uses the Python
 interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex` and
-`git` resolve the same way they do in your shell. Its logs go to
+`git` resolve the same way they do in your shell. It sets `PYTHONPATH` to the source
+root of the `loopx` package that rendered it, ahead of any `PYTHONPATH` entries
+already set. The job therefore runs that code, such as an installed release
+snapshot, and not whatever the interpreter's site-packages resolves, such as an
+editable install of a checkout. The Turns it starts inherit the same `PYTHONPATH`.
+After an upgrade, render and load the plist again. Its logs go to
 `<runtime-root>/dispatch/logs/`.
 
 ## What one reconcile pass does
