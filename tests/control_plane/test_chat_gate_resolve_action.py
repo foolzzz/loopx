@@ -18,7 +18,7 @@ from loopx.todos import add_goal_todo, list_goal_todos
 PROVIDERS = [None, "file", "sqlite"]
 
 
-def fixture(tmp_path: Path, provider: str | None) -> tuple[Path, str, str]:
+def fixture(tmp_path: Path, provider: str | None, *, gate_note: str | None = None) -> tuple[Path, str, str]:
     project = tmp_path / "project"
     project.mkdir()
     state = project / "ACTIVE_GOAL_STATE.md"
@@ -32,7 +32,7 @@ def fixture(tmp_path: Path, provider: str | None) -> tuple[Path, str, str]:
         status="blocked", claimed_by="agent-a")
     gate = add_goal_todo(registry_path=registry, goal_id="goal-a", role="user",
         text="Approve publishing", task_class="user_gate", blocks_agent="agent-a",
-        unblocks_todo_id=target["todo_id"])
+        unblocks_todo_id=target["todo_id"], **({"note": gate_note} if gate_note else {}))
     if provider:
         todos = list_goal_todos(registry_path=registry, goal_id="goal-a")["todos"]
         projection = build_todo_runtime_shadow_projection(goal_id="goal-a", todos=todos, handoff_mode="soft_claim")
@@ -109,6 +109,28 @@ def test_gate_resolve_recovers_lost_receipt_without_double_write(
     recovered = service.apply(proposal["proposal_id"])["proposal"]
     assert recovered["status"] == "applied"
     assert recovered["receipt"]["gate_readback"]["target"] == {"todo_id": target_id, "status": "open"}
+    assert rows(registry) == committed
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_gate_resolve_recovers_lost_receipt_that_kept_the_gate_note(
+    tmp_path: Path, provider: str | None, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No replacement note: the write keeps the gate's own note, and recovery
+    # must still recognise the closure as this proposal's.
+    registry, gate_id, _target_id = fixture(tmp_path, provider, gate_note="Context from the orchestrator")
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
+    proposal = preview(service, gate_id, "approve", note=None)
+    with monkeypatch.context() as patch:
+        def lost_response(*args, **kwargs):
+            raise ConnectionError("Synthetic receipt loss after canonical commit")
+        patch.setattr(service.store, "apply", lost_response)
+        with pytest.raises(ConnectionError):
+            service.apply(proposal["proposal_id"])
+    committed = rows(registry)
+    assert committed[gate_id]["note"] == "Context from the orchestrator"
+    recovered = service.apply(proposal["proposal_id"])["proposal"]
+    assert recovered["status"] == "applied", recovered
     assert rows(registry) == committed
 
 

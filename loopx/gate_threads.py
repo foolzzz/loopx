@@ -196,17 +196,44 @@ def mark_gate_closed(
     runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    return _close_gate_entry(runtime_root, goal_id, todo_id, decision=decision, extra=extra)[0]
+
+
+def record_gate_settlement(
+    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None, option: str,
+    outcome_key: str, outcome: Mapping[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """Close a typed gate with its settled option and outcome; the first settlement wins.
+
+    Returns the recorded outcome and whether this call recorded it. An outcome
+    already recorded under ``outcome_key`` is never overwritten, nor are its
+    ``decision_option`` and decision, so a later settlement replays it.
+    """
+
+    entry, recorded = _close_gate_entry(
+        runtime_root, goal_id, todo_id, decision=decision,
+        extra={"decision_option": option, outcome_key: dict(outcome)}, first_writer_key=outcome_key,
+    )
+    return dict(entry[outcome_key]), recorded
+
+
+def _close_gate_entry(
+    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
+    extra: Mapping[str, Any] | None, first_writer_key: str | None = None,
+) -> tuple[dict[str, Any], bool]:
     todo_id = _safe_todo_id(todo_id)
     index_path = gate_index_path(runtime_root, goal_id)
     index_path.parent.mkdir(parents=True, exist_ok=True)
     with exclusive_file_lock(index_path):
         messages = read_gate_thread(runtime_root, goal_id, todo_id)
         previous = read_gate_index(runtime_root, goal_id)["gates"].get(todo_id)
+        if first_writer_key is not None and isinstance((previous or {}).get(first_writer_key), Mapping):
+            return dict(previous), False
         entry = _index_entry(previous, messages, closed=True)
         if decision:
             entry["decision_outcome"] = decision
         entry.update(dict(extra or {}))
-        return _write_index_entry(runtime_root, goal_id, todo_id, entry)
+        return _write_index_entry(runtime_root, goal_id, todo_id, entry), True
 
 
 def append_gate_message(

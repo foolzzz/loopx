@@ -64,7 +64,7 @@ from typing import Any
 
 from .control_plane.todos.contract import TODO_UNFINISHED_STATUS_VALUES
 from .file_lock import exclusive_file_lock
-from .gate_threads import GATE_KIND_GOAL_COMPLETE, mark_gate_closed, read_gate_index, register_gate_kind
+from .gate_threads import GATE_KIND_GOAL_COMPLETE, read_gate_index, record_gate_settlement, register_gate_kind
 from .history import validate_goal_id_path_segment
 
 GOAL_COMPLETE_SCHEMA_VERSION = "loopx_goal_complete_gate_v0"
@@ -585,8 +585,10 @@ def settle_goal_complete_gate(
                 outcome.update(ok=False, error="no orchestrator is registered to take the follow-up")
     except (OSError, ValueError) as error:  # the gate is closed; report, never raise
         outcome.update(ok=False, error=str(error)[:400])
-    mark_gate_closed(runtime_root, goal_id, gate_todo_id, decision=decision,
-                     extra={"decision_option": selected, "completion_outcome": outcome})
+    recorded, first = record_gate_settlement(runtime_root, goal_id, gate_todo_id, decision=decision,
+                                             option=selected, outcome_key="completion_outcome", outcome=outcome)
+    if not first:  # a concurrent settlement recorded its outcome first
+        return {"payload_key": "goal_complete", **recorded, "replayed": True}
     _event(runtime_root, goal_id, "goal_complete_decided", todo_id=gate_todo_id, status=selected, details={
         "gate_id": gate_todo_id, "option": selected, "ok": outcome["ok"],
         **({"follow_up_todo_id": outcome["follow_up_todo_id"]} if outcome.get("follow_up_todo_id") else {}),

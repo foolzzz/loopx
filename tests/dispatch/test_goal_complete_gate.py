@@ -429,6 +429,23 @@ def test_each_option_applies_via_the_web_resolve_path(tmp_path, monkeypatch, opt
         assert "User follow-up: Add CSV export" in orch_open[0]["text"]
 
 
+def test_a_second_goal_complete_settlement_replays_the_first_option(tmp_path, monkeypatch) -> None:
+    fx = _fixture(tmp_path, monkeypatch, remote=False)
+    dispatcher = _dispatcher(fx)
+    _merged(fx, ["api"], name="only")
+    [opened] = dispatcher.run_once()["gates_opened"]
+    gate_id = opened["todo_id"]
+    _resolve(fx, gate_id, "--option", "leave_open")
+    replayed = settle_goal_complete_gate(
+        registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL_ID, gate_todo_id=gate_id,
+        decision="approve", option="close_goal", note=None,
+    )
+    assert replayed["replayed"] is True and replayed["option"] == "leave_open", replayed
+    assert read_gate_index(fx["runtime"], GOAL_ID)["gates"][gate_id]["decision_option"] == "leave_open"
+    assert not goal_is_stopped(_goal(fx))
+    assert len(_events(fx, "goal_complete_decided")) == 1
+
+
 # --- idempotency ------------------------------------------------------------------------------
 
 

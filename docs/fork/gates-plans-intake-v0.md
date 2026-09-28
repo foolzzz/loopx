@@ -41,6 +41,18 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   A `goal_complete` gate (decision 42) takes `--option close_goal|add_work|
   leave_open` (the note carries the follow-up); see
   [below](#goal-complete-gate-decision-42).
+- The dashboard `gate.resolve` records its proposal id as the gate's completion
+  identity. A proposal whose gate another surface closed first is stale (HTTP
+  409) and writes nothing, even when the decision is the same. When its own write
+  committed but the settlement that follows (plan apply, budget, review or
+  goal-completion effect) did not finish, retrying the proposal re-runs that
+  idempotent settlement before it reports `applied`. An interrupted plan apply
+  returns `plan_apply_recovery_required` with the `loopx plan apply` recovery
+  command.
+- A typed gate's settlement is first-writer-wins: the first recorded option and
+  outcome (`decision_option` with `budget_outcome`, `completion_outcome` or
+  `review_outcome`) are never overwritten, and settling the gate again replays
+  them without applying anything.
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The

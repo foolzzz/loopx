@@ -35,6 +35,7 @@ from loopx.usage_budget_gate import (
     BUDGET_HOLD_GATE_OPEN,
     BUDGET_HOLD_STOPPED,
     parse_budget_amount,
+    settle_budget_gate,
 )
 from tests.dispatch.dispatch_fixtures import GOAL_ID, set_modes, write_fixture
 from tests.dispatch.test_loopx_dispatcher import Clock
@@ -401,32 +402,82 @@ def test_each_option_applies_via_the_web_resolve_path(tmp_path: Path, option: st
     assert any(reason.startswith("budget") for _agent, reason in held) is (option == "stop_goal")
 
 
-def _raise_budget_preview(tmp_path: Path) -> tuple[dict[str, Any], str, ChatActionService, dict[str, Any]]:
+def _raise_budget_preview(
+    tmp_path: Path, *, option: str | None = "raise_budget",
+) -> tuple[dict[str, Any], str, ChatActionService, dict[str, Any]]:
     fixture = _fixture(tmp_path)
     dispatcher = _dispatcher(fixture, GoalShouldRun({}))
     gate_id = _exhaust(fixture, dispatcher)
     service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=fixture["registry"])
+    # Without an option, approve selects the default option (raise_budget).
+    choice = {"option": option} if option else {"decision": "approve"}
     proposal = service.preview({
         "action_kind": "gate.resolve", "summary": "raise the budget",
-        "normalized_parameters": {"goal_id": GOAL_ID, "todo_id": gate_id, "option": "raise_budget", "note": "$0.2"},
+        "normalized_parameters": {"goal_id": GOAL_ID, "todo_id": gate_id, **choice, "note": "$0.2"},
         "context": {}, "idempotency_key": "budget-raise",
     })
     assert proposal["status"] == "preview_ready", proposal
     return fixture, gate_id, service, proposal
 
 
-def test_a_lost_web_receipt_recovers_the_recorded_option(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+def _lose_receipt(service: ChatActionService, proposal_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
     with monkeypatch.context() as patch:
         def lost_response(*args: Any, **kwargs: Any) -> None:
             raise ConnectionError("Synthetic receipt loss after the gate closed")
         patch.setattr(service.store, "apply", lost_response)
         with pytest.raises(ConnectionError):
-            service.apply(proposal["proposal_id"])
+            service.apply(proposal_id)
+
+
+@pytest.mark.parametrize("option", ["raise_budget", None])
+def test_a_lost_web_receipt_recovers_the_recorded_option(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, option: str | None,
+) -> None:
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path, option=option)
+    _lose_receipt(service, proposal["proposal_id"], monkeypatch)
+    entry = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]
+    assert entry["budget_outcome"]["option"] == "raise_budget", "the omitted option was defaulted"
     recovered = service.apply(proposal["proposal_id"])["proposal"]
     assert recovered["status"] == "applied", recovered
-    assert recovered["receipt"]["decision_option"] == "raise_budget"
+    assert recovered["receipt"].get("decision_option") == option
     assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+
+
+def test_a_crash_between_the_gate_closure_and_its_settlement_settles_on_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import loopx.plan_cards as plan_cards
+
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+    with monkeypatch.context() as patch:
+        def crash(**kwargs: Any) -> None:
+            raise RuntimeError("Synthetic crash after the gate closed, before its settlement")
+        patch.setattr(plan_cards, "settle_gate_decision", crash)
+        with pytest.raises(RuntimeError):
+            service.apply(proposal["proposal_id"])
+    assert _budget_gates(fixture) == [], "the gate closed"
+    assert "budget_outcome" not in read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.05
+    settled = service.apply(proposal["proposal_id"])["proposal"]
+    assert settled["status"] == "applied", settled
+    entry = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]
+    assert entry["budget_outcome"]["option"] == "raise_budget" and entry["budget_outcome"]["ok"] is True
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+    assert len(_events(fixture, "usage_budget_decided")) == 1
+
+
+def test_a_second_settlement_replays_the_first_option(tmp_path: Path) -> None:
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+    assert service.apply(proposal["proposal_id"])["proposal"]["status"] == "applied"
+    replayed = settle_budget_gate(
+        registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_id=GOAL_ID,
+        gate_todo_id=gate_id, decision="reject", option="stop_goal", note=None,
+    )
+    assert replayed["replayed"] is True and replayed["option"] == "raise_budget"
+    assert read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]["decision_option"] == "raise_budget"
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+    assert not goal_is_stopped(load_goal_from_registry(fixture["registry"], GOAL_ID))
+    assert len(_events(fixture, "usage_budget_decided")) == 1
 
 
 def test_a_web_preview_is_stale_after_the_cli_picks_another_option(tmp_path: Path) -> None:

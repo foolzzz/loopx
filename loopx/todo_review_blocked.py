@@ -47,7 +47,7 @@ from .control_plane.todos.contract import (
     normalize_todo_claimed_by,
     normalize_todo_status,
 )
-from .gate_threads import GATE_KIND_ACCEPTOR_BLOCKED, mark_gate_closed, read_gate_index, register_gate_kind
+from .gate_threads import GATE_KIND_ACCEPTOR_BLOCKED, read_gate_index, record_gate_settlement, register_gate_kind
 from .todo_acceptance import (
     TODO_ACCEPTANCE_SCHEMA_VERSION,
     _clip,
@@ -79,6 +79,10 @@ _DEFAULT_OPTION_FOR_DECISION = {
     "cancel": OPTION_CANCEL_TODO,
 }
 OWNER_ACTOR = "owner"
+# The gate index key of a settled acceptor_blocked gate's outcome (first settlement wins).
+REVIEW_OUTCOME_KEY = "review_outcome"
+_REVIEW_OUTCOME_FIELDS = ("ok", "gate_todo_id", "review_todo_id", "option", "applied", "reason", "error",
+                          "review_feedback")
 _REASON_LIMIT = 300
 
 
@@ -326,15 +330,20 @@ def settle_review_gate(
     decision: str | None, option: str | None, note: str | None = None,
     runtime_root_arg: str | None = None,
 ) -> dict[str, Any] | None:
-    """After an ``acceptor_blocked`` gate closed, apply the chosen option."""
+    """After an ``acceptor_blocked`` gate closed, apply the chosen option.
+
+    Returns None for other gates. The first settlement wins: settling the same
+    gate again replays its recorded outcome and applies nothing.
+    """
 
     entry = review_gate_entry(runtime_root, goal_id, gate_todo_id)
     if entry is None:
         return None
+    if isinstance(entry.get(REVIEW_OUTCOME_KEY), Mapping):
+        return {"payload_key": "review_gate", **dict(entry[REVIEW_OUTCOME_KEY]), "replayed": True}
     selected = resolve_review_gate_option(decision, option)
     review_todo_id = str(entry.get("review_todo_id") or "")
     acceptor = str(entry.get("acceptor_agent") or "")
-    mark_gate_closed(runtime_root, goal_id, gate_todo_id, decision=decision, extra={"decision_option": selected})
     goal = load_goal_from_registry(registry_path, goal_id)
     todo = _read_todo(
         registry_path=registry_path, goal_id=goal_id, todo_id=review_todo_id,
@@ -348,7 +357,7 @@ def settle_review_gate(
     if todo is None or status != TODO_STATUS_IN_REVIEW:
         # Somebody already moved the todo (for example a later verdict).
         result["reason"] = f"todo is {status or 'missing'}, not in_review; nothing to apply"
-        return result
+        return _record_review_outcome(runtime_root, goal_id, gate_todo_id, decision, result)
     # The owner is not an agent: every option's todo write is attributed to the
     # claim owner, else the blocked acceptor, else the orchestrator.
     owner = lifecycle_agent_for_owner_write(dict(goal or {}), todo.get("claimed_by"), acceptor)
@@ -389,6 +398,22 @@ def settle_review_gate(
             result["applied"] = True
     except (OSError, ValueError) as error:  # the gate is closed; report, never raise
         result.update(ok=False, error=str(error)[:400])
-    _event(runtime_root, goal_id, "review_gate_decided", todo_id=review_todo_id, agent_id=acceptor or None,
-           status=selected, details={"gate_id": gate_todo_id, "option": selected, "applied": result["applied"]})
+    recorded = _record_review_outcome(runtime_root, goal_id, gate_todo_id, decision, result)
+    if not recorded.get("replayed"):
+        _event(runtime_root, goal_id, "review_gate_decided", todo_id=review_todo_id, agent_id=acceptor or None,
+               status=selected, details={"gate_id": gate_todo_id, "option": selected, "applied": result["applied"]})
+    return recorded
+
+
+def _record_review_outcome(
+    runtime_root: Path, goal_id: str, gate_todo_id: str, decision: str | None, result: dict[str, Any],
+) -> dict[str, Any]:
+    """Record the settled option and a compact outcome; a concurrent first settlement replays."""
+
+    outcome = {key: result[key] for key in _REVIEW_OUTCOME_FIELDS if key in result}
+    recorded, first = record_gate_settlement(runtime_root, goal_id, gate_todo_id, decision=decision,
+                                             option=str(result["option"]), outcome_key=REVIEW_OUTCOME_KEY,
+                                             outcome=outcome)
+    if not first:
+        return {"payload_key": "review_gate", **recorded, "replayed": True}
     return result

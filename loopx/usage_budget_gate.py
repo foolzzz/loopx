@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any
 
 from .file_lock import exclusive_file_lock
-from .gate_threads import GATE_KIND_BUDGET_EXHAUSTED, mark_gate_closed, read_gate_index, register_gate_kind
+from .gate_threads import GATE_KIND_BUDGET_EXHAUSTED, read_gate_index, record_gate_settlement, register_gate_kind
 from .usage_accounting.budget import (
     budget_status,
     read_usage_budget,
@@ -391,8 +391,10 @@ def settle_budget_gate(
             )
     except (OSError, ValueError) as error:  # the gate is closed; report, never raise
         outcome.update(ok=False, error=str(error)[:400])
-    mark_gate_closed(runtime_root, goal_id, gate_todo_id, decision=decision,
-                     extra={"decision_option": selected, "budget_outcome": outcome})
+    recorded, first = record_gate_settlement(runtime_root, goal_id, gate_todo_id, decision=decision,
+                                             option=selected, outcome_key="budget_outcome", outcome=outcome)
+    if not first:  # a concurrent settlement recorded its outcome first
+        return {"payload_key": "budget_gate", **recorded, "replayed": True}
     _event(runtime_root, goal_id, "usage_budget_decided", todo_id=gate_todo_id, status=selected, details={
         "gate_id": gate_todo_id, "option": selected, "ok": outcome["ok"],
         **({"budget_usd": outcome["budget_usd"]} if outcome.get("budget_usd") is not None else {}),
