@@ -30,7 +30,7 @@ from loopx.push_requests import (
 )
 from loopx.rollout_event_log import rollout_event_log_path
 from loopx.todo_acceptance import accept_goal_todo
-from loopx.todos import add_goal_todo, complete_goal_todo, list_goal_todos
+from loopx.todos import add_goal_todo, complete_goal_todo, list_goal_todos, update_goal_todo
 from loopx.workspace import git_workspace
 from tests.dispatch.dispatch_fixtures import git, git_env, make_repo
 from tests.dispatch.test_loopx_dispatcher import Clock, ScriptedShouldRun
@@ -55,6 +55,7 @@ def _bare_remote(tmp_path: Path, repo: Path) -> Path:
 def _fixture(tmp_path: Path, monkeypatch, *, model: str = "role_v1", on_push_command: Any = None) -> dict:
     for key, value in git_env(tmp_path).items():
         monkeypatch.setenv(key, value)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # never the real ~/.codex/loopx
     home = tmp_path / "progress"
     home.mkdir()
     state = home / "ACTIVE_GOAL_STATE.md"
@@ -83,12 +84,16 @@ def _fixture(tmp_path: Path, monkeypatch, *, model: str = "role_v1", on_push_com
             "tmp": tmp_path}
 
 
-def _deliver(fx: dict, repos: list[str], *, name: str = "feature") -> str:
+def _add_work(fx: dict, repos: list[str], *, name: str, **extra: Any) -> str:
     added = add_goal_todo(registry_path=fx["registry"], goal_id=GOAL, role="agent", text=f"Build {name}",
                           task_class="advancement_task", claimed_by="dev",
                           validation_command_json=json.dumps(["true"]),
-                          role_contract={"task_repositories": repos})
-    todo_id = str(added["todo_id"])
+                          role_contract={"task_repositories": repos}, **extra)
+    return str(added["todo_id"])
+
+
+def _deliver(fx: dict, repos: list[str], *, name: str = "feature", todo_id: str | None = None) -> str:
+    todo_id = todo_id or _add_work(fx, repos, name=name)
     paths = git_workspace.prepare(fx["goal"], todo_id, repos, fx["runtime"])["paths"]
     for repo in repos:
         worktree = Path(paths[repo])
@@ -200,6 +205,46 @@ def test_the_gate_opens_once_all_work_is_merged_and_not_while_todos_are_pending(
     assert repeated["opened"] is False and repeated["gate_todo_id"] == gate["todo_id"]
     assert len(_push_gates(fx)) == 1
     assert _remote_head(fx) is None, "opening a gate never pushes"
+
+
+def test_a_deferred_todo_keeps_the_automatic_gate_closed_but_not_an_explicit_request(
+    tmp_path, monkeypatch,
+) -> None:
+    # A deferred agent todo (a dependent still waiting on its dependency) is
+    # unfinished work of the goal, as for the goal_complete gate: the
+    # dispatcher must not offer a push of the partial goal (decision 38).
+    fx = _fixture(tmp_path, monkeypatch)
+    dispatcher = _dispatcher(fx)
+    first = _merged(fx, name="first")
+    second = _add_work(fx, ["api"], name="second", status="deferred", resume_when=f"todo_done:{first}")
+    assert _remote_head(fx) is None, "the remote lacks the first merge"
+
+    report = dispatcher.run_once()
+    assert report["gates_opened"] == [], report  # neither push_request nor goal_complete
+    assert _push_gates(fx) == []
+    held = request_push(registry_path=fx["registry"], goal_id=GOAL, require_all_merged=True)
+    assert held["opened"] is False and held["reason"] == "todos_pending", held
+    assert held["pending_todo_ids"] == [second]
+
+    # An explicit request does not wait for pending todos: it still offers the merged work.
+    code, offered = _cli(fx, "goal", "request-push", "--goal-id", GOAL, "--dry-run")
+    assert code == 0 and offered["reason"] == "requested", offered
+    assert f"api: {TASK_BRANCH} -> origin (" in offered["gate_text"]
+    [offered_api] = [repo for repo in offered["repos"] if repo["name"] == "api"]
+    assert offered_api["status"] == "ready" and offered_api["goal_merge_commits"] == 1
+    assert _push_gates(fx) == [], "a dry run opens no gate"
+
+    # Released, delivered and merged: now all of the goal's work is merged.
+    released = update_goal_todo(registry_path=fx["registry"], goal_id=GOAL, todo_id=second, role="agent",
+                                status="open", clear_resume_when=True, agent_id="dev")
+    assert released.get("ok", True), released
+    _accept(fx, _deliver(fx, ["api"], name="second", todo_id=second))
+    opened = [gate for gate in dispatcher.run_once()["gates_opened"] if gate["key"] == "push_request"]
+    assert len(opened) == 1
+    view = gate_view(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                     todo_id=opened[0]["todo_id"])
+    [api] = [repo for repo in view["push_repos"] if repo["name"] == "api"]
+    assert api["goal_merge_commits"] == 2 and api["head"] == git(fx["api"], "rev-parse", TASK_BRANCH)
 
 
 def test_a_goal_with_nothing_merged_or_only_local_repos_opens_no_gate(tmp_path, monkeypatch) -> None:

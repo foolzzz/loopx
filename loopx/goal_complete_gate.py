@@ -62,6 +62,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .control_plane.todos.contract import TODO_UNFINISHED_STATUS_VALUES
 from .file_lock import exclusive_file_lock
 from .gate_threads import GATE_KIND_GOAL_COMPLETE, mark_gate_closed, read_gate_index, register_gate_kind
 from .history import validate_goal_id_path_segment
@@ -89,8 +90,6 @@ _GOAL_COMPLETE_DEFAULT_OPTION = {
 GOAL_COMPLETE_HOLD_CLOSED = "goal_closed_by_owner"
 # The follow-up todo's text names its gate, so a replayed settle finds it again.
 GOAL_COMPLETE_FOLLOW_UP_LABEL = "User follow-up: "
-# Agent todos in these statuses are unfinished work.
-GOAL_COMPLETE_PENDING_TODO_STATUSES = frozenset({"open", "in_review", "blocked", "deferred"})
 # Why a goal is not complete yet (``goal_completion_snapshot`` reasons).
 GOAL_COMPLETE_WAIT_TODOS = "todos_pending"
 GOAL_COMPLETE_WAIT_GATE = "user_gate_open"
@@ -276,7 +275,7 @@ def goal_completion_snapshot(
     agent_rows = [row for row in rows if str(row.get("role") or "agent") == "agent"]
     user_rows = [row for row in rows if str(row.get("role") or "") == "user"]
     pending = [str(row.get("todo_id")) for row in agent_rows
-               if str(row.get("status") or "") in GOAL_COMPLETE_PENDING_TODO_STATUSES]
+               if str(row.get("status") or "") in TODO_UNFINISHED_STATUS_VALUES]
     if pending:
         return {**base, "reason": GOAL_COMPLETE_WAIT_TODOS, "pending_todo_ids": pending[:20]}
     open_gates = [str(row.get("todo_id")) for row in user_rows

@@ -249,7 +249,8 @@ After an upgrade, render and load the plist again. Its logs go to
   happens to the todo itself.
 - **Push request (G8, decision 38).** Every pass over a role_v1 goal asks
   `loopx.push_requests.request_push(require_all_merged=True)`. Once no agent
-  todo of the goal is `open`, `in_review` or `blocked`, and a merge target has
+  todo of the goal is `open`, `in_review`, `blocked` or `deferred` (the same
+  unfinished statuses as the goal complete gate below), and a merge target has
   this goal's merge commits (`LoopX-Goal` trailer) that its remote does not
   have yet, one `push_request` user gate opens (report key
   `gates_opened[].key=push_request`). It blocks the goal's orchestrator. At

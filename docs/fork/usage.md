@@ -509,7 +509,8 @@ loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option cancel_todo
 
 ### Step 9: push
 
-When no agent todo of the goal is open, in review or blocked, and a merge
+When no agent todo of the goal is open, in review, blocked or deferred (a
+dependent still waiting on its dependency counts as unfinished), and a merge
 target has commits that its remote lacks, the dispatcher opens a
 `push_request` gate. The gate lists each repo's branch, its remote and the
 commit range.
