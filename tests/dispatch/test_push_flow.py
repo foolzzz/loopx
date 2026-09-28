@@ -210,9 +210,12 @@ def test_the_gate_opens_once_all_work_is_merged_and_not_while_todos_are_pending(
 def test_a_deferred_todo_keeps_the_automatic_gate_closed_but_not_an_explicit_request(
     tmp_path, monkeypatch,
 ) -> None:
-    # A deferred agent todo (a dependent still waiting on its dependency) is
-    # unfinished work of the goal, as for the goal_complete gate: the
-    # dispatcher must not offer a push of the partial goal (decision 38).
+    # A deferred agent todo is unfinished work of the goal, as for the
+    # goal_complete gate: the dispatcher must not offer a push of the partial
+    # goal (decision 38). The todo here is deliberately left deferred: it is
+    # not on an applied plan, so no resume pass reopens it. That is the state a
+    # dependent sits in between an accept and its release, or when a
+    # dependency never counts as satisfied.
     fx = _fixture(tmp_path, monkeypatch)
     dispatcher = _dispatcher(fx)
     first = _merged(fx, name="first")
