@@ -1,7 +1,7 @@
 # E2E pilot report v1 (regression run)
 
 Date: 2026-09-26/27. Branch: `fork/pilot-regression` (from `origin/dev` at `aee9c4c8e`).
-All paths are relative to the pilot dir `/Users/a/ai/loopx-pilots/`. Times are UTC unless
+All paths are relative to the pilot dir `<pilot-dir>` (a local directory outside the repo). Times are UTC unless
 marked local (PDT).
 
 ## Result
@@ -48,7 +48,7 @@ Final task branches are green in fresh clones: api `python3 -m unittest` 26 test
   - `~/.codex/loopx` was not touched. Every command ran with `--no-global-sync`. Nothing was
     pushed to a network remote.
 - **Code under test.**
-  - `lx2` runs `python -m loopx.cli` from `/Users/a/ai/loopx-wt/pilot-regression`, with
+  - `lx2` runs `python -m loopx.cli` from a worktree of the `fork/pilot-regression` branch, with
     `--registry .runtime2/registry.json --runtime-root .runtime2`.
   - The dispatcher is `run2/dispatch.sh`: resident `dispatch serve`, `--max-global 3`,
     `--turn-timeout-seconds 1500`, tick 60 s.
