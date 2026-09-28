@@ -603,7 +603,17 @@ def apply_plan(
 
         notify_orchestrator(registry_path=registry_path, goal_id=goal_id, record=record, decision="stale",
                             todo_ids=not_applied, runtime_root_arg=runtime_root_arg)
-    return {"ok": True, "applied": True, "already_applied": False, "plan": record}
+    from .orchestrator_bookkeeping import close_planning_todos_after_apply
+
+    # Decision 43: the planning todo is closed here, not by an orchestrator Turn.
+    closed = close_planning_todos_after_apply(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, record=record,
+        runtime_root_arg=runtime_root_arg,
+    )
+    return {
+        "ok": True, "applied": True, "already_applied": False, "plan": record,
+        **({"planning_todos_closed": closed} if closed else {}),
+    }
 
 
 def plan_for_gate(runtime_root: Path, goal_id: str, todo_id: str) -> str | None:
@@ -716,6 +726,8 @@ def settle_gate_decision(
         settled = {"ok": True, "plan_id": plan_id, "status": plan["status"], "todo_id_map": plan["todo_id_map"]}
         if plan.get("criteria_change_results"):
             settled["criteria_change_results"] = plan["criteria_change_results"]
+        if result.get("planning_todos_closed"):
+            settled["planning_todos_closed"] = result["planning_todos_closed"]
         return settled
     path = plan_path(runtime_root, goal_id, plan_id)
     with exclusive_file_lock(path):
