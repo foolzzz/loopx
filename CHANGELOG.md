@@ -152,8 +152,9 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
 
 #### Acceptance flow (#8, #11, #13, #16)
 
-- **The `in_review` status.** On a role_v1 goal, completing a todo that
-  requires acceptance does not mark it done. Which todos require it:
+- **The `in_review` status.** On a role_v1 goal that has registered roles,
+  completing a todo that requires acceptance does not mark it done. A goal
+  without roles keeps completing todos directly. Which todos require it:
   - with `requires_acceptance=true`, always;
   - with `requires_acceptance=false`, never;
   - without the flag, only a developer advancement todo, and only when the
@@ -298,8 +299,8 @@ These behaviors differ from upstream.
   goals, the legacy hierarchy detector no longer treats an
   `agent_profiles.*.role` key as a migration trigger. Its other markers are
   unchanged.
-- **Completing a todo.** On a role_v1 goal, `loopx todo complete` of a todo
-  that requires acceptance (see the `in_review` status above) delivers it to
+- **Completing a todo.** On a role_v1 goal that has registered roles,
+  `loopx todo complete` of a todo that requires acceptance (see the `in_review` status above) delivers it to
   `in_review` instead of marking it done. The event log gains `todo_in_review` and
   `todo_reopened`.
 - **Planning obligations.** role_v1 goals no longer derive these upstream

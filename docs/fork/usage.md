@@ -334,8 +334,8 @@ What happens on its own:
   `loopx/todo-due/<todo>`. It commits, and it never pushes.
 - When the developer's Turn succeeds, LoopX runs the todo's validation
   command. A todo that requires acceptance then moves to `in_review`, and any
-  other todo moves to `done`. A todo requires acceptance when it says
-  `requires_acceptance=true`. Without the flag, it requires acceptance when
+  other todo moves to `done`. On a goal with registered roles, a todo
+  requires acceptance when it says `requires_acceptance=true`. Without the flag, it requires acceptance when
   it is a developer advancement todo and the goal has an acceptor.
 - The acceptor reviews a detached checkout of the delivered commit.
   - **Reject** reopens the todo for the developer with feedback that names
@@ -644,10 +644,10 @@ These are the fork's additions to the upstream `todo` command:
 | `todo reject --goal-id G --todo-id T --agent-id ACC --note TEXT` | Reject it. The note is required and should name the failed criteria. The second reject escalates. |
 | `todo block-review --goal-id G --todo-id T --agent-id ACC --reason TEXT` | The acceptor cannot review. This opens an `acceptor_blocked` gate. |
 | `todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2] [--agent-id ORCH] [--note]` | Replace or split a todo, and rewire its dependents. |
-| `todo complete ...` | On a role_v1 goal, a todo that requires acceptance goes to `in_review` instead of `done`. |
+| `todo complete ...` | On a role_v1 goal that has registered roles, a todo that requires acceptance goes to `in_review` instead of `done`. A goal without roles completes todos directly. |
 | `--status in_review` | A first-class status. `todo add` cannot create it. |
 | `--required-role orchestrator\|developer\|acceptor` | Route a todo to a role. The default is developer for work, and orchestrator for gates, blockers and replans. |
-| `--requires-acceptance true\|false` | Whether completion needs an acceptor. `true` always sends the delivery to review, and `false` never does. Without the flag, a developer advancement todo needs one only when the goal has an acceptor. |
+| `--requires-acceptance true\|false` | Whether completion needs an acceptor, on a goal that has registered roles. `true` sends the delivery to review, and `false` never does. Without the flag, a developer advancement todo needs one only when the goal has an acceptor. |
 | `--acceptor-agent ID` | Bind a specific acceptor. |
 | `--task-repo NAME` (repeatable) | The goal repos the todo touches. Several repos make an atomic multi-repo todo. |
 | `--acceptance-criteria TEXT` | The todo's criteria. Only the orchestrator, or you, may set them. |
