@@ -38,6 +38,9 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   A `budget_exhausted` gate (decision 41) takes `--option raise_budget|
   continue_without_limit|stop_goal` (the note carries a raised amount); see
   [usage-accounting-v0](usage-accounting-v0.md#budget-optional).
+  A `goal_complete` gate (decision 42) takes `--option close_goal|add_work|
+  leave_open` (the note carries the follow-up); see
+  [below](#goal-complete-gate-decision-42).
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The
@@ -64,7 +67,10 @@ The thread state is durable under the runtime root:
   `acceptor_blocked` (G12), `push_request` (G8, with `push_reason`,
   `push_repos` and, once decided, `push_outcome`) or `budget_exhausted`
   (decision 41, with `budget_revision`, the spend fields, `options` and, once
-  decided, `budget_outcome`). It is updated in the same lock as the append. The
+  decided, `budget_outcome`) or `goal_complete` (decision 42, with
+  `completion_key`, `completion_repos`, `completion_todos`,
+  `completion_usage`, `follow_ups`, `options` and, once decided,
+  `completion_outcome`). It is updated in the same lock as the append. The
   dispatcher can watch this file, or call
   `loopx.gate_threads.gates_awaiting_orchestrator(runtime_root, goal_id)`.
 - Every reply also appends a `gate_thread_reply` event to the goal's
@@ -109,11 +115,67 @@ gates:
 - the owner or CLI when no agent id is given;
 - LoopX itself: the dispatcher's re-login and cooldown gates (decision 17),
   the `acceptor_blocked` gate a blocked acceptor verdict opens (G12), and the
-  `push_request` gate once a goal's work is merged (G8, decision 38), and the
-  `budget_exhausted` gate at 100% of a goal's budget (decision 41);
+  `push_request` gate once a goal's work is merged (G8, decision 38), the
+  `budget_exhausted` gate at 100% of a goal's budget (decision 41), and the
+  `goal_complete` gate once a goal's work is merged and its push resolved
+  (decision 42);
 - the orchestrator;
 - agents that have no registered role;
 - every agent on `peer_v1` goals.
+
+## Goal complete gate (decision 42)
+
+A finished role_v1 goal gets one `goal_complete` gate from the dispatcher
+(`loopx.goal_complete_gate`), with no model Turn. Before (E2E pilot v1 gap N2)
+the goal's stale Next Action woke the orchestrator, whose Fable Turn opened a
+"Goal complete: confirm closure" gate right after the push approval; the
+orchestrator is now told never to open such a gate.
+
+It opens once no agent todo is `open`, `in_review`, `blocked` or
+`deferred`, no user gate is open, every done todo that requires acceptance
+was accepted and merged, and the push is resolved in every repo: pushed,
+rejected or cancelled at the push gate, or nothing to push (no remote, no
+merges, no unpushed merges of this goal). A pending push gate therefore comes
+first; a goal whose repos have no remote gets it right after its last merge.
+It blocks the orchestrator. Details: [dispatcher-v0](dispatcher-v0.md).
+
+`loopx gate show` (and the dashboard's gate endpoint) returns its content,
+computed without a model:
+
+- `completion_repos`: per repo the merge target (`branch`, `head`), the
+  merged todo commits (`merged_todo_commits`, from the `LoopX-Goal` trailer,
+  at most 20) and `push`: `pushed`, `up_to_date`, `declined` (with
+  `push_decision`), `local_only`, `no_merges` or `nothing_to_push`;
+- `completion_todos`: `accepted`, `rejects` (the sum of reject counts),
+  `superseded`, `done_without_review`, `orchestrator_todos`;
+- `completion_usage`: the `loopx usage report` totals (`cost_usd`,
+  `cost_reported_usd`, `cost_estimated_usd`, `unpriced_turns`, `turns`,
+  `agent_hours`, `cost_per_accepted_todo_usd`, ...) and `by_role`;
+- `follow_ups`: open user todos that are not gates, such as a non-blocking
+  budget alert.
+
+The gate text summarizes the same (its first 500 characters are what todo
+lists show, so the per-repo lines come last).
+
+| option | decision | effect |
+|---|---|---|
+| `close_goal` | approve | stops the goal through `loopx goal-lifecycle` (owner, reversible); the dispatcher skips it as `goal_closed_by_owner` until `loopx goal-lifecycle --operation resume` |
+| `add_work` | reject | the note (required) becomes one orchestrator todo "Orchestrator action: User follow-up: NOTE (goal_complete gate T)", which launches an ordinary orchestrator Turn |
+| `leave_open` | cancel | nothing changes; no further goal_complete gate until new work finishes |
+
+`approve`, `reject` and `cancel` without an option select the option in the
+same row. The CLI (`loopx gate resolve --option`), `loopx todo complete --role
+user --decision-outcome` and the dashboard `gate.resolve` (the drawer lists
+the three options) share the option plumbing of the acceptor-blocked and
+budget gates. `close_goal` is refused when the goal changed after the gate
+opened (new work, a new merge, another open gate): leave that gate open, and a
+new one opens once the work is done. Settling the same gate again replays its
+recorded outcome, so the follow-up todo is created once.
+
+One completion is identified by its `completion_key` (the done agent todos
+and the merge target heads): the gate index remembers it, so a replayed or
+restarted dispatcher, or one that lost its state file, never opens a second
+gate for it. Events: `goal_complete_opened`, `goal_complete_decided`.
 
 ## Plan cards (decision 12)
 

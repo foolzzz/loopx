@@ -28,8 +28,9 @@ The run found three dispatcher bugs, all fixed on this branch with regression te
 - An orchestrator action todo whose Turns kept failing relaunched without end.
 - The dispatcher lost its counters on restart.
 
-It also found one design gap that needs a decision (N2): a stale Next Action wakes the
-orchestrator on a finished goal.
+It also found one design gap that needed a decision (N2): a stale Next Action wakes the
+orchestrator on a finished goal. The user approved options (a) plus (c) as decision 42; N2 is
+resolved on branch `fork/n2-goal-complete` (see [N2 resolution](#n2-resolution-branch-forkn2-goal-complete)).
 
 Final task branches are green in fresh clones: api `python3 -m unittest` 26 tests OK, web
 `node --test` 30 pass. `main` is untouched in both repos and both bare remotes.
@@ -284,7 +285,7 @@ nothing executed.
 
 **The waste in rows 5–8 comes from two problems.**
 
-- **N2, the trigger (needs a decision).**
+- **N2, the trigger (resolved after the run by decision 42, see below).**
   - Once no agent todo was open, should-run raised `next_action_executable_without_agent_todo`.
   - It read the goal's Next Action, which the **last acceptor Turn** had written: "Settle
     todo_ee9cf116b96c as accepted; no developer repair is required."
@@ -417,7 +418,7 @@ Turn. No other pointless gate or action todo appeared.
 | G10 small items | `todo update --review-feedback` was not exercised. The gate text staleness is still there (N8) |
 | G11 environment TS test | not rerun (Python-only changes) |
 | G12 acceptor isolation and verdicts | **fixed**: detached review at the delivered sha, cleanup, sha-pinned merge, blocked verdict with options |
-| G13 idle orchestrator | **partly regressed**: the watch item `next_action_executable_without_agent_todo` fired on the finished goal (N2), and it fed an unbounded relaunch loop (fixed: F3/F4) |
+| G13 idle orchestrator | **partly regressed**: the watch item `next_action_executable_without_agent_todo` fired on the finished goal (N2, since resolved by decision 42), and it fed an unbounded relaunch loop (fixed: F3/F4) |
 | decision 40 | **works**: direct edit refused, card applied, acceptor held |
 | W1–W6 | none needed |
 
@@ -440,7 +441,7 @@ No core protocol, DB schema, lease or guard semantics were changed.
 
 ## Follow-up fixes (branch `fork/v1-gaps`)
 
-The P2/P3 gaps below, except N2 (awaiting a decision) and N7, were fixed after the run, one
+The P2/P3 gaps below, except N2 (resolved separately, see below) and N7, were fixed after the run, one
 commit and one regression test module per gap. All of them are read-side, host-side or
 workspace-side: no status, lease, DB or event schema changed, and `review_feedback` keeps its
 600-character contract.
@@ -455,10 +456,39 @@ workspace-side: no status, lease, DB or event schema changed, and `review_feedba
 | N10 | resolved | On release (`resume_ready_plan_todos`, dispatcher pass or accept), a todo branch with no commits of its own that is behind the merge target is fast-forwarded to it (ff-only merge in a clean worktree, or a compare-and-swap ref update). A branch with developer commits or a dirty worktree is never touched. The pass reports `todo_branches_refreshed`. | `tests/control_plane/test_todo_branch_refresh_n10.py` |
 | N11 | partially resolved | Plain `todo supersede` by the role_v1 orchestrator is attributed to the claim owner (no owner `--agent-id` needed). `dispatch serve` prints an idle heartbeat line every `--idle-heartbeat-seconds` (default 900). Not changed: the `todo add --agent-id` refusal for agent todos (an upstream CLI contract; the orchestrator omits `--agent-id`), and the dashboard's `npm run build:chat` in a fresh worktree. | `tests/dispatch/test_serve_ergonomics_n11.py` |
 
+## N2 resolution (branch `fork/n2-goal-complete`)
+
+The user approved options (a) plus (c) as design decision 42. No status, lease or DB schema
+changed.
+
+- **(a) The stale Next Action raises no demand.** should-run drops the
+  `next_action_executable_without_agent_todo` evidence for role_v1 goals where it re-derives the
+  state-projection demand (`build_state_projection_gap`), like decision 39 did for the
+  self-reported wait, including from a gap persisted before the change. No role gets a
+  projection repair, replan or orchestrator action from a Next Action. peer_v1 is unchanged.
+  Replayed on a copy of `.runtime2` (the repeat-limit gate closed): before, should-run returned
+  `state_projection_gap_repair` for orch, dev and acc; after, `normal_run` with no selected todo.
+- **(c) A deterministic goal_complete gate.** Once the work is accepted and merged and the push
+  resolved (pushed, rejected, or nothing to push), the dispatcher opens one `goal_complete` gate,
+  with no model Turn: per repo the merge target, merged todo commits and push result; accepted,
+  reject and superseded counts; usage totals and per-role split; open follow-ups. Options:
+  close the goal (goal-lifecycle stop), add work (the note becomes an orchestrator follow-up
+  todo) or leave it open. One gate per completion across replays and restarts. On the copy of
+  `.runtime2` it opened with: api 3 todo merges and web 1, both pushed to origin; 4 accepted,
+  2 rejects, 4 superseded; $17.54 over 21 Turns, $4.39 per accepted todo.
+- **Prompts.** The orchestrator is told never to open a closure gate itself; the action todo text
+  no longer offers "record the goal's terminal outcome".
+- Tests: `tests/control_plane/test_role_v1_stale_next_action_n2.py` (trimmed pilot state after
+  the push approval: no demand for any role; peer_v1 unchanged) and
+  `tests/dispatch/test_goal_complete_gate.py` (no Turn, waits for a pending push, no remote,
+  each option over CLI and web, reopen launches an orchestrator Turn, restart idempotency,
+  peer_v1).
+
 ## New gaps, in priority order
 
-- **N2 (P1, needs a decision). A stale Next Action wakes the orchestrator on a finished role_v1
-  goal.**
+- **N2 (P1, resolved by decision 42 on `fork/n2-goal-complete`, see
+  [above](#n2-resolution-branch-forkn2-goal-complete)). A stale Next Action wakes the
+  orchestrator on a finished role_v1 goal.**
   - `next_action_executable_without_agent_todo` fires once every agent todo is done.
   - Under role_v1, the goal's Next Action is written by whichever Turn settled last, typically
     the acceptor ("Settle todo_X as accepted…").
@@ -472,7 +502,7 @@ workspace-side: no status, lease, DB or event schema changed, and `review_feedba
     - (c) have the dispatcher open a deterministic "goal complete" gate after the push, with no
       Fable Turn.
   - Recommendation: (a) plus (c). This changes the semantics of an approved decision, so it
-    needs the user's decision.
+    needs the user's decision. **Decision: (a) plus (c), approved by the user (decision 42).**
 - **N3 (P2, resolved on `fork/v1-gaps`). The status `todo_index` goes stale for CLI lifecycle writes.** The role board reads
   the status `todo_index` (source `attention_queue_and_rollout_event_log`). After the run it
   still showed:
