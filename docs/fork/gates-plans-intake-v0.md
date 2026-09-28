@@ -184,7 +184,7 @@ gate for it. Events: `goal_complete_opened`, `goal_complete_decided`.
 loopx plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]
 loopx plan show    --goal-id G --plan-id PLAN_ID
 loopx plan list    --goal-id G [--require-status applied]   # exit 1 when no plan has it
-loopx plan apply   --goal-id G --plan-id PLAN_ID      # recovery only
+loopx plan apply   --goal-id G --plan-id PLAN_ID      # recovery only; the gate must be recorded approved
 ```
 
 Plan file format:
@@ -281,15 +281,37 @@ A plan is applied exactly once, and how depends on the goal's authority:
   or `loopx plan apply`) replays the same operation ids without creating
   duplicates.
 
+An apply starts only once the plan's gate is recorded `done` with
+`decision_outcome=approve`. Before it writes anything, the apply reads the
+plan's `plan_approval` gate todo from the goal's todo authority (Markdown or
+promoted canonical, archived rows included) and checks that decision, for a
+`pending` and an `applying` card alike. A caller flag or the gate-thread index
+never counts as the decision, and neither does the decision a replayed gate
+completion passes to settlement: replaying `approve` on a gate recorded
+`reject` applies nothing. So `loopx plan apply` is recovery only: it finishes a
+plan whose gate is recorded approved but whose apply was interrupted, or whose
+card was not settled after the gate closed. On a card whose gate is still open,
+or recorded `reject` or `cancel` before the card was settled, it exits 1 with
+`error_code=plan_not_approved`, creates no todos and leaves the card `pending`.
+
+This guard checks the recorded decision, not who recorded it. It does not
+protect against an orchestrator approving its own gate. The plan gate is bound
+to the proposing orchestrator, and `loopx gate resolve` (like `loopx todo
+complete --role user --decision-outcome`) defaults its lifecycle actor to that
+agent and accepts its decision. So an orchestrator with CLI access can still
+close its own plan gate with `approve`. Making gate closure owner-only is a
+separate authority follow-up.
+
 Changing a todo's acceptance criteria after the plan is applied is a major
 change (decision 12) and goes through a plan card (decision 40, below).
 
 An applied plan is never re-applied. This slice does not add a single-CAS canonical
 batch. That would be an extension of `work_items/team_plan.ts`, whose lane model
 has one advancement todo per lane, no role, dependency or validation fields, and
-an `actor === lane.agent_id` rule. Plan application here is an owner-confirmed
-action with no actor, which resolves the orchestrator-assigns-others concern
-raised in S1 without granting the orchestrator anything new.
+an `actor === lane.agent_id` rule. Plan application here runs with no actor, and
+only once the plan's gate is recorded done with decision approve. It gives the
+orchestrator no write path of its own. Who may record that approval is the
+separate authority follow-up above.
 
 ## Dependency release and supersession (gap G6)
 
