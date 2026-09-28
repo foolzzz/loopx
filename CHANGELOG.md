@@ -412,8 +412,13 @@ These behaviors differ from upstream.
 - **PyYAML.** PyYAML ships only in the `test` extra, and agent and provider
   config files need it. Install with `uv sync --extra test`, or run
   `pip install pyyaml`.
-- **Dashboard from source.** A source checkout needs `npm run build:chat`
-  before `loopx dashboard` can serve the chat bundle.
+- **Dashboard from source.** A source checkout without the local install
+  needs `npm run build:chat` before `loopx dashboard` can serve the chat
+  bundle. `scripts/install-local.sh` builds it into the release.
+- **launchd dispatcher code.** `loopx dispatch launchd-plist` runs
+  `<python> -m loopx.cli` without `PYTHONPATH`. With the checkout's `.venv`
+  as the Python, the resident dispatcher runs the checkout's current code,
+  not the installed snapshot.
 - **Budgets.** A budget pause never kills running Turns, so spend can end up
   above the budget.
 - **Usage recording.** The generic-cli and dsh hosts record no usage. A
