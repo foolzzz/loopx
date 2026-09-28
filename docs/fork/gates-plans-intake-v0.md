@@ -84,7 +84,8 @@ dashboard or any library caller), its index entry is marked `closed`.
 The S4 dispatcher fingerprints the files directly under `goals/<G>/`, including
 the rollout log and the `gates/` directory, so a user reply wakes the
 orchestrator. The orchestrator's system-prompt addendum explains the gate and
-plan commands and names the gates that are `awaiting_orchestrator`.
+plan commands and names the gates that are `awaiting_orchestrator`; its state
+digest (decision 43) lists every open gate with the tail of its thread.
 
 ### Web
 
@@ -258,6 +259,15 @@ Lifecycle:
      `depends_on` todos are satisfied (see
      [below](#dependency-release-and-supersession-gap-g6)). The accept verdict
      and every dispatcher pass call it.
+   - **Planning closeout (decision 43).** Once a card that creates todos is
+     applied, LoopX completes the open orchestrator planning todo
+     (`action_kind=plan`, such as the intake todo) itself, attributed to the
+     orchestrator, with evidence `plan_applied=<plan_id> rev=<n> gate=<gate>
+     created_todos=<n>: key=todo_id, …`. No orchestrator Turn is launched for
+     it (the E2E pilot v1 spent a $0.85 Turn on exactly this). The gate
+     decision payload reports it under `planning_todos_closed`. A planning
+     todo that an applied plan created itself, and a card with only
+     acceptance-criteria changes, are left to the orchestrator.
 4. **reject / cancel.** Nothing is applied, and the plan becomes `rejected` or
    `cancelled`.
 

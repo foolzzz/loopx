@@ -12,7 +12,9 @@ never writes goal state directly. Its only goal writes are user gates (re-login,
 long cooldown, orchestrator repeat limit, push request, budget exhausted and goal
 complete),
 which it creates through the normal Todo API (`add_goal_todo`, the same path as
-`todo add --role user --task-class user_gate`).
+`todo add --role user --task-class user_gate`), and the completion of orchestrator
+todos that are pure bookkeeping (decision 43, below), through the normal
+`complete_goal_todo`.
 
 ## Running it
 
@@ -123,6 +125,37 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      has no commits of its own is fast-forwarded to the current merge target
      (pilot v1 gap N10, see [workspaces-v0](workspaces-v0.md#stale-todo-branches-on-release-pilot-v1-gap-n10));
      the pass reports it under `todo_branches_refreshed`.
+   - **Mechanical bookkeeping (decision 43).** Before it launches the
+     orchestrator for a selected todo, the pass checks whether the todo is pure
+     bookkeeping (`loopx.orchestrator_bookkeeping`). If so it completes the
+     todo itself, attributed to the orchestrator (its claim owner), with the
+     evidence the Turn would have reported, reports it under
+     `orchestrator_todos_closed` (`kind`, `evidence`) and asks should-run again
+     instead of launching a Turn:
+     - `planning_closeout`: an open planning todo (`action_kind=plan`,
+       `required_role=orchestrator`) once a plan card that creates todos is
+       applied. This normally already happened when the plan was applied (see
+       [gates-plans-intake-v0](gates-plans-intake-v0.md)); the pass is the
+       backstop for goals applied before the change or a failed closeout. A
+       planning todo that an applied plan created itself is left to the
+       orchestrator.
+     - `escalation_target_closed`: an S2 escalation todo whose escalated todo is
+       already `done` (accepted and merged, superseded, or closed by the owner).
+     - `gate_action_answered`: a gate-reply action todo when every listed gate
+       was already answered by the orchestrator (its thread's last message is
+       the orchestrator's) or is a closed LoopX system gate (`acceptor_blocked`,
+       `push_request`, `budget_exhausted`, `goal_complete`), whose decision
+       LoopX settled and whose follow-up work, if any, arrives as its own todo.
+
+     Everything else stays a model Turn, deliberately: planning and
+     clarification, a gate reply the orchestrator has not answered (also when
+     the user closed a question or plan gate after replying), an escalation
+     whose todo is still blocked, a criteria-change outcome, a replan
+     obligation and a user follow-up. At most 5 todos are closed per
+     orchestrator and pass; then the pass skips with
+     `orchestrator_bookkeeping_limit` and the next pass continues. peer_v1
+     goals are unchanged. A closeout that fails is reported under `errors` and
+     the Turn launches as before.
    - **Deferred offers (E2E pilot v1).** Upstream should-run can still select a
      deferred todo for a developer or acceptor once its single `resume_when`
      dependency is done (`successor_replan_required`), while another plan
@@ -344,7 +377,7 @@ Two layers tell every Turn to use repo-relative paths instead:
   how to open a question gate, to return `user_action_required` while it waits
   on the user, and how to resolve an escalation. When it replaces or splits a
   todo it uses `loopx todo supersede --by`, never marking the replaced todo
-  done (gap G6).
+  done (gap G6). It ends with the goal state digest (decision 43, below).
 
 Role guidance that every host needs lives in the shared Turn prompt instead: an
 `in_review` todo tells the acceptor that it only reviews and never modifies
@@ -354,6 +387,62 @@ verdict when it cannot review (G12), and a reopened todo shows the developer
 the acceptor's `review_feedback`. Both developer and acceptor see the todo's
 `acceptance_criteria` and the goal acceptance contract (gap G2); the acceptor
 must name each criterion that failed when it rejects.
+
+## Orchestrator state digest (decision 43)
+
+Every orchestrator Turn's addendum ends with a goal state digest that the
+dispatcher renders at launch (`loopx.dispatch.orchestrator_digest`). Design
+decision 2 asks for it: the orchestrator reads its context from LoopX state
+every Turn, so what it gets must be compact. Before, it got nothing and
+discovered the state itself: the E2E pilot v1 orchestrator Turns ran 26 to 43
+host steps, mostly CLI reads (`status`, `todo list`, `gate show`, `plan show`),
+and each step re-read 40 to 60k tokens of context (0.6 to 1.8M cached input
+tokens, $1 to $2.6 per Turn).
+
+The digest is built from the read models the CLI prints (`list_goal_todos`,
+the gate index and threads, plan cards, the live plan dependency waits, the
+rollout event log tail), never from dispatcher state. It contains:
+
+- why this Turn runs and for which todo (planning, escalation of a named todo,
+  gate replies awaiting the orchestrator, action todo), with the todo's text;
+- the goal objective, the requirements doc and the goal acceptance contract
+  summary; the repos (merge target, default branch) and the agents' roles;
+- open user gates of every kind (question, `plan_approval`, `acceptor_blocked`,
+  `push_request`, `budget_exhausted`, `goal_complete`, dispatcher gates),
+  gates awaiting the orchestrator first, each with the last 2 thread messages
+  (4 when it awaits the orchestrator);
+- pending plan cards and the last applied one;
+- live todos (blocked, in_review, open, deferred, then state-file order) with
+  required role, bound agent, acceptor, reject count, repos, acceptance
+  criteria, dependency waits, review feedback and delivery state; then
+  closed todos, newest first, as accepted and merged, superseded or done;
+- recent orchestrator-relevant events, newest first (plan, supersede, review
+  gate, push, goal complete, budget and acceptance transitions; no quota or
+  refresh events).
+
+**Bounds.** Every field is clipped (criteria 280 and feedback 320 characters,
+except the todo the Turn is about, which shows its whole criteria and
+feedback). Each section has an item cap and a character budget (gates 5,500,
+plans 1,000, live todos 7,500, closed todos 1,600, events 1,400); it keeps
+whole items in its order and ends with `- … N more X omitted (CLI hint)`. The
+rendered text is also cut at 20,000 characters (about 5k tokens) on a line
+boundary with a truncation marker. The same state renders the same text. The
+pilot v1 goal renders in about 3.3k to 4.6k characters (about 1k tokens); a
+300-todo goal with 15 long gate threads in about 14k.
+
+**Guidance and staleness.** The addendum tells the orchestrator that the
+digest is current as of launch, to start from it rather than re-read state it
+shows, to use CLI reads only for detail it omits or truncates (`gate show`,
+`todo list --todo-id`, `plan show`), and to write only through the CLI as
+before. The digest is advisory: the Turn pipeline's validation, the dispatcher's
+Turn validators and each CLI write's own checks still guard correctness, so a
+write against a state that changed since launch is refused as before. If the
+digest cannot be built, the addendum carries a one-line note instead and the
+Turn runs.
+
+Developer and acceptor Turns get no separate digest: their Turn prompt already
+carries the selected todo, its acceptance criteria, review feedback and the
+goal acceptance contract, and the addendum names their workspace repos.
 
 ## Files
 
@@ -381,6 +470,9 @@ must name each criterion that failed when it rejects.
 - Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
   concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
   todo.
+- The system-prompt addendum, and with it the orchestrator state digest, only
+  reaches claude-code agents (`--claude-system-prompt-file`). A codex-cli
+  orchestrator gets neither; the shared Turn prompt is unchanged.
 - The dispatcher selects an agent's config with its registry role, so the
   acceptor's unsandboxed role default (G12) applies whatever the file's `role`
   says, unless the file sets `sandbox` or `permission_mode` explicitly.

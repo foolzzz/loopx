@@ -240,6 +240,32 @@ realistic role_v1 flow gives them real work:
 - `waiting_without_owner_projection` (`stall_repair.py`): opt-in through
   `control_plane.self_repair.enabled`, off by default.
 
+## Orchestrator bookkeeping and state digest (decision 43)
+
+Two cost rules for the orchestrator, from the E2E pilot v1 usage ledger:
+
+- **Bookkeeping is done by LoopX.** An orchestrator todo whose outcome LoopX
+  can decide from state is completed without a model Turn, attributed to the
+  orchestrator and with the evidence the Turn would have reported: the
+  planning todo once its plan card is applied (at apply time), an escalation
+  whose escalated todo is already done, and a gate-reply action todo whose
+  gates were already answered or settled by LoopX. Judgment stays a Turn:
+  planning, clarification, answering a user's gate message, deciding a
+  still-blocked escalation, criteria-change outcomes, replans and user
+  follow-ups. See [dispatcher-v0](dispatcher-v0.md) (step 4, mechanical
+  bookkeeping).
+- **The orchestrator starts from a digest.** Every orchestrator Turn's
+  system-prompt addendum carries a bounded goal state digest rendered at
+  launch (why the Turn runs, the goal and its contract, repos, open gates with
+  thread tails, pending plans, todos with criteria, waits, feedback and
+  delivery state, recent events; at most 20,000 characters). The orchestrator
+  uses CLI reads only for detail the digest omits and still writes only
+  through the CLI; every write is validated against the current state, so the
+  digest is advisory. See
+  [dispatcher-v0](dispatcher-v0.md#orchestrator-state-digest-decision-43).
+
+Developer and acceptor Turns are unchanged. peer_v1 goals are unaffected.
+
 ## Acceptance flow (slice S2)
 
 See [design-v0](design-v0.md), decisions 5 to 9.

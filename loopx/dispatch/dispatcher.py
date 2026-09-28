@@ -37,6 +37,7 @@ from .orchestrator_actions import (
     is_orchestrator_action_todo,
     live_orchestrator_todo,
 )
+from .orchestrator_digest import orchestrator_digest_or_note
 from .prompts import compose_system_prompt, dispatch_prompt_addendum, replace_system_prompt_argument
 from . import settlement_retry
 from .review_checkouts import (
@@ -58,6 +59,9 @@ from .state import (
 )
 
 DISPATCH_PASS_SCHEMA_VERSION = "loopx_dispatch_pass_v0"
+# Decision 43: bookkeeping todos one orchestrator may close per pass before it launches.
+ORCHESTRATOR_BOOKKEEPING_PASS_LIMIT = 5
+ORCHESTRATOR_BOOKKEEPING_LIMIT_REASON = "orchestrator_bookkeeping_limit"
 DEFAULT_LOOPX_ARGV = (sys.executable, "-m", "loopx.cli")
 
 ShouldRun = Callable[[str, str], Mapping[str, Any]]
@@ -324,6 +328,7 @@ class Dispatcher:
                 skip("provider_cooldown", provider=definition.provider, until=provider_cooldown.get("until"))
                 continue
             preflight_done = False
+            bookkeeping_closed = 0
             while True:
                 runs = self._running()
                 if len(runs) >= self.config.max_global:
@@ -436,6 +441,16 @@ class Dispatcher:
                     self._retire_action_todo(goal_id, agent_id, str(todo_id), report)
                     skip(ORCHESTRATOR_ACTION_RETIRED_REASON, todo_id=todo_id)
                     break
+                if role == policy.ROLE_ORCHESTRATOR and todo_id:
+                    if bookkeeping_closed >= ORCHESTRATOR_BOOKKEEPING_PASS_LIMIT:
+                        # Bounded work per pass; the next pass continues.
+                        skip(ORCHESTRATOR_BOOKKEEPING_LIMIT_REASON, todo_id=todo_id)
+                        break
+                    if self._close_bookkeeping_todo(goal_id, str(todo_id), report):
+                        # Decision 43: mechanical bookkeeping closed without a
+                        # model Turn; ask LoopX again for real orchestrator work.
+                        bookkeeping_closed += 1
+                        continue
                 if todo_id and todo_id in review_blocked:
                     skip("review_blocked_gate_open", todo_id=todo_id)
                     break
@@ -759,6 +774,34 @@ class Dispatcher:
             {"goal_id": goal_id, "agent_id": agent_id, "todo_id": todo_id, "subject": subject}
         )
 
+    def _close_bookkeeping_todo(self, goal_id: str, todo_id: str, report: dict[str, Any]) -> bool:
+        """Close an orchestrator todo that is pure bookkeeping instead of launching a Turn (decision 43)."""
+
+        from ..orchestrator_bookkeeping import mechanical_orchestrator_closeout
+
+        todo = self._todo_record(goal_id, todo_id)
+        if not todo:
+            return False
+        try:
+            outcome = mechanical_orchestrator_closeout(
+                registry_path=self.registry_path, runtime_root=self.runtime_root, goal_id=goal_id,
+                todo=todo, runtime_root_arg=str(self.runtime_root),
+            )
+        except Exception as exc:  # noqa: BLE001 - the Turn runs as before
+            report["errors"].append({"goal_id": goal_id, "todo_id": todo_id, "error": f"bookkeeping: {exc}"[:400]})
+            return False
+        if outcome is None:
+            return False
+        if not outcome.get("closed"):
+            report["errors"].append(
+                {"goal_id": goal_id, "todo_id": todo_id, "error": f"bookkeeping: {outcome.get('error')}"[:400]}
+            )
+            return False
+        report.setdefault("orchestrator_todos_closed", []).append(
+            {"goal_id": goal_id, "todo_id": todo_id, "kind": outcome.get("kind"), "evidence": outcome.get("evidence")}
+        )
+        return True
+
     def _action_todo_failures(self, goal_id: str, todo_id: str) -> int:
         return int((self.state.get("orchestrator_action_failures") or {}).get(f"{goal_id}/{todo_id}") or 0)
 
@@ -932,6 +975,13 @@ class Dispatcher:
                         if role == "orchestrator" else None
                     ),
                     loopx_command=self._loopx_command(),
+                    state_digest=(
+                        orchestrator_digest_or_note(
+                            registry_path=self.registry_path, runtime_root=self.runtime_root, goal_id=goal_id,
+                            todo_id=str(todo_id) if todo_id else None, launch_reason=decision.get("reason"),
+                        )
+                        if role == policy.ROLE_ORCHESTRATOR else None
+                    ),
                 ),
             )
             host_args = replace_system_prompt_argument(host_args, prompt_path)
