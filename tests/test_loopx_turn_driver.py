@@ -2395,7 +2395,7 @@ def _turn_journal(runtime: Path) -> dict[str, object]:
 
 
 def test_turn_run_once_role_v1_delivery_moves_todo_to_in_review(
-    tmp_path: Path,
+    tmp_path: Path, independent_worktree: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Fork S2: a developer Turn delivers an acceptance-required Todo for review."""
 
@@ -2409,8 +2409,11 @@ def test_turn_run_once_role_v1_delivery_moves_todo_to_in_review(
         "codex-acceptor": "acceptor",
     }
     registry.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    host_project = tmp_path / "isolated-host-workspace"
-    host_project.mkdir()
+    # The dispatcher starts the Turn in its workspace; a Todo without a task
+    # repository settles from that cwd, which a multi-agent delivery requires
+    # to be an independent git worktree (not the checkout running the tests).
+    host_project = independent_worktree
+    monkeypatch.chdir(host_project)
     host_script = """
 import json
 import sys

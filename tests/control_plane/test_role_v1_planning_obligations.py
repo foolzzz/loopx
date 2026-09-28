@@ -60,7 +60,9 @@ def _set_model(registry: Path, model: str) -> None:
     registry.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _goal(tmp_path: Path, model: str, todos: str) -> dict[str, Path]:
+def _goal(
+    tmp_path: Path, model: str, todos: str, delivery_workspace: Path | None = None,
+) -> dict[str, Path]:
     runtime, registry, state = tmp_path / "runtime", tmp_path / "registry.json", tmp_path / "state.md"
     state.write_text(
         "---\nstatus: active\n---\n# Goal\n## Objective\nShip the orders feature.\n\n"
@@ -73,7 +75,10 @@ def _goal(tmp_path: Path, model: str, todos: str) -> dict[str, Path]:
         registered_agents=[ORCH, DEV, ACC], quota_allowed_slots=None,
     )
     _set_model(registry, model)
-    return {"root": tmp_path, "runtime": runtime, "registry": registry}
+    goal = {"root": tmp_path, "runtime": runtime, "registry": registry}
+    if delivery_workspace is not None:
+        goal["delivery_workspace"] = delivery_workspace
+    return goal
 
 
 def _cli(goal: dict[str, Path], *args: str) -> dict[str, Any]:
@@ -92,12 +97,17 @@ def _complete(goal: dict[str, Path], todo_id: str, agent: str) -> None:
 
 
 def _material_refresh(goal: dict[str, Path], agent: str) -> dict[str, Any]:
-    """A material closeout without a vision decision, as a Turn settlement writes it."""
+    """A material closeout without a vision decision, as a Turn settlement writes it.
+
+    A multi-agent peer delivery settles from an independent git worktree; name
+    it explicitly so the result does not depend on the test runner's cwd.
+    """
 
     return _cli(
         goal, "refresh-state", "--goal-id", GOAL_ID, "--classification", "validated_progress",
         "--agent-id", agent, "--delivery-outcome", "outcome_progress",
         "--delivery-batch-scale", "single_surface",
+        "--delivery-workspace-path", str(goal["delivery_workspace"]),
     )
 
 
@@ -129,8 +139,10 @@ def _assert_no_planning_obligation(packet: dict[str, Any]) -> None:
 # --- the orchestrator's own planning todo ------------------------------------
 
 
-def test_role_v1_orchestrator_planning_completion_leaves_no_obligation(tmp_path: Path) -> None:
-    goal = _goal(tmp_path, "role_v1", PLAN_TODO + API_TODO)
+def test_role_v1_orchestrator_planning_completion_leaves_no_obligation(
+    tmp_path: Path, independent_worktree: Path,
+) -> None:
+    goal = _goal(tmp_path, "role_v1", PLAN_TODO + API_TODO, independent_worktree)
     _complete(goal, "todo_plan", ORCH)
     refreshed = _material_refresh(goal, ORCH)
     checkpoint = refreshed["vision_checkpoint"]
@@ -161,8 +173,9 @@ def test_role_v1_orchestrator_without_follow_up_is_not_asked_to_replan(tmp_path:
 )
 def test_peer_v1_orchestrator_completion_still_raises_the_obligation(
     tmp_path: Path, todos: str, expected_trigger: str, expected_gap: str | None,
+    independent_worktree: Path,
 ) -> None:
-    goal = _goal(tmp_path, "peer_v1", todos)
+    goal = _goal(tmp_path, "peer_v1", todos, independent_worktree)
     _complete(goal, "todo_plan", ORCH)
     if expected_gap:
         checkpoint = _material_refresh(goal, ORCH)["vision_checkpoint"]
@@ -180,11 +193,11 @@ def test_peer_v1_orchestrator_completion_still_raises_the_obligation(
 
 @pytest.mark.parametrize("todos", [PLAN_TODO, PLAN_TODO + API_TODO], ids=["no_follow_up", "vision_checkpoint"])
 def test_an_existing_obligation_no_longer_blocks_once_the_goal_is_role_v1(
-    tmp_path: Path, todos: str,
+    tmp_path: Path, todos: str, independent_worktree: Path,
 ) -> None:
     """Obligations are derived, not stored: a role_v1 goal no longer derives them."""
 
-    goal = _goal(tmp_path, "peer_v1", todos)
+    goal = _goal(tmp_path, "peer_v1", todos, independent_worktree)
     _complete(goal, "todo_plan", ORCH)
     if API_TODO in todos:
         _material_refresh(goal, ORCH)
@@ -251,9 +264,9 @@ def test_a_persisted_missing_checkpoint_is_ignored_for_role_v1() -> None:
 )
 @pytest.mark.parametrize("model", ["role_v1", "peer_v1"])
 def test_developer_and_acceptor_completions(
-    tmp_path: Path, agent: str, role_args: list[str], model: str,
+    tmp_path: Path, agent: str, role_args: list[str], model: str, independent_worktree: Path,
 ) -> None:
-    goal = _goal(tmp_path, model, "")
+    goal = _goal(tmp_path, model, "", independent_worktree)
     added = _cli(
         goal, "todo", "add", "--goal-id", GOAL_ID, "--role", "agent",
         "--text", f"Bounded {agent} work", "--task-class", "advancement_task",
