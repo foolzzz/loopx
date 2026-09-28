@@ -35,9 +35,9 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
   discussion thread. The initial plan and every major change arrive as a
   plan card that you approve. `loopx goal create` turns a requirements
   document into a running goal.
-- **Review before merge.** A developer's delivery that requires acceptance,
-  which is the default for developer work, moves to the new `in_review`
-  status. An isolated acceptor then accepts, rejects or blocks it. Accepted
+- **Review before merge.** A delivery that requires acceptance moves to the
+  new `in_review` status. By default, that is developer implementation work
+  on a goal that has an acceptor. An isolated acceptor then accepts, rejects or blocks it. Accepted
   work merges atomically across repos. The second rejection of a todo
   escalates it to the orchestrator.
 - The fork also adds multi-repo git workspaces, a push gate, a goal-complete
@@ -152,11 +152,16 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
 
 #### Acceptance flow (#8, #11, #13, #16)
 
-- **The `in_review` status.** On a role_v1 goal that has an acceptor,
-  completing a todo that requires acceptance does not mark it done. Developer
-  work requires acceptance by default, and `requires_acceptance=false` opts
-  out. LoopX first runs the
-  todo's declared validation command, then moves the todo to `in_review`. It
+- **The `in_review` status.** On a role_v1 goal, completing a todo that
+  requires acceptance does not mark it done. Which todos require it:
+  - with `requires_acceptance=true`, always;
+  - with `requires_acceptance=false`, never;
+  - without the flag, only a developer advancement todo, and only when the
+    goal has an acceptor: a bound `acceptor_agent`, or a `role=acceptor`
+    agent.
+
+  LoopX first runs the todo's declared validation command, then moves the
+  todo to `in_review`. It
   records who delivered it and the commit it delivered in each repo
   (`delivered_shas`).
 - **Verdicts.** `loopx todo accept | reject | block-review`. An acceptor's
@@ -175,7 +180,8 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
     the orchestrator.
 - **Per-todo acceptance criteria (G2, #11).** The criteria live in a field
   that only the orchestrator, or the owner without an `--agent-id`, writes.
-  Developer and acceptor Turns see them every time. Rework instructions go to `review_feedback`.
+  Agents without a registered role keep the upstream behavior. Developer and
+  acceptor Turns see the criteria every time. Rework instructions go to `review_feedback`.
 - **Acceptor isolation (G12, #13).**
   - The acceptor reviews in a throwaway detached checkout of the delivered
     commit, never in the developer's worktree.
@@ -292,9 +298,9 @@ These behaviors differ from upstream.
   goals, the legacy hierarchy detector no longer treats an
   `agent_profiles.*.role` key as a migration trigger. Its other markers are
   unchanged.
-- **Completing a todo.** On a role_v1 goal with an acceptor, `loopx todo
-  complete` of a todo that requires acceptance delivers it to `in_review`
-  instead of marking it done. The event log gains `todo_in_review` and
+- **Completing a todo.** On a role_v1 goal, `loopx todo complete` of a todo
+  that requires acceptance (see the `in_review` status above) delivers it to
+  `in_review` instead of marking it done. The event log gains `todo_in_review` and
   `todo_reopened`.
 - **Planning obligations.** role_v1 goals no longer derive these upstream
   planning obligations:

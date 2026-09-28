@@ -251,12 +251,17 @@ loopx dispatch serve --goal-id todo-due --project . --max-global 3 \
   --validation-command-json '["make","test"]'   # fallback; use your project's test command
 ```
 
-Every developer and acceptor Turn needs an independent validation command. A
-todo uses its own `validation_command`. A todo that declares none uses
-`--validation-command-json`. Without either, its Turns fail with
-`validation_unavailable` and the todo backs off. So give every plan todo a
-`validation_command`, or pass a fallback. Orchestrator todos need neither:
-LoopX checks them against the goal state.
+A Turn that reports finished work must pass an independent validation
+command. A Turn that stops (it waits, asks you, or cannot continue) needs
+none. The dispatcher picks the command in this order:
+
+1. the todo's own `validation_command`;
+2. a built-in state check, for the orchestrator's planning, action and
+   escalation todos;
+3. `--validation-command-json`.
+
+With none of them, the finished work fails validation and the todo backs
+off. So give every plan todo a `validation_command`, or pass a fallback.
 
 - `serve` watches the state files and runs a reconcile pass every
   `--tick-seconds` (default 60). It prints one JSON line per pass that acts,
@@ -328,8 +333,10 @@ What happens on its own:
   `<runtime-root>/goals/todo-due/workspaces/<todo>/<repo>` on the branch
   `loopx/todo-due/<todo>`. It commits, and it never pushes.
 - When the developer's Turn succeeds, LoopX runs the todo's validation
-  command. A todo that requires acceptance (the default for developer work)
-  then moves to `in_review`, and any other todo moves to `done`.
+  command. A todo that requires acceptance then moves to `in_review`, and any
+  other todo moves to `done`. A todo requires acceptance when it says
+  `requires_acceptance=true`. Without the flag, it requires acceptance when
+  it is a developer advancement todo and the goal has an acceptor.
 - The acceptor reviews a detached checkout of the delivered commit.
   - **Reject** reopens the todo for the developer with feedback that names
     the failed criteria. The second reject blocks the todo and hands it to
@@ -637,10 +644,10 @@ These are the fork's additions to the upstream `todo` command:
 | `todo reject --goal-id G --todo-id T --agent-id ACC --note TEXT` | Reject it. The note is required and should name the failed criteria. The second reject escalates. |
 | `todo block-review --goal-id G --todo-id T --agent-id ACC --reason TEXT` | The acceptor cannot review. This opens an `acceptor_blocked` gate. |
 | `todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2] [--agent-id ORCH] [--note]` | Replace or split a todo, and rewire its dependents. |
-| `todo complete ...` | On a role_v1 goal with an acceptor, a todo that requires acceptance (the default for developer work) goes to `in_review` instead of `done`. With `requires_acceptance=false`, it completes as before. |
+| `todo complete ...` | On a role_v1 goal, a todo that requires acceptance goes to `in_review` instead of `done`. |
 | `--status in_review` | A first-class status. `todo add` cannot create it. |
 | `--required-role orchestrator\|developer\|acceptor` | Route a todo to a role. The default is developer for work, and orchestrator for gates, blockers and replans. |
-| `--requires-acceptance true\|false` | Whether completion needs an acceptor. The default is true for developer work. |
+| `--requires-acceptance true\|false` | Whether completion needs an acceptor. `true` always sends the delivery to review, and `false` never does. Without the flag, a developer advancement todo needs one only when the goal has an acceptor. |
 | `--acceptor-agent ID` | Bind a specific acceptor. |
 | `--task-repo NAME` (repeatable) | The goal repos the todo touches. Several repos make an atomic multi-repo todo. |
 | `--acceptance-criteria TEXT` | The todo's criteria. Only the orchestrator, or you, may set them. |
@@ -679,7 +686,7 @@ later. `configure-goal` only previews until you add `--execute`.
 
 ```sh
 loopx register-agent --goal-id G --agent-id dev2 --role developer --execute   # register an agent with a role
-loopx configure-goal --goal-id G --agent-role dev2=developer --execute     # change a registered agent's role
+loopx configure-goal --goal-id G --agent-role dev2=acceptor --execute      # change a registered agent's role
 loopx configure-goal --goal-id G --clear-agent-role dev2 --execute
 loopx configure-goal --goal-id G --agent-model role_v1 --execute           # move a peer_v1 goal to roles
 loopx configure-goal --goal-id G --repo docs=/abs/docs,default_branch=main,merge_target=main --execute
