@@ -221,10 +221,12 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
   A goal without a repo list keeps its legacy single `repo`, which acts as the
   repo `main`.
 - **Workspaces.** `loopx workspace prepare | status | merge | cleanup`. A
-  todo gets one worktree per repo, all on the branch `loopx/<goal>/<todo>`.
-  - The merge is atomic across repos: if any repo fails, none is merged.
-  - Each repo gets a no-ff merge commit with `LoopX-Goal` and `LoopX-Todo`
-    trailers.
+  todo gets one worktree per repo it names, all on the branch
+  `loopx/<goal>/<todo>`.
+  - The merge is atomic across the todo's repos: if any repo fails, none is
+    merged.
+  - Each repo with changes gets a no-ff merge commit with `LoopX-Goal` and
+    `LoopX-Todo` trailers.
   - Each repo's merge target is its default branch (`merge_target=main`, the
     default) or a task branch (`merge_target=task_branch`, named
     `loopx-task/<goal>` unless `task_branch` is set).
@@ -232,8 +234,10 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
 - **Delivery identity (decision 29, #12).** A multi-repo Turn settles against
   a todo workspace identity. A repo without `origin` gets a local `repo_id`,
   so it works without a fake remote.
-- **Push gate (decision 38, #19).** Once all of a goal's work is merged, one
-  `push_request` gate lists the unpushed commits of each repo.
+- **Push gate (decision 38, #19).** Once all of a goal's work is merged and a
+  merge target has goal commits that its remote lacks, one `push_request`
+  gate lists them per repo. A repo without a remote is skipped, and a goal
+  whose repos are all local opens no gate.
   - Approving it pushes each merge target. It never force-pushes.
   - The orchestrator or you can ask for the gate earlier with
     `loopx goal request-push`.
@@ -269,14 +273,15 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
 #### Usage and budget (#15, #22, #24)
 
 - **Turn usage.** Every claude-code and codex-cli Turn records a `turn_usage`
-  block with tokens, cost, host steps and duration. The rows go to an
+  block: tokens, cost and host steps when the host reports them, and the
+  duration. A Turn that times out or crashes records its duration only. The rows go to an
   append-only `<runtime-root>/goals/<goal>/usage.jsonl`.
 - **Estimated pricing.** A provider can declare a `pricing` table, which
   estimates the cost of hosts that report no USD, such as Codex through CPA.
 - **Reports.** `loopx usage report [--by role|agent|goal|todo|model|day]` shows
   agent-hours, cost and Turns. It also shows the cost per accepted todo, with
   and without the orchestrator's share. The status projection carries the same
-  numbers as `turn_usage_summary`.
+  metrics as `turn_usage_summary`, over the latest 5,000 ledger rows.
 - **Budgets (decision 41, #22).** Budgets are optional:
   `loopx usage budget --goal G --set USD`.
   - At 80% of the budget, LoopX opens a non-blocking alert.
@@ -398,7 +403,7 @@ These behaviors differ from upstream.
   above the budget.
 - **Manual accept of an unclaimed todo.** When a delivered todo has no claim
   owner, the `accept_manually` option of an `acceptor_blocked` gate applies
-  only in part. The gate closes and the merge lands, but the todo stays
+  only in part. The gate closes and the merge, if any, lands, but the todo stays
   `in_review` with the error `agent_id='owner' is not registered`. To finish
   it, run the accept as the acceptor:
   `loopx todo accept --goal-id G --todo-id T --agent-id <acceptor>`. A todo
@@ -417,7 +422,7 @@ These behaviors differ from upstream.
   - the dashboard intake form;
   - accept and reject actions on role board cards.
 
-  Each design doc under `docs/fork/` also ends with its own known gaps.
+  Several design docs under `docs/fork/` list further known gaps.
 
 ### Documentation
 

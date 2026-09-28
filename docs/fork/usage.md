@@ -74,7 +74,7 @@ quickstart below.
 | state home | The directory that holds a goal's LoopX state: the registry, the goal state file and the stored requirements doc. It can be a project directory or a separate "progress" repo. |
 | registry | `<state-home>/.loopx/registry.json`. It holds the goal config: agents, roles, repos and authority sources. |
 | runtime root | Durable runtime state: todos' event logs, gate threads, plan cards, workspaces, usage ledgers and the dispatcher state. The default is `~/.codex/loopx`. You can override it with the global `--runtime-root`. |
-| Turn | One headless agent run (`loopx turn run-once`). It has a typed result, an independent validation and an idempotent writeback. |
+| Turn | One headless agent run (`loopx turn run-once`). It has a typed result, independent validation of material results, and an idempotent writeback. |
 | merge target | Where accepted work lands in each repo. It is the task branch `loopx-task/<goal>` with `merge_target=task_branch`, or the default branch with `merge_target=main`. |
 
 ## 2. Install
@@ -307,7 +307,8 @@ loopx gate resolve --goal-id todo-due --todo-id <gate-id> --decision approve
 LoopX then creates the plan's todos:
 
 - todos with dependencies start `deferred`;
-- each todo carries its acceptance criteria and validation command;
+- each todo carries the acceptance criteria and validation command that its
+  plan item declares (both are optional);
 - the orchestrator's planning todo is closed automatically.
 
 A `reject` or `cancel` applies nothing: the plan card is closed with that
@@ -583,7 +584,7 @@ the upstream ones not covered here.
 | `--long-cooldown-seconds` | 3600 | A provider cooldown this long opens a user gate. |
 | `--backoff-base-seconds` | 60 | The first provider backoff step, doubling up to 6 h. |
 | `--idle-heartbeat-seconds` | 900 | Prints an idle line after this long without output. `0` disables it. |
-| `--validation-command-json '["make","test"]'` | none | The fallback validator for todos that declare none. Without it, a material result of those Turns fails validation. |
+| `--validation-command-json '["make","test"]'` | none | The fallback validator for todos that declare none. Without it, when no built-in validator applies, a material result of those Turns fails validation. |
 | `--no-global-sync` | off | Passes `--no-global-sync` to every Turn. |
 | `--once` | off | Runs one pass, waits for its Turns, and exits. |
 
@@ -650,10 +651,10 @@ These are the fork's additions to the upstream `todo` command:
 
 | command or flag | purpose |
 |---|---|
-| `todo accept --goal-id G --todo-id T --agent-id ACC [--note] [--evidence]` | Accept an `in_review` todo. For a todo with repos, it merges first, then completes. |
+| `todo accept --goal-id G --todo-id T --agent-id ACC [--note TEXT] [--evidence TEXT]` | Accept an `in_review` todo. For a todo with repos, it merges first, then completes. |
 | `todo reject --goal-id G --todo-id T --agent-id ACC --note TEXT` | Reject it. The note is required and should name the failed criteria. The second reject escalates. |
 | `todo block-review --goal-id G --todo-id T --agent-id ACC --reason TEXT` | The acceptor cannot review. This opens an `acceptor_blocked` gate. |
-| `todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2] [--agent-id ORCH] [--note]` | Replace or split a todo, and rewire its dependents. |
+| `todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2] [--agent-id ORCH] [--note TEXT]` | Replace or split a todo, and rewire its dependents. |
 | `todo complete ...` | On a role_v1 goal that has registered roles, an open agent todo that requires acceptance goes to `in_review` instead of `done`. A goal without roles, and user todos, complete directly. |
 | `--status in_review` | A first-class status. `todo add` cannot create it. |
 | `--required-role orchestrator\|developer\|acceptor` | Route a todo to a role. The default is developer for work, and orchestrator for gates, blockers and replans. |
@@ -781,19 +782,19 @@ In each code repo:
 | An agent never runs, and `dispatch status` shows it unavailable | Its auth preflight failed. Run `loopx provider check`, log in again, then approve the "needs re-login" gate. |
 | A provider is in cooldown | It hit a rate limit, a quota or an upstream 5xx. The provider backs off automatically, and a long cooldown opens a gate. |
 | A todo is never picked up | Run `loopx todo list` and read "Dependency waits": a dependency that requires acceptance must be accepted (and merged, when it has repos). Then check `loopx quota should-run --goal-id G --agent-id A`. |
-| A todo's finished work keeps failing validation | The todo declares no validation command, and `serve` has no `--validation-command-json`, so every material result fails. Add either one. |
+| A todo's finished work keeps failing validation | The todo declares no validation command, no built-in validator applies, and `serve` has no `--validation-command-json`, so every material result fails. Add a validation command or a fallback. |
 | `workspace_unverified` | The todo's worktree is missing or off its branch. Run `loopx workspace prepare` again. It reuses the existing branch. |
 | `acceptance_criteria_change_requires_plan` | Criteria changes need a plan card. Ask the orchestrator, or edit as the owner without `--agent-id`. |
 | `not_orchestrator` on `todo supersede --by` | Only the orchestrator (`--agent-id ORCH`), or the owner with no `--agent-id`, may supersede. |
 | A multi-agent lifecycle command asks for `--agent-id` | Owner writes on a claimed todo are attributed to its claim owner. For a plain `todo claim` or `supersede`, pass the acting agent with `--agent-id`. |
-| `accept_manually` reports `agent_id='owner' is not registered` | The delivered todo had no claim owner. The merge landed and the gate closed, but the todo is still `in_review`. Finish it as the acceptor: `loopx todo accept --goal-id G --todo-id T --agent-id ACC --note "accepted manually"`. |
+| `accept_manually` reports `agent_id='owner' is not registered` | The delivered todo had no claim owner. The merge, if any, landed and the gate closed, but the todo is still `in_review`. Finish it as the acceptor: `loopx todo accept --goal-id G --todo-id T --agent-id ACC --note "accepted manually"`. |
 | The orchestrator seems to ignore the goal state | The state digest and system-prompt addendum only reach claude-code agents. Run the orchestrator on claude-code. |
 | The dashboard shows no chat or role board in a source checkout | Build the bundle: `cd apps/presentation/dashboard && npm run build:chat`. |
 
 ## 9. Limitations and further reading
 
 The [changelog](../../CHANGELOG.md#known-limitations) lists the known
-limitations, and each design doc ends with its own known gaps. The main ones:
+limitations, and several design docs list further known gaps. The main ones:
 
 - No `in_review` support on canonical `hard_lease` goals.
 - No remote-SSH workspaces or resource pool yet.
