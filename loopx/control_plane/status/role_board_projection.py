@@ -301,6 +301,8 @@ def _mark_review_cards(
 def _gate_card(
     todo: Mapping[str, Any], entry: Mapping[str, Any], plan_by_gate: Mapping[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    from ...gate_threads import GATE_KIND_DECISION, GATE_KIND_PLAN_APPROVAL, GATE_KINDS
+
     todo_id = str(todo["todo_id"])
     plan = plan_by_gate.get(todo_id) or {}
     awaiting = entry.get("awaiting") if entry.get("awaiting") in {"awaiting_user", "awaiting_orchestrator"} else "awaiting_user"
@@ -308,8 +310,8 @@ def _gate_card(
     gate = {
         "todo_id": todo_id,
         "text": _text(todo.get("title") or todo.get("text")) or todo_id,
-        "kind": "plan_approval" if kind == "plan_approval" or plan
-        else "acceptor_blocked" if kind == "acceptor_blocked" else "decision",
+        # The gate index kind (a plan card link wins); a kind this reader does not know is a plain decision.
+        "kind": GATE_KIND_PLAN_APPROVAL if plan else kind if kind in GATE_KINDS else GATE_KIND_DECISION,
         "awaiting": awaiting,
         "message_count": entry.get("message_count") if isinstance(entry.get("message_count"), int) else 0,
         "blocks_agent": _text(todo.get("blocks_agent"), 120),

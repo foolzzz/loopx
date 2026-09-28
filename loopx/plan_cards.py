@@ -114,6 +114,32 @@ def list_plans(runtime_root: Path, goal_id: str) -> list[dict[str, Any]]:
     return sorted(plans, key=lambda plan: str(plan.get("created_at") or ""))
 
 
+# The todo contract a gate reviewer decides on (``gate show``, dashboard gate drawer).
+# Agent bindings and estimates stay in ``loopx plan show``.
+PLAN_CARD_VIEW_TODO_FIELDS = (
+    "key", "text", "required_role", "depends_on", "task_repositories", "acceptance", "validation_command",
+)
+
+
+def plan_card_view(record: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The plan a ``plan_approval`` gate asks the owner to approve, or None for a malformed card."""
+
+    body = record.get("plan") if isinstance(record, Mapping) else None
+    if not isinstance(record, Mapping) or not isinstance(body, Mapping):
+        return None
+    return {
+        "plan_id": record.get("plan_id"),
+        "status": record.get("status"),
+        "revision": record.get("revision"),
+        "title": body.get("title"),
+        "summary": body.get("summary"),
+        "todos": [
+            {field: todo.get(field) for field in PLAN_CARD_VIEW_TODO_FIELDS}
+            for todo in body.get("todos") or [] if isinstance(todo, Mapping)
+        ],
+    }
+
+
 # --- validation -------------------------------------------------------------
 
 

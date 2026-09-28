@@ -495,9 +495,17 @@ def gate_view(
     }
     if entry.get("plan_id"):
         view["plan_id"] = entry["plan_id"]
-        from .plan_criteria_changes import plan_criteria_changes_view
+        from .plan_cards import PlanCardError, plan_card_view, read_plan
+        from .plan_criteria_changes import criteria_changes_view
 
-        changes = plan_criteria_changes_view(runtime_root, goal_id, str(entry["plan_id"]))
+        try:
+            record: dict[str, Any] | None = read_plan(runtime_root, goal_id, str(entry["plan_id"]))
+        except (PlanCardError, OSError, ValueError):
+            record = None  # a missing or unreadable card leaves the thread readable
+        card = plan_card_view(record)
+        if card:  # what approving applies: summary and each todo's contract
+            view["plan"] = card
+        changes = criteria_changes_view(record)
         if changes:  # decision 40: old and new criteria side by side
             view["criteria_changes"] = changes
     for key in ("review_todo_id", "acceptor_agent", "options", "decision_option",

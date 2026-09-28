@@ -307,15 +307,6 @@ def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]
     return rows
 
 
-def plan_criteria_changes_view(runtime_root: Path, goal_id: str, plan_id: str) -> list[dict[str, Any]]:
-    from .plan_cards import PlanCardError, read_plan
-
-    try:
-        return criteria_changes_view(read_plan(runtime_root, goal_id, plan_id))
-    except (PlanCardError, OSError, ValueError):
-        return []
-
-
 def render_criteria_changes_markdown(rows: list[Mapping[str, Any]]) -> list[str]:
     """Markdown table of ``criteria_changes_view`` rows (``plan show`` / ``gate show``)."""
 

@@ -14,7 +14,7 @@ from loopx.control_plane.status.role_board_projection import (
     build_goal_role_board,
 )
 from loopx.dispatch.state import empty_state, save_state
-from loopx.gate_threads import reply_to_gate
+from loopx.gate_threads import gate_index_path, read_gate_index, register_gate_kind, reply_to_gate
 from loopx.plan_cards import propose_plan
 from loopx.status import collect_status
 from loopx.todos import add_goal_todo, complete_goal_todo
@@ -136,3 +136,26 @@ def test_role_board_passes_in_review_through_and_stays_bounded(tmp_path: Path) -
     # Newest completed work is kept.
     assert board["todos"][-12]["updated_at"] == "2026-09-20T00:00:00Z"
     assert len(json.dumps(board)) < 40_000
+
+
+def test_role_board_keeps_real_gate_kinds_and_falls_back_to_decision(tmp_path: Path) -> None:
+    """Typed gates keep their kind on the board; an unknown or missing kind reads as a plain decision."""
+    typed = ("acceptor_blocked", "push_request", "budget_exhausted", "goal_complete", "decision")
+    todos = [{"todo_id": f"todo_gate_{kind}", "role": "user", "task_class": "user_gate", "status": "open",
+              "text": f"{kind} gate"} for kind in (*typed, "vote", "unindexed")]
+    for kind in typed:
+        register_gate_kind(tmp_path, GOAL, f"todo_gate_{kind}", kind=kind)
+    # A newer writer's kind this reader does not know.
+    index = read_gate_index(tmp_path, GOAL)
+    index["gates"]["todo_gate_vote"] = {"kind": "vote", "awaiting": "awaiting_user", "message_count": 0}
+    gate_index_path(tmp_path, GOAL).write_text(json.dumps(index), encoding="utf-8")
+    goal = {"id": GOAL, "coordination": {"agent_model": "role_v1", "agent_roles": {ORCH: "orchestrator"}}}
+
+    board = build_goal_role_board(goal=goal, todos=todos, runtime_root=tmp_path, dispatcher={"available": False})
+
+    assert board is not None
+    assert {gate["todo_id"]: gate["kind"] for gate in board["gates"]} == {
+        "todo_gate_acceptor_blocked": "acceptor_blocked", "todo_gate_push_request": "push_request",
+        "todo_gate_budget_exhausted": "budget_exhausted", "todo_gate_goal_complete": "goal_complete",
+        "todo_gate_decision": "decision", "todo_gate_vote": "decision", "todo_gate_unindexed": "decision",
+    }
