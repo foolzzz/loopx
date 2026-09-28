@@ -158,6 +158,29 @@ def orchestrator_agent_for_goal(goal: dict[str, Any] | None) -> str | None:
     return orchestrators[0] if len(orchestrators) == 1 else None
 
 
+def lifecycle_agent_for_owner_write(
+    goal: dict[str, Any] | None, claimed_by: str | None, *fallbacks: str | None,
+) -> str | None:
+    """Return the registered agent that an owner's todo write is attributed to.
+
+    A multi-agent goal needs a registered lifecycle actor for every todo
+    write, and the owner is not an agent. The write goes to the todo's claim
+    owner, so claim fences and task leases are unchanged. An unclaimed todo
+    falls back to the first registered agent in ``fallbacks``, then to the
+    role_v1 orchestrator. Returns None when no agent applies.
+    """
+
+    owner = normalize_todo_claimed_by(claimed_by)
+    if owner:
+        return owner
+    registered = registered_agent_ids_for_goal(goal)
+    for fallback in fallbacks:
+        agent = normalize_todo_claimed_by(fallback)
+        if agent and agent in registered:
+            return agent
+    return orchestrator_agent_for_goal(goal)
+
+
 def agent_profile_for_goal(goal: dict[str, Any] | None, agent_id: str | None) -> dict[str, Any] | None:
     normalized_agent_id = normalize_todo_claimed_by(agent_id)
     if not isinstance(goal, dict) or not normalized_agent_id:

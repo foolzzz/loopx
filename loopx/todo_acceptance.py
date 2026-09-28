@@ -539,19 +539,26 @@ def accept_delivered_todo(
     actor: str, actor_source: str, note: str | None = None, evidence: str | None = None,
     runtime_root_arg: str | None = None, project: Path | None = None, state_file: Path | None = None,
     dry_run: bool = False, completion_options: Mapping[str, Any] | None = None,
+    lifecycle_agent_id: str | None = None,
 ) -> dict[str, Any]:
     """Merge first, then complete an ``in_review`` todo whose verdict ``actor`` owns.
 
     The acceptor's verdict and the owner's manual accept (an acceptor-blocked
     gate, G12) share this path; the caller has checked the actor's authority.
+    ``lifecycle_agent_id`` is the registered agent that the writes of an
+    unclaimed todo are attributed to when ``actor`` is not an agent (the owner).
     """
 
+    from .agent_registry import lifecycle_agent_for_owner_write
     from .todos import terminal_complete_goal_todo
 
     todo_id = str(todo.get("todo_id") or "")
     # The lifecycle actor of the completion stays the delivering claim owner,
     # so claim fences and leases are unchanged; the verdict names the acceptor.
-    owner = normalize_todo_claimed_by(todo.get("claimed_by")) or normalize_todo_claimed_by(actor) or actor
+    # An unclaimed todo needs a registered agent: the owner is not one.
+    owner = lifecycle_agent_for_owner_write(
+        dict(goal or {}), todo.get("claimed_by"), lifecycle_agent_id, actor,
+    ) or actor
     verdict = f"accepted_by={actor}"
     if note:
         verdict += f": {compact_todo_text(note)}"

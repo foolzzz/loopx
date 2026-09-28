@@ -786,8 +786,7 @@ In each code repo:
 | `workspace_unverified` | The todo's worktree is missing or off its branch. Run `loopx workspace prepare` again. It reuses the existing branch. |
 | `acceptance_criteria_change_requires_plan` | Criteria changes need a plan card. Ask the orchestrator, or edit as the owner without `--agent-id`. |
 | `not_orchestrator` on `todo supersede --by` | Only the orchestrator (`--agent-id ORCH`), or the owner with no `--agent-id`, may supersede. |
-| A multi-agent lifecycle command asks for `--agent-id` | Owner writes on a claimed todo are attributed to its claim owner. For a plain `todo claim` or `supersede`, pass the acting agent with `--agent-id`. |
-| `accept_manually` reports `agent_id='owner' is not registered` | The delivered todo had no claim owner. The merge, if any, landed and the gate closed, but the todo is still `in_review`. Finish it as the acceptor: `loopx todo accept --goal-id G --todo-id T --agent-id ACC --note "accepted manually"`. |
+| A multi-agent lifecycle command asks for `--agent-id` | Owner gate options, criteria edits and `supersede --by` are attributed to the claim owner, else a registered fallback, else the orchestrator. A plain `todo claim` or `supersede` still needs the acting agent's `--agent-id`. |
 | The orchestrator seems to ignore the goal state | The state digest and system-prompt addendum only reach claude-code agents. Run the orchestrator on claude-code. |
 | The dashboard shows no chat or role board in a source checkout | Build the bundle: `cd apps/presentation/dashboard && npm run build:chat`. |
 

@@ -68,11 +68,11 @@ def _fixture(tmp_path: Path, monkeypatch, *, model: str = "role_v1") -> dict:
     return {"registry": registry, "runtime": runtime, "goal": goal, "api": api}
 
 
-def _deliver_new_todo(fx: dict, *, content: str = "feature\n") -> tuple[str, str]:
+def _deliver_new_todo(fx: dict, *, content: str = "feature\n", claimed_by: str | None = "dev") -> tuple[str, str]:
     """Add a todo, commit work on its branch and deliver it; returns (todo_id, sha)."""
 
     added = add_goal_todo(registry_path=fx["registry"], goal_id=GOAL, role="agent", text="Build the feature",
-                          task_class="advancement_task", claimed_by="dev",
+                          task_class="advancement_task", claimed_by=claimed_by,
                           validation_command_json=json.dumps(["true"]),
                           role_contract={"task_repositories": ["api"]})
     todo_id = str(added["todo_id"])
@@ -281,7 +281,8 @@ def test_an_acceptor_user_action_required_turn_is_the_blocked_verdict(tmp_path, 
 # --- gate options ---------------------------------------------------------------------
 
 
-def _assert_option_applied(fx: dict, todo_id: str, sha: str, gate_id: str, option: str) -> None:
+def _assert_option_applied(fx: dict, todo_id: str, sha: str, gate_id: str, option: str,
+                           *, developer: str | None = "dev") -> None:
     gate = _todo(fx, gate_id)
     assert gate["status"] == "done"
     assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["decision_option"] == option
@@ -295,7 +296,7 @@ def _assert_option_applied(fx: dict, todo_id: str, sha: str, gate_id: str, optio
         assert todo["status"] == "done" and "accepted_by=owner" in todo["evidence"]
         assert git(fx["api"], "merge-base", "--is-ancestor", sha, target) == ""
     elif option == "return_to_developer":
-        assert todo["status"] == "open" and todo["claimed_by"] == "dev"
+        assert todo["status"] == "open" and todo.get("claimed_by") == developer
         assert "install the toolchain first" in todo["review_feedback"]
     else:
         assert todo["status"] == "done" and todo.get("note") == "superseded"
@@ -333,6 +334,21 @@ def test_each_gate_option_applies_via_the_web_resolve_path(tmp_path, monkeypatch
     assert applied["status"] == "applied", applied
     assert applied["receipt"]["decision_option"] == option
     _assert_option_applied(fx, todo_id, sha, gate_id, option)
+
+
+@pytest.mark.parametrize("option", REVIEW_GATE_OPTIONS)
+def test_each_gate_option_applies_to_an_unclaimed_delivery(tmp_path, monkeypatch, option: str) -> None:
+    # A plan todo without a bound agent is delivered unclaimed: Turns do not claim it. The
+    # owner is not a registered agent, so the option's todo write must still get one.
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, sha = _deliver_new_todo(fx, claimed_by=None)
+    assert not _todo(fx, todo_id).get("claimed_by")
+    gate_id = _block(fx, todo_id)
+    code, payload = _cli(fx, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_id, "--option", option,
+                         "--note", "install the toolchain first")
+    assert code == 0, payload
+    assert payload["review_gate"]["applied"] is True and "error" not in payload["review_gate"], payload
+    _assert_option_applied(fx, todo_id, sha, gate_id, option, developer=None)
 
 
 def test_plain_decisions_map_to_options_and_mismatches_are_refused(tmp_path, monkeypatch) -> None:

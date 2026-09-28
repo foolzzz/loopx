@@ -541,6 +541,15 @@ to developer, cancel is cancel the todo. An option must match its decision.
 gate stays open. The applied option is recorded as `decision_option` in the
 gate index and as a `review_gate_decided` event.
 
+The owner is not a registered agent, so each option's todo write is
+attributed to the todo's claim owner. An unclaimed delivery falls back to the
+blocked acceptor, then to the orchestrator. For example, a plan todo without
+a `bound_agent` is unclaimed, because Turns do not claim todos. Before this
+rule, `accept_manually` on such a todo merged the delivery and closed the
+gate, then failed to complete the todo with `agent_id='owner' is not
+registered`. The rule is `loopx.agent_registry.lifecycle_agent_for_owner_write`,
+which owner acceptance-criteria edits and `todo supersede --by` share.
+
 ## Per-todo acceptance criteria (gap G2)
 
 See [design-v0](design-v0.md), decisions 9, 12 and 30.
@@ -682,8 +691,11 @@ The Python API is `loopx.plan_dependencies.supersede_goal_todo_by`.
   successor options belong to plain `todo supersede`.
 
 As with verdicts, the kernel writes are attributed to the claim owner of OLD
-and of each rewired dependent, so claim fences and leases are unchanged. The
-orchestrator's authority is checked first and recorded as `actor`.
+and of each rewired dependent, so claim fences and leases are unchanged. An
+unclaimed OLD falls back to the orchestrator, because the owner is not an
+agent. An unclaimed dependent falls back to the agent that proposed its plan,
+then to the orchestrator. The orchestrator's authority is checked first and
+recorded as `actor`, which is `null` for the owner.
 
 **Durable state and replay.** Each supersession is one line of
 `<runtime_root>/goals/<goal>/plans/supersessions.jsonl` (schema

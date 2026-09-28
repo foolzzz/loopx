@@ -233,7 +233,7 @@ def write_goal_todo_acceptance_criteria(
     when the stored criteria no longer equal ``expected_previous``.
     """
 
-    from .agent_registry import orchestrator_agent_for_goal
+    from .agent_registry import lifecycle_agent_for_owner_write
     from .todo_acceptance import _read_todo
     from .todos import update_goal_todo
 
@@ -255,8 +255,7 @@ def write_goal_todo_acceptance_criteria(
     else:
         # An owner or plan-card write is attributed to the claim owner (else the
         # orchestrator), as a gate decision is; multi-agent goals need an actor.
-        goal = _goal(registry_path, goal_id)
-        lifecycle_actor = owner or (orchestrator_agent_for_goal(dict(goal)) if goal else None)
+        lifecycle_actor = lifecycle_agent_for_owner_write(dict(_goal(registry_path, goal_id) or {}), owner)
     normalized = normalize_todo_acceptance_criteria(acceptance_criteria)
     authorized = source in {ACCEPTANCE_CRITERIA_SOURCE_OWNER, ACCEPTANCE_CRITERIA_SOURCE_PLAN}
     with authorized_criteria_write(source) if authorized else _unauthorized():

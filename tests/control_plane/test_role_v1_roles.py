@@ -15,6 +15,7 @@ import pytest
 
 from loopx.agent_registry import (
     agent_roles_for_goal,
+    lifecycle_agent_for_owner_write,
     normalize_agent_roles,
     orchestrator_agent_for_goal,
 )
@@ -293,6 +294,19 @@ def test_identity_packet_carries_role_and_orchestrator() -> None:
     peer_identity = build_quota_agent_identity(peer_goal, agent_id=DEV)
     assert "role" not in peer_identity
     assert "orchestrator_agent_id" not in peer_identity
+
+
+def test_owner_writes_are_attributed_to_a_registered_agent() -> None:
+    goal = _role_goal()
+    # The claim owner wins, then the first registered fallback, then the orchestrator.
+    assert lifecycle_agent_for_owner_write(goal, DEV, ACC) == DEV
+    assert lifecycle_agent_for_owner_write(goal, None, ACC) == ACC
+    assert lifecycle_agent_for_owner_write(goal, None, None, "owner", ACC) == ACC
+    assert lifecycle_agent_for_owner_write(goal, None, "owner") == ORCH
+    assert lifecycle_agent_for_owner_write(goal, None) == ORCH
+    peer_goal = {"coordination": {"agent_model": "peer_v1", "registered_agents": [ORCH, DEV]}}
+    assert lifecycle_agent_for_owner_write(peer_goal, None, "owner") is None
+    assert lifecycle_agent_for_owner_write(peer_goal, DEV) == DEV
 
 
 # --- removed anti-hierarchy rules --------------------------------------------
