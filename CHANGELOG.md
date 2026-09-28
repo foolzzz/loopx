@@ -14,7 +14,8 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ## [Unreleased] - Fork v0: role-based multi-agent orchestration
 
-Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
+Covers the fork's first round, 2026-09-25 to 2026-09-28 (PRs #1 to #29,
+136 non-merge commits), and the fixes that followed it.
 
 ### Highlights
 
@@ -383,6 +384,17 @@ These behaviors differ from upstream.
   keychain launch-env subprocess (#3).
 - **Hermetic tests (#29).** Multi-agent delivery tests settle from a private
   linked worktree, so they pass from any checkout.
+- **Owner writes on unclaimed todos.** A plan todo without a `bound_agent`
+  has no claim owner, because Turns do not claim todos. Two owner actions on
+  such a todo failed, because the owner is not a registered agent:
+  - the `accept_manually` option of an `acceptor_blocked` gate. It merged
+    the delivery and closed the gate, then stopped with
+    `agent_id='owner' is not registered` and left the todo `in_review`;
+  - `loopx todo supersede --by` without `--agent-id`.
+
+  An owner write is now attributed to the todo's claim owner, else a
+  registered fallback (the blocked acceptor, or the agent that proposed the
+  plan), else the orchestrator. Both actions now complete.
 
 ### Known limitations
 
@@ -404,13 +416,6 @@ These behaviors differ from upstream.
   before `loopx dashboard` can serve the chat bundle.
 - **Budgets.** A budget pause never kills running Turns, so spend can end up
   above the budget.
-- **Manual accept of an unclaimed todo.** When a delivered todo has no claim
-  owner, the `accept_manually` option of an `acceptor_blocked` gate applies
-  only in part. The gate closes and the merge, if any, lands, but the todo stays
-  `in_review` with the error `agent_id='owner' is not registered`. To finish
-  it, run the accept as the acceptor:
-  `loopx todo accept --goal-id G --todo-id T --agent-id <acceptor>`. A todo
-  that has a claim owner is not affected.
 - **Usage recording.** The generic-cli and dsh hosts record no usage. A
   codex-cli Turn that times out before `turn.completed` records its duration
   only.
