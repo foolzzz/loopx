@@ -256,8 +256,8 @@ loopx dispatch serve --goal-id todo-due --project . --max-global 3 \
 
 A Turn with a material result must pass an independent validation command.
 Material results are validated progress, validated completion, a repair
-request and a replan request. A Turn that stops, because it waits or needs
-your action, needs no validation. The dispatcher picks the command in this
+request and a replan request. A Turn that stops, because it waits, needs
+your action or reports a failed iteration, needs no validation. The dispatcher picks the command in this
 order:
 
 1. the todo's own `validation_command`;
@@ -405,8 +405,8 @@ loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option leave_open
 - **Answer or ask in an open gate:** `loopx gate reply --goal-id G --todo-id
   <gate> --text "..."`.
 - **Ask for new work mid-flight:** add a todo for the orchestrator. It plans
-  the work. It can propose a plan card for you to approve, and a change to an
-  existing todo's acceptance criteria always needs one.
+  the work. It can propose a plan card for you to approve, and its change to
+  an existing todo's acceptance criteria always needs one.
 
   ```sh
   loopx todo add --goal-id G --role agent --text "Also support sorting by due date" \
@@ -417,8 +417,8 @@ loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option leave_open
 
 ### Change a todo's acceptance criteria
 
-After planning, criteria change only through a plan card that you approve.
-Ask the orchestrator in a gate or todo. It proposes a card with
+After planning, an agent changes criteria only through a plan card that you
+approve. Ask the orchestrator in a gate or todo. It proposes a card with
 `criteria_changes`, and you see the old and new criteria side by side in
 `loopx plan show` or `gate show`. While the card is pending, the acceptor
 does not review that todo.
@@ -592,7 +592,7 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `gate list --goal-id G [--awaiting user\|orchestrator]` | Open user gates, their kind and who they await. |
-| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan, push repos, budget or completion summary. |
+| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan id (read the plan with `plan show`), criteria changes, push repos, the budget or the completion summary. |
 | `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Replying never closes a gate. |
 | `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). |
 
@@ -660,7 +660,7 @@ These are the fork's additions to the upstream `todo` command:
 | `--requires-acceptance true\|false` | Whether completion needs an acceptor, on a goal that has registered roles. `true` sends the delivery to review, and `false` never does. Without the flag, a developer advancement todo needs one only when the goal has an acceptor. |
 | `--acceptor-agent ID` | Bind a specific acceptor. |
 | `--task-repo NAME` (repeatable) | The goal repos the todo touches. Several repos make an atomic multi-repo todo. |
-| `--acceptance-criteria TEXT` | The todo's criteria. Under role_v1, only the orchestrator or you may set them. Agents without a registered role keep the upstream behavior. After planning, a change needs a plan card. |
+| `--acceptance-criteria TEXT` | The todo's criteria. Under role_v1, only the orchestrator or you may set them. Agents without a registered role keep the upstream behavior. After planning, an agent's change needs a plan card, and you can still edit directly. |
 | `--review-feedback TEXT` | Rework instructions for the developer (`todo update`). |
 | `--reject-count N` | The rejection counter. |
 | `--clear-*` | Clears the matching field: `--clear-required-role`, `--clear-acceptor-agent`, `--clear-task-repos`, `--clear-acceptance-criteria`, `--clear-review-feedback`. |
@@ -780,8 +780,8 @@ In each code repo:
 | `dispatch serve` exits with code 3 (`dispatcher_locked`) | Another dispatcher already serves this runtime root. Check it with `loopx dispatch status`. |
 | An agent never runs, and `dispatch status` shows it unavailable | Its auth preflight failed. Run `loopx provider check`, log in again, then approve the "needs re-login" gate. |
 | A provider is in cooldown | It hit a rate limit, a quota or an upstream 5xx. The provider backs off automatically, and a long cooldown opens a gate. |
-| A todo is never picked up | Run `loopx todo list` and read "Dependency waits": a dependency that requires acceptance must be accepted and merged. Then check `loopx quota should-run --goal-id G --agent-id A`. |
-| Every Turn of a todo fails validation | The todo declares no validation command, and `serve` has no `--validation-command-json`. Add either one. |
+| A todo is never picked up | Run `loopx todo list` and read "Dependency waits": a dependency that requires acceptance must be accepted (and merged, when it has repos). Then check `loopx quota should-run --goal-id G --agent-id A`. |
+| A todo's finished work keeps failing validation | The todo declares no validation command, and `serve` has no `--validation-command-json`, so every material result fails. Add either one. |
 | `workspace_unverified` | The todo's worktree is missing or off its branch. Run `loopx workspace prepare` again. It reuses the existing branch. |
 | `acceptance_criteria_change_requires_plan` | Criteria changes need a plan card. Ask the orchestrator, or edit as the owner without `--agent-id`. |
 | `not_orchestrator` on `todo supersede --by` | Only the orchestrator (`--agent-id ORCH`), or the owner with no `--agent-id`, may supersede. |

@@ -33,8 +33,9 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
   goes through the existing CLI and kernel contracts.
 - **You talk to the orchestrator through gates.** Every user gate has a
   discussion thread. The initial plan arrives as a plan card that you
-  approve, and so does any later change to a todo's acceptance criteria. `loopx goal create` turns a requirements
-  document into a running goal.
+  approve, and so does an agent's later change to a todo's acceptance
+  criteria. `loopx goal create` turns a requirements document into a running
+  goal.
 - **Review before merge.** A delivery that requires acceptance moves to the
   new `in_review` status. By default, that is developer implementation work
   on a goal that has an acceptor. An acceptor then accepts, rejects or
@@ -188,23 +189,25 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
   Agents without a registered role keep the upstream behavior. Developer and
   acceptor Turns see the criteria every time. Rework instructions go to
   `review_feedback`.
-- **Acceptor isolation (G12, #13).**
-  - For a todo with `task_repositories`, the acceptor reviews in a throwaway
-    detached checkout of the delivered commit, never in the developer's
-    worktree. A todo without repos is reviewed in the goal project, as
-    before.
-  - The merge takes exactly the delivered commit. A branch that moved after
-    delivery blocks the merge.
-  - Changes the acceptor makes to its checkout are detected, recorded and
+- **Acceptor isolation (G12, #13).** For a todo with `task_repositories`:
+  - the acceptor reviews in a throwaway detached checkout of the delivered
+    commit, never in the developer's worktree;
+  - the merge takes exactly the delivered commit, and a branch that moved
+    after delivery blocks the merge;
+  - changes the acceptor makes to its checkout are detected, recorded and
     discarded.
-  - By default the acceptor runs without a sandbox, so it can build and test.
+
+  A todo without repos is reviewed in the goal project, as before, and has
+  no merge. By default the acceptor runs without a sandbox, so it can build
+  and test.
 - **The `acceptor_blocked` gate.** When the acceptor cannot review, for
   example because tooling is broken, you resolve the gate with one option:
   `retry_acceptance`, `accept_manually`, `return_to_developer` or
   `cancel_todo`.
 - **Dependency release and supersession (decision 37, #16).**
   - On a role_v1 goal, a dependency that requires acceptance releases its
-    dependents only once it is accepted and merged.
+    dependents only once it is accepted. Accepting a todo with repos merges
+    it first.
   - To replace or split a todo, run
     `loopx todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2]`. This
     rewires the dependents, and a superseded todo never counts as done.
@@ -321,8 +324,9 @@ These behaviors differ from upstream.
 
   Planning review is the orchestrator's job on every Turn instead.
 - **Dependency release.** On role_v1 goals, a dependency that requires
-  acceptance releases its dependents only once it is accepted and merged. A
-  manual `done` or a supersede does not count. A dependency without
+  acceptance releases its dependents only once it is accepted (for a todo
+  with repos, accepted and merged). A manual `done` or a supersede does not
+  count. A dependency without
   acceptance is still satisfied by `done`.
 - **Who may write what.** Under role_v1, agents with the developer or
   acceptor role cannot open user gates or write acceptance criteria. After
@@ -348,7 +352,7 @@ These behaviors differ from upstream.
     and fails closed when that workspace is missing.
   - The resolved acceptor can start a delivered review.
   - A rejected delivery's feedback reaches its developer.
-  - Accept merges before it completes the todo.
+  - Accept of a todo with repos merges before it completes the todo.
   - The dispatcher never launches an orchestrator Turn that has no todo.
 - **Settlement retries (#17).** A Turn keeps its identity when its settlement
   retries run out, and resumes from its workspace only while that workspace
