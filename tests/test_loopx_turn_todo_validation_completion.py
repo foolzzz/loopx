@@ -68,7 +68,9 @@ def _run(argv: list[str]) -> tuple[int, dict]:
     return code, json.loads(output.getvalue())
 
 
-def _fixture(tmp_path: Path, *, role_v1: bool) -> tuple[Path, Path, Path, Path, Path]:
+def _fixture(
+    tmp_path: Path, *, role_v1: bool, workspace: Path, monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path, Path, Path, Path]:
     validation = json.dumps([sys.executable, "-c", VALIDATION])
     project, runtime, registry = _write_live_fixture(
         tmp_path, todo_metadata_extra=f"validation_command_argv={encode_metadata_value(validation)}",
@@ -85,8 +87,11 @@ def _fixture(tmp_path: Path, *, role_v1: bool) -> tuple[Path, Path, Path, Path, 
     executable.parent.mkdir(parents=True)
     executable.write_text(f"#!{sys.executable}\n{FAKE_CLAUDE}", encoding="utf-8")
     executable.chmod(0o755)
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
+    # The dispatcher starts a Turn in its workspace, and a Todo without a task
+    # repository settles from that cwd. A multi-agent delivery must come from
+    # an independent git worktree, so the Turn workspace is a private linked
+    # worktree rather than whatever checkout runs the tests.
+    monkeypatch.chdir(workspace)
     return project, runtime, registry, executable, workspace
 
 
@@ -113,9 +118,12 @@ def _state(project: Path) -> str:
 )
 def test_claude_code_turn_completes_todo_with_declared_validation(
     tmp_path: Path, role_v1: bool, status: str, monkeypatch: pytest.MonkeyPatch,
+    independent_worktree: Path,
 ) -> None:
     monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
-    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=role_v1)
+    project, runtime, registry, executable, workspace = _fixture(
+        tmp_path, role_v1=role_v1, workspace=independent_worktree, monkeypatch=monkeypatch,
+    )
     assert "validation_command_argv=" in _state(project)
     code, payload = _run_once(project, runtime, registry, executable, workspace)
     assert code == 0, json.dumps(payload)[:3000]
@@ -135,12 +143,14 @@ def test_validated_completion_is_offered_only_for_todo_scoped_turns() -> None:
 
 
 def test_acceptor_turns_reject_then_accept_a_delivery(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, independent_worktree: Path,
 ) -> None:
     """Fork S2 end to end through run-once: deliver, reject, redeliver, accept."""
 
     monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
-    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    project, runtime, registry, executable, workspace = _fixture(
+        tmp_path, role_v1=True, workspace=independent_worktree, monkeypatch=monkeypatch,
+    )
     code, payload = _run_once(project, runtime, registry, executable, workspace)
     assert code == 0, json.dumps(payload)[:3000]
     assert f"todo_id={TODO} status=in_review" in _state(project)
@@ -167,7 +177,7 @@ def test_acceptor_turns_reject_then_accept_a_delivery(
 
 
 def test_acceptor_reject_with_an_outcome_gap_still_settles(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, independent_worktree: Path,
 ) -> None:
     """E2E pilot: a real acceptor rejected with delivery_outcome=outcome_gap.
 
@@ -176,7 +186,9 @@ def test_acceptor_reject_with_an_outcome_gap_still_settles(
     """
 
     monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
-    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    project, runtime, registry, executable, workspace = _fixture(
+        tmp_path, role_v1=True, workspace=independent_worktree, monkeypatch=monkeypatch,
+    )
     code, payload = _run_once(project, runtime, registry, executable, workspace)
     assert code == 0, json.dumps(payload)[:3000]
     monkeypatch.setenv("FAKE_CLAUDE_KIND", "repair_required")
@@ -190,7 +202,7 @@ def test_acceptor_reject_with_an_outcome_gap_still_settles(
 
 
 def test_acceptor_accept_with_a_blocked_merge_settles_and_reopens(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, independent_worktree: Path,
 ) -> None:
     """E2E pilot: an accept whose merge was blocked failed the acceptor Turn.
 
@@ -203,7 +215,9 @@ def test_acceptor_accept_with_a_blocked_merge_settles_and_reopens(
     from loopx.workspace import git_workspace
 
     monkeypatch.setenv("FIXTURE_ARTIFACT", str(tmp_path / "fixture-artifact.txt"))
-    project, runtime, registry, executable, workspace = _fixture(tmp_path, role_v1=True)
+    project, runtime, registry, executable, workspace = _fixture(
+        tmp_path, role_v1=True, workspace=independent_worktree, monkeypatch=monkeypatch,
+    )
     code, payload = _run_once(project, runtime, registry, executable, workspace)
     assert code == 0, json.dumps(payload)[:3000]
     assert f"todo_id={TODO} status=in_review" in _state(project)

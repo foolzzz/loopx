@@ -225,14 +225,18 @@ def test_replan_sources_drop_only_cadence_obligations_under_role_v1(model: Agent
     assert "autonomous_replan_obligation" in item  # the sources are not mutated
 
 
-def test_role_v1_developer_turns_raise_no_periodic_replan_for_the_orchestrator(tmp_path: Path) -> None:
+def test_role_v1_developer_turns_raise_no_periodic_replan_for_the_orchestrator(
+    tmp_path: Path, independent_worktree: Path,
+) -> None:
     """20 durable developer runs made the idle orchestrator owe a periodic replan."""
 
     goal = _goal(tmp_path, "role_v1", _state(IDLE_NEXT_ACTION))
     for _ in range(AUTONOMOUS_REPLAN_PERIODIC_RUN_THRESHOLD):
+        # A developer's accountable delivery settles from an independent worktree.
         _refresh_dev(
             goal, "--classification", "validated_progress", "--delivery-outcome", "outcome_progress",
             "--delivery-batch-scale", "single_surface",
+            "--delivery-workspace-path", str(independent_worktree),
         )
     for agent in (ORCH, DEV):
         packet = _should_run(goal, agent)
