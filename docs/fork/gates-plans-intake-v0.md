@@ -98,6 +98,34 @@ It is backed by two chat server endpoints, which accept loopback requests only:
   owner reply. It returns 409 once the gate is closed, and 400 if the body has
   unknown fields such as `author`.
 
+A gate can be answered from the CLI and the dashboard in any order:
+
+- **Live thread.** While the drawer is open and the page is visible, the panel
+  re-reads the thread every 5 seconds and when the window regains focus. It
+  stops while the page is hidden, once the drawer closes and once the gate is
+  closed. A read that changes the message count, the awaiting state or the
+  status also refreshes that goal's status, so the role board row follows.
+- **What you decide.** Above the thread, a section per gate kind shows the
+  gate's content from the same endpoint: for `plan_approval`, the plan card
+  (`plan`: title, summary, status, revision, and each todo's `key`, `text`,
+  `required_role`, `depends_on`, `task_repositories`, `acceptance` and
+  `validation_command`; read from the card by `plan_card_view` in
+  `loopx.plan_cards`) and its acceptance-criteria changes; for `push_request`,
+  each repo's branch, remote, commit range, commit count and log; for
+  `budget_exhausted`, the spend against the budget, its estimated part, the
+  per-role split and the default raise (flagged when it does not cover the
+  spend, since LoopX refuses such a raise: put the amount in the decision
+  note); for `goal_complete`, the accepted,
+  rejected and superseded todos, the usage, each repo's merges and push result,
+  and open follow-ups. A malformed field hides its section only.
+- **Named options.** On an `acceptor_blocked`, `budget_exhausted` or
+  `goal_complete` gate, the primary button names the option it previews, for
+  example "Approve (close_goal)" / "批准（close_goal）", and sends that
+  `option` explicitly (`retry_acceptance`, `raise_budget` or `close_goal`, the
+  same default as a bare CLI approve). The other options stay in **More
+  decisions**. Plan approvals, push requests and plain decisions keep the plain
+  approve.
+
 ## Only the orchestrator opens user gates (decision 11)
 
 Under role_v1, a developer or acceptor agent cannot open a user todo. This covers
