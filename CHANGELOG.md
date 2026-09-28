@@ -22,8 +22,8 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
   decomposes and claims work for itself, and a hash picks who owns a replan.
   The fork adds the `role_v1` runtime model, which has three registered roles:
   - one **orchestrator** per goal. It clarifies requirements with you, plans,
-    owns the acceptance criteria, answers escalations, and is the only agent
-    that opens user gates;
+    owns the acceptance criteria, answers escalations, and is the only
+    role-assigned agent that opens user gates;
   - **developers**, which implement todos;
   - **acceptors**, which only review.
 
@@ -35,7 +35,8 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
   discussion thread. The initial plan and every major change arrive as a
   plan card that you approve. `loopx goal create` turns a requirements
   document into a running goal.
-- **Review before merge.** A developer's delivery moves to the new `in_review`
+- **Review before merge.** A developer's delivery that requires acceptance,
+  which is the default for developer work, moves to the new `in_review`
   status. An isolated acceptor then accepts, rejects or blocks it. Accepted
   work merges atomically across repos. The second rejection of a todo
   escalates it to the orchestrator.
@@ -60,26 +61,30 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
 - **Role fields in the todo contract.** The contract gains `required_role`,
   `requires_acceptance`, `acceptor_agent`, `reject_count` and
   `task_repositories`, followed later by `delivered_by`, `review_feedback` and
-  `acceptance_criteria`. `loopx todo add` and `loopx todo update` take the
-  matching flags: `--required-role`, `--requires-acceptance`,
-  `--acceptor-agent`, `--reject-count`, `--task-repo`,
-  `--acceptance-criteria` and `--review-feedback`, plus their `--clear-*`
-  forms.
-- **Role-aware selection.** An agent only receives todos whose effective role
-  matches its own. User gates, blockers and planning work belong to the
+  `acceptance_criteria`. The matching flags:
+  - `loopx todo add` and `loopx todo update` take `--required-role`,
+    `--requires-acceptance`, `--acceptor-agent`, `--reject-count`,
+    `--task-repo` and `--acceptance-criteria`.
+  - Only `loopx todo update` takes `--review-feedback` and the clear flags:
+    `--clear-required-role`, `--clear-acceptor-agent`, `--clear-task-repos`,
+    `--clear-acceptance-criteria` and `--clear-review-feedback`.
+- **Role-aware selection.** An agent with a registered role only receives
+  todos whose effective role matches its own. An agent without a role keeps
+  the flat peer routing. User gates, blockers and planning work belong to the
   orchestrator, so it never receives implementation work. An acceptor only
   receives the `in_review` todos it is the resolved acceptor for.
 - **Replan routing.** Replan obligations go to the goal's orchestrator
   instead of the owner that the sha256 peer hash picks.
-- **Only the orchestrator opens user gates (#7).** Developers and acceptors
-  raise `blocker` todos. The orchestrator answers them itself, or turns them
+- **Only the orchestrator opens user gates (#7).** Under role_v1, agents with
+  the developer or acceptor role raise `blocker` todos instead. Agents
+  without a role keep the upstream behavior. The orchestrator answers them itself, or turns them
   into a gate with options and a recommendation.
 - **Less orchestrator overhead (decision 43, #27).** LoopX now completes pure
   bookkeeping without a model Turn: the planning todo once its plan is
   applied, an escalation whose todo is already done, and a gate-reply action
-  todo whose gates were already answered. Every orchestrator Turn also starts
-  from a bounded goal state digest (at most 20,000 characters), so it needs
-  fewer CLI calls to discover state.
+  todo whose gates were already answered. Every claude-code orchestrator Turn
+  also starts from a bounded goal state digest (at most 20,000 characters),
+  so it needs fewer CLI calls to discover state.
 
 #### Dispatcher (#6, #14, #23, #24)
 
@@ -148,7 +153,9 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
 #### Acceptance flow (#8, #11, #13, #16)
 
 - **The `in_review` status.** On a role_v1 goal that has an acceptor,
-  completing a developer todo does not mark it done. LoopX first runs the
+  completing a todo that requires acceptance does not mark it done. Developer
+  work requires acceptance by default, and `requires_acceptance=false` opts
+  out. LoopX first runs the
   todo's declared validation command, then moves the todo to `in_review`. It
   records who delivered it and the commit it delivered in each repo
   (`delivered_shas`).
@@ -162,13 +169,13 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
   | `user_action_required` | blocked |
 
   - Accept merges the todo first and completes it only after the merge.
-  - Reject reopens the todo for the same developer, with feedback that names
-    each failed criterion.
+  - Reject reopens the todo for the same developer. The feedback is required,
+    and the prompt asks it to name each failed criterion.
   - The second rejection blocks the todo and opens an escalation todo for
     the orchestrator.
 - **Per-todo acceptance criteria (G2, #11).** The criteria live in a field
-  that only the orchestrator writes, and developer and acceptor Turns see
-  them every time. Rework instructions go to `review_feedback`.
+  that only the orchestrator, or the owner without an `--agent-id`, writes.
+  Developer and acceptor Turns see them every time. Rework instructions go to `review_feedback`.
 - **Acceptor isolation (G12, #13).**
   - The acceptor reviews in a throwaway detached checkout of the delivered
     commit, never in the developer's worktree.
@@ -201,7 +208,9 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 commits.
   - The merge is atomic across repos: if any repo fails, none is merged.
   - Each repo gets a no-ff merge commit with `LoopX-Goal` and `LoopX-Todo`
     trailers.
-  - The default task branch is `loopx-task/<goal>`.
+  - Each repo's merge target is its default branch (`merge_target=main`, the
+    default) or a task branch (`merge_target=task_branch`, named
+    `loopx-task/<goal>` unless `task_branch` is set).
   - The dispatcher prepares workspaces itself.
 - **Delivery identity (decision 29, #12).** A multi-repo Turn settles against
   a todo workspace identity. A repo without `origin` gets a local `repo_id`,
@@ -279,11 +288,14 @@ These behaviors differ from upstream.
   `role_v1`. Goals that already record `peer_v1` keep the flat peer behavior
   until you run `loopx configure-goal --agent-model role_v1`.
 - **Anti-hierarchy validators removed.** `agent_profiles.*.profile_role`
-  accepts labels such as `orchestrator`, `manager` and `worker`. The legacy
-  hierarchy detector no longer fires on role_v1 goals.
+  accepts labels such as `orchestrator`, `manager` and `worker`. On role_v1
+  goals, the legacy hierarchy detector no longer treats an
+  `agent_profiles.*.role` key as a migration trigger. Its other markers are
+  unchanged.
 - **Completing a todo.** On a role_v1 goal with an acceptor, `loopx todo
-  complete` of a developer todo delivers it to `in_review` instead of marking
-  it done. The event log gains `todo_in_review` and `todo_reopened`.
+  complete` of a todo that requires acceptance delivers it to `in_review`
+  instead of marking it done. The event log gains `todo_in_review` and
+  `todo_reopened`.
 - **Planning obligations.** role_v1 goals no longer derive these upstream
   planning obligations:
   - the vision checkpoint, and the replan for a todo done with no follow-up
@@ -293,10 +305,12 @@ These behaviors differ from upstream.
   - a demand from a stale executable Next Action (decision 42, #25).
 
   Planning review is the orchestrator's job on every Turn instead.
-- **Dependency release.** On role_v1 goals, only an accept and merge releases
-  a dependent. A manual `done` or a supersede does not.
-- **Who may write what.** Under role_v1, developers and acceptors cannot open
-  user gates or write acceptance criteria. After planning, a change to a
+- **Dependency release.** On role_v1 goals, a dependency that requires
+  acceptance releases its dependents only once it is accepted and merged. A
+  manual `done` or a supersede does not count. A dependency without
+  acceptance is still satisfied by `done`.
+- **Who may write what.** Under role_v1, agents with the developer or
+  acceptor role cannot open user gates or write acceptance criteria. After planning, a change to a
   todo's criteria needs a user-approved plan card. Only the owner, using no
   `--agent-id`, may still edit criteria directly.
 - **Turn prompts.** Both built-in hosts now ask for repo-relative paths in
@@ -347,6 +361,12 @@ These behaviors differ from upstream.
 
 - **`hard_lease` goals.** `in_review` is not supported on canonical
   `hard_lease` goals (decision 33). The default `soft_claim` works.
+- **Event-projected todos.** `todo update` does not support event-projected
+  todos, which are neither Markdown nor canonical. Delivery and verdicts
+  therefore need a Markdown or promoted canonical goal.
+- **Role board.** On canonical-authority goals, `running` reflects dispatcher
+  Turns only. The todo list inherits the status `todo_index` cap of 240
+  items across all goals. Verdict text is not shown on the board.
 - **codex-cli orchestrators.** The orchestrator's system-prompt addendum and
   state digest only reach claude-code agents. A codex-cli orchestrator gets
   neither.
@@ -377,6 +397,8 @@ These behaviors differ from upstream.
   - Lark and Telegram channels;
   - the dashboard intake form;
   - accept and reject actions on role board cards.
+
+  Each design doc under `docs/fork/` also ends with its own known gaps.
 
 ### Documentation
 

@@ -21,9 +21,12 @@ A goal has **you (the owner)** and three agent roles:
 
 | role | what it does | what it never does |
 |---|---|---|
-| **orchestrator** (one per goal) | Clarifies requirements with you, proposes the plan, writes each todo's acceptance criteria, handles escalations and replans. It is the only agent that opens user gates. | It never implements todos. |
-| **developer** | Implements todos in its own git worktree, commits, and delivers the work for review. | It never opens user gates or edits acceptance criteria. Blockers go to the orchestrator. |
-| **acceptor** | Reviews a delivery against its criteria, in a throwaway checkout of the delivered commit. Its verdict is accept, reject or blocked. | It never modifies code. Required changes go into its rejection feedback. |
+| **orchestrator** (one per goal) | Clarifies requirements with you, proposes the plan, writes each todo's acceptance criteria, handles escalations and replans. It is the only role-assigned agent that opens user gates. | It never implements todos. |
+| **developer** | Implements todos, commits, and delivers the work for review. A todo that names repos (`task_repositories`) gets its own git worktree. | It never opens user gates or edits acceptance criteria. Blockers go to the orchestrator. |
+| **acceptor** | Reviews a delivery against its criteria. For a todo with repos, it reviews in a throwaway checkout of the delivered commit. Its verdict is accept, reject or blocked. | It never modifies code. Required changes go into its rejection feedback. |
+
+These rules bind agents that have a registered role. An agent without a role
+keeps the upstream flat-peer behavior, so give every agent a role.
 
 You talk to the orchestrator through **user gates**. A gate is a question or a
 decision with a discussion thread. You reply to it, then close it with
@@ -31,8 +34,10 @@ approve, reject or cancel.
 
 The **dispatcher** (`loopx dispatch serve`) runs in the background. It
 decides who runs when, and launches each agent Turn with `loopx turn
-run-once`. It holds no state of its own: everything is LoopX state, which the
-CLI, the dashboard and the agents read and write.
+run-once`. It keeps only its own scheduling bookkeeping (running Turns,
+cooldowns, retries) in `<runtime-root>/dispatch/state.json`. Goal state (todos,
+gates, plans) is LoopX state, which the CLI, the dashboard and the agents read
+and write.
 
 The lifecycle of a goal:
 
@@ -53,7 +58,7 @@ developer Turn in worktree loopx/<goal>/<todo> ──► delivered: status in_re
                               │             (the 2nd reject escalates to the orchestrator)
                               ├─ blocked ─► acceptor_blocked gate for you
                               └─ accept ──► atomic merge into the merge target
-                                            (default loopx-task/<goal>) ──► dependents released
+                                            (loopx-task/<goal> or the default branch) ──► dependents released
    │  all work merged
    ▼
 push_request gate (you approve the push) ──► goal_complete gate (close / add work / leave open)
@@ -242,8 +247,16 @@ the project registry by itself. Elsewhere, pass
 
 ```sh
 cd ~/work/progress
-loopx dispatch serve --goal-id todo-due --project . --max-global 3
+loopx dispatch serve --goal-id todo-due --project . --max-global 3 \
+  --validation-command-json '["make","test"]'   # fallback; use your project's test command
 ```
+
+Every developer and acceptor Turn needs an independent validation command. A
+todo uses its own `validation_command`. A todo that declares none uses
+`--validation-command-json`. Without either, its Turns fail with
+`validation_unavailable` and the todo backs off. So give every plan todo a
+`validation_command`, or pass a fallback. Orchestrator todos need neither:
+LoopX checks them against the goal state.
 
 - `serve` watches the state files and runs a reconcile pass every
   `--tick-seconds` (default 60). It prints one JSON line per pass that acts,
@@ -287,13 +300,13 @@ LoopX then creates the plan's todos:
 - each todo carries its acceptance criteria and validation command;
 - the orchestrator's planning todo is closed automatically.
 
-A `reject` or `cancel` changes nothing.
+A `reject` or `cancel` applies nothing: the plan card is closed with that decision, and the orchestrator can propose again.
 
 ### Step 7: watch progress
 
 ```sh
 loopx todo list --goal-id todo-due          # todos plus "Dependency waits"
-loopx dispatch status                       # running Turns, per-agent slots, cooldowns, dispatcher gates
+loopx dispatch status                       # running Turns, per-agent slots, cooldowns (--format json adds gates, retries)
 loopx status --goal-id todo-due             # goals, gates, attention queue
 loopx usage report --goal todo-due --by role
 loopx dashboard --goal-id todo-due          # browser: Role board tab (角色看板)
@@ -302,7 +315,7 @@ loopx dashboard --goal-id todo-due          # browser: Role board tab (角色看
 The dashboard's **Role board** shows:
 
 - "Waiting on you" at the top;
-- the columns Planned, Assigned, Rework, Running, In review and Done, in
+- the columns Planned, Assigned, Running, In review, Rework and Done, in
   orchestrator, developer and acceptor swimlanes;
 - a cost strip.
 
@@ -311,10 +324,12 @@ decide.
 
 What happens on its own:
 
-- A developer works in `<runtime-root>/goals/todo-due/workspaces/<todo>/<repo>`
-  on the branch `loopx/todo-due/<todo>`. It commits, and it never pushes.
+- For a todo that names repos, a developer works in
+  `<runtime-root>/goals/todo-due/workspaces/<todo>/<repo>` on the branch
+  `loopx/todo-due/<todo>`. It commits, and it never pushes.
 - When the developer's Turn succeeds, LoopX runs the todo's validation
-  command and moves the todo to `in_review`.
+  command. A todo that requires acceptance (the default for developer work)
+  then moves to `in_review`, and any other todo moves to `done`.
 - The acceptor reviews a detached checkout of the delivered commit.
   - **Reject** reopens the todo for the developer with feedback that names
     the failed criteria. The second reject blocks the todo and hands it to
@@ -348,8 +363,9 @@ loopx gate show --goal-id todo-due --todo-id <gate-id>
 loopx gate resolve --goal-id todo-due --todo-id <gate-id> --decision approve   # git push <remote> <branch>, never force
 ```
 
-`reject` or `cancel` pushes nothing, and the same heads are not offered again.
-A repo without a remote is skipped. To push without a gate, run `git push`
+`reject` or `cancel` pushes nothing. The dispatcher and the orchestrator do not
+offer the same heads again until new merges arrive. You can still ask for them
+with `loopx goal request-push`. A repo without a remote is skipped. To push without a gate, run `git push`
 yourself.
 
 ### Step 10: close the goal
@@ -485,12 +501,20 @@ equivalent.
 | `push_request` | the dispatcher once all work is merged, or `loopx goal request-push` | the orchestrator | `approve` pushes each merge target. `reject` and `cancel` decline. |
 | `budget_exhausted` | the dispatcher at 100% of a goal budget | all new Turns of the goal | `--option raise_budget --note <USD> \| continue_without_limit` (approve), `stop_goal` (reject) |
 | `goal_complete` | the dispatcher once the goal is finished | the orchestrator | `--option close_goal` (approve), `add_work --note "..."` (reject), `leave_open` (cancel) |
-| re-login needed | the dispatcher when an auth preflight fails | that agent | Log in again (`claude auth` or `codex login`), then approve. |
+| re-login needed | the dispatcher when an auth preflight fails | that agent | Log in again (`claude auth login` or `codex login`), then approve. |
 | provider in long cooldown | the dispatcher when a provider backoff reaches `--long-cooldown-seconds` | the agent that hit it | Close it when the provider is usable again. |
 | orchestrator repeat limit | the dispatcher when orchestrator action todos keep failing | the orchestrator | Check the goal, then close it. |
 
-A bare `--decision` selects the option in its row: approve selects the first
-option, reject the reject option, and cancel the cancel option.
+A bare `--decision` selects a default option:
+
+| gate | approve | reject | cancel |
+|---|---|---|---|
+| `acceptor_blocked` | `retry_acceptance` | `return_to_developer` | `cancel_todo` |
+| `budget_exhausted` | `raise_budget` | `stop_goal` | `stop_goal` |
+| `goal_complete` | `close_goal` | `add_work` | `leave_open` |
+
+On `budget_exhausted`, `cancel` also stops the goal. Pass `--option` explicitly
+on system gates.
 
 ## 6. CLI reference
 
@@ -527,7 +551,7 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `dispatch serve --goal-id G [--goal-id G2 ...] [options]` | Run the resident dispatcher. |
-| `dispatch status` | Running Turns, per-agent slots, provider and agent cooldowns, gates the dispatcher opened, retry identities. |
+| `dispatch status` | Running Turns, per-agent slots, provider and agent cooldowns. With `--format json`, it also lists the gates the dispatcher opened and its retry identities. |
 | `dispatch launchd-plist --goal-id G [options] [--label L]` | Print a launchd job that runs `serve`. It installs nothing. |
 
 `serve` options (`launchd-plist` takes the same):
@@ -576,9 +600,13 @@ A plan file looks like this:
     {"key": "contract", "text": "Write the API contract", "task_repositories": ["api"],
      "acceptance": "openapi.yaml documents the optional ISO due field",
      "validation_command": "test -f openapi.yaml", "priority": "P1"},
-    {"key": "api", "text": "Implement due in the API", "depends_on": ["contract"], "task_repositories": ["api"]},
-    {"key": "web", "text": "Show due in the web client", "depends_on": ["contract"], "task_repositories": ["web"]},
-    {"key": "integrate", "text": "Integrate web and API", "depends_on": ["api", "web"], "task_repositories": ["api", "web"]}
+    {"key": "api", "text": "Implement due in the API", "depends_on": ["contract"], "task_repositories": ["api"],
+     "acceptance": "invalid dates return 400", "validation_command": "python3 -m unittest"},
+    {"key": "web", "text": "Show due in the web client", "depends_on": ["contract"], "task_repositories": ["web"],
+     "acceptance": "the list renders the due date", "validation_command": "node --test"},
+    {"key": "integrate", "text": "Integrate web and API", "depends_on": ["api", "web"], "task_repositories": ["api", "web"],
+     "acceptance": "both suites pass from the workspace root",
+     "validation_command": "sh -c 'cd api && python3 -m unittest && cd ../web && node --test'"}
   ]
 }
 ```
@@ -609,7 +637,7 @@ These are the fork's additions to the upstream `todo` command:
 | `todo reject --goal-id G --todo-id T --agent-id ACC --note TEXT` | Reject it. The note is required and should name the failed criteria. The second reject escalates. |
 | `todo block-review --goal-id G --todo-id T --agent-id ACC --reason TEXT` | The acceptor cannot review. This opens an `acceptor_blocked` gate. |
 | `todo supersede --goal-id G --todo-id OLD --by NEW[,NEW2] [--agent-id ORCH] [--note]` | Replace or split a todo, and rewire its dependents. |
-| `todo complete ...` | On a role_v1 goal with an acceptor, delivers the todo to `in_review` instead of marking it done. |
+| `todo complete ...` | On a role_v1 goal with an acceptor, a todo that requires acceptance (the default for developer work) goes to `in_review` instead of `done`. With `requires_acceptance=false`, it completes as before. |
 | `--status in_review` | A first-class status. `todo add` cannot create it. |
 | `--required-role orchestrator\|developer\|acceptor` | Route a todo to a role. The default is developer for work, and orchestrator for gates, blockers and replans. |
 | `--requires-acceptance true\|false` | Whether completion needs an acceptor. The default is true for developer work. |
@@ -626,7 +654,8 @@ waiting.
 ### `loopx workspace`
 
 `loopx workspace prepare | status | merge | cleanup --goal-id G --todo-id T
-[--repo NAME]... [--dry-run]`. `cleanup` also takes `--force`. Without
+[--repo NAME]...`. `prepare`, `merge` and `cleanup` also take `--dry-run`, and
+`cleanup` takes `--force`. Without
 `--repo`, a command uses the todo's `task_repositories`, else every goal repo.
 
 | action | effect |
@@ -649,12 +678,12 @@ waiting.
 later. `configure-goal` only previews until you add `--execute`.
 
 ```sh
-loopx configure-goal --goal-id G --agent-role dev2=developer --execute     # assign a role (repeatable)
+loopx register-agent --goal-id G --agent-id dev2 --role developer --execute   # register an agent with a role
+loopx configure-goal --goal-id G --agent-role dev2=developer --execute     # change a registered agent's role
 loopx configure-goal --goal-id G --clear-agent-role dev2 --execute
 loopx configure-goal --goal-id G --agent-model role_v1 --execute           # move a peer_v1 goal to roles
 loopx configure-goal --goal-id G --repo docs=/abs/docs,default_branch=main,merge_target=main --execute
 loopx configure-goal --goal-id G --clear-repos --execute
-loopx register-agent --goal-id G --agent-id dev2 --role developer --execute
 ```
 
 Two rules apply:
@@ -723,7 +752,7 @@ In the runtime root (default `~/.codex/loopx`):
 In each code repo:
 
 - `loopx/<goal>/<todo>`: one todo branch.
-- `loopx-task/<goal>`: the default merge target when `merge_target=task_branch`.
+- `loopx-task/<goal>`: the merge target when `merge_target=task_branch` and no `task_branch` is set. With `merge_target=main`, the default, accepted work lands on the default branch.
 
 ## 8. Troubleshooting
 
@@ -744,8 +773,8 @@ In each code repo:
 
 ## 9. Limitations and further reading
 
-The [changelog](../../CHANGELOG.md#known-limitations) lists the current
-limitations. The main ones:
+The [changelog](../../CHANGELOG.md#known-limitations) lists the known
+limitations, and each design doc ends with its own known gaps. The main ones:
 
 - No `in_review` support on canonical `hard_lease` goals.
 - No remote-SSH workspaces or resource pool yet.
