@@ -68,6 +68,7 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 40. After initial planning, a change to a todo's acceptance criteria takes effect only through a user-approved plan card; the acceptor does not review that todo while the card is pending. Approved by the user.
 41. Budgets are optional (usually unset). When set: a non-blocking alert at 80%; at 100% a system budget_exhausted gate pauses new Turns for that goal (running Turns finish) with options raise budget / continue without limit / stop. Approved by the user.
 42. Decision 39 extended: role_v1 goals never derive an orchestrator obligation from a stale Next Action. When a role_v1 goal's work is merged and the push resolved, the dispatcher opens one deterministic goal_complete gate (merges, push results, usage; options close / reopen with follow-up / cancel) with no model Turn. Approved by the user.
+43. Mechanical orchestrator bookkeeping (e.g. planning closeout after plan apply) is done by the system; orchestrator Turns receive a bounded precomputed state digest so they need few discovery steps. Approved by the user.
 
 ## Kernel seams (from code exploration)
 - **Registry roster:** `loopx/agent_registry.py`, `loopx/configure_goal.py`, `loopx/cli_commands/registry_admin.py`. The runtime model enum is in `loopx/control_plane/agents/runtime_model.py`; the anti-hierarchy rules are in `control_plane/agents/profile.py` and `legacy_migration.py`.

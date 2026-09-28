@@ -223,6 +223,38 @@ The resumed goal runs on. Its crossing is already decided, so no new gate
 opens until the budget changes. To keep a limit, set a higher budget with
 `loopx usage budget --goal G --set USD` before or after resuming.
 
+## Orchestrator cost (decision 43)
+
+The v1 pilot ledger showed where the orchestrator's money went. Its Turns ran
+26 to 43 host steps (`model_turns`), and every step re-read the whole context
+(40 to 60k tokens: the host's own system prompt and tools, the Turn prompt and
+the tool output so far), so a Turn cost 0.6 to 1.8M cached input tokens and
+$1 to $2.6. Most steps were CLI reads that discovered state. One Turn, the
+planning closeout after the plan was applied, cost $0.85 for pure
+bookkeeping. Two changes target that:
+
+- LoopX closes such bookkeeping todos itself (the planning todo at plan
+  apply, an escalation whose todo is already done, an answered gate-reply
+  action todo), so those Turns no longer happen: no ledger entry, no cost.
+- Every orchestrator Turn starts from a bounded state digest in its system
+  prompt (at most 20,000 characters, about 5k tokens; the pilot goal needs
+  about 1k), so it needs fewer discovery steps. Because the per-step cost is
+  the context re-read, a step saved is worth roughly one context's worth of
+  cached input.
+
+Measured on real claude-code Turns (`claude-fable-5-1`, one Turn each, so
+noisy; see the PR for the setup):
+
+| scenario | before (steps, input tokens, cost) | after |
+|---|---|---|
+| planning closeout after plan apply (v1 ledger) | 6 steps, $0.85 | no Turn, $0 |
+| escalation after a second rejection, copied v1 state | 7 steps, 288k, $0.88 | 6 steps, 227k, $1.35 (paid a 41k-token cache write the concurrent "before" Turn reused) |
+| fresh goal intake, clarification gate | 13 steps, 391k, $1.21 | 10 steps, 470k, $1.10 |
+
+Read the per-Turn figures in `loopx usage report --by todo` (`model_turns`,
+tokens and cost). The `cache_creation_input` tokens depend on what other
+Turns warmed recently, so compare steps and total input tokens before cost.
+
 ## Known gaps
 
 - Estimates are only as good as the price table, and prices drift.
