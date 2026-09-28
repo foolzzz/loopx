@@ -83,7 +83,8 @@ def action_todo_text(effective_action: str | None, gate_ids: Sequence[str]) -> s
         )
     return (
         f"{ORCHESTRATOR_ACTION_TEXT_PREFIX}{_ACTION_MARKER}{effective_action}. Replan: open typed "
-        "follow-up todos, propose a plan, open a user gate, or record the goal's terminal outcome."
+        "follow-up todos, propose a plan, or open a user gate. Do not open a gate to confirm the goal's "
+        "completion: LoopX opens the goal_complete gate itself."
     )
 
 
