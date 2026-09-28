@@ -87,7 +87,7 @@ works.
 | runtime | drives | provider kinds | role-specific behavior |
 |---|---|---|---|
 | `claude-code` | Claude Code: a fresh `claude -p` session per Turn | `anthropic` | Reports its own cost. Receives the dispatcher's system-prompt addendum, and as orchestrator the goal state digest. Settings: `permission_mode`, `reasoning_effort` (`low` to `max`), `system_prompt_file` and raw `extra_args`. |
-| `codex-cli` | Codex CLI (`codex exec`) | `openai`, `openai-compatible`, `codex-cpa` (a local CPA proxy) | Reports no USD, so its cost is estimated from the provider's `pricing`. Receives no system-prompt addendum or state digest. Settings: `sandbox`, `reasoning_effort` (`none` to `ultra`), and `extra_args` as `KEY=VALUE` config overrides. |
+| `codex-cli` | Codex CLI (`codex exec`) | `openai`, `openai-compatible`, `codex-cpa` (a local CPA proxy) | Reports no USD. LoopX estimates the cost when the provider has matching `pricing`, and otherwise records the Turn as unpriced. Receives no system-prompt addendum or state digest. Settings: `sandbox`, `reasoning_effort` (`none` to `ultra`), and `extra_args` as `KEY=VALUE` config overrides. |
 
 Each provider authenticates with a CLI login, an OAuth token or an API key;
 see [step 1](#step-1-describe-your-providers).
@@ -114,9 +114,9 @@ Not supported by the dispatcher:
 - `turn run-once` also has `dsh` and `generic-cli` hosts, but agent files
   accept only `claude-code` and `codex-cli`, so the dispatcher cannot launch
   them, and they record no usage.
-- Upstream host integrations (Codex App, OpenCode, KunlunCode and the other
-  `/loopx` surfaces) drive the upstream heartbeat loop. The role dispatcher
-  does not launch them.
+- Upstream host integrations (Codex App, Claude Code `/loop`, OpenCode,
+  KunlunCode and the other `/loopx` surfaces) run their own host-managed
+  loops or controllers. The role dispatcher does not launch them.
 
 ## 2. Install
 
