@@ -222,10 +222,9 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
   repo `main`.
 - **Workspaces.** `loopx workspace prepare | status | merge | cleanup`. A
   todo gets one worktree per selected repo, all on the branch
-  `loopx/<goal>/<todo>`. The selected repos are the todo's
-  `task_repositories`, or, for a manual command on a todo that names none,
-  every goal repo. The dispatcher prepares workspaces only for todos that
-  name repos.
+  `loopx/<goal>/<todo>`. A manual command selects the repos given with
+  `--repo NAME`, else the todo's `task_repositories`, else every goal repo.
+  The dispatcher prepares workspaces only for todos that name repos.
   - The merge is atomic across the todo's repos: if any repo fails, none is
     merged.
   - Each repo with changes gets a no-ff merge commit with `LoopX-Goal` and
