@@ -39,7 +39,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import load_goal_from_registry
+from .agent_registry import lifecycle_agent_for_owner_write, load_goal_from_registry
 from .control_plane.todos.contract import (
     TODO_STATUS_IN_REVIEW,
     TODO_STATUS_OPEN,
@@ -349,7 +349,9 @@ def settle_review_gate(
         # Somebody already moved the todo (for example a later verdict).
         result["reason"] = f"todo is {status or 'missing'}, not in_review; nothing to apply"
         return result
-    owner = normalize_todo_claimed_by(todo.get("claimed_by")) or acceptor or None
+    # The owner is not an agent: every option's todo write is attributed to the
+    # claim owner, else the blocked acceptor, else the orchestrator.
+    owner = lifecycle_agent_for_owner_write(dict(goal or {}), todo.get("claimed_by"), acceptor)
     gate_note = compact_todo_text(note)
     try:
         if selected == OPTION_RETRY_ACCEPTANCE:
@@ -359,7 +361,7 @@ def settle_review_gate(
                 registry_path=registry_path, goal=goal, goal_id=goal_id, todo=todo, actor=OWNER_ACTOR,
                 actor_source="owner_via_acceptor_blocked_gate",
                 note=gate_note or f"accepted manually by the owner after {acceptor} could not review",
-                runtime_root_arg=runtime_root_arg,
+                runtime_root_arg=runtime_root_arg, lifecycle_agent_id=owner,
             )
             result.update(applied=accepted.get("ok") is not False, acceptance=accepted.get("acceptance"),
                           **({"merge": accepted["merge"]} if "merge" in accepted else {}))

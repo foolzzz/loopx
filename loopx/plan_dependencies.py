@@ -467,6 +467,7 @@ def supersede_goal_todo_by(
     no agent id, may supersede. Retrying an applied supersession is a no-op.
     """
 
+    from .agent_registry import lifecycle_agent_for_owner_write
     from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
     from .control_plane.todos.contract import compact_todo_text, normalize_todo_id
     from .todos import supersede_goal_todo, update_goal_todo
@@ -521,12 +522,14 @@ def supersede_goal_todo_by(
     if old_row.get("status") != "done":
         # Like the accept verdict, the lifecycle write is attributed to the
         # claim owner so the kernel claim fence is unchanged; the
-        # orchestrator's authority was checked above and is in the record.
+        # orchestrator's authority was checked above and is in the record. The
+        # owner (actor None) is not an agent, so an unclaimed todo falls back
+        # to the orchestrator.
         closed = supersede_goal_todo(
             registry_path=registry_path, goal_id=goal_id, todo_id=old, role="agent",
             runtime_root_arg=runtime_root_arg,
             reason=compact_todo_text(note) if note else f"superseded by {', '.join(replacements)}",
-            agent_id=old_row.get("claimed_by") or actor,
+            agent_id=lifecycle_agent_for_owner_write(dict(goal), old_row.get("claimed_by"), actor),
         )
         if closed.get("ok") is False:
             return {**base, **closed, "ok": False, "rewired_todo_ids": []}
@@ -539,7 +542,9 @@ def supersede_goal_todo_by(
             update_goal_todo(
                 registry_path=registry_path, goal_id=goal_id, todo_id=dependent, role="agent",
                 runtime_root_arg=runtime_root_arg, resume_when=_TODO_DONE_CONDITION + replacements[-1],
-                agent_id=row.get("claimed_by") or edge.get("proposed_by") or actor,
+                agent_id=lifecycle_agent_for_owner_write(
+                    dict(goal), row.get("claimed_by"), edge.get("proposed_by"), actor,
+                ),
             )
     if written:
         _rewrite_event(runtime_root, goal_id, record)

@@ -31,7 +31,7 @@
     },
     {
       "site": "loopx/agent_registry.py::<module>.load_goal_from_registry::codec_read:load_registry#1",
-      "line": 193,
+      "line": 216,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",

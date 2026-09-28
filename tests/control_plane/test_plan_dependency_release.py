@@ -355,6 +355,28 @@ def test_cli_todo_supersede_by(tmp_path: Path, monkeypatch, capsys) -> None:
     assert kinds.count("todo_supersede") == 1 and kinds.count(DEPENDENCY_REWRITE_EVENT_KIND) == 1
 
 
+@pytest.mark.parametrize("surface", ["api", "cli"])
+def test_the_owner_supersedes_an_unclaimed_todo(tmp_path: Path, monkeypatch, capsys, surface: str) -> None:
+    # A plan todo without a bound agent stays unclaimed. The owner is not a registered
+    # agent, so its supersede must attribute the kernel write to one (the orchestrator).
+    registry, runtime, _goal = _fixture(tmp_path, monkeypatch)
+    unbound = {**PLAN, "todos": [{k: v for k, v in item.items() if k != "bound_agent"} for item in PLAN["todos"]]}
+    ids = _apply(registry, runtime, unbound)
+    assert not _rows(registry)[ids["front"]].get("claimed_by")
+    new = _replacement(registry)
+    if surface == "api":
+        result = supersede_goal_todo_by(registry_path=registry, goal_id=GOAL, todo_id=ids["front"], by=new)
+    else:
+        assert main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json", "todo",
+                     "supersede", "--goal-id", GOAL, "--todo-id", ids["front"], "--by", new]) == 0
+        result = json.loads(capsys.readouterr().out)
+    assert result["ok"] is True and result["closed"] is True, result
+    assert result["rewired_todo_ids"] == [ids["integrate"]]
+    front = _rows(registry)[ids["front"]]
+    assert front["status"] == "done" and not front.get("claimed_by")
+    assert read_supersessions(runtime, GOAL)[0]["actor"] is None  # the owner stays the recorded actor
+
+
 def test_peer_v1_release_and_supersede_are_unchanged(tmp_path: Path, monkeypatch) -> None:
     registry, runtime, goal = _fixture(tmp_path, monkeypatch)
     ids = _apply(registry, runtime)  # plans are proposed under role_v1 ...
