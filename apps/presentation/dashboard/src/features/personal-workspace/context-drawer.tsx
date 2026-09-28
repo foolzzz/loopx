@@ -40,6 +40,7 @@ import type {
 } from "./personal-workspace-model";
 import type { GateThreadView, LarkGoalConnection } from "../../data/chat";
 import { localizedAttentionAge, localizedGoalState, localizedSessionStatus, useWorkspaceI18n } from "./i18n";
+import type { WorkspaceMessageKey } from "./i18n";
 import { formatCostUsd, formatDurationMs, formatTokenCount, formatUsageValue } from "./personal-workspace-model";
 import { TeamPlanResult } from "./team-plan-result";
 import { todoResumeWhenFromMessage } from "./personal-workspace-router";
@@ -98,6 +99,17 @@ const budgetGateOptions = [
   { key: "drawer.budgetOption.continueWithoutLimit", option: "continue_without_limit", resolution: "approve" },
   { key: "drawer.budgetOption.stopGoal", option: "stop_goal", resolution: "reject" },
 ] as const;
+// Decision 42: resolution options of a goal_complete gate (add work: the note is the follow-up).
+const goalCompleteGateOptions = [
+  { key: "drawer.goalCompleteOption.closeGoal", option: "close_goal", resolution: "approve" },
+  { key: "drawer.goalCompleteOption.addWork", option: "add_work", resolution: "reject" },
+  { key: "drawer.goalCompleteOption.leaveOpen", option: "leave_open", resolution: "cancel" },
+] as const;
+const optionGateChoices: Record<string, readonly { key: WorkspaceMessageKey; option: string; resolution: "approve" | "reject" | "cancel" }[]> = {
+  acceptor_blocked: reviewGateOptions,
+  budget_exhausted: budgetGateOptions,
+  goal_complete: goalCompleteGateOptions,
+};
 const DECISION_NOTE_LIMIT = 600;
 
 const subagentChildLimits = Array.from({ length: 32 }, (_, index) => index + 1);
@@ -593,8 +605,8 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 <summary><MoreHorizontal size={17} />{t("drawer.decisionMore")}</summary>
                 <div>
                   <button onClick={() => void callbacks.onExplainDecision?.(selection.item)} type="button"><MessageCircleQuestion size={16} />{t("drawer.explainDecision")}</button>
-                  {gateKind === "acceptor_blocked" || gateKind === "budget_exhausted"
-                    ? (gateKind === "budget_exhausted" ? budgetGateOptions : reviewGateOptions).map((choice) => (
+                  {gateKind && optionGateChoices[gateKind]
+                    ? optionGateChoices[gateKind].map((choice) => (
                       <button key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
                     ))
                     : decisionTransitions.map((transition) => (
