@@ -111,7 +111,7 @@ loopx doctor
 The installer does the following:
 
 - copies the checkout into a snapshot at
-  `~/.local/share/loopx/releases/<timestamp>`;
+  `~/.local/share/loopx/releases/<release-id>` (a timestamp by default);
 - links `~/.local/bin/loopx` to the snapshot, and `~/.local/bin/loopx-canary`
   to the live checkout;
 - installs `man loopx`, and builds the dashboard chat bundle into the
@@ -122,7 +122,8 @@ The installer does the following:
 Choices and guards:
 
 - **Promotion guard.** `loopx` is replaced only when the checkout is clean and
-  at `origin/main`. From any other state, the installer does not replace
+  at the approved ref. That ref is `LOOPX_APPROVED_DEFAULT_REF`, which
+  defaults to `origin/main`, or local `main` when `origin/main` is missing. From any other state, the installer does not replace
   `loopx` or create a snapshot. It still builds the checkout's chat bundle
   and refreshes `loopx-canary`, and it installs canary workflow skills only
   when `LOOPX_SKILLS_DIR` is set. `LOOPX_PROMOTE_DEFAULT=1` overrides the
@@ -130,8 +131,8 @@ Choices and guards:
 - **Python.** The installer records `LOOPX_PYTHON` in the snapshot
   (`.loopx-python`) as the default interpreter. With the command above, that
   is the checkout's `.venv`, so keep it: `uv sync` refreshes it in place.
-  `LOOPX_PYTHON` in the environment overrides the recorded default for one
-  run. If the recorded interpreter is gone, `loopx` falls back to its Python
+  Whenever `LOOPX_PYTHON` is set in the environment, it overrides the
+  recorded default. Use an inline assignment to override it for one run. If the recorded interpreter is gone, `loopx` falls back to its Python
   discovery, which may find one without PyYAML. Reinstall to change the
   default.
 - **Skills and slash commands.** By default, the installer also writes LoopX
@@ -145,14 +146,17 @@ Choices and guards:
   sessions.
 
 **Upgrade.** Run `git pull --ff-only` on `main`, then run the install command
-again. Each run creates a new snapshot and repoints `loopx` to it.
+again. Each promoted run creates a new snapshot and repoints `loopx` to it. A
+run that fails the promotion guard only refreshes `loopx-canary`.
 
 **Roll back.** `loopx update --rollback <release-id>` repoints `loopx` to a
 snapshot. The release ids are the directory names under
-`~/.local/share/loopx/releases`, which are timestamps. `--rollback previous`
-picks the newest snapshot that is not the active one. That is the prior
-snapshot only while the newest snapshot is active. After a rollback, name
-the release id.
+`~/.local/share/loopx/releases`. They are timestamps by default, and
+`LOOPX_RELEASE_ID` can set another name. `--rollback previous` picks the
+valid release whose id sorts highest and that is not the active one. With
+default ids, that is the newest non-active snapshot, which is the prior one
+only while the newest snapshot is active. After a rollback, name the release
+id.
 
 **Uninstall.**
 
@@ -164,6 +168,10 @@ the release id.
 3. Delete the whole `# LoopX local CLI` and `# LoopX local manual` blocks from
    your shell profile. Each block is a comment line plus the `export` line
    under it.
+4. If the installer disabled a legacy `goal-harness` or
+   `goal-harness-canary` command, it renamed it to
+   `~/.local/bin/<name>.legacy-disabled`. Rename it back, or delete it if you
+   no longer want it.
 
 **The dispatcher under launchd.** `loopx dispatch launchd-plist` runs
 `<LOOPX_PYTHON> -m loopx.cli` with only `PATH` and `HOME` set. The checkout's
