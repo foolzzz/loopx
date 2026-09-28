@@ -745,7 +745,7 @@ The orchestrator uses these commands. You mostly read them.
 | `plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]` | Propose a plan card, or revise a pending one in place. The card opens a `plan_approval` gate. |
 | `plan show --goal-id G --plan-id P` | The plan's todos, dependencies, criteria and criteria changes. |
 | `plan list --goal-id G [--require-status pending\|applying\|applied\|rejected\|cancelled]` | The goal's plans. With `--require-status`, exits 1 unless a plan has that status. |
-| `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of an approved plan. |
+| `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of an approved plan. Until the owner approves the plan's gate it exits 1 with `plan_not_approved` and creates no todos. |
 
 A plan file looks like this:
 

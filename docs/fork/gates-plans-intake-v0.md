@@ -184,7 +184,7 @@ gate for it. Events: `goal_complete_opened`, `goal_complete_decided`.
 loopx plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]
 loopx plan show    --goal-id G --plan-id PLAN_ID
 loopx plan list    --goal-id G [--require-status applied]   # exit 1 when no plan has it
-loopx plan apply   --goal-id G --plan-id PLAN_ID      # recovery only
+loopx plan apply   --goal-id G --plan-id PLAN_ID      # recovery only; needs the approved gate
 ```
 
 Plan file format:
@@ -280,6 +280,17 @@ A plan is applied exactly once, and how depends on the goal's authority:
   apply is interrupted, the plan stays `applying`, and the next attempt (settlement
   or `loopx plan apply`) replays the same operation ids without creating
   duplicates.
+
+Only the owner's approve starts an apply. Before it writes anything, the apply
+reads the plan's `plan_approval` gate todo from the goal's todo authority
+(Markdown or promoted canonical, archived rows included). It goes ahead only
+when that gate is `done` with `decision_outcome=approve`, for a `pending` and
+an `applying` card alike. A caller flag or the gate-thread index never counts
+as the approve. So `loopx plan apply` is recovery only: it finishes an approved
+plan whose apply was interrupted, or whose gate closed with approve before the
+card was settled. On a card whose gate is still open, or closed with `reject`
+or `cancel` before the card was settled, it exits 1 with
+`error_code=plan_not_approved`, creates no todos and leaves the card `pending`.
 
 Changing a todo's acceptance criteria after the plan is applied is a major
 change (decision 12) and goes through a plan card (decision 40, below).
