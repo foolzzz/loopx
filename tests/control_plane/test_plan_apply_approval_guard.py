@@ -244,15 +244,21 @@ def test_replaying_an_approve_through_settlement_does_not_apply_a_recorded_rejec
     _close_gate_without_settlement(monkeypatch, registry, gate_id, "reject")
     before = rows(registry)
 
-    try:
-        replay = complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=gate_id, role="user",
-                                    decision_outcome="approve", note="changed my mind", no_followup=True,
-                                    agent_id=ORCH)
-    except ValueError:  # a canonical provider refuses a conflicting replay of the closed gate
-        replay = None
-    if replay is not None:  # the gate keeps its reject; settlement gets the caller's approve
-        assert replay["plan_card"]["ok"] is False, replay["plan_card"]
-        assert "not approved" in replay["plan_card"]["error"]
+    def replay() -> dict:
+        return complete_goal_todo(registry_path=registry, goal_id=GOAL, todo_id=gate_id, role="user",
+                                  decision_outcome="approve", note="changed my mind", no_followup=True,
+                                  agent_id=ORCH)
+
+    if provider is None:
+        # Markdown replays the closed gate and hands settlement the caller's
+        # approve; the guard reads the recorded reject and refuses the plan.
+        settled = replay()
+        assert settled["plan_card"]["ok"] is False, settled["plan_card"]
+        assert "not approved" in settled["plan_card"]["error"]
+    else:
+        # A canonical provider refuses a conflicting replay of the closed gate.
+        with pytest.raises(ValueError):
+            replay()
     assert rows(registry) == before
     assert rows(registry)[gate_id]["decision_outcome"] == "reject"
     assert read_plan(runtime, GOAL, plan_id)["status"] == "pending"

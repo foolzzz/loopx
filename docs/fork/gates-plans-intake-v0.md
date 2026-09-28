@@ -308,9 +308,10 @@ change (decision 12) and goes through a plan card (decision 40, below).
 An applied plan is never re-applied. This slice does not add a single-CAS canonical
 batch. That would be an extension of `work_items/team_plan.ts`, whose lane model
 has one advancement todo per lane, no role, dependency or validation fields, and
-an `actor === lane.agent_id` rule. Plan application here is an owner-confirmed
-action with no actor, which resolves the orchestrator-assigns-others concern
-raised in S1 without granting the orchestrator anything new.
+an `actor === lane.agent_id` rule. Plan application here runs with no actor, and
+only once the plan's gate is recorded done with decision approve. It gives the
+orchestrator no write path of its own. Who may record that approval is the
+separate authority follow-up above.
 
 ## Dependency release and supersession (gap G6)
 
