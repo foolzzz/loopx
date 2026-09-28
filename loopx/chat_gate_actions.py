@@ -7,10 +7,15 @@ same canonical owner as ``loopx todo complete --decision-outcome``:
 actor identity, so the actor of record is the Agent the gate blocks (exactly
 what the CLI requires via ``--agent-id``); the receipt and ``authority_reason``
 carry the owner/dashboard provenance.
+
+A gate that is already closed when a proposal applies settles that proposal as
+applied only when the gate provably records this proposal's decision (its lost
+receipt is recovered); a decision recorded by another surface makes it stale.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from .control_plane.coordination.local_authority import (
@@ -25,6 +30,27 @@ _TERMINAL_BASIS_SCHEMA = "loopx_chat_canonical_terminal_basis_v0"
 _STALE_AUTHORITY_CODES = frozenset(
     {"provider_revision_mismatch", "authority_source_changed", "provider_revision_conflict"}
 )
+
+
+@dataclass(frozen=True)
+class _GateDecision:
+    """One owner decision on a gate, compared as a whole.
+
+    ``option`` is the typed option of an acceptor-blocked (G12),
+    budget_exhausted (decision 41) or goal_complete (decision 42) gate.
+    """
+
+    decision: str | None
+    option: str | None
+    note: str | None
+
+    @classmethod
+    def requested(cls, parameters: dict[str, Any]) -> _GateDecision:
+        return cls(
+            decision=str(parameters["decision"]),
+            option=parameters.get("option") or None,
+            note=parameters.get("note") or None,
+        )
 
 
 class ChatGateActionMixin:
@@ -181,6 +207,60 @@ class ChatGateActionMixin:
             "resource_ids": {"goal_id": goal_id, "todo_id": todo_id},
         }
 
+    def _gate_closed_by_proposal(
+        self, parameters: dict[str, Any], *, operation_id: str, records_identity: bool,
+    ) -> bool:
+        """Whether the closed gate provably records this proposal's decision.
+
+        A write that records ``operation_id`` as the gate's completion identity
+        (``records_identity``: the canonical path) is proven by that identity
+        alone. A legacy write records no per-proposal identity, so there only
+        an equal recorded decision, option and note proves it.
+        """
+
+        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .gate_threads import read_gate_index
+
+        goal_id = str(parameters["goal_id"])
+        todo_id = str(parameters["todo_id"])
+        gate = next((row for row in self._gate_rows(goal_id) if row.get("todo_id") == todo_id), {})
+        if gate.get("completion_turn_key") == operation_id:
+            return True
+        if records_identity:
+            return False
+        index = read_gate_index(effective_runtime_root(self.registry_path, None), goal_id)
+        recorded = _GateDecision(
+            decision=gate.get("decision_outcome") or None,
+            option=(index["gates"].get(todo_id) or {}).get("decision_option") or None,
+            note=gate.get("note") or None,
+        )
+        return recorded == _GateDecision.requested(parameters)
+
+    def _settle_closed_gate(
+        self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any], *,
+        readback: dict[str, Any], operation_id: str, records_identity: bool,
+    ) -> dict[str, Any]:
+        """Recover this proposal's lost receipt, or mark it stale when another surface decided."""
+
+        from .chat_actions import _digest
+
+        if self._gate_closed_by_proposal(
+            parameters, operation_id=operation_id, records_identity=records_identity,
+        ):
+            stored = self.store.apply(
+                proposal_id,
+                current_state_fingerprint=str(proposal["expected_state_fingerprint"]),
+                receipt=self._gate_receipt(
+                    proposal_id, parameters, outcome="gate_resolved",
+                    operation_id=operation_id, readback=readback,
+                ),
+            )
+            return {"proposal": stored, "turn": None}
+        stale = self.store.apply(
+            proposal_id, current_state_fingerprint=_digest({"gate": readback}), receipt={},
+        )
+        return {"proposal": stale, "turn": None}
+
     def _apply_gate_resolve(
         self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any]
     ) -> dict[str, Any]:
@@ -200,27 +280,17 @@ class ChatGateActionMixin:
         todo_id = str(parameters["todo_id"])
         operation_id = f"chat-gate:{proposal_id}"
         basis = proposal.get("canonical_update_basis")
+        # _run_gate_complete records operation_id as the completion identity iff basis is set.
+        records_identity = basis is not None
         current = self._gate_readback(goal_id, todo_id)
         if current.get("status") == "done":
-            # Recovery after a committed write whose receipt was lost: the
-            # canonical state already carries this exact decision, so record it
-            # instead of writing again. A different recorded decision is stale.
-            if current.get("decision_outcome") == decision:
-                stored = self.store.apply(
-                    proposal_id,
-                    current_state_fingerprint=str(proposal["expected_state_fingerprint"]),
-                    receipt=self._gate_receipt(
-                        proposal_id, parameters, outcome="gate_resolved",
-                        operation_id=operation_id, readback=current,
-                    ),
-                )
-                return {"proposal": stored, "turn": None}
-            stale = self.store.apply(
-                proposal_id,
-                current_state_fingerprint=_digest({"gate": current}),
-                receipt={},
+            # Recovery after a committed write whose receipt was lost records
+            # the receipt instead of writing again; a gate another surface
+            # decided (even with the same decision) makes this proposal stale.
+            return self._settle_closed_gate(
+                proposal_id, proposal, parameters, readback=current,
+                operation_id=operation_id, records_identity=records_identity,
             )
-            return {"proposal": stale, "turn": None}
         if basis is None:
             current_fingerprint = self._goal_state_fingerprint(goal_id)
             if current_fingerprint != proposal.get("expected_state_fingerprint"):
@@ -257,6 +327,13 @@ class ChatGateActionMixin:
             )
             return {"proposal": failed, "turn": None}
         readback = self._gate_readback(goal_id, todo_id)
+        if result.get("idempotent_replay") is True:
+            # The gate closed after the checks above, so the write replayed
+            # that closure instead of recording this decision.
+            return self._settle_closed_gate(
+                proposal_id, proposal, parameters, readback=readback,
+                operation_id=operation_id, records_identity=records_identity,
+            )
         if readback.get("status") != "done" or readback.get("decision_outcome") != decision:
             failed = self.store.mark_failed(
                 proposal_id, error_code="canonical_gate_readback_mismatch",

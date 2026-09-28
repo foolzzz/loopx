@@ -399,3 +399,46 @@ def test_each_option_applies_via_the_web_resolve_path(tmp_path: Path, option: st
     assert (budget, stopped) == expected
     held = _held(dispatcher.reconcile())
     assert any(reason.startswith("budget") for _agent, reason in held) is (option == "stop_goal")
+
+
+def _raise_budget_preview(tmp_path: Path) -> tuple[dict[str, Any], str, ChatActionService, dict[str, Any]]:
+    fixture = _fixture(tmp_path)
+    dispatcher = _dispatcher(fixture, GoalShouldRun({}))
+    gate_id = _exhaust(fixture, dispatcher)
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=fixture["registry"])
+    proposal = service.preview({
+        "action_kind": "gate.resolve", "summary": "raise the budget",
+        "normalized_parameters": {"goal_id": GOAL_ID, "todo_id": gate_id, "option": "raise_budget", "note": "$0.2"},
+        "context": {}, "idempotency_key": "budget-raise",
+    })
+    assert proposal["status"] == "preview_ready", proposal
+    return fixture, gate_id, service, proposal
+
+
+def test_a_lost_web_receipt_recovers_the_recorded_option(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+    with monkeypatch.context() as patch:
+        def lost_response(*args: Any, **kwargs: Any) -> None:
+            raise ConnectionError("Synthetic receipt loss after the gate closed")
+        patch.setattr(service.store, "apply", lost_response)
+        with pytest.raises(ConnectionError):
+            service.apply(proposal["proposal_id"])
+    recovered = service.apply(proposal["proposal_id"])["proposal"]
+    assert recovered["status"] == "applied", recovered
+    assert recovered["receipt"]["decision_option"] == "raise_budget"
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+
+
+def test_a_web_preview_is_stale_after_the_cli_picks_another_option(tmp_path: Path) -> None:
+    # Same decision (approve), same note, different option: the web apply must not
+    # report the previewed raise_budget as the recorded outcome.
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+    code, payload = _cli(fixture, "gate", "resolve", "--goal-id", GOAL_ID, "--todo-id", gate_id,
+                         "--option", "continue_without_limit", "--note", "$0.2")
+    assert code == 0 and payload["decision_outcome"] == "approve", payload
+    stale = service.apply(proposal["proposal_id"])["proposal"]
+    assert stale["status"] == "stale", stale
+    assert not stale.get("receipt")
+    entry = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]
+    assert entry["budget_outcome"]["option"] == "continue_without_limit"
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) is None
