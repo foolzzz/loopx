@@ -19,10 +19,11 @@ in one locked state-file write. A goal with promoted canonical authority
 creates each todo with a deterministic operation id
 (``plan-<plan_id>-<key>``), so an interrupted apply resumes on retry without
 duplicates; the plan record stays ``applying`` until every todo exists.
-Only the owner's approve starts an apply: ``apply_plan`` reads the gate todo
-and refuses ``plan_not_approved`` unless it is closed with approve, so
-``loopx plan apply`` recovers an interrupted apply and never replaces the
-approve.
+An apply starts only once the plan's gate is recorded done with decision
+approve: ``apply_plan`` reads the gate todo and refuses ``plan_not_approved``
+otherwise, so ``loopx plan apply`` recovers an interrupted apply and never
+replaces the gate decision. The check is on the recorded decision, not on who
+recorded it (see :func:`require_plan_gate_approved`).
 
 Durable layout: ``<runtime_root>/goals/<goal>/plans/<plan_id>.json``.
 """
@@ -58,7 +59,7 @@ PLAN_APPLIED = "applied"
 PLAN_REJECTED = "rejected"
 PLAN_CANCELLED = "cancelled"
 
-# apply_plan refuses a card whose plan_approval gate is not closed with approve.
+# apply_plan refuses a card whose plan_approval gate is not recorded done with decision approve.
 PLAN_NOT_APPROVED = "plan_not_approved"
 
 MAX_PLAN_TODOS = 50
@@ -563,15 +564,22 @@ def propose_plan(
 def require_plan_gate_approved(
     *, registry_path: Path, goal_id: str, record: Mapping[str, Any], runtime_root_arg: str | None = None,
 ) -> None:
-    """Decision 12: a plan is applied only after the owner approves its gate.
+    """Decision 12: a plan is applied only once its gate is recorded done with decision approve.
 
     The evidence is the plan's ``plan_approval`` gate todo as the goal's todo
     authority holds it (Markdown or promoted canonical, archived rows
     included): ``done`` with ``decision_outcome=approve``. It is never a caller
     flag, nor the gate-thread index, which settlement marks only after the gate
-    closed. ``loopx plan apply`` therefore still recovers an approved plan
-    whose settlement or apply was interrupted, and refuses one the owner has
-    not approved with ``plan_not_approved``.
+    closed. ``loopx plan apply`` therefore still recovers a plan whose gate is
+    recorded approved but whose settlement or apply was interrupted, and
+    refuses any other plan with ``plan_not_approved``.
+
+    This checks the recorded decision, not who recorded it. The plan gate is
+    bound to the proposing orchestrator, and ``loopx gate resolve`` (like
+    ``loopx todo complete --role user --decision-outcome``) defaults its actor
+    to that agent and accepts its decision, so this guard does not stop an
+    orchestrator with CLI access from approving its own gate. That authority
+    boundary is a separate follow-up.
     """
 
     from .control_plane.todos.contract import TODO_STATUS_DONE, normalize_todo_decision_outcome
@@ -593,8 +601,8 @@ def require_plan_gate_approved(
     raise PlanCardError(
         PLAN_NOT_APPROVED,
         f"plan {plan_id!r} is not approved: its plan_approval gate {gate_id!r} is {state}. "
-        f"Only the owner's approve applies a plan: `loopx gate resolve --goal-id {goal_id} "
-        f"--todo-id {gate_id} --decision approve`; `loopx plan apply` only recovers an approved plan.",
+        "A plan is applied only after its gate is recorded done with decision approve; "
+        "`loopx plan apply` only recovers such a plan.",
     )
 
 
@@ -604,9 +612,10 @@ def apply_plan(
 ) -> dict[str, Any]:
     """Apply an approved (or interrupted) plan exactly once.
 
-    Refused with ``plan_not_approved`` unless the plan's gate is closed with
-    approve (:func:`require_plan_gate_approved`); the check also covers an
-    ``applying`` record, so no caller can start or finish an unapproved apply.
+    Refused with ``plan_not_approved`` unless the plan's gate is recorded done
+    with decision approve (:func:`require_plan_gate_approved`); the check also
+    covers an ``applying`` record, so no caller can start or finish an apply
+    without that recorded decision.
     """
 
     from .control_plane.coordination.local_authority import read_canonical_todos_if_promoted
