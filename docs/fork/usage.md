@@ -79,29 +79,106 @@ quickstart below.
 
 ## 2. Install
 
-This fork is used from a source checkout.
+Pick one of three ways:
+
+| way | what you get | use it for |
+|---|---|---|
+| **A. Local release install** (recommended) | `scripts/install-local.sh` run from a clean `main` checkout. It installs a frozen release snapshot, `loopx` and `loopx-canary` on your `PATH`, the man page and the dashboard chat bundle. | Daily use and the dispatcher. It also lets the tests that call `loopx` pass. |
+| **B. Source checkout only** | `uv sync --extra test`, then `uv run loopx` or `.venv/bin/python -m loopx.cli`. | Developing LoopX itself. |
+| **C. Upstream installer or `loopx update apply`** | `curl .../install.sh \| bash`, or `loopx update apply` with its defaults. Both install **upstream** `loopx-project/loopx`, not this fork. | Never for this fork. |
+
+Every way needs:
+
+- Python 3.11 or newer, with PyYAML for the agent and provider files;
+- `git`, and Node.js 22.22.3 or newer (`loopx doctor` checks it);
+- the agent CLIs you configure: `claude` (Claude Code) and/or `codex` (Codex
+  CLI). Each must be logged in, or configured with an API key; see
+  [step 1](#step-1-describe-your-providers).
+
+### A. Local release install
 
 ```sh
 git clone <this fork> loopx && cd loopx
-uv sync --extra test                     # installs loopx plus PyYAML (needed for agent/provider files)
-uv run loopx --help                      # or: .venv/bin/python -m loopx.cli --help
+git checkout main && git pull --ff-only
+uv sync --extra test                         # the Python for LoopX, with PyYAML
+LOOPX_PYTHON="$PWD/.venv/bin/python" \
+LOOPX_INSTALL_SKILL=0 LOOPX_INSTALL_SLASH_COMMANDS=0 \
+  scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+loopx doctor
 ```
 
-`pip install -e '.[test]'` works too. PyYAML ships only in the `test` extra. A
-plain `pip install .` needs `pip install pyyaml` before `loopx agent` and
-`loopx provider` can read their files.
+The installer does the following:
 
-You also need:
+- copies the checkout into a snapshot at
+  `~/.local/share/loopx/releases/<timestamp>`;
+- links `~/.local/bin/loopx` to the snapshot, and `~/.local/bin/loopx-canary`
+  to the live checkout;
+- installs `man loopx`, and builds the dashboard chat bundle into the
+  snapshot, so `loopx dashboard` needs no separate `npm run build:chat`;
+- adds `~/.local/bin` to `PATH` and `~/.local/share/man` to `MANPATH` in your
+  shell profile (`~/.zshrc` for zsh) when they are missing.
 
-- `git`;
-- the agent CLIs you configure: `claude` (Claude Code) and/or `codex` (Codex
-  CLI). Each must be logged in, or configured with an API key; see
-  [step 1](#step-1-describe-your-providers);
-- optionally, the dashboard bundle. In a source checkout, build it once:
-  `cd apps/presentation/dashboard && npm ci && npm run build:chat`.
+Choices and guards:
 
-The examples below write `loopx`. From a checkout, use `uv run loopx` or put
-the venv on your `PATH`.
+- **Promotion guard.** `loopx` is replaced only when the checkout is clean and
+  at `origin/main`. From any other state, the installer only refreshes
+  `loopx-canary`. `LOOPX_PROMOTE_DEFAULT=1` overrides the guard; use it only
+  for a checkout you approved.
+- **Python.** `LOOPX_PYTHON` is recorded in the snapshot, and every `loopx`
+  run uses it. With the command above, that is the checkout's `.venv`, so keep
+  it: `uv sync` refreshes it in place. To use another interpreter, pass one
+  that has PyYAML and reinstall.
+- **Skills and slash commands.** By default, the installer also writes LoopX
+  workflow skills into `~/.codex/skills`, plus `/loopx` command skills for
+  Codex and Claude Code. The role workflow in this guide does not need them.
+  `LOOPX_INSTALL_SKILL=0` and `LOOPX_INSTALL_SLASH_COMMANDS=0` skip them, and
+  `loopx doctor` then reports its skill checks as missing, which is expected.
+  Drop the two variables if you also drive LoopX from Codex or Claude Code
+  sessions with `/loopx`.
+
+**Upgrade.** Run `git pull --ff-only` on `main`, then run the install command
+again. Each run creates a new snapshot and repoints `loopx` to it.
+
+**Roll back.** `loopx update --rollback previous` repoints `loopx` to the
+prior snapshot. `loopx update --rollback <release-id>` picks a specific one;
+the release ids are the directory names under `~/.local/share/loopx/releases`.
+
+**Uninstall.** Remove the following, then delete the `# LoopX local CLI` and
+`# LoopX local manual` lines from your shell profile:
+
+- `~/.local/bin/loopx`, `~/.local/bin/loopx-canary` and
+  `~/.local/bin/loopx-apply-rrule`;
+- `~/.local/share/loopx`;
+- `~/.local/share/man/man1/loopx.1.gz`.
+
+**The dispatcher under launchd.** `loopx dispatch launchd-plist` runs
+`<LOOPX_PYTHON> -m loopx.cli` with only `PATH` and `HOME` set. The checkout's
+`.venv` has the checkout installed in editable mode, so a launchd dispatcher
+runs the **checkout's current code**, not the snapshot. The `loopx` command
+and a foreground `loopx dispatch serve` run the snapshot, and so do the Turns
+they start. Keep the checkout on `main` while a launchd dispatcher runs.
+Alternatively, add `PYTHONPATH` pointing at the snapshot to the plist's
+`EnvironmentVariables`.
+
+### B. Source checkout only
+
+```sh
+git clone <this fork> loopx && cd loopx
+uv sync --extra test
+uv run loopx --help                          # or: .venv/bin/python -m loopx.cli --help
+```
+
+`pip install -e '.[test]'` works too. PyYAML ships only in the `test` extra.
+A plain `pip install .` needs `pip install pyyaml` before `loopx agent` and
+`loopx provider` can read their files. For the dashboard, build the chat
+bundle once: `cd apps/presentation/dashboard && npm ci && npm run build:chat`.
+
+Some tests call a `loopx` executable on `PATH`, so they fail without way A.
+Architecture tests also need `npm ci --ignore-scripts` at the repository
+root.
+
+The examples below write `loopx`. With way B, use `uv run loopx` instead.
 
 ## 3. Quickstart
 
