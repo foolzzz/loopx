@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
-import { ChatApiError, fetchGateThread, replyToGateThread, type GateThreadView } from "../../data/chat";
+import { ChatApiError, fetchGateThread, replyToGateThread } from "../../data/chat";
+import type { GateThreadView } from "../../data/gate-thread";
 import { useWorkspaceI18n } from "./i18n";
+import { useVisiblePolling } from "./use-visible-polling";
 
 const GATE_REPLY_LIMIT = 4000;
+// A reply from the CLI or the orchestrator shows up without reopening the drawer.
+const GATE_THREAD_POLL_MS = 5_000;
 const HIDDEN_ERROR_CODES = new Set(["not_a_user_gate", "gate_not_found", "goal_not_registered"]);
 
 /** Discussion thread of a user gate: read the messages and append an owner reply.
- * Replying never closes the gate; approve/reject/cancel stay on gate.resolve. */
+ * Replying never closes the gate; approve/reject/cancel stay on gate.resolve.
+ * While the panel is open and the page visible it re-reads the thread every few
+ * seconds and on window focus, until the gate closes. `onView` receives each
+ * read, or `null` once the panel has nothing to show (not a gate, read failed). */
 export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
   goalId: string; todoId: string; readOnly: boolean; onView?: (view: GateThreadView | null) => void;
 }) {
@@ -18,31 +25,60 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const generation = useRef(0);
+  const issued = useRef(0);
+  const applied = useRef(0);
+  const pending = useRef(0);
+  const shown = useRef(false);
+  const messagesRef = useRef<HTMLOListElement>(null);
 
-  const load = useCallback(async (signal?: { aborted: boolean }) => {
+  // `poll` skips while a read is in flight; `force` (open, after a reply) always reads.
+  // Responses apply in issue order, so a slow older read never replaces a newer one.
+  const load = useCallback(async (mode: "force" | "poll") => {
+    if (mode === "poll" && pending.current > 0) return;
+    const mine = generation.current;
+    const request = ++issued.current;
+    pending.current += 1;
     try {
       const next = await fetchGateThread(goalId, todoId);
-      if (signal?.aborted) return;
+      if (mine !== generation.current || request < applied.current) return;
+      applied.current = request;
+      shown.current = true;
       setView(next);
-      onView?.(next);
       setLoadError(false);
+      onView?.(next);
     } catch (error) {
-      if (signal?.aborted) return;
+      // A failed background read keeps the last thread; the next poll retries.
+      if (mine !== generation.current || request < applied.current || mode === "poll") return;
       const code = error instanceof ChatApiError ? String(error.payload.error_code ?? "") : "";
       if (HIDDEN_ERROR_CODES.has(code)) setHidden(true);
       else setLoadError(true);
+      if (!shown.current) onView?.(null);
+    } finally {
+      pending.current -= 1;
     }
   }, [goalId, todoId, onView]);
 
   useEffect(() => {
-    const signal = { aborted: false };
+    generation.current += 1;
+    shown.current = false;
     setView(null);
     setHidden(false);
+    setLoadError(false);
     setDraft("");
     setSendError(null);
-    void load(signal);
-    return () => { signal.aborted = true; };
+    void load("force");
+    return () => { generation.current += 1; };
   }, [load]);
+
+  const closed = view?.awaiting === "closed";
+  useVisiblePolling(useCallback(() => void load("poll"), [load]), GATE_THREAD_POLL_MS, !hidden && !closed);
+
+  const messageCount = view?.messages.length ?? 0;
+  useEffect(() => {
+    const list = messagesRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messageCount]);
 
   async function send() {
     const text = draft.trim();
@@ -52,7 +88,7 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
     try {
       await replyToGateThread(goalId, todoId, text);
       setDraft("");
-      await load();
+      await load("force");
     } catch (error) {
       setSendError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -61,44 +97,16 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
   }
 
   if (hidden) return null;
-  const closed = view?.awaiting === "closed";
   return (
     <section className="personal-detail-card personal-gate-thread" data-testid="gate-thread" aria-label={t("gateThread.title")}>
       <header>
         <strong>{t("gateThread.title")}</strong>
-        {view ? <small data-awaiting={view.awaiting}>{t(`gateThread.${view.awaiting}`)}</small> : null}
+        {view ? <small aria-live="polite" data-awaiting={view.awaiting}>{t(`gateThread.${view.awaiting}`)}</small> : null}
       </header>
-      {view?.kind === "plan_approval" && view.plan_id ? <p className="personal-gate-thread-plan">{t("gateThread.planCard", { planId: view.plan_id })}</p> : null}
-      {view?.criteria_changes?.length ? (
-        <div className="personal-gate-thread-criteria" data-testid="gate-criteria-changes">
-          <p className="personal-gate-thread-plan">{t("gateThread.criteriaChanges")}</p>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">{t("gateThread.criteriaTodo")}</th>
-                <th scope="col">{t("gateThread.criteriaOld")}</th>
-                <th scope="col">{t("gateThread.criteriaNew")}</th>
-                <th scope="col">{t("gateThread.criteriaReason")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.criteria_changes.map((change) => (
-                <tr data-result={change.result ?? undefined} key={change.todo_id}>
-                  <td><code>{change.todo_id}</code></td>
-                  <td data-side="old">{change.old || t("gateThread.criteriaNone")}</td>
-                  <td data-side="new">{change.new || t("gateThread.criteriaNone")}</td>
-                  <td>{change.reason ?? ""}{change.result ? ` (${change.result})` : ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-      {view?.kind === "acceptor_blocked" ? <p className="personal-gate-thread-plan">{t("gateThread.acceptorBlocked", { todoId: view.review_todo_id ?? "" })}</p> : null}
       {loadError ? <p className="personal-gate-thread-empty">{t("gateThread.loadError")}</p> : null}
       {view && view.messages.length === 0 ? <p className="personal-gate-thread-empty">{t("gateThread.empty")}</p> : null}
       {view && view.messages.length ? (
-        <ol className="personal-gate-thread-messages">
+        <ol className="personal-gate-thread-messages" ref={messagesRef}>
           {view.messages.map((message) => (
             <li className={`is-${message.author}`} key={message.message_id}>
               <small>{message.author === "user" ? t("gateThread.you") : t("gateThread.orchestrator", { agent: message.agent_id ?? "" })} · {message.at}</small>

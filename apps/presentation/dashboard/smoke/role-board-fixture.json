@@ -19,7 +19,8 @@
   ],
   "gates": [
     { "todo_id": "todo_rb_decision", "text": "Which database should the API use?", "kind": "decision", "awaiting": "awaiting_orchestrator", "message_count": 3, "blocks_agent": "fable-orch" },
-    { "todo_id": "todo_rb_plan_gate", "text": "Approve plan: Todo app v2 (4 todos) [plan_fedcba987654]", "kind": "plan_approval", "awaiting": "awaiting_user", "message_count": 1, "blocks_agent": "fable-orch", "plan_id": "plan_fedcba987654", "plan_status": "pending", "plan_title": "Todo app v2", "plan_revision": 2, "plan_todo_count": 4 }
+    { "todo_id": "todo_rb_plan_gate", "text": "Approve plan: Todo app v2 (4 todos) [plan_fedcba987654]", "kind": "plan_approval", "awaiting": "awaiting_user", "message_count": 1, "blocks_agent": "fable-orch", "plan_id": "plan_fedcba987654", "plan_status": "pending", "plan_title": "Todo app v2", "plan_revision": 2, "plan_todo_count": 4 },
+    { "todo_id": "todo_rb_budget", "text": "Usage budget exhausted: goal loopx-meta spent $1.00 of its $0.60 budget (167%).", "kind": "budget_exhausted", "awaiting": "awaiting_user", "message_count": 0, "blocks_agent": "fable-orch" }
   ],
   "omitted": { "agents": 0, "open_todos": 3, "done_todos": 0, "gates": 0 }
 }

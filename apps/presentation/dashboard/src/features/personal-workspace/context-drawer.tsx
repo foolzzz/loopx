@@ -1,6 +1,8 @@
 import { GoalAcceptanceObservationCard } from "./goal-acceptance-observation-card";
 import { AttentionDetailCard } from "./attention-detail-card";
 import { GateThreadPanel } from "./gate-thread-panel";
+import { GateKindDetails } from "./gate-kind-details";
+import { gateOptionChoices, primaryGateOption } from "./gate-decisions";
 import { attentionSuccessor, canReviewAttention } from "./attention-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -38,9 +40,9 @@ import type {
   WorkspaceRun,
   WorkspaceTodo,
 } from "./personal-workspace-model";
-import type { GateThreadView, LarkGoalConnection } from "../../data/chat";
+import type { LarkGoalConnection } from "../../data/chat";
+import { gateThreadSignature, type GateThreadView } from "../../data/gate-thread";
 import { localizedAttentionAge, localizedGoalState, localizedSessionStatus, useWorkspaceI18n } from "./i18n";
-import type { WorkspaceMessageKey } from "./i18n";
 import { formatCostUsd, formatDurationMs, formatTokenCount, formatUsageValue } from "./personal-workspace-model";
 import { TeamPlanResult } from "./team-plan-result";
 import { todoResumeWhenFromMessage } from "./personal-workspace-router";
@@ -86,30 +88,6 @@ const decisionTransitions = [
   { key: "drawer.decisionCancel", resolution: "cancel" },
   { key: "drawer.decisionDefer", resolution: "defer" },
 ] as const;
-// G12: resolution options of an acceptor_blocked gate (each implies its decision).
-const reviewGateOptions = [
-  { key: "drawer.reviewOption.retryAcceptance", option: "retry_acceptance", resolution: "approve" },
-  { key: "drawer.reviewOption.acceptManually", option: "accept_manually", resolution: "approve" },
-  { key: "drawer.reviewOption.returnToDeveloper", option: "return_to_developer", resolution: "reject" },
-  { key: "drawer.reviewOption.cancelTodo", option: "cancel_todo", resolution: "cancel" },
-] as const;
-// Decision 41: resolution options of a budget_exhausted gate (the note carries a raised amount).
-const budgetGateOptions = [
-  { key: "drawer.budgetOption.raiseBudget", option: "raise_budget", resolution: "approve" },
-  { key: "drawer.budgetOption.continueWithoutLimit", option: "continue_without_limit", resolution: "approve" },
-  { key: "drawer.budgetOption.stopGoal", option: "stop_goal", resolution: "reject" },
-] as const;
-// Decision 42: resolution options of a goal_complete gate (add work: the note is the follow-up).
-const goalCompleteGateOptions = [
-  { key: "drawer.goalCompleteOption.closeGoal", option: "close_goal", resolution: "approve" },
-  { key: "drawer.goalCompleteOption.addWork", option: "add_work", resolution: "reject" },
-  { key: "drawer.goalCompleteOption.leaveOpen", option: "leave_open", resolution: "cancel" },
-] as const;
-const optionGateChoices: Record<string, readonly { key: WorkspaceMessageKey; option: string; resolution: "approve" | "reject" | "cancel" }[]> = {
-  acceptor_blocked: reviewGateOptions,
-  budget_exhausted: budgetGateOptions,
-  goal_complete: goalCompleteGateOptions,
-};
 const DECISION_NOTE_LIMIT = 600;
 
 const subagentChildLimits = Array.from({ length: 32 }, (_, index) => index + 1);
@@ -152,8 +130,27 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
   const { locale, t } = useWorkspaceI18n();
   const [correction, setCorrection] = useState("");
   const [decisionNote, setDecisionNote] = useState("");
-  const [gateKind, setGateKind] = useState<string | null>(null);
-  const onGateView = useCallback((view: GateThreadView | null) => setGateKind(view?.kind ?? null), []);
+  // The open gate's latest thread read; `settled` once the first read answered (a view or nothing to show).
+  const [gateThread, setGateThread] = useState<{ settled: boolean; view: GateThreadView | null }>({ settled: false, view: null });
+  const gateSignatureRef = useRef<string | null>(null);
+  const reconcileStatusRef = useRef(callbacks.onReconcileStatus);
+  useEffect(() => {
+    reconcileStatusRef.current = callbacks.onReconcileStatus;
+  }, [callbacks.onReconcileStatus]);
+  const onGateView = useCallback((view: GateThreadView | null) => {
+    setGateThread({ settled: true, view });
+    if (!view) return;
+    const signature = `${view.goal_id}/${view.todo_id}#${gateThreadSignature(view)}`;
+    const previous = gateSignatureRef.current;
+    gateSignatureRef.current = signature;
+    // A reply or decision made elsewhere (CLI, orchestrator, another tab) also moves the role board row.
+    if (previous && previous !== signature && previous.startsWith(`${view.goal_id}/${view.todo_id}#`)) {
+      void Promise.resolve(reconcileStatusRef.current?.({ invalidateGoalIds: [view.goal_id] })).catch(() => undefined);
+    }
+  }, []);
+  const gateKind = gateThread.view?.kind ?? null;
+  const gateChoices = gateOptionChoices(gateKind);
+  const primaryOption = primaryGateOption(gateKind);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [repositoryCopyState, setRepositoryCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [runDrawerTab, setRunDrawerTab] = useState<"record" | "details">("record");
@@ -189,7 +186,8 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
     setRunDrawerTab("record");
     setTodoResumeWhen("");
     setDecisionNote("");
-    setGateKind(null);
+    setGateThread({ settled: false, view: null });
+    gateSignatureRef.current = null;
     const configuration = selection.kind === "goal" ? selection.item.subagentExecution : undefined;
     setSubagentAllowedDomains(configuration?.allowedDomains ?? []);
     setSubagentModel(configuration?.modelConfig?.model ?? "");
@@ -585,6 +583,8 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
 
               </dl>
             </section>
+            {/* What the gate asks you to decide comes before the generic request details. */}
+            <GateKindDetails view={gateThread.view} />
             <AttentionDetailCard item={selection.item} onSelect={onSelectAttention} successor={attentionSuccessor(selection.item, attentionHistory)} />
             <GateThreadPanel goalId={selection.item.goalId} onView={onGateView} readOnly={readOnly} todoId={selection.item.todoId} />
             {!readOnly && canReviewAttention(selection.item) ? <>
@@ -600,13 +600,24 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 />
                 <small>{decisionNote.length}/{DECISION_NOTE_LIMIT}</small>
               </label>
-              <button className="personal-primary-action" onClick={() => void previewDecision(selection.item, "approve", t("common.confirm"))} type="button"><Check size={17} />{t("drawer.decisionReview")}</button>
+              {/* A typed gate's approve names the option it selects instead of relying on the backend default. */}
+              <button
+                className="personal-primary-action"
+                data-gate-option={primaryOption?.option}
+                disabled={!gateThread.settled}
+                onClick={() => void (primaryOption
+                  ? previewDecision(selection.item, primaryOption.resolution, t(primaryOption.key), primaryOption.option)
+                  : previewDecision(selection.item, "approve", t("common.confirm")))}
+                type="button"
+              >
+                <Check size={17} />{primaryOption ? t("drawer.decisionApproveOption", { option: primaryOption.option }) : t("drawer.decisionReview")}
+              </button>
               <details className="personal-compact-menu">
                 <summary><MoreHorizontal size={17} />{t("drawer.decisionMore")}</summary>
                 <div>
                   <button onClick={() => void callbacks.onExplainDecision?.(selection.item)} type="button"><MessageCircleQuestion size={16} />{t("drawer.explainDecision")}</button>
-                  {gateKind && optionGateChoices[gateKind]
-                    ? optionGateChoices[gateKind].map((choice) => (
+                  {gateChoices
+                    ? gateChoices.map((choice) => (
                       <button key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
                     ))
                     : decisionTransitions.map((transition) => (

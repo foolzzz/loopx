@@ -548,7 +548,9 @@ export const roleBoardTodoSchema = z.object({
 export const roleBoardGateSchema = z.object({
   todo_id: z.string(),
   text: z.string(),
-  kind: z.enum(["decision", "plan_approval"]).catch("decision"),
+  // `loopx.gate_threads.GATE_KINDS`: typed gates keep their kind; an unknown kind reads as a decision.
+  kind: z.enum(["decision", "plan_approval", "acceptor_blocked", "push_request", "budget_exhausted", "goal_complete"])
+    .catch("decision"),
   awaiting: z.enum(["awaiting_user", "awaiting_orchestrator"]).catch("awaiting_user"),
   message_count: z.number().optional().default(0),
   blocks_agent: z.string().nullable().optional(),

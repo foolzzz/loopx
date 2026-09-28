@@ -9,6 +9,7 @@ import {
   type TodoPreview,
 } from "./chat-model.js";
 import type {DelegationPreflight} from "./delegation-preflight.js";
+import { gateThreadReplySchema, gateThreadViewSchema } from "./gate-thread.js";
 
 const configuredChatOrigin = String(import.meta.env?.VITE_LOOPX_CHAT_ORIGIN ?? "")
   .trim()
@@ -1261,51 +1262,15 @@ export async function applyTodo(goalId: string, text: string, previewId: string)
   return result;
 }
 
-const gateThreadMessageSchema = z.object({
-  seq: z.number().int().positive(),
-  message_id: z.string(),
-  author: z.enum(["user", "orchestrator"]),
-  agent_id: z.string().nullable().optional(),
-  text: z.string(),
-  at: z.string(),
-});
-
-const gateThreadViewSchema = z.object({
-  ok: z.literal(true),
-  goal_id: z.string(),
-  todo_id: z.string(),
-  status: z.string().nullable().optional(),
-  kind: z.string(),
-  awaiting: z.enum(["awaiting_user", "awaiting_orchestrator", "closed"]),
-  plan_id: z.string().optional(),
-  // G12: an acceptor_blocked gate names the review todo and its resolution options.
-  review_todo_id: z.string().optional(),
-  options: z.array(z.string()).optional(),
-  // Decision 40: a plan card's acceptance-criteria changes, old and new side by side.
-  criteria_changes: z.array(z.object({
-    todo_id: z.string(),
-    old: z.string().nullable().optional(),
-    new: z.string().nullable().optional(),
-    reason: z.string().nullable().optional(),
-    result: z.string().nullable().optional(),
-  })).optional(),
-  messages: z.array(gateThreadMessageSchema),
-});
-
-const gateThreadReplySchema = z.object({
-  ok: z.literal(true),
-  todo_id: z.string(),
-  awaiting: z.enum(["awaiting_user", "awaiting_orchestrator", "closed"]),
-  message: gateThreadMessageSchema,
-});
-
-export type GateThreadMessage = z.infer<typeof gateThreadMessageSchema>;
-export type GateThreadView = z.infer<typeof gateThreadViewSchema>;
+// The drawer polls this read; a bounded wait keeps a stuck read from holding its decision buttons or later polls.
+const GATE_THREAD_READ_TIMEOUT_MS = 10_000;
 
 /** Read a user gate's discussion thread (owner-local, loopback only). */
 export async function fetchGateThread(goalId: string, todoId: string) {
   const params = new URLSearchParams({ goal_id: goalId, todo_id: todoId });
-  return gateThreadViewSchema.parse(await requestJson<unknown>(`/api/chat/gate-thread?${params}`));
+  return gateThreadViewSchema.parse(await requestJson<unknown>(`/api/chat/gate-thread?${params}`, {
+    signal: AbortSignal.timeout(GATE_THREAD_READ_TIMEOUT_MS),
+  }));
 }
 
 /** Append an owner reply; the gate becomes awaiting_orchestrator. */
