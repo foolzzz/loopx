@@ -85,7 +85,7 @@ Pick one of three ways:
 |---|---|---|
 | **A. Local release install** (recommended) | `scripts/install-local.sh` run from a clean `main` checkout. It installs a frozen release snapshot, `loopx` and `loopx-canary` on your `PATH`, the man page and the dashboard chat bundle. | Daily use and the dispatcher. It also lets the tests that call `loopx` pass. |
 | **B. Source checkout only** | `uv sync --extra test`, then `uv run loopx` or `.venv/bin/python -m loopx.cli`. | Developing LoopX itself. |
-| **C. Upstream installer or `loopx update apply`** | `curl .../install.sh \| bash`, or `loopx update apply` with its defaults. Both install **upstream** `loopx-project/loopx`, not this fork. | Never for this fork. |
+| **C. Upstream installer or `loopx update apply`** | `curl .../install.sh \| bash`, or `loopx update apply` with its defaults. Both target **upstream** `loopx-project/loopx` (`--ref stable`), not this fork. `update apply` would replace a way-A snapshot with upstream. It refuses to touch a source checkout, which you update with Git. | Never for this fork. |
 
 Every way needs:
 
@@ -122,35 +122,48 @@ The installer does the following:
 Choices and guards:
 
 - **Promotion guard.** `loopx` is replaced only when the checkout is clean and
-  at `origin/main`. From any other state, the installer only refreshes
-  `loopx-canary`. `LOOPX_PROMOTE_DEFAULT=1` overrides the guard; use it only
-  for a checkout you approved.
-- **Python.** `LOOPX_PYTHON` is recorded in the snapshot, and every `loopx`
-  run uses it. With the command above, that is the checkout's `.venv`, so keep
-  it: `uv sync` refreshes it in place. To use another interpreter, pass one
-  that has PyYAML and reinstall.
+  at `origin/main`. From any other state, the installer does not replace
+  `loopx` or create a snapshot. It still builds the checkout's chat bundle
+  and refreshes `loopx-canary`, and it installs canary workflow skills only
+  when `LOOPX_SKILLS_DIR` is set. `LOOPX_PROMOTE_DEFAULT=1` overrides the
+  guard; use it only for a checkout you approved.
+- **Python.** The installer records `LOOPX_PYTHON` in the snapshot
+  (`.loopx-python`) as the default interpreter. With the command above, that
+  is the checkout's `.venv`, so keep it: `uv sync` refreshes it in place.
+  `LOOPX_PYTHON` in the environment overrides the recorded default for one
+  run. If the recorded interpreter is gone, `loopx` falls back to its Python
+  discovery, which may find one without PyYAML. Reinstall to change the
+  default.
 - **Skills and slash commands.** By default, the installer also writes LoopX
-  workflow skills into `~/.codex/skills`, plus `/loopx` command skills for
-  Codex and Claude Code. The role workflow in this guide does not need them.
+  workflow skills into `~/.codex/skills`, plus command entries for its
+  supported hosts, including Codex, Claude Code and OpenCode. Claude Code and
+  OpenCode get `/loopx`; Codex uses `$loopx` or `/skills`. The role workflow
+  in this guide does not need them.
   `LOOPX_INSTALL_SKILL=0` and `LOOPX_INSTALL_SLASH_COMMANDS=0` skip them, and
   `loopx doctor` then reports its skill checks as missing, which is expected.
-  Drop the two variables if you also drive LoopX from Codex or Claude Code
-  sessions with `/loopx`.
+  Drop the two variables if you also drive LoopX from these host
+  sessions.
 
 **Upgrade.** Run `git pull --ff-only` on `main`, then run the install command
 again. Each run creates a new snapshot and repoints `loopx` to it.
 
-**Roll back.** `loopx update --rollback previous` repoints `loopx` to the
-prior snapshot. `loopx update --rollback <release-id>` picks a specific one;
-the release ids are the directory names under `~/.local/share/loopx/releases`.
+**Roll back.** `loopx update --rollback <release-id>` repoints `loopx` to a
+snapshot. The release ids are the directory names under
+`~/.local/share/loopx/releases`, which are timestamps. `--rollback previous`
+picks the newest snapshot that is not the active one. That is the prior
+snapshot only while the newest snapshot is active. After a rollback, name
+the release id.
 
-**Uninstall.** Remove the following, then delete the `# LoopX local CLI` and
-`# LoopX local manual` lines from your shell profile:
+**Uninstall.**
 
-- `~/.local/bin/loopx`, `~/.local/bin/loopx-canary` and
-  `~/.local/bin/loopx-apply-rrule`;
-- `~/.local/share/loopx`;
-- `~/.local/share/man/man1/loopx.1.gz`.
+1. If you installed the default skills and command entries, first run
+   `loopx slash-commands --uninstall` and `loopx workflow-skills --uninstall`.
+2. Remove `~/.local/bin/loopx`, `~/.local/bin/loopx-canary`,
+   `~/.local/bin/loopx-apply-rrule`, `~/.local/share/loopx` and
+   `~/.local/share/man/man1/loopx.1.gz`.
+3. Delete the whole `# LoopX local CLI` and `# LoopX local manual` blocks from
+   your shell profile. Each block is a comment line plus the `export` line
+   under it.
 
 **The dispatcher under launchd.** `loopx dispatch launchd-plist` runs
 `<LOOPX_PYTHON> -m loopx.cli` with only `PATH` and `HOME` set. The checkout's
