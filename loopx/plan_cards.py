@@ -621,16 +621,22 @@ def gate_decision_preflight(
 
     Returns the linked plan id (or None). An approve against a plan that no
     longer validates raises, so the gate stays open for discussion. An
-    acceptor-blocked gate (G12) or a budget_exhausted gate (decision 41)
-    validates its ``option`` instead.
+    acceptor-blocked gate (G12), a budget_exhausted gate (decision 41) or a
+    goal_complete gate (decision 42) validates its ``option`` instead.
     """
 
+    from .goal_complete_gate import goal_complete_gate_preflight
     from .todo_review_blocked import review_gate_preflight
     from .usage_budget_gate import budget_gate_preflight
 
     if budget_gate_preflight(
         runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id, decision=decision, option=option,
         note=note,
+    ) is not None:
+        return None
+    if goal_complete_gate_preflight(
+        runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id, decision=decision, option=option,
+        note=note, registry_path=registry_path, runtime_root_arg=runtime_root_arg,
     ) is not None:
         return None
     review_gate_preflight(
@@ -653,11 +659,13 @@ def settle_gate_decision(
     """After a gate closed: apply (approve) or close (reject/cancel) its plan.
 
     An acceptor-blocked gate (G12) applies its chosen option instead, a
-    push_request gate (G8) pushes on approve, and a budget_exhausted gate
-    (decision 41) raises, clears or stops.
+    push_request gate (G8) pushes on approve, a budget_exhausted gate
+    (decision 41) raises, clears or stops, and a goal_complete gate (decision
+    42) closes the goal, adds the owner's follow-up work or leaves it open.
     """
 
     from .gate_threads import mark_gate_closed
+    from .goal_complete_gate import settle_goal_complete_gate
     from .push_requests import settle_push_gate
     from .todo_review_blocked import settle_review_gate
     from .usage_budget_gate import settle_budget_gate
@@ -668,6 +676,12 @@ def settle_gate_decision(
     )
     if budget is not None:
         return budget
+    completion = settle_goal_complete_gate(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,
+        decision=decision, option=option, note=note, runtime_root_arg=runtime_root_arg,
+    )
+    if completion is not None:
+        return completion
 
     review = settle_review_gate(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,

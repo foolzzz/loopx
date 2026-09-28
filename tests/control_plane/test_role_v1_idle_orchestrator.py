@@ -134,16 +134,17 @@ def test_a_persisted_user_wait_gap_demands_repair_only_outside_role_v1(
     assert (gap and [item["kind"] for item in gap["first_evidence"]]) == expected
 
 
-def test_role_v1_keeps_the_executable_next_action_evidence() -> None:
-    """Only the self-reported-wait evidence is dropped (the sibling is kept)."""
+def test_role_v1_drops_the_executable_next_action_evidence_too() -> None:
+    """Decision 42 extends decision 39: the executable sibling is dropped as well (pilot v1 gap N2).
+
+    ``tests/control_plane/test_role_v1_stale_next_action_n2.py`` covers it in depth.
+    """
 
     gap = build_state_projection_gap(
         {"state_projection_gap": _persisted_gap(EXECUTABLE_KIND, USER_WAIT_KIND)}, {},
         agent_runtime_model=AgentRuntimeModel.ROLE_V1,
     )
-    assert gap is not None
-    assert [item["kind"] for item in gap["first_evidence"]] == [EXECUTABLE_KIND]
-    assert (gap["target_roles"], gap["evidence_count"]) == (["agent"], 1)
+    assert gap is None
 
 
 # --- should-run ----------------------------------------------------------------

@@ -254,7 +254,8 @@ def test_approve_pushes_the_merge_target_to_the_bare_remote_and_skips_local_repo
     # Idempotent: the pushed work is up to date, so nothing reopens, and
     # settling the gate again replays its outcome without pushing.
     assert request_push(registry_path=fx["registry"], goal_id=GOAL)["reason"] == "nothing_to_push"
-    assert _dispatcher(fx).run_once()["gates_opened"] == []
+    # The push is resolved, so the goal_complete gate (decision 42) opens instead.
+    assert [gate["key"] for gate in _dispatcher(fx).run_once()["gates_opened"]] == ["goal_complete"]
     replay = settle_push_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
                               gate_todo_id=opened["gate_todo_id"], decision="approve")
     assert replay["replayed"] is True
@@ -276,8 +277,9 @@ def test_reject_does_not_push_and_waits_for_new_merges(tmp_path, monkeypatch) ->
     [declined] = _events(fx, "push_declined")
     assert declined["status"] == "reject"
 
-    # The same merged work is not offered again ...
-    assert dispatcher.run_once()["gates_opened"] == []
+    # The same merged work is not offered again (the resolved push lets the
+    # goal_complete gate of decision 42 open instead) ...
+    assert [gate["key"] for gate in dispatcher.run_once()["gates_opened"]] == ["goal_complete"]
     assert _push_gates(fx) == []
     code, payload = _cli(fx, "goal", "request-push", "--goal-id", GOAL, "--agent-id", "orch")
     assert code == 0 and payload["reason"] == "declined_until_new_merges"

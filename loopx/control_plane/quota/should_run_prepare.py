@@ -872,7 +872,7 @@ def _prepare_quota_should_run_item(
     projection_gap = build_state_projection_gap(
         item,
         project_asset,
-        # role_v1: an idle orchestrator's Next Action is no user wait (decision 39).
+        # role_v1: a Next Action raises no projection demand (decisions 39, 42).
         agent_runtime_model=goal_agent_runtime_model_or_none(item),
     )
     projection_gap_repair = build_state_projection_gap_repair_hint(

@@ -140,6 +140,11 @@ def dispatch_prompt_addendum(
             "- Pushing to a remote is a user gate. LoopX opens a push_request gate once all of the "
             "goal's work is merged; to ask for one earlier run `loopx goal request-push --goal-id "
             f"{goal_id} --agent-id {agent_id}`. Never run git push yourself.",
+            "- Never open a gate to confirm that the goal is complete or to ask to close it. Once all "
+            "of the goal's work is accepted, merged and its push resolved, LoopX opens a goal_complete "
+            "gate itself (merges, push results, usage; the user closes the goal, adds work or leaves it "
+            "open). Work the user adds there reaches you as an `Orchestrator action: User follow-up: "
+            "...` todo: plan it like new requirements.",
         ]
         if awaiting_gates:
             lines.append(

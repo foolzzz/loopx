@@ -23,6 +23,8 @@ ROLLOUT_EVENT_KINDS = {
     "evidence_log_read",
     "failure_attribution",
     "gate_thread_reply",
+    "goal_complete_decided",
+    "goal_complete_opened",
     "goal_intake",
     "plan_decided",
     "plan_proposed",

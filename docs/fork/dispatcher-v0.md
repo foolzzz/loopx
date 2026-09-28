@@ -9,7 +9,8 @@ decision, called through the Python API). It then applies slot, cooldown and aut
 rules, and launches `loopx turn run-once` as a child process. The Turn pipeline owns
 the typed result, validation, idempotent writeback and quota spend. The dispatcher
 never writes goal state directly. Its only goal writes are user gates (re-login,
-long cooldown, orchestrator repeat limit, push request and budget exhausted),
+long cooldown, orchestrator repeat limit, push request, budget exhausted and goal
+complete),
 which it creates through the normal Todo API (`add_goal_todo`, the same path as
 `todo add --role user --task-class user_gate`).
 
@@ -95,8 +96,11 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
      so a completed orchestrator todo no longer opens an action todo. Nor
      does an idle orchestrator: a role_v1 goal raises no
      `state_projection_gap_repair` for a Next Action that reads as a wait, and
-     no periodic-review replan (decision 39). The orchestrator is then skipped
-     as `orchestrator_idle`. Action todos remain for gate replies awaiting the
+     no periodic-review replan (decision 39), nor for a Next Action that reads
+     as executable work once no agent todo is open (decision 42: the last Turn
+     to settle wrote it, typically the acceptor's "Settle todo_X as accepted";
+     pilot v1 gap N2). The orchestrator is then skipped as `orchestrator_idle`,
+     and a finished goal gets the goal_complete gate below instead. Action todos remain for gate replies awaiting the
      orchestrator and for stall replan obligations from run history;
      escalations already arrive as S2 todos.
    - **Turn lanes (decision 32).** Under role_v1, run-once fences a registered
@@ -215,6 +219,38 @@ interpreter that rendered it. It copies the current `PATH`, so `claude`, `codex`
   offered again until new merges move a merge target. The dispatcher never
   pushes; the gate's approve does. See
   [workspaces-v0](workspaces-v0.md#pushing-merged-work-g8).
+
+- **Goal complete (decision 42, pilot v1 gap N2).** After the push request,
+  every pass over an active role_v1 goal asks
+  `loopx.goal_complete_gate.open_goal_complete_gate`. Once the goal's work is
+  finished, one `goal_complete` user gate opens (report key
+  `gates_opened[].key=goal_complete`), with no model Turn. Finished means:
+  - no agent todo is `open`, `in_review`, `blocked` or `deferred`, and no user
+    gate is open (a pending push gate included, so the push gate comes first);
+  - at least one non-orchestrator agent todo is done, and every done todo that
+    requires acceptance carries an accept record (accepted and merged,
+    decision 37); superseded todos never count;
+  - the push is resolved in every repo: pushed, rejected or cancelled at the
+    push gate, or nothing to push (no remote, no merges, no unpushed merges of
+    this goal). A goal without a remote gets the gate right after its last
+    merge.
+
+  The gate is computed without a model: per repo the merge target, the merged
+  todo commits (`LoopX-Goal` trailer) and the push result; the accepted,
+  reject and superseded counts; the `loopx usage report` totals (reported and
+  estimated cost, Turns, agent-hours, cost per accepted todo) and per-role
+  split; open follow-ups (open user todos that are not gates). It blocks the
+  orchestrator. One completion (its done agent todos and merge target heads,
+  `completion_key`) opens at most one gate, across replays, restarts and a lost
+  state file; an open gate that lost its index entry is adopted by its text.
+  Options: `close_goal` stops the goal through `loopx goal-lifecycle`, and the
+  pass then skips every agent of the goal with `goal_closed_by_owner` (no push,
+  budget or completion work either) until it is resumed; `add_work` turns the
+  note into one "Orchestrator action: User follow-up: …" todo, which launches
+  an ordinary orchestrator Turn (validator `todos-changed-since`); `leave_open`
+  changes nothing, and no further goal_complete gate opens until new work
+  finishes. `close_goal` is refused when the goal changed after the gate
+  opened. See [gates-plans-intake-v0](gates-plans-intake-v0.md).
 
 - **Usage budget (G9, decision 41).** Only goals with a budget (`loopx usage
   budget --set`) are affected. At 80% of the budget the pass opens one
@@ -340,7 +376,8 @@ must name each criterion that failed when it rejects.
   replan obligation from run history, the repeat limit turns it into a user gate.
   The vision-checkpoint and no-follow-up obligations no longer reach this path
   (decision 31), nor do the idle orchestrator's projection repair and the
-  periodic review (decision 39).
+  periodic review (decision 39), nor a stale executable Next Action on a
+  finished goal (decision 42).
 - Acceptor assignment (decision 5) and `in_review` (S2) are LoopX selection
   concerns. The dispatcher simply runs an acceptor when `should-run` gives it a
   todo.

@@ -33,7 +33,8 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     show.add_argument("--todo-id", required=True)
     resolve = gate_actions.add_parser(
         "resolve",
-        help="Close a user gate with an owner decision; acceptor-blocked and budget_exhausted gates take an --option.",
+        help="Close a user gate with an owner decision; acceptor-blocked, budget_exhausted and goal_complete "
+             "gates take an --option.",
     )
     add_format(resolve)
     resolve.add_argument("--goal-id", required=True)
@@ -42,15 +43,18 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     resolve.add_argument(
         "--option",
         choices=["retry_acceptance", "accept_manually", "return_to_developer", "cancel_todo",
-                 "raise_budget", "continue_without_limit", "stop_goal"],
+                 "raise_budget", "continue_without_limit", "stop_goal",
+                 "close_goal", "add_work", "leave_open"],
         help="Acceptor-blocked gates (G12): retry_acceptance and accept_manually approve, "
              "return_to_developer rejects, cancel_todo cancels. Budget_exhausted gates (decision 41): "
-             "raise_budget and continue_without_limit approve, stop_goal rejects.",
+             "raise_budget and continue_without_limit approve, stop_goal rejects. Goal_complete gates "
+             "(decision 42): close_goal approves, add_work rejects (the note is the follow-up), "
+             "leave_open cancels.",
     )
     resolve.add_argument(
         "--note",
         help="Decision note; return_to_developer stores it as review_feedback, raise_budget reads the new "
-             "USD budget from it (default +50%%).",
+             "USD budget from it (default +50%%), add_work hands it to the orchestrator as the follow-up.",
     )
     resolve.add_argument("--agent-id", help="Lifecycle actor; defaults to the agent the gate blocks.")
     resolve.add_argument("--dry-run", action="store_true")

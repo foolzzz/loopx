@@ -659,14 +659,18 @@ class ChatActionNormalizationMixin:
             decision = str(values.get("decision") or "").strip().lower()
             option = str(values.get("option") or "").strip().lower() or None
             if option is not None:
-                # Acceptor-blocked (G12) and budget_exhausted (decision 41)
-                # gates: the option implies its decision.
+                # Acceptor-blocked (G12), budget_exhausted (decision 41) and
+                # goal_complete (decision 42) gates: the option implies its decision.
+                from .goal_complete_gate import GOAL_COMPLETE_OPTION_DECISIONS, resolve_goal_complete_option
                 from .todo_review_blocked import resolve_review_gate_option, REVIEW_GATE_OPTION_DECISIONS
                 from .usage_budget_gate import BUDGET_GATE_OPTION_DECISIONS, resolve_budget_gate_option
 
                 if option in BUDGET_GATE_OPTION_DECISIONS:
                     resolve_budget_gate_option(decision or None, option)
                     decision = decision or BUDGET_GATE_OPTION_DECISIONS[option]
+                elif option in GOAL_COMPLETE_OPTION_DECISIONS:
+                    resolve_goal_complete_option(decision or None, option)
+                    decision = decision or GOAL_COMPLETE_OPTION_DECISIONS[option]
                 else:
                     resolve_review_gate_option(decision or None, option)
                     decision = REVIEW_GATE_OPTION_DECISIONS[option]

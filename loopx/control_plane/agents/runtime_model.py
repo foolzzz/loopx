@@ -95,6 +95,22 @@ def next_action_wait_demands_user_todo(
     return agent_runtime_model is not AgentRuntimeModel.ROLE_V1
 
 
+def next_action_executable_demands_agent_todo(
+    agent_runtime_model: AgentRuntimeModel | None,
+) -> bool:
+    """Whether an executable Next Action demands an Agent Todo (fork decision 42).
+
+    peer_v1 agents carry their own next step in the goal's Next Action, so an
+    executable Next Action with no open Agent Todo is a state-projection gap
+    to repair. Under role_v1 the Next Action is written by whichever Turn
+    settled last (typically the acceptor: "Settle todo_X as accepted"), so it
+    is no orchestrator obligation; once no agent todo is open the goal's work
+    is finished, and the dispatcher's push and goal_complete gates take over.
+    """
+
+    return agent_runtime_model is not AgentRuntimeModel.ROLE_V1
+
+
 def agent_identity_is_peer(agent_identity: Mapping[str, Any] | None) -> bool:
     return bool(
         isinstance(agent_identity, Mapping)
