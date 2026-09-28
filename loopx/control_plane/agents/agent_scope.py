@@ -17,6 +17,7 @@ from ..work_items.work_lane import (
     work_lane_contract_requires_current_agent_attempt,
 )
 from ..todos.contract import (
+    TODO_STATUS_IN_REVIEW,
     TODO_TASK_CLASS_ADVANCEMENT,
     TODO_TASK_CLASS_MONITOR,
     normalize_todo_blocks_agent,
@@ -24,6 +25,7 @@ from ..todos.contract import (
     normalize_todo_claimed_by,
     normalize_todo_excluded_agents,
     normalize_todo_id,
+    normalize_todo_status,
 )
 from ..todos.handoff_gate import HandoffGateState
 from ..todos.resume_planning import project_todo_resume_planning
@@ -325,7 +327,10 @@ def _first_executable_todo_text(agent_todo_summary: dict[str, Any] | None) -> st
     for item in items:
         if not isinstance(item, dict):
             continue
-        if not _todo_item_is_actionable_open(item):
+        # Fork S2: a delivered (in_review) todo is executable only by its
+        # resolved acceptor, so it reaches this list only in that lane.
+        in_review = normalize_todo_status(item.get("status")) == TODO_STATUS_IN_REVIEW
+        if not in_review and not _todo_item_is_actionable_open(item):
             continue
         if _todo_task_class(item) != TODO_TASK_CLASS_ADVANCEMENT:
             continue

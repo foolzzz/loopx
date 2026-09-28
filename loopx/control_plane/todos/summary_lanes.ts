@@ -18,7 +18,7 @@ export type TodoSummaryLane = typeof TODO_SUMMARY_LANES[number];
 const TASK_CLASSES = ["advancement_task", "continuous_monitor", "user_gate", "user_action", "blocker"] as const;
 
 interface Row {
-  ordinal: number; status: "open" | "blocked" | "done" | "deferred";
+  ordinal: number; status: "open" | "blocked" | "done" | "deferred" | "in_review";
   taskClass: typeof TASK_CLASSES[number]; done: boolean; actionable: boolean;
   claim: boolean; resumeBlocked: boolean; preferred: boolean; watchOnly: boolean;
   dueAt: number | null; expiresAt: number | null; sort: readonly [number, number, string, string];
@@ -32,7 +32,7 @@ function optionalTime(value: unknown, label: string): number | null {
 }
 function decodeRow(value: unknown, ordinal: number): Row {
   const row = requireJsonObject(value, `rows[${ordinal}]`);
-  const status = requireStringLiteral(row.status, ["open", "blocked", "done", "deferred"], "status");
+  const status = requireStringLiteral(row.status, ["open", "blocked", "done", "deferred", "in_review"], "status");
   const done = requireBoolean(row.done, "done");
   if (done !== (status === "done" || status === "deferred")) throw new EffectRuntimeRequestError("Todo status/done disagree");
   const hasResume = requireBoolean(row.has_resume, "has_resume");
@@ -77,7 +77,7 @@ function selectRows(rows: readonly Row[], source: readonly unknown[], value: unk
   const selection = requireJsonObject(value, "Todo read selection");
   const role = requireStringLiteral(selection.role, ["user", "agent"], "selection role");
   const status = selection.status == null ? null :
-    requireStringLiteral(selection.status, ["open", "blocked", "done", "deferred"], "selection status");
+    requireStringLiteral(selection.status, ["open", "blocked", "done", "deferred", "in_review"], "selection status");
   const todo = optionalNonEmptyString(selection.todo_id, "selection todo_id");
   const agent = optionalNonEmptyString(selection.agent_id, "selection agent_id");
   const addressed = rows.filter(row => {

@@ -204,17 +204,122 @@ def build_fresh_turn_decision_owner(
         status_payload=status_payload,
         scheduler_execution_context=scheduler_execution_context,
         operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-        build_turn_decision=_build_turn_decision(
-            args,
+        build_turn_decision=_with_durable_todo_note(
+            _build_turn_decision(
+                args,
+                registry_path=registry_path,
+                runtime_root=runtime_root,
+                status_payload=status_payload,
+                scheduler_execution_context=scheduler_execution_context,
+                operator_inbox_urgency_projector=operator_inbox_urgency_projector,
+                turn_start_hook_dispatch=turn_start_hook_dispatch,
+            ),
             registry_path=registry_path,
             runtime_root=runtime_root,
-            status_payload=status_payload,
-            scheduler_execution_context=scheduler_execution_context,
-            operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-            turn_start_hook_dispatch=turn_start_hook_dispatch,
+            goal_id=args.goal_id,
         ),
         requested_todo_id=getattr(args, "todo_id", None),
     )
+
+
+def turn_lane_todo_id(
+    registry_path: Path, goal_id: str, agent_id: str, selected_todo: Mapping[str, Any],
+) -> str | None:
+    """The todo whose (goal, todo) lane this Turn runs in, else ``None``.
+
+    Fork role_v1 (design-v0 decision 32): developer and acceptor Turns are
+    fenced per todo, so one agent can run several todos of a goal at once.
+    The orchestrator, peer_v1 goals and todo-less Turns keep the agent lane.
+    """
+
+    from ..agent_registry import agent_role_for_goal, load_goal_from_registry
+    from ..control_plane.turn_driver.lane_fence import turn_lane_todo_scope
+    from ..todo_acceptance import goal_uses_role_v1
+
+    try:
+        goal = load_goal_from_registry(registry_path, goal_id)
+    except (OSError, ValueError):
+        return None
+    return turn_lane_todo_scope(
+        role_v1=goal_uses_role_v1(goal),
+        agent_role=agent_role_for_goal(goal, agent_id),
+        todo_id=str(selected_todo.get("todo_id") or ""),
+    )
+
+
+def registry_goal_uses_role_v1(registry_path: Path, goal_id: str) -> bool:
+    from ..agent_registry import load_goal_from_registry
+    from ..todo_acceptance import goal_uses_role_v1
+
+    try:
+        return goal_uses_role_v1(load_goal_from_registry(registry_path, goal_id))
+    except (OSError, ValueError):
+        return False
+
+
+def _goal_acceptance_brief(contract: Any) -> dict[str, Any] | None:
+    """Bounded objective and criteria of an enabled goal acceptance contract."""
+
+    if not isinstance(contract, dict) or contract.get("enabled") is not True:
+        return None
+    criteria = []
+    for row in contract.get("criteria") or []:
+        if isinstance(row, dict) and (row.get("id") or row.get("description")):
+            label = " ".join(f"{row.get('id') or ''}: {row.get('description') or ''}".split())
+            criteria.append(label.strip(": ")[:240])
+    objective = " ".join(str(contract.get("objective") or "").split())[:300]
+    if not objective and not criteria:
+        return None
+    return {**({"objective": objective} if objective else {}), "criteria": criteria[:12]}
+
+
+def _with_durable_todo_note(
+    build: Callable[..., dict[str, Any]], *, registry_path: Path, runtime_root: Path, goal_id: str,
+) -> Callable[..., dict[str, Any]]:
+    """Attach the selected todo's durable acceptance context before signing.
+
+    Fork role_v1: the status projection behind the decision carries no notes
+    and no acceptance criteria, so the host never saw them (E2E pilot). The
+    selected todo gets its bounded note, its orchestrator-owned
+    ``acceptance_criteria`` (G2) and the goal-level acceptance contract when
+    one is enabled (decision 9). Only on a role_v1 goal: other goals get the
+    builder unchanged, with no extra todo read and no envelope change.
+    """
+
+    if not registry_goal_uses_role_v1(registry_path, goal_id):
+        return build
+
+    def wrapped(**kwargs: Any) -> dict[str, Any]:
+        decision = build(**kwargs)
+        selected = decision.get("selected_todo") if isinstance(decision, dict) else None
+        todo_id = selected.get("todo_id") if isinstance(selected, dict) else None
+        if not todo_id:
+            return decision
+        from ..todos import list_goal_todos
+
+        try:
+            listed = list_goal_todos(
+                registry_path=registry_path, goal_id=goal_id, todo_id=str(todo_id),
+                runtime_root_arg=str(runtime_root),
+            )
+        except (OSError, ValueError):
+            return decision
+        for item in listed.get("todos") or []:
+            if isinstance(item, dict) and item.get("todo_id") == todo_id:
+                for field, limit in (("note", 600), ("acceptance_criteria", 1000)):
+                    value = " ".join(str(item.get(field) or "").split())
+                    if value and not selected.get(field):
+                        selected[field] = value[:limit]
+                break
+        agent_todos = listed.get("agent_todos")
+        brief = _goal_acceptance_brief(
+            agent_todos.get("goal_acceptance_contract") if isinstance(agent_todos, dict) else None
+        )
+        if brief and not selected.get("goal_acceptance"):
+            selected["goal_acceptance"] = brief
+        return decision
+
+    return wrapped
 
 
 def fresh_turn_envelope(

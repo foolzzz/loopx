@@ -500,6 +500,110 @@ export const runRecordSchema = z.object({
   project_map: projectMapSchema.optional().nullable(),
 });
 
+// Fork slice S8: role_v1 role board (loopx/control_plane/status/role_board_projection.py).
+// Stages are derived in the presentation; the projection carries raw facts only.
+// Unknown enum values degrade to "unknown"/null so a newer backend cannot blank the board.
+export const roleBoardRoleSchema = z.enum(["orchestrator", "developer", "acceptor"]);
+
+export const roleBoardAgentSchema = z.object({
+  agent_id: z.string(),
+  role: roleBoardRoleSchema.nullable().catch(null),
+  activity: z.enum(["running", "idle", "cooldown", "unavailable", "unknown"]).catch("unknown"),
+  running_todo_ids: z.array(z.string()).optional().default([]),
+  running_turns: z.number().optional().default(0),
+  running_goal_ids: z.array(z.string()).optional(),
+  provider: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  until: z.number().nullable().optional(),
+});
+
+export const roleBoardTodoSchema = z.object({
+  todo_id: z.string(),
+  text: z.string(),
+  // S2 adds "in_review"; keep the status open so new statuses render instead of failing parse.
+  status: z.string(),
+  effective_role: roleBoardRoleSchema.catch("developer"),
+  required_role: roleBoardRoleSchema.nullable().catch(null),
+  claimed_by: z.string().nullable().optional(),
+  acceptor_agent: z.string().nullable().optional(),
+  reject_count: z.number().int().nonnegative().catch(0),
+  requires_acceptance: z.boolean().optional().default(false),
+  task_repositories: z.array(z.string()).optional().default([]),
+  // G2: the orchestrator-owned per-todo acceptance criteria (bounded by the backend).
+  acceptance_criteria: z.string().nullable().optional(),
+  // G6: why a deferred plan todo still waits on its dependencies (bounded by the backend).
+  dependency_wait: z.string().nullable().optional(),
+  priority: z.string().nullable().optional(),
+  task_class: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  running: z.boolean().optional().default(false),
+  running_agent_id: z.string().nullable().optional(),
+  plan_id: z.string().nullable().optional(),
+  plan_gate_todo_id: z.string().nullable().optional(),
+  // Decision 40: a pending plan card changes this todo's criteria; the acceptor waits.
+  criteria_change_plan_id: z.string().nullable().optional(),
+  criteria_change_gate_todo_id: z.string().nullable().optional(),
+});
+
+export const roleBoardGateSchema = z.object({
+  todo_id: z.string(),
+  text: z.string(),
+  kind: z.enum(["decision", "plan_approval"]).catch("decision"),
+  awaiting: z.enum(["awaiting_user", "awaiting_orchestrator"]).catch("awaiting_user"),
+  message_count: z.number().optional().default(0),
+  blocks_agent: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  plan_id: z.string().nullable().optional(),
+  plan_status: z.string().nullable().optional(),
+  plan_title: z.string().nullable().optional(),
+  plan_revision: z.number().nullable().optional(),
+  plan_todo_count: z.number().nullable().optional(),
+});
+
+export const roleBoardSchema = z.object({
+  schema_version: z.literal("loopx_role_board_v0"),
+  agent_model: z.string().optional().nullable(),
+  dispatcher: z.object({
+    available: z.boolean().optional().default(false),
+    serving: z.boolean().optional().default(false),
+    updated_at: z.number().nullable().optional(),
+  }).optional().default({ available: false, serving: false }),
+  agents: z.array(roleBoardAgentSchema).optional().default([]),
+  todos: z.array(roleBoardTodoSchema).optional().default([]),
+  gates: z.array(roleBoardGateSchema).optional().default([]),
+  omitted: z.record(z.string(), z.number()).optional(),
+});
+
+// Fork G9: compact per-goal Turn usage (loopx/control_plane/status/usage_projection.py).
+// Cost is host-reported plus estimated; the estimated part is shown separately.
+export const turnUsageSummarySchema = z.object({
+  schema_version: z.literal("loopx_turn_usage_summary_v0"),
+  turns: z.number().catch(0),
+  failed_turns: z.number().optional().default(0),
+  agent_hours: z.number().catch(0),
+  tokens_total: z.number().optional().default(0),
+  cost_usd: z.number().catch(0),
+  cost_estimated_usd: z.number().optional().default(0),
+  unpriced_turns: z.number().optional().default(0),
+  accepted_todos: z.number().optional().default(0),
+  cost_per_accepted_todo_usd: z.number().nullable().optional(),
+  // Pilot v1 N5: the same figure without the orchestrator's spend, and that spend.
+  cost_per_accepted_todo_excl_orchestrator_usd: z.number().nullable().optional().catch(null),
+  orchestrator_cost_usd: z.number().optional().catch(undefined),
+  orchestrator_turns: z.number().optional().catch(undefined),
+  turns_per_accepted_todo: z.number().nullable().optional(),
+  last_turn_at: z.string().nullable().optional(),
+  by_role: z.array(z.object({
+    role: z.string(),
+    turns: z.number().catch(0),
+    agent_hours: z.number().catch(0),
+    cost_usd: z.number().catch(0),
+    cost_estimated_usd: z.number().optional().default(0),
+  })).optional().default([]),
+  budget: z.object({ budget_usd: z.number(), spent_ratio: z.number() }).nullable().optional(),
+  truncated: z.boolean().optional(),
+});
+
 export const runGoalSchema = z.object({
   acceptance_observation: goalAcceptanceObservationSchema.optional().nullable().catch(null),
   id: z.string(),
@@ -521,7 +625,10 @@ export const runGoalSchema = z.object({
   coordination: z.object({
     agent_model: z.string().optional().nullable(),
     registered_agents: z.array(z.string()).optional().default([]),
+    agent_roles: z.record(z.string(), z.string()).optional().default({}),
   }).optional().nullable(),
+  role_board: roleBoardSchema.optional().nullable().catch(null),
+  turn_usage_summary: turnUsageSummarySchema.optional().nullable().catch(null),
   index_exists: z.boolean().optional().default(false),
   raw_index_records: z.number().optional().default(0),
   unique_runs: z.number().optional().default(0),
@@ -1112,6 +1219,8 @@ export function withoutGoal(payload: StatusPayload, goalId: string): StatusPaylo
 }
 
 export type TodoGroup = z.infer<typeof todoGroupSchema>;
+export type RoleBoardProjection = z.infer<typeof roleBoardSchema>;
+export type TurnUsageSummaryProjection = z.infer<typeof turnUsageSummarySchema>;
 export type TodoItem = z.infer<typeof todoItemSchema>;
 export type TodoIndexItem = z.infer<typeof todoIndexItemSchema>;
 export type TodoIndexSummary = z.infer<typeof todoIndexSchema>;

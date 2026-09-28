@@ -36,6 +36,7 @@ from ..control_plane.goals.task_planning import (
     build_task_planning_packet,
     render_task_planning_packet,
 )
+from ..todo_acceptance_criteria import set_goal_todo_acceptance_criteria
 from ..todos import (
     add_goal_todo,
     archive_completed_todos,
@@ -48,6 +49,8 @@ from ..todos import (
 from .todo_argument_validation import (
     validate_capability_gap_options,
     validate_shared_todo_options,
+    todo_acceptance_criteria_update_requested,
+    todo_role_contract_from_args,
     validate_todo_add_options,
     validate_todo_archive_completed_options,
     validate_todo_claim_options,
@@ -59,6 +62,8 @@ from .todo_argument_validation import (
     validate_todo_plan_options,
     validate_todo_supersede_options,
     validate_todo_update_options,
+    validate_todo_block_review_options,
+    validate_todo_verdict_options,
 )
 from .todo_event import (
     RolloutEventAppender,
@@ -255,6 +260,13 @@ def handle_todo_command(
                 **_todo_path_args(args),
                 runtime_root_arg=runtime_root_arg,
             )
+            if not args.todo_thin:
+                from ..plan_dependencies import annotate_todo_list_dependency_waits
+
+                payload = annotate_todo_list_dependency_waits(
+                    payload, registry_path=registry_path, goal_id=args.goal_id,
+                    runtime_root_arg=runtime_root_arg,
+                )
         elif args.todo_command == "receipt":
             validate_todo_receipt_options(args)
             runtime_root = resolve_runtime_root(load_registry(registry_path), runtime_root_arg)
@@ -340,6 +352,7 @@ def handle_todo_command(
                 validation_command_json=args.validation_command_json,
                 validation_label=args.validation_label,
                 validation_timeout_seconds=args.validation_timeout_seconds,
+                role_contract=todo_role_contract_from_args(args),
                 monitor_metadata={
                     key: value
                     for key, value in {
@@ -381,6 +394,14 @@ def handle_todo_command(
                 task_lease_expected_version=args.task_lease_expected_version,
                 **_todo_path_args(args),
                 dry_run=bool(args.dry_run),
+            )
+        elif args.todo_command == "update" and todo_acceptance_criteria_update_requested(args):
+            validate_todo_update_options(args)
+            payload = set_goal_todo_acceptance_criteria(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id,
+                acceptance_criteria=None if args.clear_acceptance_criteria else args.acceptance_criteria,
+                agent_id=args.agent_id, **_todo_path_args(args), dry_run=bool(args.dry_run),
             )
         elif args.todo_command == "update":
             validate_todo_update_options(args)
@@ -432,6 +453,7 @@ def handle_todo_command(
                 resume_when=args.resume_when,
                 clear_resume_when=bool(args.clear_resume_when),
                 no_followup=True if args.no_follow_up else None,
+                role_contract=todo_role_contract_from_args(args),
                 monitor_metadata={
                     key: value
                     for key, value in {
@@ -589,8 +611,49 @@ def handle_todo_command(
                     payload["settlement_result"] = settlement_result_payload(
                         settlement_result
                     )
+        elif args.todo_command in {"accept", "reject"}:
+            validate_todo_verdict_options(args)
+            from ..todo_acceptance import accept_goal_todo, reject_goal_todo
+
+            verdict_args = dict(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id, agent_id=args.agent_id,
+                note=args.note, **_todo_path_args(args), dry_run=bool(args.dry_run),
+            )
+            payload = (
+                accept_goal_todo(evidence=args.evidence, **verdict_args)
+                if args.todo_command == "accept"
+                else reject_goal_todo(**verdict_args)
+            )
+        elif args.todo_command == "block-review":
+            validate_todo_block_review_options(args)
+            from ..todo_review_blocked import block_goal_todo_review
+
+            payload = block_goal_todo_review(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id, agent_id=args.agent_id,
+                reason=args.reason, **_todo_path_args(args), dry_run=bool(args.dry_run),
+            )
+        elif args.todo_command == "supersede" and args.supersede_by:
+            validate_todo_supersede_options(args)
+            from ..plan_dependencies import supersede_goal_todo_by
+
+            # Fork G6: replace or split a todo and rewire its dependents.
+            payload = supersede_goal_todo_by(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id, by=args.supersede_by,
+                agent_id=args.agent_id, note=args.note, dry_run=bool(args.dry_run),
+            )
         elif args.todo_command == "supersede":
             validate_todo_supersede_options(args)
+            from ..plan_dependencies import orchestrator_supersede_actor
+
+            # Pilot v1 N11: the role_v1 orchestrator closes another agent's todo
+            # as that claim owner, like supersede --by; the event keeps the actor.
+            supersede_agent_id = orchestrator_supersede_actor(
+                registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+                goal_id=args.goal_id, todo_id=args.todo_id, agent_id=args.agent_id,
+            )
             payload = supersede_goal_todo(
                 registry_path=registry_path,
                 runtime_root_arg=runtime_root_arg,
@@ -608,7 +671,7 @@ def handle_todo_command(
                 next_required_capabilities=args.next_required_capabilities,
                 next_continuation_policy=args.next_continuation_policy,
                 next_excluded_agents=args.next_excluded_agents,
-                agent_id=args.agent_id,
+                agent_id=supersede_agent_id,
                 authority_reason=args.authority_reason,
                 task_lease_idempotency_key=args.task_lease_idempotency_key,
                 task_lease_expected_version=args.task_lease_expected_version,

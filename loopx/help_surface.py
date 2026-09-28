@@ -266,6 +266,38 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "command": "loopx agent-directory",
                 "purpose": "Produce the local, goal-scoped peer agent directory this host can hand work to.",
             },
+            {
+                "command": "loopx workspace",
+                "purpose": "Prepare, inspect, atomically merge and clean up a todo's git worktrees across the Goal's repos.",
+            },
+            {
+                "command": "loopx dispatch serve|status|launchd-plist",
+                "purpose": "Run the resident dispatcher that launches role_v1 agent Turns on state events and a periodic tick.",
+            },
+            {
+                "command": "loopx usage report|budget",
+                "purpose": "Turn cost, tokens and agent-hours per role, agent, goal, todo, model or day; optional goal budget.",
+            },
+            {
+                "command": "loopx goal create",
+                "purpose": "Create a role_v1 goal from a requirements doc: agents, repos, authority source and the orchestrator's first todo.",
+            },
+            {
+                "command": "loopx gate reply|show|list",
+                "purpose": "Discuss a user gate with the orchestrator through its append-only thread.",
+            },
+            {
+                "command": "loopx plan propose|show|list|apply",
+                "purpose": "Orchestrator plan cards: a pending plan applied atomically when its plan_approval gate is approved.",
+            },
+            {
+                "command": "loopx agent list|show|validate",
+                "purpose": "Inspect global and project agent definition files (role, runtime, provider, model).",
+            },
+            {
+                "command": "loopx provider list|check",
+                "purpose": "List providers and run the auth preflight without printing secrets.",
+            },
             {"command": "loopx lark-kanban", "purpose": "Project LoopX state into a Feishu/Lark Base board."},
             {
                 "command": "loopx presentation",

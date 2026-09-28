@@ -9,12 +9,18 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
-from collections.abc import Mapping
+import time
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ...agent_config.codex_config import (
+    codex_config_arguments,
+    normalize_codex_config_override,
+)
 from ...runtime import validate_goal_id_path_segment
 from .subagent_execution_topology import (
     child_execution_receipts_json_schema,
@@ -28,7 +34,9 @@ from .executor import (
 )
 from .execution_profile import require_supported_reasoning_effort
 from .host_failure import BuiltInHostError
+from .host_stderr import HostStderrTail, upstream_unavailable
 from .transaction import LOOPX_TURN_RESULT_SCHEMA_VERSION, TRANSACTION_PHASES
+from .turn_usage import attach_turn_usage, codex_cli_turn_usage, codex_event_token_usage
 
 
 CODEX_CLI_SESSION_SCHEMA_VERSION = "loopx_codex_cli_session_v1"
@@ -90,7 +98,10 @@ _STRUCTURED_FAILURE_CATEGORIES = {
 _STRUCTURED_HTTP_STATUS_CATEGORIES = {
     401: "auth_failed",
     429: "rate_limited",
+    500: "provider_capacity",
+    502: "provider_capacity",
     503: "provider_overloaded",
+    504: "provider_capacity",
 }
 _FAILURE_CATEGORY_PRIORITY = {
     # Conflicting observations fail closed before any retryable category. Among
@@ -309,17 +320,91 @@ def _has_subagent_topology(request: Mapping[str, Any] | None) -> bool:
     )
 
 
+def _selected_todo_in_review(request: Mapping[str, Any]) -> bool:
+    from .driver import selected_turn_todo
+
+    envelope = request.get("turn_envelope")
+    if not isinstance(envelope, Mapping):
+        return False
+    action = envelope.get("action")
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        selected = selected_turn_todo(envelope)
+    return str(selected.get("status") or "") == "in_review"
+
+
+def _selected_todo_review_feedback(request: Mapping[str, Any]) -> str:
+    envelope = request.get("turn_envelope")
+    action = envelope.get("action") if isinstance(envelope, Mapping) else None
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        return ""
+    return str(selected.get("review_feedback") or "").strip()[:600]
+
+
+def _selected_todo_acceptance_context(request: Mapping[str, Any]) -> str:
+    """Fork G2: the todo's acceptance criteria and the goal acceptance contract."""
+
+    envelope = request.get("turn_envelope")
+    action = envelope.get("action") if isinstance(envelope, Mapping) else None
+    selected = action.get("selected_todo") if isinstance(action, Mapping) else None
+    if not isinstance(selected, Mapping):
+        return ""
+    parts = []
+    criteria = " ".join(str(selected.get("acceptance_criteria") or "").split())[:1000]
+    if criteria:
+        parts.append(f"Todo acceptance criteria (selected_todo.acceptance_criteria): {criteria}")
+    goal = selected.get("goal_acceptance")
+    if isinstance(goal, Mapping):
+        rows = [str(item) for item in goal.get("criteria") or [] if item][:12]
+        objective = str(goal.get("objective") or "").strip()
+        if objective or rows:
+            parts.append(
+                "Goal acceptance contract (selected_todo.goal_acceptance): "
+                + (f"objective: {objective}; " if objective else "")
+                + "criteria: " + ("; ".join(rows) or "none listed")
+            )
+    return " ".join(parts)
+
+
+def turn_completion_todo_id(request: Mapping[str, Any] | None) -> str | None:
+    """Return the Todo a todo-scoped Turn may complete, if any.
+
+    Built-in hosts are offered ``validated_completion`` only for a Turn that
+    selected a Todo. The executor still requires a lifecycle adapter and the
+    independent validator; the Todo lifecycle then runs the Todo's own
+    declared validation and completes it, or under role_v1 delivers it to
+    ``in_review`` for the acceptor.
+    """
+
+    if not isinstance(request, Mapping) or not isinstance(request.get("turn_envelope"), Mapping):
+        return None
+    from .driver import selected_turn_todo
+
+    todo_id = str(selected_turn_todo(request["turn_envelope"]).get("todo_id") or "").strip()
+    return todo_id or None
+
+
+def codex_cli_result_kinds(request: Mapping[str, Any] | None = None) -> list[str]:
+    kinds = list(CODEX_CLI_RESULT_KINDS)
+    if turn_completion_todo_id(request):
+        kinds.insert(1, "validated_completion")
+    return kinds
+
+
 def codex_cli_result_schema(
     request: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    text_limits = dict(HOST_RESULT_TEXT_LIMITS)
+    from .acceptor_verdict import host_result_text_limits
+
+    text_limits = host_result_text_limits(HOST_RESULT_TEXT_LIMITS, request)
     properties: dict[str, Any] = {
         "schema_version": {
             "type": "string",
             "enum": [LOOPX_TURN_RESULT_SCHEMA_VERSION],
         },
         "turn_key": {"type": "string"},
-        "result_kind": {"type": "string", "enum": list(CODEX_CLI_RESULT_KINDS)},
+        "result_kind": {"type": "string", "enum": codex_cli_result_kinds(request)},
         "completed_phases": {
             "type": "array",
             "items": {"type": "string", "enum": list(TRANSACTION_PHASES[:2])},
@@ -392,6 +477,34 @@ def codex_cli_result_schema(
     }
 
 
+# Result fields pass a public-safety check that rejects local absolute paths.
+RESULT_PATH_HYGIENE_INSTRUCTION = (
+    "Write every file path in the result (summary, evidence, next_action and all other "
+    "fields) relative to the repository or workspace root, for example src/app.py; never "
+    "include absolute local paths, home directories, user names or machine names."
+)
+
+
+# Fork decision 31: a role_v1 goal records no per-agent vision; the
+# orchestrator plans through todos, plan cards and gates.
+ROLE_V1_NO_VISION_INSTRUCTION = (
+    "This goal records no per-agent vision: leave path_delta_mode, agent_vision_json and "
+    "vision_unchanged_reason empty. Planning changes go through todos, plan cards and gates "
+    "(the orchestrator's job); developers and acceptors raise them to the orchestrator."
+)
+
+
+def _vision_instructions(request: Mapping[str, Any]) -> list[str]:
+    from .executor import turn_plan_requires_vision_checkpoint
+
+    if not turn_plan_requires_vision_checkpoint(request):
+        return [ROLE_V1_NO_VISION_INSTRUCTION]
+    return [
+        "For those material results, set path_delta_mode=material_replan only when this Turn changes a prior assumption, route, scope, acceptance rule, or stops prior work; then provide a complete bounded agent vision packet with goal_path_delta_v0 in agent_vision_json and leave vision_unchanged_reason empty.",
+        "For routine continuation, retry, successor creation, or no-change replanning, set path_delta_mode=unchanged, leave agent_vision_json empty, and provide vision_unchanged_reason.",
+    ]
+
+
 def _prompt(request: Mapping[str, Any]) -> str:
     request_json = json.dumps(
         request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -402,14 +515,62 @@ def _prompt(request: Mapping[str, Any]) -> str:
         "When reward_memory_recall contains guidance, treat it as private, non-authoritative decision context: apply it only when it fits current evidence and never treat it as new action authority.",
         "Set reward_memory_reflection_json to an empty string unless independent task evidence established a reusable experience. For eligible evidence, return one compact JSON object using schema_version=turn_reward_memory_reflection_v1, status=eligible, a configured surface_id, outcome_kind in research|simulation|real|engineering, content_summary, reasoning_summary, confidence in low|medium|high, and 1-5 opaque evidence_refs. Also include experience using schema_version=procedural_experience_contract_v0 with non-empty applicability and limitations lists, observed_outcome, attribution, the same evidence_refs, and future_behavior containing trigger, action, validation, and stop_condition. A fact recap without a future behavior change and non-generalization boundary is not eligible memory. Legacy v0 reflections are audit-only and cannot become durable memory. Never use your own summary as evidence. Settlement may ingest it only when the caller-declared Todo validator attests the exact reflection digest and evidence; ordinary validator success remains awaiting and makes no provider write.",
         "Do not write LoopX state, spend quota, or apply scheduler changes; the adapter owns those effects.",
-        "Return only the schema-constrained result. For validated_progress, repair_required, or replan_required, fill every material field with public-safe evidence.",
-        "For those material results, set path_delta_mode=material_replan only when this Turn changes a prior assumption, route, scope, acceptance rule, or stops prior work; then provide a complete bounded agent vision packet with goal_path_delta_v0 in agent_vision_json and leave vision_unchanged_reason empty.",
-        "For routine continuation, retry, successor creation, or no-change replanning, set path_delta_mode=unchanged, leave agent_vision_json empty, and provide vision_unchanged_reason.",
+        "Return only the schema-constrained result. For validated_progress, validated_completion, repair_required, or replan_required, fill every material field with public-safe evidence.",
+        *_vision_instructions(request),
         "For user_action_required, wait, or iteration_failed, leave material-only fields empty and explain the stop in summary. iteration_failed ends only this iteration and never requests a retry or successor.",
+        RESULT_PATH_HYGIENE_INSTRUCTION,
         'completed_phases must be exactly ["host_execute","typed_result"], and turn_key must match the request.',
         "Turn request:",
         request_json,
     ]
+    completion_todo_id = turn_completion_todo_id(request)
+    if completion_todo_id and _selected_todo_in_review(request):
+        # Fork S2: only the resolved acceptor is ever offered a delivered Todo.
+        instructions.insert(
+            -2,
+            f"This Turn reviews Todo {completion_todo_id}, which a developer delivered for your "
+            "acceptance (status in_review). You only review and deliver a verdict: never modify "
+            "code, commit, push or merge; put every required change in the rejection feedback for "
+            "the developer. Check the delivered commit in this workspace against the "
+            "Todo's text, acceptance criteria and validation. Return validated_completion to accept "
+            "it. To reject it, return repair_required and put concrete, actionable feedback for the "
+            "developer in summary, the failed criteria first and the details after, in at most 550 "
+            "characters (LoopX keeps that much as the developer's review_feedback); LoopX reopens "
+            "the Todo for the same developer, and a second "
+            "rejection escalates to the orchestrator. If you cannot review for your own reasons "
+            "(broken tooling, environment, missing dependencies), return user_action_required with "
+            "the reason in summary: this blocked verdict asks the user and is not a rejection.",
+        )
+        acceptance = _selected_todo_acceptance_context(request)
+        if acceptance:
+            instructions.insert(
+                -2,
+                "Check each acceptance criterion below and the goal acceptance contract one by one. "
+                "Accept only when every criterion holds. When you reject, name in summary each "
+                f"criterion that failed and why. {acceptance}",
+            )
+    elif completion_todo_id:
+        instructions.insert(
+            -2,
+            f"This Turn selected Todo {completion_todo_id}. Return validated_completion only when that "
+            "Todo's work is complete in this workspace; the controller then runs the Todo's declared "
+            "validation independently and completes the Todo, or delivers it for acceptor review when "
+            "it requires acceptance. Return validated_progress while work on the Todo remains.",
+        )
+        feedback = _selected_todo_review_feedback(request)
+        if feedback:
+            instructions.insert(
+                -2,
+                "An acceptor rejected the previous delivery of this Todo. Address this feedback "
+                f"before delivering again (selected_todo.review_feedback): {feedback}",
+            )
+        acceptance = _selected_todo_acceptance_context(request)
+        if acceptance:
+            instructions.insert(
+                -2,
+                "The acceptor will check this Todo against its acceptance criteria and the goal "
+                f"acceptance contract; meet every criterion before delivering. {acceptance}",
+            )
     boundary = _mapping(_mapping(request.get("turn_envelope")).get("boundary"))
     if boundary.get("checkpointed_boundary_authority"):
         instructions.append(
@@ -503,6 +664,10 @@ def _diagnostic_failure_category(line: str) -> str | None:
         return "rate_limited"
     if "session" in text and "not found" in text:
         return "session_missing"
+    # Pilot v1 N9: a proxy such as CLIProxyAPI reports an unavailable upstream
+    # (5xx, auth_unavailable, a failed dial) that the provider will recover from.
+    if upstream_unavailable(text):
+        return "provider_capacity"
     return None
 
 
@@ -701,6 +866,17 @@ def _select_failure_category(categories: list[str]) -> str | None:
     )
 
 
+def _emit_stderr_tail(tail: HostStderrTail) -> None:
+    rendered = tail.render("codex-cli")
+    if not rendered:
+        return
+    try:
+        sys.stderr.write(rendered)
+        sys.stderr.flush()
+    except (OSError, ValueError):
+        pass  # diagnostics only; never fail the Turn on them
+
+
 def _terminate_process(proc: subprocess.Popen[str]) -> None:
     if proc.poll() is not None:
         return
@@ -728,6 +904,7 @@ def _codex_command(
     reasoning_effort: str | None,
     session_id: str | None,
     mcp_server: Mapping[str, Any] | None,
+    config_overrides: Sequence[str] = (),
 ) -> list[str]:
     if session_id:
         command = [
@@ -770,10 +947,30 @@ def _codex_command(
             ]
         )
     command.extend(_codex_mcp_config_arguments(mcp_server))
+    # Operator-bound host config (for example an explicit CPA model provider)
+    # is passed on every fresh and resumed launch without touching the user's
+    # Codex config file.
+    command.extend(codex_config_arguments(config_overrides))
     if session_id:
         command.append(session_id)
     command.append("-")
     return command
+
+
+def _override_model(config_overrides: Sequence[str]) -> str | None:
+    """The ``model=...`` config override, when the launch sets the model that way."""
+
+    for item in reversed(list(config_overrides)):
+        key, _, value = item.partition("=")
+        if key.strip() != "model":
+            continue
+        value = value.strip()
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = value.strip("'")
+        return parsed if isinstance(parsed, str) and parsed else None
+    return None
 
 
 def run_codex_cli_host(
@@ -786,10 +983,14 @@ def run_codex_cli_host(
     model: str | None = None,
     reasoning_effort: str | None = None,
     mcp_server: Mapping[str, Any] | None = None,
+    config_overrides: Sequence[str] = (),
     timeout_seconds: float = 115.0,
 ) -> dict[str, Any]:
     if request.get("schema_version") != LOOPX_TURN_HOST_REQUEST_SCHEMA_VERSION:
         raise ValueError("unsupported LoopX Turn host request schema")
+    config_overrides = [
+        normalize_codex_config_override(item) for item in config_overrides
+    ]
     if sandbox not in CODEX_CLI_SANDBOXES:
         raise ValueError(f"Codex CLI sandbox must be one of {CODEX_CLI_SANDBOXES}")
     if reasoning_effort is not None:
@@ -838,7 +1039,9 @@ def run_codex_cli_host(
             reasoning_effort=reasoning_effort,
             session_id=session_id,
             mcp_server=mcp_server,
+            config_overrides=config_overrides,
         )
+        started_at = time.time()
         proc = subprocess.Popen(
             command,
             cwd=project,
@@ -851,6 +1054,7 @@ def run_codex_cli_host(
             start_new_session=True,
         )
         observed_session: list[str] = []
+        observed_tokens: list[dict[str, int]] = []
         structured_failure_categories: list[str] = []
         diagnostic_failure_categories: list[str] = []
 
@@ -865,6 +1069,9 @@ def run_codex_cli_host(
                     candidate = codex_cli_event_session_id(event)
                     if candidate and not observed_session:
                         observed_session.append(candidate)
+                    tokens = codex_event_token_usage(event)
+                    if tokens is not None:
+                        observed_tokens[:] = [tokens]
                     structured, diagnostic = _event_failure_categories(event)
                     if structured:
                         structured_failure_categories.append(structured)
@@ -873,9 +1080,12 @@ def run_codex_cli_host(
 
         reader = threading.Thread(target=discard_events, daemon=True)
 
+        stderr_tail = HostStderrTail()
+
         def discard_stderr() -> None:
             assert proc.stderr is not None
             for line in proc.stderr:
+                stderr_tail.add(line)
                 category = _diagnostic_failure_category(line)
                 if category:
                     diagnostic_failure_categories.append(category)
@@ -900,6 +1110,19 @@ def run_codex_cli_host(
             reader.join(timeout=OUTPUT_DRAIN_TIMEOUT_SECONDS)
             stderr_reader.join(timeout=OUTPUT_DRAIN_TIMEOUT_SECONDS)
         output_observation_incomplete = reader.is_alive() or stderr_reader.is_alive()
+        # G9: token totals from the event stream; failed Turns keep them too.
+        usage = codex_cli_turn_usage(
+            observed_tokens[-1] if observed_tokens else None,
+            started_at=started_at,
+            finished_at=time.time(),
+            model=model or _override_model(config_overrides),
+            session_id=observed_session[0] if observed_session else session_id,
+            resumed=session_id is not None,
+        )
+        if timed_out or returncode != 0:
+            # Pilot v1 N9: keep a bounded, redacted tail on the Turn's own
+            # stderr (the dispatcher's runs/<id>.err.log) for diagnosis.
+            _emit_stderr_tail(stderr_tail)
         if timed_out:
             if observed_session:
                 _store_codex_cli_session(
@@ -911,6 +1134,7 @@ def run_codex_cli_host(
                 "codex_cli_timeout",
                 failure_kind="executor_timeout",
                 recovery_kind=("resume_session" if observed_session else None),
+                turn_usage=usage,
             )
         category = (
             "unknown"
@@ -941,11 +1165,12 @@ def run_codex_cli_host(
                     and category in _SESSION_RESUMABLE_FAILURE_CATEGORIES
                     else None
                 ),
+                turn_usage=usage,
             )
         try:
             result = json.loads(output_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise BuiltInHostError("codex_cli_final_result_missing") from exc
+            raise BuiltInHostError("codex_cli_final_result_missing", turn_usage=usage) from exc
         if not isinstance(result, dict):
-            raise BuiltInHostError("codex_cli_final_result_not_object")
-        return result
+            raise BuiltInHostError("codex_cli_final_result_not_object", turn_usage=usage)
+        return attach_turn_usage(result, usage)

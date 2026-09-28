@@ -13,6 +13,32 @@ interface Row {
   global: boolean; gate: boolean; removed: boolean; actionable: boolean;
   due: boolean; watchOnly: boolean; taskClass: string; priority: number; index: number;
   profileRank: number; missing: readonly string[]; rawClaimed: boolean;
+  requiredRole: string | null; planning: boolean;
+  inReview: boolean; reviewAgent: string | null; awaitsOrchestrator: boolean;
+  criteriaChangePending: boolean;
+}
+
+const AGENT_ROLES = ["orchestrator", "developer", "acceptor"] as const;
+function optionalRole(value: unknown, label: string): string | null {
+  const role = optionalNonEmptyString(value, label);
+  if (role !== null && !(AGENT_ROLES as readonly string[]).includes(role)) {
+    throw new EffectRuntimeRequestError(`${label} must be one of: ${AGENT_ROLES.join(", ")}`);
+  }
+  return role;
+}
+
+/** role_v1 ownership: delivered (in_review) work belongs to its acceptor, or
+ * to the orchestrator when no single acceptor resolves; otherwise an explicit
+ * required_role wins; user gates, user actions, blockers and planning/replan
+ * work belong to the orchestrator; all other work defaults to the developer. */
+export function effectiveRequiredRole(row: {requiredRole: string | null; gate: boolean;
+  taskClass: string; planning: boolean; inReview?: boolean; reviewAgent?: string | null}): string {
+  if (row.inReview) return row.reviewAgent ? "acceptor" : "orchestrator";
+  if (row.requiredRole) return row.requiredRole;
+  if (row.gate || row.planning || ["user_gate", "user_action", "blocker"].includes(row.taskClass)) {
+    return "orchestrator";
+  }
+  return "developer";
 }
 
 function decodeRow(value: unknown, available?: readonly string[]): Row {
@@ -30,7 +56,13 @@ function decodeRow(value: unknown, available?: readonly string[]): Row {
     priority: integer("priority"), index: integer("index"), profileRank: integer("profile_rank"),
     missing: available === undefined ? requireStringArray(raw.missing, "missing") :
       missingRequiredCapabilities(requireStringArray(raw.required, "required"), requireStringArray(raw.targets, "targets"), available),
-    rawClaimed: boolean("raw_claimed")};
+    rawClaimed: boolean("raw_claimed"),
+    requiredRole: optionalRole(raw.required_role, "required_role"),
+    planning: raw.planning === undefined ? false : boolean("planning"),
+    inReview: raw.in_review === undefined ? false : boolean("in_review"),
+    reviewAgent: optional("review_agent"),
+    awaitsOrchestrator: raw.awaits_orchestrator === undefined ? false : boolean("awaits_orchestrator"),
+    criteriaChangePending: raw.criteria_change_pending === undefined ? false : boolean("criteria_change_pending")};
 }
 
 function rows(value: unknown, available?: readonly string[]): Row[] {
@@ -41,8 +73,16 @@ const payloads = (items: readonly Row[]) => items.map(row => row.payload);
 const compact = (items: readonly Row[], limit: number) => items.slice(0, limit).map(row => row.display);
 const bucket = (row: Row, agent: string) => row.claim === agent ? 0 : row.claim === null ? 1 : 2;
 
-/** A gate addresses a lane; it is not a job whose claim grants execution. */
-function gateApplies(row: Row, agent: string | null): boolean {
+/** A gate addresses a lane; it is not a job whose claim grants execution.
+ * Under role_v1 an acceptor verifies delivered work independently, so only a
+ * global gate or one explicitly scoped to the acceptor blocks its lane, and a
+ * gate awaiting the orchestrator's reply does not block the orchestrator. */
+function gateApplies(row: Row, agent: string | null, independentReviewer = false,
+  orchestrator = false): boolean {
+  // A gate whose discussion thread waits on the orchestrator (the user
+  // replied) must not stop the orchestrator from answering it (decision 10).
+  if (orchestrator && row.awaitsOrchestrator) return false;
+  if (independentReviewer && agent && !row.global && row.blocks !== agent && row.claim !== agent) return false;
   return !agent || gateAddressesAgent(row, agent);
 }
 function executableBy(row: Row, agent: string | null): boolean {
@@ -97,13 +137,13 @@ function visibility(items: readonly Row[], agent: string | null, backlog: number
 }
 
 function claimScope(source: readonly Row[], selected: readonly Row[], agent: string,
-  profile: JsonObject | null, limit: number): JsonObject {
+  profile: JsonObject | null, limit: number, agentModel: string): JsonObject {
   const current = selected.filter(row => row.claim === agent), unclaimed = selected.filter(row => !row.claim);
   const others = source.filter(row => bucket(row, agent) === 2);
   const excluded = source.filter(row => row.excluded.includes(agent)), removed = source.filter(row => row.removed);
   const otherItems = compact(visibleClaims(others, limit), limit);
   return {
-    schema_version: "agent_claim_scope_v0", agent_id: agent, agent_model: "peer_v1",
+    schema_version: "agent_claim_scope_v0", agent_id: agent, agent_model: agentModel,
     selection_order: "current_agent_claimed_then_unclaimed", selectable_open_count: selected.length,
     current_agent_claimed_open_count: current.length, unclaimed_open_count: unclaimed.length,
     other_agent_claimed_open_count: others.length, other_agent_claimed_weight: "diagnostic_only",
@@ -132,22 +172,42 @@ export function projectQuotaSelection(value: unknown): JsonObject {
   };
   const diagnostic = limit("diagnostic_limit"), backlog = limit("backlog_limit"), visibilityLimit = limit("visibility_limit");
   const profile = request.profile == null ? null : requireJsonObject(request.profile, "profile");
+  const agentModel = optionalNonEmptyString(request.agent_model, "agent_model") ?? "peer_v1";
+  const agentRole = optionalRole(request.agent_role, "agent_role");
+  // role_v1 routes execution by role. Agents without a registered role keep
+  // the flat peer behaviour; explicit User gate scope is left unchanged.
+  const roleScoped = Boolean(agent && agentRole && agentModel === "role_v1");
+  // A delivered (in_review) todo is addressed to its resolved acceptor only;
+  // unresolved review falls back to the orchestrator (design decision 5).
+  const roleAllows = (row: Row) => !roleScoped || (effectiveRequiredRole(row) === agentRole &&
+    (!row.inReview || agentRole !== "acceptor" || (row.reviewAgent === agent && !row.criteriaChangePending)));
+  // Decision 40: a delivered todo whose acceptance-criteria change awaits the
+  // user on a plan card is held from its acceptor until the card is decided.
+  const criteriaHeld = (row: Row) => roleScoped && agentRole === "acceptor" && row.inReview &&
+    row.reviewAgent === agent && row.criteriaChangePending;
+  // The developer's claim stays on delivered work; review addressing replaces it.
+  const executable = (row: Row) => roleScoped && row.inReview ? !row.removed : executableBy(row, agent);
+  const reviewable = (row: Row) => roleScoped && row.inReview && roleAllows(row);
+  const independentReviewer = roleScoped && agentRole === "acceptor";
+  const discussingOrchestrator = roleScoped && agentRole === "orchestrator";
   const gates = userMode ? source.filter(row => row.gate) : source;
-  const blocking = userMode ? gates.filter(row => gateApplies(row, agent)) : gates;
-  const otherGates = userMode ? gates.filter(row => !gateApplies(row, agent)) : [];
+  const blocking = userMode ? gates.filter(row => gateApplies(row, agent, independentReviewer, discussingOrchestrator)) : gates;
+  const otherGates = userMode ? gates.filter(row => !gateApplies(row, agent, independentReviewer, discussingOrchestrator)) : [];
   const actions = userMode ? source.filter(row => !row.gate && actionAddressesAgent(row, agent)) : [];
   const otherActions = userMode ? source.filter(row => !row.gate && !actionAddressesAgent(row, agent)) : [];
   // Explicit User gate scope has already decided blocking. Claim/exclusion
   // governs Agent execution, not permission to disregard that human gate.
-  const open = userMode ? blocking : blocking.filter(row => executableBy(row, agent));
+  const open = userMode ? blocking : blocking.filter(row => executable(row) && roleAllows(row));
+  const roleFiltered = roleScoped && !userMode
+    ? blocking.filter(row => executable(row) && !roleAllows(row)) : [];
   if (agent && !userMode) open.sort((a, b) => bucket(a, agent) - bucket(b, agent) ||
     a.profileRank - b.profileRank || a.priority - b.priority || a.index - b.index);
-  const scope = agent && !userMode ? claimScope(blocking, open, agent, profile, diagnostic) : null;
+  const scope = agent && !userMode ? claimScope(blocking, open, agent, profile, diagnostic, agentModel) : null;
   const monitors = open.filter(row => row.actionable && row.taskClass === "continuous_monitor");
   const due = supported ? monitors.filter(row => row.due && executableBy(row, agent)) : [];
   const admittedDue = due.filter(row => !row.missing.length);
   const watchOnlyMonitors = monitors.filter(row => row.watchOnly);
-  const activeVisible = (row: Row) => userMode ? (row.gate ? gateApplies(row, agent) : actionAddressesAgent(row, agent)) : executableBy(row, agent);
+  const activeVisible = (row: Row) => userMode ? (row.gate ? gateApplies(row, agent, independentReviewer, discussingOrchestrator) : actionAddressesAgent(row, agent)) : executable(row) && roleAllows(row);
   const gateFilter = otherGates.length ? {
     schema_version: "agent_scoped_user_gate_filter_v0", agent_id: agent,
     policy: "user todos scoped to another agent by blocks_agent or claimed_by remain visible but do not block this agent's quota lane",
@@ -168,7 +228,17 @@ export function projectQuotaSelection(value: unknown): JsonObject {
     user_action_open_items: payloads(actions), other_agent_bound_user_action_items: payloads(otherActions),
     user_action_agent_scope_filter: actionFilter, other_agent_scoped_items: payloads(otherGates),
     agent_scope_filter: gateFilter, open_items: payloads(open), claim_scope: scope,
-    executable_items: payloads(open.filter(row => row.actionable && row.taskClass === "advancement_task")),
+    ...(roleScoped && !userMode ? {role_scope: {schema_version: "agent_role_scope_v0", agent_id: agent,
+      agent_model: agentModel, agent_role: agentRole,
+      policy: "role_v1 agents receive only todos whose required_role matches; unset required_role routes gates, blockers and planning to the orchestrator and all other work to the developer; in_review todos go to their resolved acceptor, else the orchestrator",
+      selectable_open_count: open.length, role_filtered_open_count: roleFiltered.length,
+      review_open_count: open.filter(row => row.inReview).length,
+      role_filtered_items: compact(roleFiltered, diagnostic),
+      ...(roleFiltered.some(criteriaHeld) ? {review_held: {reason: "criteria_change_pending",
+        policy: "the acceptor does not review a todo while a plan card changing its acceptance criteria awaits the user",
+        count: roleFiltered.filter(criteriaHeld).length,
+        items: compact(roleFiltered.filter(criteriaHeld), diagnostic)}} : {})}} : {}),
+    executable_items: payloads(open.filter(row => (row.actionable || reviewable(row)) && row.taskClass === "advancement_task")),
     monitor_items: payloads(monitors), monitor_due_items: payloads(admittedDue),
     watch_only_monitor_items: payloads(watchOnlyMonitors),
     watch_only_monitor_due_items: payloads(admittedDue.filter(row => row.watchOnly)),
@@ -185,9 +255,16 @@ export function projectQuotaSelection(value: unknown): JsonObject {
 /** One quota read boundary composes scope/claim selection and existing resume rules. */
 export function projectTodoQuotaPlanning(value: unknown): JsonObject {
   const request = requireJsonObject(value, "quota planning");
-  if (!["todo_quota_planning_request_v0", "todo_quota_planning_request_v1"].includes(String(request.schema_version))) throw new EffectRuntimeRequestError("quota planning schema mismatch");
-  if (request.schema_version === "todo_quota_planning_request_v1") {
+  if (!["todo_quota_planning_request_v0", "todo_quota_planning_request_v1", "todo_quota_planning_request_v2"].includes(String(request.schema_version))) throw new EffectRuntimeRequestError("quota planning schema mismatch");
+  if (request.schema_version !== "todo_quota_planning_request_v0") {
     requireStringArray(requireJsonObject(request.selection, "selection").available, "available");
+  }
+  if (request.schema_version === "todo_quota_planning_request_v2") {
+    // v2 carries the requesting agent's runtime model and role explicitly.
+    const selection = requireJsonObject(request.selection, "selection");
+    if (typeof selection.agent_model !== "string" || !selection.agent_model) {
+      throw new EffectRuntimeRequestError("quota planning v2 requires selection.agent_model");
+    }
   }
   return {schema_version: "todo_quota_planning_v0", resume_planning: projectTodoResumePlanning(request.resume),
     ...projectQuotaSelection(request.selection)};

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -99,3 +102,55 @@ def pytest_addoption(parser) -> None:
         dest="loopx_smoke_timeout",
         help="Per-check timeout in seconds for each subprocess smoke.",
     )
+
+
+_GIT_ENV_OVERRIDES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+)
+
+
+@pytest.fixture
+def independent_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A linked git worktree of a private temporary repository.
+
+    A multi-agent goal only settles accountable delivery that was refreshed
+    from an independent git worktree. Without an explicit delivery workspace,
+    refresh-state and ``turn run-once`` capture the process cwd, so a test that
+    relies on the default would pass from a linked worktree of the LoopX
+    checkout and fail from the primary checkout. Tests use this worktree as
+    their delivery workspace instead: pass it with --delivery-workspace-path,
+    or ``monkeypatch.chdir`` into it the way the dispatcher starts a Turn in
+    its workspace. Inherited ``GIT_*`` repository overrides (for example from
+    a git hook) are cleared so git discovery only sees the temporary paths.
+    """
+
+    for name in _GIT_ENV_OVERRIDES:
+        monkeypatch.delenv(name, raising=False)
+    origin = tmp_path / "delivery-origin"
+    worktree = tmp_path / "delivery-worktree"
+    git = [
+        "git",
+        "-c", "user.name=LoopX Test",
+        "-c", "user.email=loopx-test@example.invalid",
+        "-c", "commit.gpgsign=false",
+        "-c", "init.defaultBranch=main",
+    ]
+    subprocess.run([*git, "init", "--quiet", str(origin)], check=True)
+    subprocess.run(
+        [*git, "-C", str(origin), "commit", "--quiet", "--allow-empty", "-m", "init"],
+        check=True,
+    )
+    subprocess.run(
+        [*git, "-C", str(origin), "worktree", "add", "--quiet", "--detach", str(worktree)],
+        check=True,
+    )
+    return worktree

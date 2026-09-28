@@ -313,6 +313,8 @@ def test_no_followup_does_not_hide_unresolved_vision_checkpoint() -> None:
         goal_id="goal-terminal-test",
         status="active",
         recommended_action="Resolve the vision checkpoint.",
+        # Vision checkpoints are a peer_v1 contract (fork decision 31).
+        coordination={"agent_model": "peer_v1"},
         user_todos=parsed["user_todos"],
         agent_todos=parsed["agent_todos"],
         latest_runs=[
@@ -351,6 +353,8 @@ def test_no_followup_does_not_hide_open_vision_acceptance() -> None:
         goal_id="goal-terminal-test",
         status="active",
         recommended_action="Resolve the broader acceptance gap.",
+        # Vision checkpoints are a peer_v1 contract (fork decision 31).
+        coordination={"agent_model": "peer_v1"},
         user_todos=parsed["user_todos"],
         agent_todos=parsed["agent_todos"],
         latest_runs=[latest_run],

@@ -40,6 +40,124 @@ def registered_agent_ids_for_goal(goal: dict[str, Any] | None) -> list[str]:
     return agents
 
 
+def normalize_agent_roles(
+    values: Any,
+    *,
+    registered_agents: list[str] | None = None,
+) -> dict[str, str]:
+    """Normalize ``coordination.agent_roles`` ({agent_id: role}).
+
+    Unknown roles and agents outside ``registered_agents`` (when given) are
+    rejected so the registry never stores an ambiguous role map. At most one
+    orchestrator is allowed per goal.
+    """
+
+    from .control_plane.agents.runtime_model import (
+        AGENT_ROLE_ORCHESTRATOR,
+        AGENT_ROLE_VALUES,
+        normalize_agent_role,
+    )
+
+    if values is None:
+        return {}
+    if not isinstance(values, dict):
+        raise ValueError("coordination.agent_roles must map agent ids to roles")
+    roles: dict[str, str] = {}
+    for raw_agent, raw_role in values.items():
+        agent = normalize_todo_claimed_by(raw_agent)
+        if not agent:
+            raise ValueError(
+                "agent role keys must be public-safe agent ids such as codex-dev-1"
+            )
+        role = normalize_agent_role(raw_role)
+        if not role:
+            raise ValueError(
+                f"agent role for {agent!r} must be one of: " + ", ".join(AGENT_ROLE_VALUES)
+            )
+        if registered_agents is not None and agent not in registered_agents:
+            raise ValueError(
+                f"agent role for {agent!r} requires a registered agent; "
+                f"registered_agents={', '.join(registered_agents) or '(none)'}"
+            )
+        roles[agent] = role
+    orchestrators = sorted(
+        agent for agent, role in roles.items() if role == AGENT_ROLE_ORCHESTRATOR
+    )
+    if len(orchestrators) > 1:
+        raise ValueError(
+            "a goal may have at most one orchestrator; found: " + ", ".join(orchestrators)
+        )
+    return dict(sorted(roles.items()))
+
+
+def agent_roles_for_goal(goal: dict[str, Any] | None) -> dict[str, str]:
+    """Return the goal's registered agent roles, ignoring malformed entries."""
+
+    if not isinstance(goal, dict):
+        return {}
+    coordination = goal.get("coordination")
+    raw = coordination.get("agent_roles") if isinstance(coordination, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    registered = registered_agent_ids_for_goal(goal)
+    from .control_plane.agents.runtime_model import normalize_agent_role
+
+    roles: dict[str, str] = {}
+    for raw_agent, raw_role in raw.items():
+        agent = normalize_todo_claimed_by(raw_agent)
+        role = normalize_agent_role(raw_role)
+        if agent and role and agent in registered:
+            roles[agent] = role
+    return dict(sorted(roles.items()))
+
+
+def agent_role_for_goal(goal: dict[str, Any] | None, agent_id: str | None) -> str | None:
+    agent = normalize_todo_claimed_by(agent_id)
+    if not agent:
+        return None
+    return agent_roles_for_goal(goal).get(agent)
+
+
+def acceptor_agents_for_goal(goal: dict[str, Any] | None) -> list[str]:
+    """Return the goal's role=acceptor agents (sorted) under role_v1."""
+
+    from .control_plane.agents.runtime_model import (
+        AgentRuntimeModel,
+        agent_runtime_model_for_goal,
+    )
+
+    try:
+        if agent_runtime_model_for_goal(goal) != AgentRuntimeModel.ROLE_V1:
+            return []
+    except ValueError:
+        return []
+    return sorted(
+        agent for agent, role in agent_roles_for_goal(goal).items() if role == "acceptor"
+    )
+
+
+def orchestrator_agent_for_goal(goal: dict[str, Any] | None) -> str | None:
+    """Return the goal's single orchestrator under role_v1, else None."""
+
+    from .control_plane.agents.runtime_model import (
+        AGENT_ROLE_ORCHESTRATOR,
+        AgentRuntimeModel,
+        agent_runtime_model_for_goal,
+    )
+
+    try:
+        if agent_runtime_model_for_goal(goal) != AgentRuntimeModel.ROLE_V1:
+            return None
+    except ValueError:
+        return None
+    orchestrators = sorted(
+        agent
+        for agent, role in agent_roles_for_goal(goal).items()
+        if role == AGENT_ROLE_ORCHESTRATOR
+    )
+    return orchestrators[0] if len(orchestrators) == 1 else None
+
+
 def agent_profile_for_goal(goal: dict[str, Any] | None, agent_id: str | None) -> dict[str, Any] | None:
     normalized_agent_id = normalize_todo_claimed_by(agent_id)
     if not isinstance(goal, dict) or not normalized_agent_id:

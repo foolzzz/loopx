@@ -33,6 +33,7 @@ from ..goals.goal_frontier import (
 from ..quota.blocked_transition_notice import build_blocked_transition_notice
 from ..quota.error_codes import HeartbeatReceiptIdentityConflictError
 from ..agents.capability_memory import resolve_agent_capabilities
+from ..agents.runtime_model import goal_agent_runtime_model_or_none
 from ..quota.goal_boundary import (
     goal_boundary as _goal_boundary,
 )
@@ -162,6 +163,7 @@ class _QuotaDecisionPreparation:
     registered_agent_ids: list[str]
     replan_obligation: dict[str, Any] | None
     replan_scope: dict[str, Any]
+    orchestrator_agent_id: str | None
     goal_frontier_projection: dict[str, Any]
     projection_gap: dict[str, Any] | None
     boundary_projection_repair: dict[str, Any] | None
@@ -466,6 +468,42 @@ def _deferred_receipt_bound_work_lane(
     return None
 
 
+def _with_role_v1_lane_facts(
+    identity: dict[str, Any] | None, *, runtime_root: Any, goal_id: str,
+) -> dict[str, Any] | None:
+    """Add role_v1 lane facts read from gate and plan-card state.
+
+    An acceptor gets the todos whose acceptance-criteria change awaits the
+    user on a plan card (decision 40); it does not review them meanwhile.
+    An orchestrator gets the gates whose discussion thread waits on it.
+
+    Design decision 10: a user reply on a gate thread triggers an orchestrator
+    Turn. The orchestrator's own clarification or plan gate otherwise blocks
+    its lane, so the reply could never be answered. Only role_v1
+    orchestrators get the list; every other lane keeps the gate rules.
+    """
+
+    if isinstance(identity, dict) and identity.get("role") == "acceptor" and identity.get("agent_model") == "role_v1":
+        # Decision 40: no review of a todo whose criteria change awaits the user.
+        from ...plan_criteria_changes import criteria_change_pending_todo_ids
+
+        held = criteria_change_pending_todo_ids(runtime_root, goal_id)
+        return {**identity, "criteria_change_pending_todo_ids": held[:64]} if held else identity
+    if not isinstance(identity, dict) or identity.get("role") != "orchestrator":
+        return identity
+    if identity.get("agent_model") != "role_v1" or not runtime_root:
+        return identity
+    from ...gate_threads import gates_awaiting_orchestrator
+
+    try:
+        awaiting = gates_awaiting_orchestrator(Path(str(runtime_root)), goal_id)
+    except (OSError, ValueError):
+        return identity
+    if not awaiting:
+        return identity
+    return {**identity, "awaiting_orchestrator_gate_ids": awaiting[:32]}
+
+
 def _prepare_quota_should_run_item(
     status_payload: dict[str, Any],
     *,
@@ -495,7 +533,11 @@ def _prepare_quota_should_run_item(
     reason = str(quota.get("reason") or "quota state is not eligible")
     if not goal_health_ok:
         reason = "status or contract health is not ok; skip automatic compute"
-    agent_identity = build_quota_agent_identity(item, agent_id=requested_agent_id)
+    agent_identity = _with_role_v1_lane_facts(
+        build_quota_agent_identity(item, agent_id=requested_agent_id),
+        runtime_root=status_payload.get("runtime_root"),
+        goal_id=safe_goal_id,
+    )
     item, project_asset, agent_lane_recommendation = _scope_status_item_to_agent_lane(
         item=item,
         latest_runs=_goal_latest_runs(status_payload, goal_id=safe_goal_id),
@@ -786,9 +828,15 @@ def _prepare_quota_should_run_item(
         if isinstance(agent_identity, dict)
         else []
     )
+    orchestrator_agent_id = (
+        normalize_todo_claimed_by(agent_identity.get("orchestrator_agent_id"))
+        if isinstance(agent_identity, dict)
+        else None
+    )
     goal_frontier_context = build_goal_frontier_projection_context_from_status(
         goal_id=safe_goal_id,
         agent_id=agent_frontier_id,
+        orchestrator_agent_id=orchestrator_agent_id,
         status_payload=status_payload,
         item=item,
         project_asset=project_asset,
@@ -804,6 +852,8 @@ def _prepare_quota_should_run_item(
         registered_agent_ids=registered_agent_ids,
         goal_status=str(registry_goal.get("status") or ""),
         agent_profile=_quota_agent_profile(agent_identity),
+        # The same goal view as the identity packet (its coordination block).
+        agent_runtime_model=goal_agent_runtime_model_or_none(item),
     )
     replan_obligation = (
         None
@@ -819,7 +869,12 @@ def _prepare_quota_should_run_item(
         if isinstance(goal_frontier_context.get("goal_frontier_projection"), dict)
         else {}
     )
-    projection_gap = build_state_projection_gap(item, project_asset)
+    projection_gap = build_state_projection_gap(
+        item,
+        project_asset,
+        # role_v1: a Next Action raises no projection demand (decisions 39, 42).
+        agent_runtime_model=goal_agent_runtime_model_or_none(item),
+    )
     projection_gap_repair = build_state_projection_gap_repair_hint(
         projection_gap,
         candidate_should_run=bool(
@@ -898,6 +953,7 @@ def _prepare_quota_should_run_item(
         registered_agent_ids=registered_agent_ids,
         replan_obligation=replan_obligation,
         replan_scope=replan_scope,
+        orchestrator_agent_id=orchestrator_agent_id,
         goal_frontier_projection=goal_frontier_projection,
         projection_gap=projection_gap,
         boundary_projection_repair=boundary_projection_repair,

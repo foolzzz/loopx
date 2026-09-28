@@ -102,3 +102,40 @@ test("malformed facts are rejected, not coerced into scope or execution authorit
   }
   assert.throws(() => projectQuotaSelection(request([], {visibility_limit: -1})));
 });
+
+test("role_v1 selection routes todos by required role", () => {
+  const items = [
+    row("impl"),
+    row("dev-explicit", {required_role: "developer"}),
+    row("review", {required_role: "acceptor"}),
+    row("plan-explicit", {required_role: "orchestrator"}),
+    row("replan", {planning: true}),
+    row("blocker", {task_class: "blocker", actionable: false}),
+    row("gate", {gate: true}),
+  ];
+  const lanesFor = (role: string | null, model = "role_v1") =>
+    projectQuotaSelection(request(items, {agent_model: model, agent_role: role})).lanes as JsonObject;
+  const developer = lanesFor("developer");
+  assert.deepEqual(ids(developer.open_items), ["impl", "dev-explicit"]);
+  assert.deepEqual(ids(developer.executable_items), ["impl", "dev-explicit"]);
+  const scope = developer.role_scope as JsonObject;
+  assert.equal(scope.agent_role, "developer");
+  assert.equal(scope.role_filtered_open_count, 5);
+  assert.equal((developer.claim_scope as JsonObject).agent_model, "role_v1");
+  // The orchestrator never receives developer implementation work.
+  assert.deepEqual(ids(lanesFor("orchestrator").open_items),
+    ["plan-explicit", "replan", "blocker", "gate"]);
+  assert.deepEqual(ids(lanesFor("acceptor").open_items), ["review"]);
+  // Unroled agents and peer_v1 goals keep the flat peer behaviour.
+  assert.equal(ids(lanesFor(null).open_items).length, items.length);
+  assert.equal(ids(lanesFor("developer", "peer_v1").open_items).length, items.length);
+  assert.equal(lanesFor(null).role_scope, undefined);
+});
+
+test("role_v1 filtering also scopes active next actions and rejects unknown roles", () => {
+  const items = [row("impl"), row("review", {required_role: "acceptor"})];
+  const lanes = projectQuotaSelection(request(items, {agent_model: "role_v1", agent_role: "acceptor"})).lanes as JsonObject;
+  assert.deepEqual(ids(lanes.active_next_action_items), ["review"]);
+  assert.throws(() => projectQuotaSelection(request(items, {agent_model: "role_v1", agent_role: "boss"})));
+  assert.throws(() => projectQuotaSelection(request([row("bad", {required_role: "boss"})])));
+});

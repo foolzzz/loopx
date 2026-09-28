@@ -17,6 +17,7 @@ from ..effect_program import (
     settlement_result_payload,
 )
 from ..goals.goal_vision import normalize_goal_vision_packet
+from ..goals.vision_checkpoint import VISION_CHECKPOINT_POLICY_NOT_REQUIRED
 from ..work_items.delivery_batch_scale import require_delivery_batch_scale
 from ..work_items.delivery_outcome import require_delivery_outcome
 from . import subagent_execution_topology as subagent
@@ -33,6 +34,7 @@ from .host_binding import (
     managed_executor_unavailable_payload,
 )
 from .host_failure import BuiltInHostError, record_host_failure
+from .turn_usage import host_turn_usage
 from .journal_store import (
     LOOPX_TURN_JOURNAL_SCHEMA_VERSION,
     TURN_KEY_RE,
@@ -98,6 +100,13 @@ MATERIAL_HOST_RESULT_KINDS = {
     LoopXTurnResultKind.REPAIR_REQUIRED,
     LoopXTurnResultKind.REPLAN_REQUIRED,
 }
+# Fork decision 31: a role_v1 Turn owes no per-agent vision decision. The
+# command layer marks such a plan; hosts are then not asked for the vision
+# fields, and any they return are ignored rather than validated.
+TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD = "vision_checkpoint_policy"
+HOST_VISION_RESULT_FIELDS = frozenset(
+    {"vision_unchanged_reason", "path_delta_mode", "agent_vision_json"}
+)
 HOST_RESULT_FIELDS = {
     "schema_version",
     "turn_key",
@@ -125,6 +134,20 @@ Scheduler = Callable[[dict[str, Any]], dict[str, Any]]
 HostRunner = Callable[[Mapping[str, Any]], dict[str, Any]]
 
 
+def mark_turn_plan_vision_checkpoint_not_required(plan: dict[str, Any]) -> None:
+    """Record on a Turn plan that its goal owes no per-agent vision (role_v1)."""
+
+    plan[TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD] = VISION_CHECKPOINT_POLICY_NOT_REQUIRED
+
+
+def turn_plan_requires_vision_checkpoint(plan: Mapping[str, Any] | None) -> bool:
+    return not (
+        isinstance(plan, Mapping)
+        and plan.get(TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD)
+        == VISION_CHECKPOINT_POLICY_NOT_REQUIRED
+    )
+
+
 def build_loopx_turn_host_request(plan: Mapping[str, Any]) -> dict[str, Any]:
     transaction = (
         plan.get("transaction") if isinstance(plan.get("transaction"), dict) else {}
@@ -150,6 +173,10 @@ def build_loopx_turn_host_request(plan: Mapping[str, Any]) -> dict[str, Any]:
     reward_memory_recall = plan.get("reward_memory_recall")
     if isinstance(reward_memory_recall, Mapping):
         request["reward_memory_recall"] = dict(reward_memory_recall)
+    if not turn_plan_requires_vision_checkpoint(plan):
+        request[TURN_PLAN_VISION_CHECKPOINT_POLICY_FIELD] = (
+            VISION_CHECKPOINT_POLICY_NOT_REQUIRED
+        )
     request.update(subagent.subagent_host_request_projection(plan))
     return request
 
@@ -293,13 +320,20 @@ def validate_loopx_turn_host_result(
         errors.append("host result completed_phases must be host_execute, typed_result")
 
     material = kind in MATERIAL_HOST_RESULT_KINDS
+    vision_checkpoint_required = turn_plan_requires_vision_checkpoint(plan)
+    # Pilot v1 N6: an acceptor review Turn carries its verdict feedback in summary.
+    from .acceptor_verdict import host_result_text_limits
+
+    text_limits = host_result_text_limits(HOST_RESULT_TEXT_LIMITS, plan)
     normalized = {
         "schema_version": LOOPX_TURN_RESULT_SCHEMA_VERSION,
         "turn_key": turn_key,
         "result_kind": kind.value if kind else None,
         "completed_phases": list(TRANSACTION_PHASES[:2]),
     }
-    for field, limit in HOST_RESULT_TEXT_LIMITS:
+    for field, limit in text_limits.items():
+        if not vision_checkpoint_required and field in HOST_VISION_RESULT_FIELDS:
+            continue
         text = _bounded_public_text(
             result,
             field,
@@ -337,6 +371,10 @@ def validate_loopx_turn_host_result(
         except ValueError as exc:
             errors.append(str(exc))
 
+    if material and not vision_checkpoint_required:
+        # role_v1: the orchestrator plans through todos, plans and gates.
+        normalized["path_delta_mode"] = "unchanged"
+    elif material:
         unchanged_reason = str(normalized.get("vision_unchanged_reason") or "")
         path_delta_mode, agent_vision = _normalize_host_path_delta(
             plan,
@@ -355,7 +393,7 @@ def validate_loopx_turn_host_result(
         normalized["path_delta_mode"] = path_delta_mode
         if agent_vision is not None:
             normalized["agent_vision"] = agent_vision
-    elif (
+    elif vision_checkpoint_required and (
         str(result.get("path_delta_mode") or "").strip()
         or str(result.get("agent_vision_json") or "").strip()
     ):
@@ -701,6 +739,7 @@ def _run_host_runner(
     try:
         value = runner(request)
     except BuiltInHostError as exc:
+        usage = host_turn_usage(exc)
         return {
             "ok": False,
             "reason": exc.reason,
@@ -711,6 +750,7 @@ def _run_host_runner(
                 if exc.recovery_kind is not None
                 else {}
             ),
+            **({"turn_usage": usage} if usage is not None else {}),
         }
     except Exception as exc:  # noqa: BLE001 - host adapters fail closed at boundary
         return {"ok": False, "reason": type(exc).__name__, "returncode": None}
@@ -724,7 +764,13 @@ def _run_host_runner(
             "ok": False,
             "reason": "built-in host result exceeded the result budget",
         }
-    return {"ok": True, "value": value, "returncode": 0}
+    usage = host_turn_usage(value)
+    return {
+        "ok": True,
+        "value": dict(value),
+        "returncode": 0,
+        **({"turn_usage": usage} if usage is not None else {}),
+    }
 
 
 def _compact_callback(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -780,6 +826,14 @@ def _host_result_stage(
             )
         )
         effects["host_invoked"] = True
+        # G9: journal what this host attempt cost, success or failure.
+        if isinstance(host_observation.get("turn_usage"), Mapping):
+            journal["turn_usage"] = {
+                **host_observation["turn_usage"],
+                "host_attempt": int(journal["host_attempt_count"]),
+            }
+        else:
+            journal.pop("turn_usage", None)
         if not host_observation.get("ok"):
             failure = _host_failure(
                 plan,
@@ -1230,7 +1284,11 @@ def run_loopx_turn_once(
     post_settlement: PostSettlement | None = None,
     admit_start: Callable[[Mapping[str, Any]], dict[str, Any]] | None = None,
     confirm_start: Callable[[], None] | None = None,
+    turn_lane_todo_id: str | None = None,
 ) -> dict[str, Any]:
+    # ``turn_lane_todo_id`` is consumed by the lane fence decorator: it selects
+    # the role_v1 (goal, todo) lane instead of the (agent, goal) lane.
+    del turn_lane_todo_id
     if host_runner is not None and host_argv is not None:
         raise ValueError("run-once accepts either host_argv or host_runner, not both")
     if host_runner is None:

@@ -62,7 +62,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ...agent_registry import registered_agent_ids_for_goal
+from ...agent_registry import orchestrator_agent_for_goal, registered_agent_ids_for_goal
 from ...event_sourced_state import now_utc_iso
 from ...file_lock import exclusive_file_lock
 from ...history import load_index, load_registry
@@ -256,6 +256,7 @@ def admit_goal_amendment_proposal(
         goal_id=proposal_goal_id,
         registered_agents=registered_agent_ids_for_goal(goal),
         status_item=derived_status_item,
+        orchestrator_agent_id=orchestrator_agent_for_goal(goal),
     )
     request = {
         "schema_version": GOAL_AMENDMENT_PROPOSAL_REQUEST_SCHEMA_VERSION,
@@ -360,6 +361,7 @@ def _open_replan_obligation_inventory(
     goal_id: str,
     registered_agents: list[str],
     status_item: Mapping[str, Any] | None,
+    orchestrator_agent_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Derive the goal's open, required replan obligations as typed facts.
 
@@ -401,6 +403,7 @@ def _open_replan_obligation_inventory(
                 normalized,
                 agent_id=agent_id,
                 registered_agent_ids=registered_agents,
+                orchestrator_agent_id=orchestrator_agent_id,
             ).get("applies")
         ]
         inventory[str(obligation_id)] = {

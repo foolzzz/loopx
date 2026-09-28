@@ -81,8 +81,10 @@ test("registration, exclusion, and self-merge invariants fail closed", () => {
       resolveTodoCompletionPolicy(
         request({ agent_model: "hierarchy_v2" }),
       ),
-    /coordination.agent_model must be peer_v1/,
+    /coordination.agent_model must be role_v1 or peer_v1/,
   );
+  // role_v1 (fork default) is an accepted runtime model.
+  assert.doesNotThrow(() => resolveTodoCompletionPolicy(request({ agent_model: "role_v1" })));
 });
 
 test("empty next_agent_todo preserves legacy absence semantics", () => {

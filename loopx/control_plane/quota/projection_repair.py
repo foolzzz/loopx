@@ -5,6 +5,11 @@ import fnmatch
 from typing import Any
 
 from ...state_projection import actions_are_projection_aligned, is_user_wait_text
+from ..agents.runtime_model import (
+    AgentRuntimeModel,
+    next_action_executable_demands_agent_todo,
+    next_action_wait_demands_user_todo,
+)
 from ..todos.contract import (
     TODO_TASK_CLASS_ADVANCEMENT,
     normalize_required_write_scopes,
@@ -28,7 +33,16 @@ def open_todo_count(summary: dict[str, Any] | None) -> int:
 def build_state_projection_gap(
     item: dict[str, Any],
     project_asset: dict[str, Any],
+    *,
+    agent_runtime_model: AgentRuntimeModel | None = None,
 ) -> dict[str, Any] | None:
+    """Return the state-projection gap should-run must repair, if any.
+
+    The gap is recorded at refresh time; the demand is re-derived here on
+    read. A role_v1 goal drops the "Next Action waits without a User Todo"
+    evidence (fork decision 39) and the "executable Next Action without an
+    Agent Todo" evidence (fork decision 42), including from a persisted gap.
+    """
     gap = (
         item.get("state_projection_gap")
         if isinstance(item.get("state_projection_gap"), dict)
@@ -40,10 +54,21 @@ def build_state_projection_gap(
         return None
     if gap.get("requires_todo_expansion") is not True:
         return None
-    return revalidate_state_projection_gap(gap)
+    return revalidate_state_projection_gap(
+        gap,
+        user_wait_demand=next_action_wait_demands_user_todo(agent_runtime_model),
+        agent_executable_demand=next_action_executable_demands_agent_todo(
+            agent_runtime_model
+        ),
+    )
 
 
-def revalidate_state_projection_gap(gap: dict[str, Any]) -> dict[str, Any] | None:
+def revalidate_state_projection_gap(
+    gap: dict[str, Any],
+    *,
+    user_wait_demand: bool = True,
+    agent_executable_demand: bool = True,
+) -> dict[str, Any] | None:
     if not isinstance(gap, dict):
         return None
     evidence_items = gap.get("first_evidence")
@@ -51,7 +76,7 @@ def revalidate_state_projection_gap(gap: dict[str, Any]) -> dict[str, Any] | Non
         return gap
 
     retained: list[dict[str, Any]] = []
-    removed_user_wait = False
+    removed_roles: set[str] = set()
     for item in evidence_items:
         if not isinstance(item, dict):
             continue
@@ -59,12 +84,21 @@ def revalidate_state_projection_gap(gap: dict[str, Any]) -> dict[str, Any] | Non
             item.get("target_role") == "user"
             and item.get("kind") == "next_action_waits_without_user_todo"
         )
-        if is_user_wait_evidence and not is_user_wait_text(item.get("text")):
-            removed_user_wait = True
+        if is_user_wait_evidence and (
+            not user_wait_demand or not is_user_wait_text(item.get("text"))
+        ):
+            removed_roles.add("user")
+            continue
+        is_agent_executable_evidence = (
+            item.get("target_role") == "agent"
+            and item.get("kind") == "next_action_executable_without_agent_todo"
+        )
+        if is_agent_executable_evidence and not agent_executable_demand:
+            removed_roles.add("agent")
             continue
         retained.append(item)
 
-    if not removed_user_wait:
+    if not removed_roles:
         return gap
     if not retained:
         target_roles = {
@@ -72,7 +106,7 @@ def revalidate_state_projection_gap(gap: dict[str, Any]) -> dict[str, Any] | Non
             for role in gap.get("target_roles", [])
             if str(role or "").strip()
         }
-        return None if target_roles <= {"user"} else gap
+        return None if target_roles <= removed_roles else gap
 
     revised = dict(gap)
     revised["first_evidence"] = retained

@@ -48,9 +48,22 @@ TODO_OPTION_FIELDS = (
     ("--excluded-agent", "excluded_agents"),
     ("--clear-excluded-agents", "clear_excluded_agents"),
     ("--global-gate", "global_gate"),
+    ("--required-role", "required_role"),
+    ("--clear-required-role", "clear_required_role"),
+    ("--requires-acceptance", "requires_acceptance"),
+    ("--acceptor-agent", "acceptor_agent"),
+    ("--clear-acceptor-agent", "clear_acceptor_agent"),
+    ("--reject-count", "reject_count"),
+    ("--task-repo", "task_repositories"),
+    ("--clear-task-repos", "clear_task_repositories"),
+    ("--acceptance-criteria", "acceptance_criteria"),
+    ("--clear-acceptance-criteria", "clear_acceptance_criteria"),
+    ("--review-feedback", "review_feedback"),
+    ("--clear-review-feedback", "clear_review_feedback"),
     ("--clear-global-gate", "clear_global_gate"),
     ("--unblocks-todo-id", "unblocks_todo_id"),
     ("--successor-todo-id", "successor_todo_ids"),
+    ("--by", "supersede_by"),
     ("--resume-when", "resume_when"),
     ("--validation-command", "validation_command"),
     ("--validation-command-json", "validation_command_json"),
@@ -94,8 +107,21 @@ _TODO_UPDATE_MUTABLE_FIELDS = (
     "resume_when", "clear_resume_when", "no_follow_up", "monitor_target_key",
     "cadence", "next_due_at", "expires_at", "watch_only", "clear_claim",
     "validation_command", "validation_command_json", "validation_label",
-    "validation_timeout_seconds",
+    "validation_timeout_seconds", "required_role", "clear_required_role",
+    "requires_acceptance", "acceptor_agent", "clear_acceptor_agent", "reject_count",
+    "task_repositories", "clear_task_repositories", "acceptance_criteria",
+    "clear_acceptance_criteria", "review_feedback", "clear_review_feedback",
 )
+
+TODO_ROLE_CONTRACT_OPTION_FIELDS = (
+    "required_role", "clear_required_role", "requires_acceptance", "acceptor_agent",
+    "clear_acceptor_agent", "reject_count", "task_repositories",
+    "clear_task_repositories", "acceptance_criteria", "clear_acceptance_criteria",
+    "review_feedback", "clear_review_feedback",
+)
+# Fork G2: the orchestrator-owned acceptance_criteria field is updated in its
+# own call, so the lifecycle write can be attributed to the claim owner.
+TODO_ACCEPTANCE_CRITERIA_OPTION_FIELDS = ("acceptance_criteria", "clear_acceptance_criteria")
 
 _TODO_UPDATE_UNSUPPORTED_FIELDS = (
     (
@@ -134,6 +160,8 @@ _TODO_ADD_UNSUPPORTED_FIELDS = (
     "next_claimed_by", "next_task_repository", "next_required_capabilities",
     "next_continuation_policy", "next_excluded_agents", "clear_excluded_agents",
     "clear_blocks_agent", "self_merged", "no_follow_up", "clear_priority",
+    "clear_required_role", "clear_acceptor_agent", "clear_task_repositories",
+    "clear_acceptance_criteria", "review_feedback", "clear_review_feedback",
 )
 _TODO_OPTION_FLAGS = {field: flag for flag, field in TODO_OPTION_FIELDS}
 
@@ -147,6 +175,17 @@ def register_todo_linkage_arguments(
             "For todo add/update, link this todo to the blocked todo it unblocks, "
             "for example todo_ab12cd34ef56. Completing an exactly linked user_gate "
             "also consumes the target required decision scopes covered by that gate."
+        ),
+    )
+    todo_parser.add_argument(
+        "--by",
+        dest="supersede_by",
+        action="append",
+        help=(
+            "For todo supersede under role_v1, the existing todo(s) that replace "
+            "--todo-id (comma-separated or repeated; several ids split it). Every "
+            "todo that depended on it then depends on all of them. Orchestrator or "
+            "owner only; a superseded todo never counts as done."
         ),
     )
     todo_parser.add_argument(
@@ -261,6 +300,130 @@ def register_todo_successor_creation_arguments(
             "peer from claiming or executing the successor. Repeat for multiple peers."
         ),
     )
+
+
+def register_todo_role_contract_arguments(
+    todo_parser: argparse.ArgumentParser,
+) -> None:
+    """role_v1 routing/acceptance fields for todo add/update."""
+
+    todo_parser.add_argument(
+        "--required-role",
+        choices=["orchestrator", "developer", "acceptor"],
+        help=(
+            "For todo add/update under role_v1, route the todo to agents with this "
+            "role. Without it, advancement work defaults to developer and gates, "
+            "blockers and replans default to orchestrator."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-required-role",
+        action="store_true",
+        help="For todo update, remove the explicit required_role.",
+    )
+    todo_parser.add_argument(
+        "--requires-acceptance",
+        choices=["true", "false"],
+        help=(
+            "For todo add/update, whether completion must pass an acceptor. "
+            "Defaults to true for developer implementation todos."
+        ),
+    )
+    todo_parser.add_argument(
+        "--acceptor-agent",
+        help="For todo add/update, bind the registered acceptor agent for this todo.",
+    )
+    todo_parser.add_argument(
+        "--clear-acceptor-agent",
+        action="store_true",
+        help="For todo update, remove the bound acceptor agent.",
+    )
+    todo_parser.add_argument(
+        "--reject-count",
+        type=int,
+        help="For todo add/update, set the acceptance rejection count (default 0).",
+    )
+    todo_parser.add_argument(
+        "--task-repo",
+        dest="task_repositories",
+        action="append",
+        help=(
+            "For agent todo add/update, name one goal repository the todo targets "
+            "(multi-repo todos repeat the flag). Replaces the list on update."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-task-repos",
+        dest="clear_task_repositories",
+        action="store_true",
+        help="For todo update, remove all named task repositories.",
+    )
+    todo_parser.add_argument(
+        "--acceptance-criteria",
+        help=(
+            "For todo add/update, set the todo's acceptance criteria. Under role_v1 only "
+            "the goal orchestrator (or the owner) may write them; on update pass it "
+            "without other fields. A change is recorded as a major change."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-acceptance-criteria",
+        action="store_true",
+        help="For todo update, remove the todo's acceptance criteria.",
+    )
+    todo_parser.add_argument(
+        "--review-feedback",
+        help=(
+            "For todo update, set review_feedback: the rework instructions the "
+            "developer sees on its next Turn (the orchestrator after an escalation)."
+        ),
+    )
+    todo_parser.add_argument(
+        "--clear-review-feedback",
+        action="store_true",
+        help="For todo update, remove review_feedback.",
+    )
+
+
+def todo_role_contract_from_args(args: argparse.Namespace) -> dict[str, object] | None:
+    """Translate role_v1 todo flags into one explicit field patch.
+
+    Present keys are written; a ``None`` value is an explicit clear.
+    """
+
+    patch: dict[str, object] = {}
+    pairs = (
+        ("required_role", "clear_required_role"),
+        ("acceptor_agent", "clear_acceptor_agent"),
+        ("task_repositories", "clear_task_repositories"),
+        ("acceptance_criteria", "clear_acceptance_criteria"),
+        ("review_feedback", "clear_review_feedback"),
+    )
+    for field, clear_field in pairs:
+        value = getattr(args, field, None)
+        clear = bool(getattr(args, clear_field, False))
+        if value and clear:
+            raise ValueError(
+                f"{_TODO_OPTION_FLAGS[field]} cannot be combined with "
+                f"{_TODO_OPTION_FLAGS[clear_field]}"
+            )
+        if clear:
+            patch[field] = None
+        elif value:
+            patch[field] = value
+    requires_acceptance = getattr(args, "requires_acceptance", None)
+    if requires_acceptance is not None:
+        patch["requires_acceptance"] = requires_acceptance == "true"
+    reject_count = getattr(args, "reject_count", None)
+    if reject_count is not None:
+        if reject_count < 0:
+            raise ValueError("--reject-count must be a non-negative integer")
+        patch["reject_count"] = reject_count
+    return patch or None
+
+
+def todo_acceptance_criteria_update_requested(args: argparse.Namespace) -> bool:
+    return any(getattr(args, field, None) for field in TODO_ACCEPTANCE_CRITERIA_OPTION_FIELDS)
 
 
 def unsupported_todo_options(
@@ -389,8 +552,22 @@ def validate_todo_update_options(args: argparse.Namespace) -> None:
             "todo update accepts either --explore-result-node-ref or "
             "--clear-explore-result-node-refs, not both"
         )
-    if not any(getattr(args, field) for field in _TODO_UPDATE_MUTABLE_FIELDS):
+    if not any(getattr(args, field) for field in _TODO_UPDATE_MUTABLE_FIELDS) and (
+        getattr(args, "reject_count", None) is None
+    ):
         raise ValueError("todo update requires at least one mutable todo field")
+    if todo_acceptance_criteria_update_requested(args):
+        others = [
+            _TODO_OPTION_FLAGS[field] for field in _TODO_UPDATE_MUTABLE_FIELDS
+            if field not in TODO_ACCEPTANCE_CRITERIA_OPTION_FIELDS and getattr(args, field)
+        ]
+        if getattr(args, "reject_count", None) is not None:
+            others.append("--reject-count")
+        if others:
+            raise ValueError(
+                "todo update --acceptance-criteria/--clear-acceptance-criteria must be "
+                "used without other fields (" + ", ".join(others) + ")"
+            )
     validation_fields = (
         args.validation_command,
         args.validation_command_json,
@@ -467,6 +644,45 @@ def validate_todo_complete_options(args: argparse.Namespace) -> None:
     validate_successor_routing_options(args)
 
 
+def validate_todo_verdict_options(args: argparse.Namespace) -> None:
+    """role_v1 acceptor verdict (fork S2): ``todo accept`` / ``todo reject``."""
+
+    verb = args.todo_command
+    allowed = {"todo_id", "agent_id", "note", "role", "state_file"} | ({"evidence"} if verb == "accept" else set())
+    _validate_todo_option_subset(
+        args, allowed,
+        f"todo {verb} only accepts --goal-id, --todo-id, --agent-id, --note"
+        + (", --evidence" if verb == "accept" else "")
+        + ", --project, --state-file, --dry-run and --format; unsupported: ",
+    )
+    if not args.todo_id:
+        raise ValueError(f"todo {verb} requires --todo-id")
+    if not args.agent_id:
+        raise ValueError(f"todo {verb} requires --agent-id of the acceptor")
+    if args.role not in (None, "agent"):
+        raise ValueError(f"todo {verb} applies only to agent todos")
+    if verb == "reject" and not (args.note or "").strip():
+        raise ValueError("todo reject requires --note with the acceptor's feedback")
+
+
+def validate_todo_block_review_options(args: argparse.Namespace) -> None:
+    """role_v1 acceptor verdict ``blocked`` (fork G12): ``todo block-review``."""
+
+    _validate_todo_option_subset(
+        args, {"todo_id", "agent_id", "reason", "role", "state_file"},
+        "todo block-review only accepts --goal-id, --todo-id, --agent-id, --reason, "
+        "--project, --state-file, --dry-run and --format; unsupported: ",
+    )
+    if not args.todo_id:
+        raise ValueError("todo block-review requires --todo-id")
+    if not args.agent_id:
+        raise ValueError("todo block-review requires --agent-id of the acceptor")
+    if args.role not in (None, "agent"):
+        raise ValueError("todo block-review applies only to agent todos")
+    if not (args.reason or "").strip():
+        raise ValueError("todo block-review requires --reason: why the acceptor cannot review")
+
+
 def validate_todo_supersede_options(args: argparse.Namespace) -> None:
     if not args.todo_id:
         raise ValueError("todo supersede requires --todo-id")
@@ -495,6 +711,17 @@ def validate_todo_supersede_options(args: argparse.Namespace) -> None:
         raise ValueError("todo supersede does not support --successor-todo-id; use --next-agent-todo or update the source todo before supersede")
     if any(getattr(args, field) for field in ("monitor_target_key", "cadence", "next_due_at", "expires_at")):
         raise ValueError("todo supersede does not update target or monitor schedule metadata; use todo update before supersede")
+    if getattr(args, "supersede_by", None) and any(
+        getattr(args, field) for field in (
+            "next_agent_todo", "next_user_todo", "next_claimed_by", "next_task_class", "next_action_kind",
+            "next_task_repository", "next_required_capabilities", "next_continuation_policy",
+            "next_excluded_agents", "task_lease_idempotency_key", "reason",
+        )
+    ):
+        raise ValueError(
+            "todo supersede --by names existing replacement todos; it takes only --note, --agent-id "
+            "and --dry-run (create the replacements first with todo add)"
+        )
 
 
 def validate_todo_archive_completed_options(args: argparse.Namespace) -> None:
@@ -528,6 +755,9 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
         "claim",
         "update",
         "complete",
+        "accept",
+        "reject",
+        "block-review",
         "supersede",
     }
     global_gate_allowed = args.todo_command in {"add", "update"}
@@ -537,6 +767,8 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
         "complete",
         "supersede",
     }
+    if getattr(args, "supersede_by", None) and args.todo_command != "supersede":
+        raise ValueError("--by is supported only by todo supersede")
     if getattr(args, "turn_instance_id", None) and args.todo_command != "complete":
         raise ValueError(
             "--turn-instance-id is supported only by todo complete settlement"
@@ -606,6 +838,15 @@ def validate_shared_todo_options(args: argparse.Namespace) -> None:
     if args.clear_global_gate and not clear_global_gate_allowed:
         raise ValueError(
             "--clear-global-gate is supported only by todo update for user_gate items"
+        )
+    role_contract_flags = [
+        _TODO_OPTION_FLAGS[field]
+        for field in TODO_ROLE_CONTRACT_OPTION_FIELDS
+        if getattr(args, field, None) not in (None, False, [])
+    ]
+    if role_contract_flags and args.todo_command not in {"add", "update"}:
+        raise ValueError(
+            f"{', '.join(role_contract_flags)} supported only by todo add/update"
         )
     if args.clear_resume_when and args.todo_command != "update":
         raise ValueError("--clear-resume-when is supported only by todo update")

@@ -9,6 +9,11 @@ import sys
 
 from .cli_commands.agent_capabilities import register_agent_capabilities, handle_agent_capabilities
 from .cli_commands.agent_directory import register_agent_directory, handle_agent_directory
+from .cli_commands.workspace import register_workspace, handle_workspace
+from .cli_commands.dispatch import register_dispatch, handle_dispatch
+from .cli_commands.usage import register_usage_commands, handle_usage_command
+from .cli_commands.gate_plan_goal import register_gate_plan_goal_commands, handle_gate_plan_goal_command
+from .cli_commands.agent_config import register_agent_config_commands, handle_agent_config_command
 from .cli_commands.agent_context import register_agent_context, handle_agent_context
 from .cli_commands.todo_continuation import register_todo_continuation, handle_todo_continuation
 from .cli_commands.manager_inbox import register_manager_inbox, handle_manager_inbox
@@ -349,6 +354,11 @@ def build_parser() -> LoopXArgumentParser:
     register_agent_capabilities(sub, add_subcommand_format)
     register_agent_context(sub, add_subcommand_format)
     register_agent_directory(sub, add_subcommand_format)
+    register_workspace(sub, add_subcommand_format)
+    register_dispatch(sub, add_subcommand_format)
+    register_usage_commands(sub, add_subcommand_format)
+    register_gate_plan_goal_commands(sub, add_subcommand_format)
+    register_agent_config_commands(sub, add_subcommand_format)
     register_lark_inbox_commands(sub, add_subcommand_format)
     register_lark_kanban_commands(sub, add_subcommand_format)
 
@@ -807,6 +817,37 @@ def main(argv: list[str] | None = None) -> int:
         return handle_agent_directory(
             args, registry_path, effective_runtime_root(registry_path, args.runtime_root),
             print_payload, output_format,
+        )
+
+    gate_plan_goal_result = handle_gate_plan_goal_command(
+        args, registry_path=registry_path, registry_supplied=registry_was_configured,
+        runtime_root_arg=args.runtime_root, print_payload=print_payload,
+    )
+    if gate_plan_goal_result is not None:
+        return gate_plan_goal_result
+    if args.command == "workspace":
+        return handle_workspace(
+            args, registry_path, effective_runtime_root(registry_path, args.runtime_root),
+            print_payload, output_format,
+        )
+    if args.command == "dispatch":
+        return handle_dispatch(
+            args, registry_path, effective_runtime_root(registry_path, args.runtime_root),
+            print_payload, output_format,
+        )
+    usage_result = handle_usage_command(
+        args, registry_path=registry_path,
+        runtime_root=effective_runtime_root(registry_path, args.runtime_root),
+        print_payload=print_payload, output_format=output_format,
+    )
+    if usage_result is not None:
+        return usage_result
+    if args.command in {"agent", "provider"}:
+        return handle_agent_config_command(
+            args,
+            runtime_root=effective_runtime_root(registry_path, args.runtime_root),
+            print_payload=print_payload,
+            output_format=output_format,
         )
 
     if args.command == "manager-inbox":

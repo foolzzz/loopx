@@ -1912,6 +1912,14 @@ export const typedActionsScenario = {
       await page.getByText(needsYouAction, { exact: true }).first().waitFor({ state: "visible" });
       await page.locator(".personal-object-list").first().getByRole("button").first().click();
       await page.getByText("需要你", { exact: true }).last().waitFor({ state: "visible" });
+      const gateThread = page.getByTestId("gate-thread");
+      await gateThread.getByText("等待你回复", { exact: true }).waitFor({ state: "visible" });
+      await gateThread.getByRole("textbox", { name: "回复" }).fill("能先说明一下影响范围吗？");
+      await gateThread.getByRole("button", { name: /发送回复/ }).click();
+      await gateThread.getByText("能先说明一下影响范围吗？", { exact: true }).waitFor({ state: "visible" });
+      await gateThread.getByText("等待编排者回复", { exact: true }).waitFor({ state: "visible" });
+      if (api.gateReplies.length !== 1 || api.gateReplies[0].text !== "能先说明一下影响范围吗？") throw new Error("Gate thread reply was not posted once with the typed text");
+      if (api.actionPreviews.some((preview) => preview.action_kind === "gate.resolve" && preview.normalized_parameters.decision !== "defer")) throw new Error("A gate thread reply must not resolve the gate");
       await page.getByText("更多决定").click();
       await page.getByRole("button", { name: "稍后决定", exact: true }).click();
       await page.getByText("确认执行").waitFor({ state: "visible" });

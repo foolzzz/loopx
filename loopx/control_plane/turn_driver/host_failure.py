@@ -47,6 +47,7 @@ class BuiltInHostError(RuntimeError):
         *,
         failure_kind: str = "unknown",
         recovery_kind: str | None = None,
+        turn_usage: Mapping[str, Any] | None = None,
     ) -> None:
         if recovery_kind is not None:
             require_host_recovery_kind(recovery_kind)
@@ -55,6 +56,8 @@ class BuiltInHostError(RuntimeError):
         self.reason = reason
         self.failure_kind = failure_kind
         self.recovery_kind = recovery_kind
+        # G9: what the failed Turn still cost (``turn_usage.py``), if observed.
+        self.turn_usage = dict(turn_usage) if isinstance(turn_usage, Mapping) else None
 
 
 def require_host_failure_kind(value: str) -> str:

@@ -47,7 +47,7 @@ How a delivery workspace is identified.
 - Tier / 层级: `cross_runtime`; status / 状态: `canonical`.
 - python: [`DELIVERY_WORKSPACE_IDENTITY_KINDS`](../../loopx/control_plane/agents/delivery_workspace.py).
 - typescript: [`DELIVERY_WORKSPACE_IDENTITY_KINDS`](../../loopx/control_plane/agents/delivery_workspace.ts).
-- Values / 值: `git_repository`, `local_goal`.
+- Values / 值: `git_repository`, `local_goal`, `todo_workspace`.
 
 ## delivery_workspace_kind
 
@@ -56,7 +56,7 @@ Workspace kind a delivery runs in.
 - Tier / 层级: `cross_runtime`; status / 状态: `canonical`.
 - python: [`DELIVERY_WORKSPACE_KINDS`](../../loopx/control_plane/agents/delivery_workspace.py).
 - typescript: [`DELIVERY_WORKSPACE_KINDS`](../../loopx/control_plane/agents/delivery_workspace.ts).
-- Values / 值: `canonical_checkout`, `independent_git_worktree`, `local_goal_workspace`.
+- Values / 值: `canonical_checkout`, `independent_git_worktree`, `local_goal_workspace`, `todo_workspace_root`.
 
 ## delivery_workspace_requirement
 

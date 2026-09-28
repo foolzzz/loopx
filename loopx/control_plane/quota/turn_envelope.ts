@@ -238,8 +238,25 @@ function selectedTodo(payload: JsonObject, recommendedAction: string | null): Js
     "task_repository", "continuation_policy", "claimed_by", "bound_agent",
     "goal_bound", "blocks_agent", "unblocks_todo_id", "next_due_at",
     "expires_at", "selected_by", "confidence",
+    // Fork role_v1: acceptance context the host needs (S1/S2).
+    "required_role", "requires_acceptance", "acceptor_agent", "task_repositories", "reject_count",
   ]) {
     if (source[field] !== null && source[field] !== undefined) compact[field] = source[field];
+  }
+  // The acceptor's (or orchestrator's) rework feedback, and the todo note.
+  const reviewFeedback = text(source.review_feedback, 600);
+  if (reviewFeedback) compact.review_feedback = reviewFeedback;
+  const note = text(source.note, 600);
+  if (note) compact.note = note;
+  // Fork G2: the orchestrator-owned per-todo criteria, and the goal-level
+  // acceptance contract (decision 9), which developer and acceptor both see.
+  const acceptanceCriteria = text(source.acceptance_criteria, 1000);
+  if (acceptanceCriteria) compact.acceptance_criteria = acceptanceCriteria;
+  const goalAcceptance = object(source.goal_acceptance);
+  const goalObjective = text(goalAcceptance.objective, 300);
+  const goalCriteria = textList(goalAcceptance.criteria, 12);
+  if (goalObjective || goalCriteria.length) {
+    compact.goal_acceptance = {...(goalObjective ? {objective: goalObjective} : {}), criteria: goalCriteria};
   }
   const rendered = text(source.text, 360);
   if (rendered && sameActionText(source.text, recommendedAction)) {

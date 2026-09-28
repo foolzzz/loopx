@@ -12,6 +12,8 @@ VISION_CHECKPOINT_SCHEMA_VERSION = "vision_checkpoint_v0"
 VISION_REFRESH_REQUEST_SCHEMA = "loopx_vision_refresh_request_v0"
 VISION_REFRESH_PREPARED_SCHEMA_VERSION = "vision_refresh_prepared_v0"
 VISION_CHECKPOINT_REQUEST_SCHEMA = VISION_REFRESH_REQUEST_SCHEMA
+# Fork decision 31: role_v1 goals owe no per-agent vision checkpoint.
+VISION_CHECKPOINT_POLICY_NOT_REQUIRED = "not_required"
 GOAL_VISION_BUDGET_ERROR = "vision_budget_exceeded"
 _VISION_BUDGET_MESSAGE = re.compile(
     r"^vision_budget_exceeded: (?P<field>.+) uses (?P<used>\d+) chars; "
@@ -128,13 +130,24 @@ def build_vision_checkpoint(
     completion_todo_id: str | None = None,
     autonomous_replan_recorded: bool = False,
     blocked_retry: dict[str, Any] | None = None,
+    checkpoint_required: bool = True,
 ) -> dict[str, Any]:
-    """Finalize the TS-owned Vision transaction after replan qualification."""
+    """Finalize the TS-owned Vision transaction after replan qualification.
 
+    ``checkpoint_required=False`` (role_v1 goals) records the checkpoint as
+    ``not_required`` instead of ``missing_required`` when no vision decision
+    was supplied; a supplied vision patch is still recorded.
+    """
+
+    policy_fields = (
+        {} if checkpoint_required
+        else {"checkpoint_policy": VISION_CHECKPOINT_POLICY_NOT_REQUIRED}
+    )
     try:
         result = effect_runtime_result(
             "goal.vision_checkpoint.evaluate",
             {
+                **policy_fields,
                 "schema_version": VISION_REFRESH_REQUEST_SCHEMA,
                 "phase": "finalize",
                 "agent_id": agent_id,

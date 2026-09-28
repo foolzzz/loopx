@@ -24,6 +24,9 @@ def legacy_agent_hierarchy_present(goal: Mapping[str, Any] | None) -> bool:
     coordination = goal.get("coordination")
     if not isinstance(coordination, Mapping):
         return False
+    # role_v1 goals use roles on purpose; a ``role`` key is not a v0.1
+    # hierarchy marker there.
+    role_v1 = coordination.get("agent_model") == "role_v1"
     profiles = coordination.get("agent_profiles")
     profile_items = (
         profiles.values()
@@ -36,7 +39,7 @@ def legacy_agent_hierarchy_present(goal: Mapping[str, Any] | None) -> bool:
         isinstance(profile, Mapping)
         and (
             profile.get("schema_version") == LEGACY_AGENT_PROFILE_SCHEMA_VERSION
-            or "role" in profile
+            or (not role_v1 and "role" in profile)
             or profile.get("primary_agent")
             or (
                 isinstance(profile.get("review_policy"), Mapping)

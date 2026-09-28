@@ -1,5 +1,6 @@
 """LoopX Turn decision planning for external agent-loop hosts."""
 
+from .claude_code import claude_code_result_schema, run_claude_code_host
 from .codex_cli import (
     CODEX_CLI_SESSION_SCHEMA_VERSION,
     codex_cli_result_schema,
@@ -59,6 +60,8 @@ from .transaction import (
 )
 
 __all__ = [
+    "claude_code_result_schema",
+    "run_claude_code_host",
     "BOUNDED_TURN_BUDGET_SCHEMA_VERSION",
     "CODEX_CLI_SESSION_SCHEMA_VERSION",
     "LOOPX_TURN_EXECUTION_SCHEMA_VERSION",

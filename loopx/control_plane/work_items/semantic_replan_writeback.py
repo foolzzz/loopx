@@ -10,6 +10,10 @@ from typing import Any
 from ...agent_registry import registered_agent_ids_for_goal
 from ..agents.agent_scope import agent_scope_item_matches_agent_or_unclaimed
 from ..agents.identity import build_quota_agent_identity
+from ..agents.runtime_model import (
+    goal_agent_runtime_model_or_none,
+    orchestrator_owns_planning_review,
+)
 from ..goals.goal_frontier import (
     build_goal_frontier_projection_context_from_status,
 )
@@ -255,6 +259,26 @@ def qualify_replan_writeback(
         agent_id=safe_agent_id,
         external_progress_review=external_progress_review,
     )
+    orchestrator_agent_id = (
+        str(agent_identity.get("orchestrator_agent_id") or "").strip() or None
+        if isinstance(agent_identity, dict)
+        else None
+    )
+    if run_obligation is None and orchestrator_agent_id == safe_agent_id:
+        # role_v1: the orchestrator settles replans raised from any agent lane.
+        # Use the same per-lane derivation as the status projection so the
+        # obligation id matches what quota routed to the orchestrator.
+        for lane_agent in sorted(registered_agent_ids):
+            if lane_agent == safe_agent_id:
+                continue
+            run_obligation = autonomous_replan_obligation_from_runs(
+                newest_first_runs,
+                agent_todos=None,
+                agent_id=lane_agent,
+                external_progress_review=external_progress_review,
+            )
+            if run_obligation:
+                break
     status_payload = {
         "run_history": {
             "goals": [
@@ -288,6 +312,8 @@ def qualify_replan_writeback(
             AUTONOMOUS_RUN_HISTORY_NEUTRAL_CLASSIFICATIONS
         ),
         registered_agent_ids=list(agent_identity["registered_agents"]),
+        orchestrator_agent_id=orchestrator_agent_id,
+        agent_runtime_model=goal_agent_runtime_model_or_none(registry_goal),
         goal_status=str((registry_goal or {}).get("status") or "active"),
         agent_profile=(
             agent_identity.get("agent_profile")
@@ -296,6 +322,18 @@ def qualify_replan_writeback(
         ),
     )
     obligation = context.get("replan_obligation")
+    if obligation and orchestrator_agent_id and orchestrator_agent_id != safe_agent_id:
+        # role_v1: every required replan obligation is routed to the goal's
+        # orchestrator, so it cannot fence another role's accountable writeback
+        # (for example an acceptor recording its verdict after a rejection).
+        from ..goals.goal_frontier import autonomous_replan_scope_decision
+
+        if not autonomous_replan_scope_decision(
+            obligation, agent_id=safe_agent_id,
+            registered_agent_ids=list(registered_agent_ids),
+            orchestrator_agent_id=orchestrator_agent_id,
+        ).get("applies"):
+            return None, None
     if not obligation:
         # A validated Todo transition can discharge the read-model obligation
         # before refresh. Preserve that evidence in this run so periodic review
@@ -320,6 +358,9 @@ def qualify_replan_writeback(
     if (
         "coverage_backed_no_followup"
         in set(semantic_delta.get("outcomes") or [])
+        and not orchestrator_owns_planning_review(
+            goal_agent_runtime_model_or_none(registry_goal)
+        )
         and todo_succession_gap_items(agent_todos, agent_id=safe_agent_id)
     ):
         semantic_delta = {

@@ -384,7 +384,9 @@ export function compileActionReviewPlan(proposalValue: unknown): ActionReviewPla
   const isCanonicalTerminal = basis?.schema_version === "loopx_chat_canonical_terminal_basis_v0"
     && textValue(basis.provider_revision) !== null && textValue(basis.registry_sha256) !== null
     && ((proposal.action_kind === "todo.update" && parameters?.operation === "complete")
-      || (proposal.action_kind === "monitor.update" && parameters?.operation === "stop"));
+      || (proposal.action_kind === "monitor.update" && parameters?.operation === "stop")
+      || (proposal.action_kind === "gate.resolve"
+        && ["approve", "reject", "cancel"].includes(String(parameters?.decision))));
   if ((isCanonicalUpdate || isCanonicalTerminal) && (proposal.status === "applying" || proposal.status === "failed")) {
     const failure = objectValue(proposal.failure);
     return {...finish({interaction: "review", canApply: true,

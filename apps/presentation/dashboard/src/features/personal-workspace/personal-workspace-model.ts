@@ -4,6 +4,7 @@ import type { ActionReviewPlan } from "../../../../../../loopx/control_plane/pre
 import type { GoalAcceptanceObservation } from "../../data/goal-acceptance-observation";
 import type { AttentionDetails } from "./attention-details";
 import type { WorkspaceLoadError } from "../../data/workspace-progressive-status";
+import type { WorkspaceRoleBoard, WorkspaceTurnUsage } from "./role-board-model";
 export type WorkspaceGoalState =
   | "需修复"
   | "等你"
@@ -108,6 +109,9 @@ export type WorkspaceGoal = {
   needsYouBlocking?: boolean;
   nextSentence: string;
   repository?: WorkspaceRepositoryContext;
+  /** role_v1 role board (fork slice S8); absent for Goals without registered roles. */
+  roleBoard?: WorkspaceRoleBoard | null;
+  turnUsage?: WorkspaceTurnUsage | null;
   state: WorkspaceGoalState;
   subagentExecution?: WorkspaceGoalSubagentConfiguration;
   title: string;
@@ -190,7 +194,7 @@ export type WorkspaceOutput = {
 };
 
 export type WorkspaceChannel = "manager" | "attention" | "running" | "outputs";
-export type WorkspaceGoalTab = "overview" | "chat" | "tasks" | "files";
+export type WorkspaceGoalTab = "overview" | "chat" | "tasks" | "roles" | "files";
 
 export type WorkspaceScheduleKind = "heartbeat" | "monitor";
 
@@ -246,6 +250,8 @@ export type WorkspaceActionPreview = {
   previewId: string;
   primaryLabel?: string;
   errorMessage?: string;
+  // Canonical readback of an applied gate.resolve decision.
+  gateOutcome?: { decision: "approve" | "reject" | "cancel"; gateStatus: string; targetStatus: string | null };
   status: "draft" | "ready" | "applying" | "applied" | "gated" | "stale" | "error" | "rejected" | "deferred";
   // The lanes a confirmed team plan left unstaffed, read from the apply
   // receipt so the card can name them after the confirmation, not only in the

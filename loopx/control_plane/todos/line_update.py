@@ -17,6 +17,7 @@ from .active_state_editing import (
     todo_metadata_would_change,
 )
 from .contract import (
+    TODO_ROLE_CONTRACT_FIELDS,
     merge_todo_id_lists,
     metadata_line_for_todo_block,
     normalize_explore_result_node_refs,
@@ -202,9 +203,9 @@ def _field_update_plan(
     if (
         not isinstance(result, dict)
         or result.get("schema_version") != "loopx_todo_field_update_result_v0"
-        or result.get("target_status") not in {"open", "done", "blocked", "deferred"}
+        or result.get("target_status") not in {"open", "done", "blocked", "deferred", "in_review"}
         or result.get("normalized_status")
-        not in {None, "open", "done", "blocked", "deferred"}
+        not in {None, "open", "done", "blocked", "deferred", "in_review"}
         or not isinstance(result.get("metadata_updates"), dict)
     ):
         raise RuntimeError("TypeScript Todo field update result shape mismatch")
@@ -266,6 +267,7 @@ def apply_todo_update_to_lines(
     clear_claim: bool = False,
     claim_only: bool = False,
     updated_at: str,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_resume_when = resume_when if public_context is not None else require_supported_todo_resume_when(resume_when)
     if normalized_resume_when and clear_resume_when:
@@ -332,6 +334,7 @@ def apply_todo_update_to_lines(
             "monitor_metadata": monitor_metadata,
             "clear_claim": clear_claim,
             "claim_only": claim_only,
+            "role_contract": role_contract or None,
     }
     # Python's compatibility API uses None (and blank note text) for
     # omission. Strip those sentinels before crossing the typed planner; an
@@ -459,4 +462,9 @@ def apply_todo_update_to_lines(
         "material_change_generation": effective_metadata.get(
             "material_change_generation"
         ),
+        **{
+            key: effective_metadata[key]
+            for key in TODO_ROLE_CONTRACT_FIELDS
+            if effective_metadata.get(key) is not None
+        },
     }

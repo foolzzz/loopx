@@ -197,7 +197,7 @@ def managed_executor_binding(
 
     ``execution_profile`` is the explicit profile this executor would run.
     Managed DSH resolves its complete provider profile. An individual Codex
-    executor projects only operator-pinned model/effort arguments; absent fields
+    or Claude Code executor projects only operator-pinned model/effort arguments; absent fields
     remain ``host-default`` rather than being guessed. Generic hosts have no
     shared profile contract and keep this field ``None``.
 
@@ -253,7 +253,7 @@ def managed_executor_binding(
             },
         }
     individual_profile: str | None = None
-    if host == INDIVIDUAL_TURN_HOST and (model or reasoning_effort):
+    if host in INDIVIDUAL_CLI_HOSTS and (model or reasoning_effort):
         individual_profile = (
             f"{model or 'host-default'}@{reasoning_effort or 'host-default'}"
         )
@@ -329,6 +329,8 @@ def managed_executor_binding_from_host_args(
             if host == MANAGED_HOST
             else turn_host_arg_option(host_args, "--codex-model")
             if host == INDIVIDUAL_TURN_HOST
+            else turn_host_arg_option(host_args, "--claude-model")
+            if host == "claude-code"
             else None
         ),
         reasoning_effort=(
@@ -336,6 +338,8 @@ def managed_executor_binding_from_host_args(
             if host == MANAGED_HOST
             else turn_host_arg_option(host_args, "--codex-reasoning-effort")
             if host == INDIVIDUAL_TURN_HOST
+            else turn_host_arg_option(host_args, "--claude-effort")
+            if host == "claude-code"
             else None
         ),
     )

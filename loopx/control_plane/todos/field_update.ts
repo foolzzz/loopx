@@ -21,7 +21,7 @@ import { MONITOR_METADATA_FIELDS, planMonitorMetadata, TODO_MONITOR_METADATA_REQ
 export const TODO_FIELD_UPDATE_REQUEST_SCHEMA = "loopx_todo_field_update_request_v0";
 export const TODO_FIELD_UPDATE_RESULT_SCHEMA = "loopx_todo_field_update_result_v0";
 
-const STATUS = ["open", "done", "blocked", "deferred"] as const;
+const STATUS = ["open", "done", "blocked", "deferred", "in_review"] as const;
 type Status = typeof STATUS[number];
 export interface TodoFieldUpdatePlan extends JsonObject {
   schema_version: typeof TODO_FIELD_UPDATE_RESULT_SCHEMA;
@@ -40,7 +40,65 @@ const INTENT_FIELDS = new Set<string>([...STRING_FIELDS, ...PRESENT_FIELDS, ...F
   "status", "claimed_by", "bound_agent", "goal_bound", "blocks_agent", "excluded_agents",
   "global_gate", "unblocks_todo_id", "successor_todo_ids", "completion_continuation",
   "completion_recovery", "completion_metadata_updates_override", "resume_when",
-  "resume_monitor_generation", "no_followup", "monitor_metadata", "text", "priority", "clear_priority"]);
+  "resume_monitor_generation", "no_followup", "monitor_metadata", "text", "priority", "clear_priority",
+  "role_contract"]);
+
+export const TODO_ROLE_CONTRACT_FIELDS = ["required_role", "requires_acceptance", "acceptor_agent",
+  "reject_count", "task_repositories", "delivered_by", "review_feedback", "acceptance_criteria"] as const;
+const TODO_REVIEW_FEEDBACK_LIMIT = 600;
+// Fork G2: orchestrator-owned per-todo acceptance criteria (plan card bound).
+const TODO_ACCEPTANCE_CRITERIA_LIMIT = 1000;
+const TODO_REQUIRED_ROLES = ["orchestrator", "developer", "acceptor"];
+
+/** role_v1 routing/acceptance patch. Present keys are written; null clears.
+ * The implicit defaults (reject_count 0, empty repository list) clear too. */
+export function normalizeTodoRoleContract(value: unknown): JsonObject {
+  const patch = requireJsonObject(value, "Todo role contract");
+  const result: JsonObject = {};
+  for (const key of Object.keys(patch)) {
+    if (!(TODO_ROLE_CONTRACT_FIELDS as readonly string[]).includes(key)) {
+      throw new EffectRuntimeRequestError(`unknown todo role field: ${key}`);
+    }
+    const raw = patch[key];
+    if (raw === null || raw === undefined) { result[key] = null; continue; }
+    if (key === "required_role") {
+      const role = typeof raw === "string" ? stripPythonWhitespace(raw).toLowerCase() : "";
+      if (!TODO_REQUIRED_ROLES.includes(role)) {
+        throw new EffectRuntimeRequestError("required_role must be one of: orchestrator, developer, acceptor");
+      }
+      result[key] = role;
+    } else if (key === "requires_acceptance") {
+      if (typeof raw !== "boolean") throw new EffectRuntimeRequestError("requires_acceptance must be a boolean");
+      result[key] = raw;
+    } else if (key === "acceptor_agent" || key === "delivered_by") {
+      result[key] = normalizeTodoAgent(raw, key);
+    } else if (key === "review_feedback" || key === "acceptance_criteria") {
+      if (typeof raw !== "string") throw new EffectRuntimeRequestError(`${key} must be a string`);
+      const limit = key === "review_feedback" ? TODO_REVIEW_FEEDBACK_LIMIT : TODO_ACCEPTANCE_CRITERIA_LIMIT;
+      let text = raw.replace(/\s+/gu, " ").trim();
+      if (text.length > limit) text = `${text.slice(0, limit - 3).trimEnd()}...`;
+      result[key] = text || null;
+    } else if (key === "reject_count") {
+      if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
+        throw new EffectRuntimeRequestError("reject_count must be a non-negative integer");
+      }
+      result[key] = raw > 0 ? raw : null;
+    } else {
+      if (!Array.isArray(raw)) throw new EffectRuntimeRequestError("task_repositories must be a list");
+      const names: string[] = [];
+      for (const item of raw) {
+        const name = typeof item === "string" ? stripPythonWhitespace(item) : "";
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)) {
+          throw new EffectRuntimeRequestError("task_repositories must contain repository names");
+        }
+        if (!names.includes(name)) names.push(name);
+      }
+      if (names.length > 8) throw new EffectRuntimeRequestError("task_repositories accepts at most eight names");
+      result[key] = names.length ? names : null;
+    }
+  }
+  return result;
+}
 
 function optionalString(value: unknown, label: string): string | null {
   if (value === null || value === undefined) return null;
@@ -156,7 +214,7 @@ export function planTodoFieldUpdate(value: unknown): TodoFieldUpdatePlan {
   validateLegacyContinuationPolicyRepair(block, intent, todoId);
   const status = intent.status ? stripPythonWhitespace(String(intent.status)).toLowerCase() : null;
   if (status !== null && !STATUS.includes(status as Status)) {
-    throw new EffectRuntimeRequestError("todo status must be one of: open, done, blocked, deferred");
+    throw new EffectRuntimeRequestError("todo status must be one of: open, done, blocked, deferred, in_review");
   }
   const normalizedStatus = status as Status | null;
   const targetStatus = normalizedStatus ?? (block.status || "open") as Status;
@@ -199,6 +257,7 @@ export function planTodoFieldUpdate(value: unknown): TodoFieldUpdatePlan {
   for (const field of PRESENT_FIELDS) {
     if (Object.hasOwn(intent, field)) updates[field] = intent[field];
   }
+  if (present(intent.role_contract)) Object.assign(updates, normalizeTodoRoleContract(intent.role_contract));
   // Public update carries the effective scope and raw observation once. The
   // field plan composes validation and generation without another RPC.
   const monitorPlan = request.monitor_context == null ? null : planMonitorMetadata({

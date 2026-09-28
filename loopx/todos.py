@@ -7,14 +7,18 @@ from pathlib import Path
 from typing import Any
 
 from .agent_registry import registered_agent_ids_from_registry, require_registered_agent_id
+from .gate_threads import require_user_gate_author
+from .todo_acceptance_criteria import guard_acceptance_criteria_update, guard_acceptance_criteria_write
 from .history import load_registry
 from .paths import resolve_runtime_root
 from .rollout_event_log import load_rollout_events, rollout_event_log_path
 from .state_refresh import now_local, resolve_goal_state
 from .status import MAX_ACTIVE_DONE_TODOS_BEFORE_ARCHIVE
 from .control_plane.todos.contract import (
+    TODO_ROLE_CONTRACT_FIELDS,
     TODO_STATUS_DEFERRED,
     TODO_STATUS_DONE,
+    TODO_STATUS_IN_REVIEW,
     TODO_STATUS_OPEN,
     TODO_TASK_CLASS_USER_GATE,
     build_todo_id,
@@ -38,6 +42,7 @@ from .control_plane.todos.contract import (
     normalize_todo_required_decision_scopes,
     normalize_todo_replan_obligation_id,
     normalize_todo_resume_when,
+    normalize_todo_role_contract,
     normalize_todo_status,
     normalize_todo_task_domain,
     normalize_todo_task_repository,
@@ -429,7 +434,11 @@ def add_todo_to_lines(
     note: str | None = None,
     evidence: str | None = None,
     updated_at: str | None = None,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    role_contract = normalize_todo_role_contract(role_contract)
+    if role != "agent" and role_contract.get("task_repositories"):
+        raise ValueError("task_repositories is only valid for agent todos")
     if validation_command and validation_command_json:
         raise ValueError(
             "--validation-command and --validation-command-json are mutually "
@@ -473,7 +482,7 @@ def add_todo_to_lines(
     todo_text = normalize_new_todo(text)
     normalized_status = normalize_todo_status(status) if status else TODO_STATUS_OPEN
     if status and not normalized_status:
-        raise ValueError("todo status must be one of: open, done, blocked, deferred")
+        raise ValueError("todo status must be one of: open, done, blocked, deferred, in_review")
     assert normalized_status is not None
     normalized_resume_when = require_supported_todo_resume_when(resume_when)
     normalized_monitor_metadata = todo_monitor_metadata.require_monitor_metadata_scope(
@@ -544,6 +553,7 @@ def add_todo_to_lines(
                 else None
             ),
             **normalized_monitor_metadata,
+            **{key: value for key, value in role_contract.items() if value is not None},
             note=note,
             evidence=evidence,
             updated_at=updated_at,
@@ -625,6 +635,7 @@ def add_todo_to_lines(
         if normalized_resume_when:
             updates["resume_when"] = normalized_resume_when
         updates.update(normalized_monitor_metadata)
+        updates.update(role_contract)
         if updated_at and not block.get("updated_at"):
             updates["updated_at"] = updated_at
         metadata_line = metadata_line_for_todo_block(block, updates)
@@ -688,6 +699,11 @@ def add_todo_to_lines(
             effective_metadata.get("replan_obligation_id")
         ),
         "resume_when": normalize_todo_resume_when(effective_metadata.get("resume_when")),
+        **{
+            key: effective_metadata.get(key)
+            for key in TODO_ROLE_CONTRACT_FIELDS
+            if effective_metadata.get(key) is not None
+        },
         "target_key": effective_metadata.get("target_key"),
         "cadence": effective_metadata.get("cadence"),
         "next_due_at": effective_metadata.get("next_due_at"),
@@ -697,6 +713,27 @@ def add_todo_to_lines(
         "evidence": effective_metadata.get("evidence") or evidence,
         "updated_at": effective_metadata.get("updated_at") or updated_at,
     }
+
+
+def _require_goal_task_repositories(
+    registry_path: Path, goal_id: str, role_contract: dict[str, Any] | None,
+) -> None:
+    """Named task repositories must be repos the Goal declares (S5 ``repos``)."""
+
+    names = (role_contract or {}).get("task_repositories") or []
+    if not names:
+        return
+    from .agent_registry import load_goal_from_registry
+    from .workspace.repos import goal_repos
+
+    known = [repo["name"] for repo in goal_repos(load_goal_from_registry(registry_path, goal_id))]
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        raise ValueError(
+            f"task_repositories names unknown Goal repos: {', '.join(unknown)}; "
+            f"declared repos: {', '.join(known) or '(none)'}. "
+            "Declare them with `loopx configure-goal --repo NAME=PATH`."
+        )
 
 
 def add_goal_todo(
@@ -740,8 +777,27 @@ def add_goal_todo(
     state_file: Path | None = None,
     dry_run: bool = False,
     operation_id: str | None = None,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if role == "user":
+        require_user_gate_author(
+            registry_path=registry_path, goal_id=goal_id, actor_agent_id=agent_id,
+        )
     shadow_runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
+    role_contract = {
+        key: value
+        for key, value in normalize_todo_role_contract(role_contract).items()
+        if value is not None
+    }
+    guard_acceptance_criteria_write(registry_path, goal_id, agent_id, role_contract)
+    if role_contract.get("task_repositories") and role != "agent":
+        raise ValueError("task_repositories is only valid for agent todos")
+    if role_contract.get("acceptor_agent"):
+        role_contract["acceptor_agent"] = require_registered_agent_id(
+            registry_path=registry_path, goal_id=goal_id,
+            agent_id=role_contract["acceptor_agent"], field="acceptor_agent",
+        )
+    _require_goal_task_repositories(registry_path, goal_id, role_contract)
     if role not in TODO_SECTION_HEADINGS:
         raise ValueError("todo role must be one of: user, agent")
     require_user_todo_task_class(
@@ -779,9 +835,11 @@ def add_goal_todo(
     )
     normalized_status = normalize_todo_status(status) if status else TODO_STATUS_OPEN
     if status and not normalized_status:
-        raise ValueError("todo status must be one of: open, done, blocked, deferred")
+        raise ValueError("todo status must be one of: open, done, blocked, deferred, in_review")
     if normalized_status == TODO_STATUS_DONE:
         raise ValueError("todo add cannot create completed work; add it open and use `loopx todo complete`")
+    if normalized_status == TODO_STATUS_IN_REVIEW:
+        raise ValueError("todo add cannot create work in review; deliver it with `loopx todo complete`")
     priority_plan = plan_todo_priority({}, {"text": text, **({"priority": priority} if priority is not None else {})})
     todo_text = str(priority_plan["text"])
     if validation_command and validation_command_json:
@@ -890,6 +948,7 @@ def add_goal_todo(
             "validation_label": validation_label,
             "validation_timeout_seconds": validation_timeout_seconds,
             **normalized_monitor_metadata,
+            **role_contract,
             "note": note,
             "updated_at": updated_at,
         },
@@ -966,6 +1025,7 @@ def add_goal_todo(
             monitor_metadata=normalized_monitor_metadata,
             note=note,
             updated_at=updated_at,
+            role_contract=role_contract,
         )
         added = bool(add_result["added"])
         metadata_updated = bool(add_result["metadata_updated"])
@@ -1012,6 +1072,11 @@ def add_goal_todo(
         "unblocks_todo_id": add_result.get("unblocks_todo_id"),
         "replan_obligation_id": add_result.get("replan_obligation_id"),
         "resume_when": add_result.get("resume_when"),
+        **{
+            key: add_result[key]
+            for key in TODO_ROLE_CONTRACT_FIELDS
+            if add_result.get(key) is not None
+        },
         "target_key": add_result.get("target_key"),
         "cadence": add_result.get("cadence"),
         "next_due_at": add_result.get("next_due_at"),
@@ -1108,9 +1173,19 @@ def update_goal_todo(
     project: Path | None = None,
     state_file: Path | None = None,
     dry_run: bool = False,
+    role_contract: dict[str, Any] | None = None,
+    acceptance_criteria_author: str | None = None,
 ) -> dict[str, Any]:
     if priority is not None and clear_priority:
         raise ValueError("provide either priority or clear_priority, not both")
+    role_contract = normalize_todo_role_contract(role_contract) or None
+    guard_acceptance_criteria_update(registry_path, goal_id, acceptance_criteria_author or agent_id, role_contract)
+    if role_contract and role_contract.get("acceptor_agent"):
+        role_contract["acceptor_agent"] = require_registered_agent_id(
+            registry_path=registry_path, goal_id=goal_id,
+            agent_id=role_contract["acceptor_agent"], field="acceptor_agent",
+        )
+    _require_goal_task_repositories(registry_path, goal_id, role_contract)
     shadow_runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     if validation_command and validation_command_json:
         raise ValueError(
@@ -1201,6 +1276,7 @@ def update_goal_todo(
             explore_result_node_refs, decision_scope, required_decision_scopes,
             bound_agent, blocks_agent, excluded_agents, unblocks_todo_id,
             successor_todo_ids, resume_when, no_followup, monitor_metadata,
+            role_contract,
         )
         if (
             any(value is not None and value is not False for value in unsupported_claim_values)
@@ -1255,7 +1331,7 @@ def update_goal_todo(
         unblocks_todo_id=unblocks_todo_id,
         successor_todo_ids=successor_todo_ids, resume_when=resume_when,
         clear_resume_when=clear_resume_when, no_followup=no_followup,
-        clear_claim=clear_claim,
+        clear_claim=clear_claim, role_contract=role_contract,
     )
     if priority is not None:
         planning_intent["priority"] = priority
@@ -1391,7 +1467,7 @@ def update_goal_todo(
                 bound_agent, goal_bound,
                 excluded_agents, clear_excluded_agents, global_gate,
                 clear_global_gate, unblocks_todo_id, successor_todo_ids,
-                resume_when, clear_resume_when, no_followup,
+                resume_when, clear_resume_when, no_followup, role_contract,
             ),
             monitor_metadata=monitor_intent["observation"] or monitor_intent["metadata"],
         )
@@ -1508,6 +1584,7 @@ def update_goal_todo(
             clear_claim=clear_claim,
             claim_only=claim_only,
             updated_at=updated_at,
+            role_contract=role_contract,
         )
         changed = bool(update_result["changed"])
         new_text = "\n".join(lines) + ("\n" if original.endswith("\n") else "")
@@ -1549,8 +1626,74 @@ def update_goal_todo(
     )
 
 
-@provider_first_terminal_lifecycle("complete")
+def _next_user_todo_author_guard(function: Any) -> Any:
+    """Decision 11: a terminal transition may not open a user gate for a
+    developer/acceptor under role_v1 (checked before any authority routing)."""
+
+    from functools import wraps
+
+    @wraps(function)
+    def guarded(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        if kwargs.get("next_user_todo"):
+            require_user_gate_author(
+                registry_path=kwargs["registry_path"], goal_id=kwargs["goal_id"],
+                actor_agent_id=kwargs.get("agent_id") or kwargs.get("claimed_by"),
+                surface="--next-user-todo",
+            )
+        return function(*args, **kwargs)
+
+    return guarded
+
+
 def complete_goal_todo(
+    *,
+    registry_path: Path,
+    goal_id: str,
+    todo_id: str,
+    runtime_root_arg: str | None = None,
+    decision_outcome: str | None = None,
+    dry_run: bool = False,
+    gate_option: str | None = None,
+    **options: Any,
+) -> dict[str, Any]:
+    """Complete a todo; closing a user gate also settles its thread and plan card.
+
+    An approve on a ``plan_approval`` gate is refused while its plan does not
+    validate, so the gate stays open; after the gate closes, the plan is
+    applied (approve) or closed (reject/cancel). See ``loopx.plan_cards``.
+    """
+
+    from .plan_cards import gate_decision_preflight, settle_gate_decision
+
+    runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
+    plan_id = gate_decision_preflight(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
+        decision=decision_outcome, option=gate_option, runtime_root_arg=runtime_root_arg, note=options.get("note"),
+    )
+    from .todo_acceptance import route_role_v1_completion  # S2: may deliver to in_review
+
+    payload = route_role_v1_completion(_complete_goal_todo_unsettled, dict(
+        registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
+        runtime_root_arg=runtime_root_arg, decision_outcome=decision_outcome,
+        dry_run=dry_run, **options,
+    ))
+    if dry_run or not payload.get("ok") or payload.get("role") not in (None, "user"):
+        if plan_id and dry_run:
+            payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
+        return payload
+    settled = settle_gate_decision(
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
+        todo_id=todo_id, decision=payload.get("decision_outcome") or decision_outcome,
+        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"),
+    )
+    if settled is not None:  # a plan card, or an acceptor-blocked gate option (G12)
+        payload[settled.pop("payload_key", "plan_card")] = settled
+    return payload
+
+
+@_next_user_todo_author_guard
+@provider_first_terminal_lifecycle("complete")
+def _complete_goal_todo_unsettled(
     *,
     registry_path: Path,
     goal_id: str,
@@ -1632,6 +1775,7 @@ def complete_goal_todo(
         requested_successor_todo_ids=normalized_successor_todo_ids,
         completion_delivery_workspace=completion_delivery_workspace,
         completion_validation_workspace_path=completion_validation_workspace_path,
+        runtime_root_arg=runtime_root_arg,
     )
     validation_failure = validation_gate.get("failure")
     if validation_failure is not None:
@@ -1938,6 +2082,11 @@ def complete_goal_todo(
         goal_id=goal_id, capture=shadow_capture,
     )
 
+
+terminal_complete_goal_todo = _complete_goal_todo_unsettled  # no S2 routing (accept verdict)
+
+
+@_next_user_todo_author_guard
 @provider_first_terminal_lifecycle("supersede")
 def supersede_goal_todo(
     *,

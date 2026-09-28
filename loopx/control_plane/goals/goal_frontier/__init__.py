@@ -9,7 +9,9 @@ from ...agents.agent_scope import (
     agent_scope_item_claimed_by_agent_or_unclaimed,
 )
 from ...agents.profile import agent_profile_requires_vision
+from ...agents.runtime_model import AgentRuntimeModel, orchestrator_owns_planning_review
 from ...agents.runtime_model import peer_work_key, select_peer_for_work
+from .role_v1_cadence import replan_obligation_sources
 from ...runtime.time import parse_timestamp
 # Refs #4447: the todo contract owns this vocabulary; import it instead of
 # restating the literal in every module that classifies a Todo.
@@ -123,6 +125,7 @@ def select_autonomous_replan_obligation(
     project_asset: dict[str, Any] | None = None,
     *,
     agent_id: str | None = None,
+    orchestrator_agent_id: str | None = None,
 ) -> dict[str, Any] | None:
     project_asset = project_asset if isinstance(project_asset, dict) else {}
     safe_agent_id = str(agent_id or "").strip()
@@ -140,7 +143,43 @@ def select_autonomous_replan_obligation(
     value = project_asset.get("autonomous_replan_obligation")
     if isinstance(value, dict):
         return value
+    if safe_agent_id and safe_agent_id == str(orchestrator_agent_id or "").strip():
+        # role_v1: the orchestrator owns replans raised from any agent lane
+        # (the evidence author no longer consumes its own obligation).
+        for source in (item, project_asset):
+            obligations = source.get("autonomous_replan_obligations_by_agent")
+            if not isinstance(obligations, dict):
+                continue
+            for lane_agent in sorted(obligations):
+                value = obligations[lane_agent]
+                if isinstance(value, dict) and autonomous_replan_is_required(value):
+                    return route_replan_obligation_to_orchestrator(
+                        value, orchestrator_agent_id=safe_agent_id
+                    )
     return None
+
+
+def route_replan_obligation_to_orchestrator(
+    replan_obligation: dict[str, Any] | None,
+    *,
+    orchestrator_agent_id: str | None,
+) -> dict[str, Any] | None:
+    """Annotate a replan obligation with its role_v1 orchestrator route.
+
+    The obligation identity (``agent_id`` and triggers) is left unchanged so
+    obligation ids, successor bindings and ACKs stay stable; the evidence
+    author is recorded separately from the routed owner.
+    """
+
+    if not isinstance(replan_obligation, dict) or not orchestrator_agent_id:
+        return replan_obligation
+    routed = dict(replan_obligation)
+    routed["routed_agent_id"] = orchestrator_agent_id
+    routed["routing"] = "role_v1_orchestrator"
+    evidence_agent = _normalize_replan_agent_id(replan_obligation.get("agent_id"))
+    if evidence_agent:
+        routed["evidence_agent_id"] = evidence_agent
+    return routed
 
 
 def autonomous_replan_is_required(replan_obligation: dict[str, Any] | None) -> bool:
@@ -213,6 +252,7 @@ def autonomous_replan_decision_allowed(
     automation_prompt_upgrade_required: bool,
     agent_id: str | None = None,
     registered_agent_ids: list[str] | None = None,
+    orchestrator_agent_id: str | None = None,
 ) -> bool:
     return bool(
         autonomous_replan_is_required(replan_obligation)
@@ -220,6 +260,7 @@ def autonomous_replan_decision_allowed(
             replan_obligation,
             agent_id=agent_id,
             registered_agent_ids=registered_agent_ids,
+            orchestrator_agent_id=orchestrator_agent_id,
         ).get("applies")
         and plan_ok
         and not workspace_blocked
@@ -272,14 +313,19 @@ def autonomous_replan_scope_decision(
     *,
     agent_id: str | None,
     registered_agent_ids: list[str] | None = None,
+    orchestrator_agent_id: str | None = None,
 ) -> dict[str, Any]:
     """Return whether a replan obligation belongs to this agent lane.
 
-    Explicit agent-owned replans are consumed only by that agent. Unscoped
-    goal-level replans are deterministically assigned to one registered peer.
+    Under role_v1 with a registered orchestrator, every replan obligation is
+    routed to the orchestrator (not the evidence author or a hashed peer).
+    Otherwise explicit agent-owned replans are consumed only by that agent,
+    and unscoped goal-level replans are deterministically assigned to one
+    registered peer.
     """
 
     normalized_agent_id = _normalize_replan_agent_id(agent_id)
+    orchestrator = _normalize_replan_agent_id(orchestrator_agent_id)
     owners = _autonomous_replan_owner_agent_ids(replan_obligation)
     required = autonomous_replan_is_required(replan_obligation)
     selected_peer_agent = None
@@ -289,6 +335,9 @@ def autonomous_replan_scope_decision(
     elif not normalized_agent_id:
         applies = True
         scope = "unscoped_quota_call"
+    elif orchestrator:
+        applies = normalized_agent_id == orchestrator
+        scope = "role_v1_orchestrator"
     elif owners:
         applies = normalized_agent_id in owners
         scope = "explicit_agent_owner"
@@ -308,10 +357,12 @@ def autonomous_replan_scope_decision(
         "applies": applies,
         "scope": scope,
         "agent_id": normalized_agent_id,
-        "agent_model": "peer_v1",
+        "agent_model": "role_v1" if orchestrator else "peer_v1",
         "owner_agent_ids": owners,
         "selected_peer_agent": selected_peer_agent,
     }
+    if orchestrator:
+        payload["orchestrator_agent_id"] = orchestrator
     return payload
 
 
@@ -1018,6 +1069,7 @@ def derive_goal_frontier_replan_obligation_from_summaries(
     current_transition_replan_ack: dict[str, Any] | None = None,
     acceptance_gaps: list[dict[str, Any]] | None = None,
     monitor_lane_semantically_valid: bool = True,
+    todo_succession_replan: bool = True,  # False under role_v1 (fork decision 31)
 ) -> dict[str, Any] | None:
     """Return a compact replan obligation when the goal frontier has no advancement.
 
@@ -1069,7 +1121,7 @@ def derive_goal_frontier_replan_obligation_from_summaries(
         for item in compact_acceptance_gaps
     )
     succession_gap_items = todo_succession_gap_items(
-        agent_todo_summary,
+        agent_todo_summary if todo_succession_replan else None,
         agent_id=agent_id,
     )
     long_chain_observation, long_chain_ack_decision = evaluate_long_todo_chain(
@@ -1498,18 +1550,22 @@ def build_goal_frontier_projection_context_from_status(
     registered_agent_ids: list[str] | None = None,
     goal_status: str | None = None,
     agent_profile: dict[str, Any] | None = None,
+    orchestrator_agent_id: str | None = None,
+    agent_runtime_model: AgentRuntimeModel | None = None,
 ) -> dict[str, Any]:
     """Build the quota-facing goal-frontier read model.
 
     Quota decides delivery permission, but this helper owns the goal-frontier
     state reduction: existing obligation scope, latest replan ACK, open
     per-agent vision gaps, derived replan obligation, and final projection.
+    A role_v1 goal derives neither vision gaps nor the no-follow-up replan,
+    including from persisted checkpoints (fork decision 31).
     """
 
-    replan_obligation = select_autonomous_replan_obligation(
-        item,
-        project_asset,
-        agent_id=agent_id,
+    vision_replan_derived = not orchestrator_owns_planning_review(agent_runtime_model)
+    replan_obligation = select_autonomous_replan_obligation(  # role_v1: no cadence replan (39)
+        *replan_obligation_sources(item, project_asset, agent_runtime_model),
+        agent_id=agent_id, orchestrator_agent_id=orchestrator_agent_id,
     )
     if replan_obligation:
         replan_obligation = ensure_replan_novelty_policy(replan_obligation)
@@ -1517,6 +1573,7 @@ def build_goal_frontier_projection_context_from_status(
         replan_obligation,
         agent_id=agent_id,
         registered_agent_ids=registered_agent_ids,
+        orchestrator_agent_id=orchestrator_agent_id,
     )
     if replan_scope.get("required") and not replan_scope.get("applies"):
         replan_obligation = None
@@ -1555,7 +1612,7 @@ def build_goal_frontier_projection_context_from_status(
             agent_id=agent_id,
         )
     )
-    source_acceptance_gaps = (
+    vision_acceptance_gaps = (
         acceptance_gaps_from_agent_profile_requirement(
             agent_profile,
             agent_id=agent_id,
@@ -1582,9 +1639,11 @@ def build_goal_frontier_projection_context_from_status(
                 (project_asset or {}).get("execution_profile")
             ),
         )
-        + acceptance_gaps_from_held_goal_binding(
-            agent_todo_summary, agent_todo_source_items, agent_id=agent_id,
-        )
+        if vision_replan_derived
+        else []
+    )
+    source_acceptance_gaps = vision_acceptance_gaps + acceptance_gaps_from_held_goal_binding(
+        agent_todo_summary, agent_todo_source_items, agent_id=agent_id,
     )
     if _terminal_no_followup_resolves_vision_checkpoint(
         user_todo_summary=user_todo_summary,
@@ -1599,7 +1658,7 @@ def build_goal_frontier_projection_context_from_status(
         ]
     todo_succession_gap_open = bool(
         todo_succession_gap_items(
-            agent_todo_summary,
+            agent_todo_summary if vision_replan_derived else None,
             agent_id=agent_id,
         )
     )
@@ -1667,6 +1726,7 @@ def build_goal_frontier_projection_context_from_status(
             replan_obligation,
             agent_id=agent_id,
             registered_agent_ids=registered_agent_ids,
+            orchestrator_agent_id=orchestrator_agent_id,
         )
     frontier_replan_obligation = derive_goal_frontier_replan_obligation_from_summaries(
         user_todo_summary=user_todo_summary,
@@ -1681,6 +1741,7 @@ def build_goal_frontier_projection_context_from_status(
         monitor_lane_semantically_valid=not goal_vision_state_is_closed(
             (latest_agent_vision or {}).get("state")
         ),
+        todo_succession_replan=vision_replan_derived,
     )
     frontier_transition_ack = replan_successor_transition_ack(
         agent_todo_summary,
@@ -1712,6 +1773,7 @@ def build_goal_frontier_projection_context_from_status(
             replan_obligation,
             agent_id=agent_id,
             registered_agent_ids=registered_agent_ids,
+            orchestrator_agent_id=orchestrator_agent_id,
         )
 
     if replan_obligation and latest_replan_ack_feedback:

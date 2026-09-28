@@ -218,6 +218,7 @@ def resolve_quota_run_decision(
     registered_agent_ids: list[str],
     goal_frontier_projection: dict[str, Any] | None,
     task_orchestration_contract: dict[str, Any] | None,
+    orchestrator_agent_id: str | None = None,
 ) -> QuotaRunDecision:
     """Apply the ordered final guards for one quota run decision."""
 
@@ -287,6 +288,7 @@ def resolve_quota_run_decision(
             automation_prompt_upgrade_required=automation_prompt_upgrade_required,
             agent_id=agent_frontier_id,
             registered_agent_ids=registered_agent_ids,
+            orchestrator_agent_id=orchestrator_agent_id,
         )
     )
     if replan_decision_allowed:

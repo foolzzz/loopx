@@ -12,6 +12,7 @@ from ..control_plane.todos.handoff_mode import HandoffModeError
 from ..control_plane.todos.contract import decision_scope_metadata_value
 from ..control_plane.work_items.task_lease import TaskLeaseError
 from ..file_lock import lock_timeout_error_fields
+from ..todo_acceptance_criteria import acceptance_criteria_event_details
 from ..control_plane.coordination.legacy_writer_fence import LegacyCoordinationWriterFenced
 from ..control_plane.coordination.shadow_management import ShadowManagementError
 from ..control_plane.coordination.runtime_shadow_writer_adapter import ActiveStateAuthorityMutationError
@@ -130,6 +131,8 @@ def append_todo_rollout_event(
                 if isinstance(payload.get("settlement_identity"), dict)
                 else None
             ),
+            # Fork G2: a criteria change is a major change (decision 12).
+            **acceptance_criteria_event_details(payload),
         },
         idempotency_fields=(
             [

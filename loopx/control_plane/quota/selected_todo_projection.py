@@ -29,6 +29,15 @@ SELECTED_TODO_COMPACT_FIELDS = (
     "target_key",
     "next_due_at",
     "expires_at",
+    # Fork role_v1 (S1/S2): the Turn host needs the acceptance context, in
+    # particular the acceptor's feedback on a rejected delivery.
+    "required_role",
+    "requires_acceptance",
+    "acceptor_agent",
+    "task_repositories",
+    "reject_count",
+    "review_feedback",
+    "acceptance_criteria",
 )
 SELECTED_TODO_AGENT_FIELDS = (
     "agent_id",

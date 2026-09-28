@@ -30,6 +30,19 @@ test("canonical update recovery includes User completion without changing generi
   }
 });
 
+test("canonical gate decisions retry their original operation after an interrupted apply", () => {
+  const proposal = {proposal_id: "gate", expected_state_fingerprint: "review-basis",
+    action_kind: "gate.resolve", status: "applying", normalized_parameters: {decision: "approve"},
+    canonical_update_basis: {schema_version: "loopx_chat_canonical_terminal_basis_v0",
+      provider_revision: "revision", registry_sha256: "a".repeat(64)}};
+  const plan = compileActionReviewPlan(proposal);
+  assert.equal(plan.retryOriginal, true);
+  assert.equal(plan.canApply, true);
+  assert.equal(compileActionReviewPlan({...proposal, status: "failed"}).retryOriginal, true);
+  assert.equal(compileActionReviewPlan({...proposal, normalized_parameters: {decision: "defer"}}).retryOriginal, undefined);
+  assert.equal(compileActionReviewPlan({...proposal, canonical_update_basis: undefined}).retryOriginal, undefined);
+});
+
 function operationProposal(
   lifecycleState: "awaiting_confirmation" | "claimed" | "outcome_observed",
 ) {

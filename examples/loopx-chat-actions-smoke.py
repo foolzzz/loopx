@@ -960,38 +960,42 @@ def assert_http_action_api(root: Path) -> None:
             )
             assert code == 201, transition_preview
 
-        for index, (action_kind, params) in enumerate(
-            [
-                ("goal.update", {"goal_id": "goal-one", "objective": "A revised objective"}),
-                (
-                    "gate.resolve",
-                    {"goal_id": "goal-one", "todo_id": current_todo_id, "decision": "approve"},
-                ),
-                (
-                    "gate.resolve",
-                    {"goal_id": "goal-one", "todo_id": current_todo_id, "decision": "defer"},
-                ),
-            ]
-        ):
-            code, protected_preview = request_json(
+        code, protected_preview = request_json(
+            f"{base_url}/api/actions/preview",
+            method="POST",
+            body={
+                "action_kind": "goal.update",
+                "summary": "Preview goal.update",
+                "normalized_parameters": {"goal_id": "goal-one", "objective": "A revised objective"},
+                "context": {"kind": "goal", "goal_id": "goal-one"},
+                "idempotency_key": "http-protected-0",
+            },
+        )
+        assert code == 201, protected_preview
+        code, protected_gate = request_json(
+            f"{base_url}/api/actions/{protected_preview['proposal']['proposal_id']}/apply",
+            method="POST",
+            body={},
+        )
+        assert code == 409, protected_gate
+        assert protected_gate["gate"]["kind"] == "canonical_authority_required", protected_gate
+
+        # gate.resolve applies through the canonical decision path; it only
+        # accepts an open user_gate, so an agent Todo is refused at preview.
+        for index, decision in enumerate(("approve", "defer"), start=1):
+            code, refused = request_json(
                 f"{base_url}/api/actions/preview",
                 method="POST",
                 body={
-                    "action_kind": action_kind,
-                    "summary": f"Preview {action_kind}",
-                    "normalized_parameters": params,
+                    "action_kind": "gate.resolve",
+                    "summary": "Preview gate.resolve",
+                    "normalized_parameters": {"goal_id": "goal-one", "todo_id": current_todo_id, "decision": decision},
                     "context": {"kind": "goal", "goal_id": "goal-one"},
                     "idempotency_key": f"http-protected-{index}",
                 },
             )
-            assert code == 201, protected_preview
-            code, protected_gate = request_json(
-                f"{base_url}/api/actions/{protected_preview['proposal']['proposal_id']}/apply",
-                method="POST",
-                body={},
-            )
-            assert code == 409, protected_gate
-            assert protected_gate["gate"]["kind"] == "canonical_authority_required", protected_gate
+            assert code == 400, refused
+            assert "user_gate" in refused["error"], refused
 
         persisted_payload = action_store.path.read_text(encoding="utf-8")
         assert str(root) not in persisted_payload, persisted_payload

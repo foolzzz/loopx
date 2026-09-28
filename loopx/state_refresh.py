@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
+import time
+from collections.abc import Callable
 from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from typing import Any
@@ -23,6 +26,7 @@ from .control_plane.work_items.delivery_outcome import (
     require_delivery_outcome,
 )
 from .control_plane.agents.workspace_guard import (
+    INDEPENDENT_DELIVERY_WORKSPACE_KINDS,
     capture_delivery_workspace,
 )
 from .control_plane.quota.refresh_external_delivery import (
@@ -91,6 +95,10 @@ from .history import (
 )
 from .control_plane.runtime.local_state_write_correctness import build_local_state_write_correctness_dry_run_packet
 from .paths import resolve_runtime_root
+from .control_plane.agents.runtime_model import (
+    goal_agent_runtime_model_or_none,
+    orchestrator_owns_planning_review,
+)
 from .control_plane.goals.vision_checkpoint import (
     build_vision_checkpoint,
     prepare_vision_refresh,
@@ -794,6 +802,39 @@ def render_state_refresh_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+class ActiveGoalStateChangedDuringRefresh(ValueError):
+    """Another writer changed the goal state file during one refresh.
+
+    Raised before the refresh writes the state file or appends its run, so a
+    caller can run the same refresh again from the current state.
+    """
+
+
+# Refresh attempts when a concurrent state write races one Turn's writeback.
+REFRESH_STATE_RACE_ATTEMPTS = 6
+
+
+def retry_refresh_state_races(refresh: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Run one refresh-state call, retrying a concurrent state-file write.
+
+    Under role_v1 one agent can settle several Turns of a goal at nearly the
+    same time (design-v0 decision 32): a sibling Turn's todo lifecycle write
+    can land between this refresh's read and its write of the state file.
+    The refresh raced before persisting anything, so it runs again from the
+    current state; every other failure is returned or raised unchanged.
+    """
+
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return refresh()
+        except ActiveGoalStateChangedDuringRefresh:
+            if attempt >= REFRESH_STATE_RACE_ATTEMPTS:
+                raise
+            time.sleep(min(1.0, 0.05 * (2 ** attempt)) * (0.5 + random.random()))
+
+
 def refresh_state_run(
     *,
     registry_path: Path,
@@ -1030,6 +1071,15 @@ def refresh_state_run(
             explicit_peer_worktree_requirement is None
             or explicit_peer_worktree_requirement is True
         )
+        if (
+            peer_independent_worktree_required
+            and explicit_peer_worktree_requirement is None
+            and _role_v1_orchestrator(registry_goal, normalized_agent_id)
+        ):
+            # Fork role_v1: the orchestrator plans from the goal's state home
+            # and delivers no code; its only writes are gates and plan cards.
+            # Developer and acceptor Turns still run in per-todo worktrees.
+            peer_independent_worktree_required = False
         if normalized_agent_id and known_agents and normalized_agent_id not in known_agents:
             raise ValueError(
                 f"agent_id {normalized_agent_id!r} is not registered for goal {safe_goal_id!r}"
@@ -1239,6 +1289,9 @@ def refresh_state_run(
             completion_todo_id=completion_todo_id,
             autonomous_replan_recorded=effective_autonomous_replan_recorded,
             blocked_retry=blocked_retry,
+            checkpoint_required=not orchestrator_owns_planning_review(
+                goal_agent_runtime_model_or_none(registry_goal)
+            ),
         )
         if checkpoint_supplement and not vision_checkpoint.get("satisfied"):
             raise ValueError(
@@ -1270,19 +1323,32 @@ def refresh_state_run(
                     if delivery_workspace_path is not None
                     else None
                 ),
+                # Fork S5 (decision 29): a multi-repo Todo delivers from its
+                # registered per-Todo workspace root, which is not itself a
+                # git worktree; it binds to the Todo workspace identity.
+                todo_workspace_scope=(
+                    {
+                        "runtime_root": runtime_root,
+                        "goal_id": safe_goal_id,
+                        "todo_id": settlement_identity.todo_id,
+                        "goal": registry_goal,
+                    }
+                    if settlement_identity is not None and settlement_identity.todo_id
+                    else None
+                ),
             )
             if (
                 peer_independent_worktree_required
                 and (
                     delivery_workspace is None
                     or delivery_workspace.get("workspace_kind")
-                    != "independent_git_worktree"
+                    not in INDEPENDENT_DELIVERY_WORKSPACE_KINDS
                 )
             ):
                 raise ValueError(
                     "accountable peer delivery must be refreshed from the independent "
-                    "git worktree that produced it, or name that worktree with "
-                    "--delivery-workspace-path"
+                    "git worktree (or the per-Todo workspace root) that produced it, "
+                    "or name it with --delivery-workspace-path"
                 )
             if delivery_workspace_path is not None and delivery_workspace is None:
                 raise ValueError(
@@ -1310,7 +1376,7 @@ def refresh_state_run(
             with exclusive_cross_runtime_file_lock(resolved_state_file):
                 current_state_text = resolved_state_file.read_text(encoding="utf-8")
                 if current_state_text != expected_write_state_text:
-                    raise ValueError(
+                    raise ActiveGoalStateChangedDuringRefresh(
                         "active goal state changed while refresh-state was qualifying "
                         "its semantic writeback; retry from the current state"
                     )
@@ -1613,3 +1679,16 @@ def refresh_state_run(
             project=resolved_project, state_file=resolved_state_file,
             canonical_snapshot=planning_source.canonical_snapshot,
         )
+
+
+def _role_v1_orchestrator(goal: Any, agent_id: str | None) -> bool:
+    if not agent_id or not isinstance(goal, dict):
+        return False
+    from .agent_registry import agent_role_for_goal
+    from .control_plane.agents.runtime_model import AgentRuntimeModel, agent_runtime_model_for_goal
+
+    try:
+        role_v1 = agent_runtime_model_for_goal(goal) is AgentRuntimeModel.ROLE_V1
+    except ValueError:
+        return False
+    return role_v1 and agent_role_for_goal(goal, agent_id) == "orchestrator"

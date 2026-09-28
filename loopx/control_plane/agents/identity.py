@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...agent_registry import agent_profile_for_goal, registered_agent_ids_for_goal
+from ...agent_registry import (
+    acceptor_agents_for_goal,
+    agent_profile_for_goal,
+    agent_role_for_goal,
+    orchestrator_agent_for_goal,
+    registered_agent_ids_for_goal,
+)
 from ..quota.error_codes import (
     QuotaIdentityPrecondition,
     QuotaIdentityPreconditionError,
@@ -14,7 +20,11 @@ from .legacy_migration import (
     peer_agent_runtime_migration_id,
 )
 from .profile import normalize_agent_profile
-from .runtime_model import PEER_AGENT_IDENTITY_SCHEMA_VERSION, agent_runtime_model_for_goal
+from .runtime_model import (
+    PEER_AGENT_IDENTITY_SCHEMA_VERSION,
+    AgentRuntimeModel,
+    agent_runtime_model_for_goal,
+)
 from .work_mode import agent_work_mode_for_goal
 
 
@@ -53,6 +63,16 @@ def build_quota_agent_identity(
         "registered": True,
         "registered_agents": registered_agents,
     }
+    if runtime_model == AgentRuntimeModel.ROLE_V1:
+        role = agent_role_for_goal(goal, normalized_agent_id)
+        if role:
+            identity["role"] = role
+        orchestrator = orchestrator_agent_for_goal(goal)
+        if orchestrator:
+            identity["orchestrator_agent_id"] = orchestrator
+        acceptors = acceptor_agents_for_goal(goal)
+        if acceptors:
+            identity["acceptor_agent_ids"] = acceptors
     work_mode = agent_work_mode_for_goal(goal, normalized_agent_id)
     if work_mode:
         identity["work_mode"] = work_mode

@@ -52,16 +52,24 @@ from ..control_plane.turn_driver import (
     run_loopx_turn_once,
     selected_turn_todo,
 )
+from ..control_plane.turn_driver.executor import mark_turn_plan_vision_checkpoint_not_required
 from ..control_plane.turn_driver.host_binding import managed_executor_binding
 from ..control_plane.operator_provider import operator_provider_environ
+from ..control_plane.quota.spend_commit import retry_quota_spend_index_conflicts
 from ..quota import spend_quota_slot
-from ..state_refresh import refresh_state_run
+from ..state_refresh import refresh_state_run, retry_refresh_state_races
 from ..todos import resolve_todo_state_path
 from .lark_inbox import dispatch_goal_lark_turn_start_hooks
 from .turn_cadence import managed_cadence_start
 from .turn_decision import (
     build_fresh_turn_decision_owner,
     collect_turn_status_payload,
+    registry_goal_uses_role_v1,
+    turn_lane_todo_id,
+)
+from .turn_claude_host import (
+    build_claude_code_host_runner,
+    resolve_codex_config_overrides,
 )
 from .turn_dsh_host import build_dsh_host_runner
 from .turn_registration import register_turn_commands as register_turn_commands
@@ -185,6 +193,9 @@ def handle_turn_command(
             turn_instance_id=args.turn_instance_id,
             iteration_context_policy=args.iteration_context.replace("-", "_"),
         )
+        if registry_goal_uses_role_v1(registry_path, args.goal_id):
+            # Fork decision 31: role_v1 Turns owe no per-agent vision decision.
+            mark_turn_plan_vision_checkpoint_not_required(payload)
         # The executor readback names where this Turn's model work runs and
         # whether that host can launch here, so a caller never has to infer it
         # from the host id. The explicit runner hook is the one launchability
@@ -210,6 +221,8 @@ def handle_turn_command(
                 if args.host == "dsh"
                 else getattr(args, "codex_model", None)
                 if args.host == "codex-cli"
+                else getattr(args, "claude_model", None)
+                if args.host == "claude-code"
                 else None
             ),
             reasoning_effort=(
@@ -217,6 +230,8 @@ def handle_turn_command(
                 if args.host == "dsh"
                 else getattr(args, "codex_reasoning_effort", None)
                 if args.host == "codex-cli"
+                else getattr(args, "claude_effort", None)
+                if args.host == "claude-code"
                 else None
             ),
             max_tokens=(
@@ -485,13 +500,14 @@ def handle_turn_command(
                 # The host workspace is execution context, not state authority.
                 state_project = None
                 result_kind = str(result.get("result_kind") or "")
+                delivery_outcome = str(result["delivery_outcome"])
                 if result_kind in {"repair_required", "replan_required"}:
                     todo_id = str(selected_todo.get("todo_id") or "")
                     if not todo_id:
                         raise ValueError(
                             f"{result_kind} requires one selected todo for typed writeback"
                         )
-                    write_turn_repair_update(
+                    verdict_recorded = write_turn_repair_update(
                         registry_path=registry_path,
                         runtime_root_arg=runtime_root_arg,
                         goal_id=args.goal_id,
@@ -499,36 +515,44 @@ def handle_turn_command(
                         note=str(result.get("summary") or result["classification"]),
                         evidence=f"LoopX Turn {result_kind}: {result['next_action']}",
                         agent_id=args.agent_id,
+                        result_kind=result_kind,
+                        verdict_feedback=str(result.get("summary") or ""),
                     )
-                refresh = refresh_state_run(
-                    registry_path=registry_path,
-                    runtime_root_override=runtime_root_arg,
-                    goal_id=args.goal_id,
-                    project=state_project,
-                    state_file=None,
-                    classification=str(result["classification"]),
-                    recommended_action=str(result["recommended_action"]),
-                    next_action=str(result["next_action"]),
-                    delivery_batch_scale=str(result["delivery_batch_scale"]),
-                    delivery_outcome=str(result["delivery_outcome"]),
-                    delivery_workspace_path=delivery_workspace_path,
-                    todo_id=settlement_identity.todo_id,
-                    turn_instance_id=settlement_identity.turn_instance_id,
-                    agent_id=args.agent_id,
-                    progress_scope="goal",
-                    autonomous_replan_recorded=result_kind == "replan_required",
-                    agent_vision_packet=(
-                        dict(result["agent_vision"])
-                        if isinstance(result.get("agent_vision"), dict)
-                        else None
-                    ),
-                    vision_unchanged_reason=(
-                        str(result.get("vision_unchanged_reason") or "") or None
-                    ),
-                    completion_todo_id=completion_todo_id,
-                    completion_turn_key=completion_turn_key,
-                    dry_run=False,
-                    sync_global=not bool(args.no_global_sync),
+                    if verdict_recorded:
+                        # Fork S2: the acceptor's reject verdict is its completed
+                        # review, i.e. accountable progress, not a blocked gap.
+                        delivery_outcome = "outcome_progress"
+                refresh = retry_refresh_state_races(
+                    lambda: refresh_state_run(
+                        registry_path=registry_path,
+                        runtime_root_override=runtime_root_arg,
+                        goal_id=args.goal_id,
+                        project=state_project,
+                        state_file=None,
+                        classification=str(result["classification"]),
+                        recommended_action=str(result["recommended_action"]),
+                        next_action=str(result["next_action"]),
+                        delivery_batch_scale=str(result["delivery_batch_scale"]),
+                        delivery_outcome=delivery_outcome,
+                        delivery_workspace_path=delivery_workspace_path,
+                        todo_id=settlement_identity.todo_id,
+                        turn_instance_id=settlement_identity.turn_instance_id,
+                        agent_id=args.agent_id,
+                        progress_scope="goal",
+                        autonomous_replan_recorded=result_kind == "replan_required",
+                        agent_vision_packet=(
+                            dict(result["agent_vision"])
+                            if isinstance(result.get("agent_vision"), dict)
+                            else None
+                        ),
+                        vision_unchanged_reason=(
+                            str(result.get("vision_unchanged_reason") or "") or None
+                        ),
+                        completion_todo_id=completion_todo_id,
+                        completion_turn_key=completion_turn_key,
+                        dry_run=False,
+                        sync_global=not bool(args.no_global_sync),
+                    )
                 )
                 if refresh.get("ok") and (
                     refresh.get("appended")
@@ -593,10 +617,68 @@ def handle_turn_command(
                     completion_delivery_workspace=completion_delivery_workspace,
                     completion_validation_workspace_path=delivery_workspace_path,
                 )
+                if completion.get("in_review") is True:
+                    # role_v1 delivery (fork S2): the Todo awaits its acceptor.
+                    # The Goal continues; the verdict is a later acceptor Turn.
+                    review_payload = {
+                        "ok": bool(completion.get("ok")),
+                        "appended": bool(
+                            completion.get("changed") or completion.get("idempotent_replay")
+                        ),
+                        "completion": {
+                            "todo_id": todo_id,
+                            "continuation": "active_goal",
+                            "acceptance_status": "in_review",
+                        },
+                    }
+                    if review_payload["ok"] and review_payload["appended"]:
+                        append_settlement_event(
+                            review_payload,
+                            event_kind="todo_update",
+                            status="in_review",
+                            details={"command": "turn run-once", "acceptance": "delivered"},
+                        )
+                    return review_payload
                 # Project the continuation the Todo lifecycle durably recorded,
                 # never a host-normalized continuation. Contradictory or
                 # dangling durable state fails closed before any further
                 # writeback so the typed settlement sees the truthful outcome.
+                acceptance = completion.get("acceptance")
+                if (
+                    isinstance(acceptance, dict)
+                    and acceptance.get("transition") == "merge_blocked"
+                    and completion.get("ok") is not False
+                ):
+                    # Fork S2/S5: the acceptor accepted, but the merge into the
+                    # target is blocked, so the todo went back to its developer
+                    # with the conflict report. The review itself is settled.
+                    merge_payload = {
+                        "ok": True,
+                        "appended": True,
+                        "completion": {
+                            "todo_id": todo_id,
+                            "continuation": "active_goal",
+                            "acceptance_status": "merge_blocked",
+                        },
+                    }
+                    append_settlement_event(
+                        merge_payload,
+                        event_kind="todo_update",
+                        status="merge_blocked",
+                        details={"command": "turn run-once", "acceptance": "merge_blocked"},
+                    )
+                    return merge_payload
+                if completion.get("validation_blocked_completion") is True:
+                    receipt = completion.get("validation")
+                    exit_code = receipt.get("exit_code") if isinstance(receipt, dict) else None
+                    return {
+                        "ok": False,
+                        "appended": False,
+                        "reason": (
+                            "the Todo's declared completion validation did not pass"
+                            + (f" (exit code {exit_code})" if exit_code is not None else "")
+                        ),
+                    }
                 state_file = completion.get("state_file")
                 if not isinstance(state_file, str) or not state_file:
                     return {
@@ -694,22 +776,25 @@ def handle_turn_command(
 
             def spend(*, effect_ref: str) -> dict[str, object]:
                 require_effect_ref(effect_ref, SettlementStepKind.QUOTA_SPEND)
-                spent = spend_quota_slot(
-                    current_status(),
-                    goal_id=args.goal_id,
-                    slots=1,
-                    execute=True,
-                    source="adapter",
-                    agent_id=args.agent_id,
-                    workspace_path=delivery_workspace_path,
-                    available_capabilities=args.available_capabilities,
-                    scheduler_execution_context=(
-                        payload.get("scheduler_execution_context")
-                        if isinstance(payload.get("scheduler_execution_context"), dict)
-                        else None
-                    ),
-                    operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-                    effect_ref=effect_ref,
+                # Fresh status per attempt: it carries the run index basis.
+                spent = retry_quota_spend_index_conflicts(
+                    lambda: spend_quota_slot(
+                        current_status(),
+                        goal_id=args.goal_id,
+                        slots=1,
+                        execute=True,
+                        source="adapter",
+                        agent_id=args.agent_id,
+                        workspace_path=delivery_workspace_path,
+                        available_capabilities=args.available_capabilities,
+                        scheduler_execution_context=(
+                            payload.get("scheduler_execution_context")
+                            if isinstance(payload.get("scheduler_execution_context"), dict)
+                            else None
+                        ),
+                        operator_inbox_urgency_projector=operator_inbox_urgency_projector,
+                        effect_ref=effect_ref,
+                    )
                 )
                 if spent.get("ok") and (
                     spent.get("appended")
@@ -990,6 +1075,9 @@ def handle_turn_command(
             host_runner: Callable[[Mapping[str, Any]], dict[str, Any]] | None = None
             session_binding_resolver = None
             if args.host == "codex-cli":
+                codex_config_overrides = resolve_codex_config_overrides(
+                    args, runtime_root=runtime_root
+                )
 
                 def run_built_in_host(
                     request: Mapping[str, Any],
@@ -1003,6 +1091,7 @@ def handle_turn_command(
                         model=args.codex_model,
                         reasoning_effort=args.codex_reasoning_effort,
                         mcp_server=args.codex_mcp_server_json,
+                        config_overrides=codex_config_overrides,
                         timeout_seconds=max(1.0, args.timeout_seconds - 5.0),
                     )
 
@@ -1014,6 +1103,12 @@ def handle_turn_command(
                     return codex_cli_session_binding(runtime_root, turn_envelope)
 
                 session_binding_resolver = resolve_built_in_session_binding
+            elif args.host == "claude-code":
+                host_runner = build_claude_code_host_runner(
+                    args,
+                    project=project,
+                    runtime_root=runtime_root,
+                )
             elif args.host == "dsh":
                 host_runner = build_dsh_host_runner(
                     args,
@@ -1081,12 +1176,35 @@ def handle_turn_command(
                 scheduler=scheduler if args.execute else None,
                 post_settlement=(
                     post_settlement_reward_memory
-                    if args.execute and args.host == "codex-cli"
+                    if args.execute and args.host in {"codex-cli", "claude-code"}
                     else None
                 ),
                 admit_start=managed_cadence.admit if args.execute else None,
                 confirm_start=managed_cadence.confirm if args.execute else None,
+                turn_lane_todo_id=turn_lane_todo_id(
+                    registry_path, args.goal_id, args.agent_id, selected_todo
+                ),
             )
+            if args.execute:
+                from ..todo_review_blocked import settle_turn_stop_verdict
+                from .turn_usage_record import record_turn_payload_usage
+
+                # G9: cost/tokens of this host attempt into the goal usage ledger.
+                usage_ledger = record_turn_payload_usage(
+                    payload, args=args, registry_path=registry_path,
+                    runtime_root=runtime_root, project=project, selected_todo=selected_todo,
+                )
+                if usage_ledger is not None:
+                    payload["usage_ledger"] = usage_ledger
+
+                # G12: an acceptor's user_action_required stop is its blocked verdict.
+                blocked = settle_turn_stop_verdict(
+                    payload, registry_path=registry_path, runtime_root=runtime_root,
+                    runtime_root_arg=runtime_root_arg, goal_id=args.goal_id,
+                    agent_id=args.agent_id, selected_todo=selected_todo,
+                )
+                if blocked is not None:
+                    payload["acceptance"] = blocked
         else:
             raise ValueError("turn requires the `plan` or `run-once` subcommand")
     except Exception as exc:  # noqa: BLE001 - CLI boundary renders typed JSON failure

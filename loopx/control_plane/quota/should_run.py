@@ -108,6 +108,7 @@ def _apply_selected_todo_guards(
             prepared.agent_identity,
             agent_todo_summary=prepared.agent_todo_summary,
             selected_todo=selected_todo,
+            runtime_root=prepared.status_payload.get("runtime_root"),
         )
     boundary_projection_repair = build_boundary_projection_repair_hint(
         prepared.goal_boundary,

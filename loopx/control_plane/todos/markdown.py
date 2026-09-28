@@ -5,6 +5,18 @@ from typing import Any
 from .contract import TODO_STATUS_OPEN, todo_marker_for_status
 
 
+def _dependency_wait_lines(waits: Any) -> list[str]:
+    """Fork G6: deferred plan todos whose dependencies do not release them yet."""
+
+    if not isinstance(waits, list) or not waits:
+        return []
+    lines = ["", "## Dependency waits", ""]
+    for wait in waits:
+        if isinstance(wait, dict):
+            lines.append(f"- `{wait.get('todo_id')}`: {'; '.join(wait.get('reasons') or [])}")
+    return lines
+
+
 def render_todo_markdown(payload: dict[str, Any]) -> str:
     if payload.get("command") == "project-markdown":
         return "\n".join(
@@ -172,6 +184,7 @@ def render_todo_markdown(payload: dict[str, Any]) -> str:
                         metadata.append(f"{metadata_key}={item.get(metadata_key)}")
                 suffix = f" <!-- {' '.join(metadata)} -->" if metadata else ""
                 lines.append(f"- [{marker}] {text}{suffix}")
+        lines.extend(_dependency_wait_lines(payload.get("dependency_waits")))
         if payload.get("error"):
             lines.append(f"- error: {payload.get('error')}")
         if payload.get("operator_action"):

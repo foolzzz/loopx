@@ -16,15 +16,33 @@ def write_turn_repair_update(
     note: str,
     evidence: str,
     agent_id: str | None,
-) -> None:
+    result_kind: str | None = None,
+    verdict_feedback: str | None = None,
+) -> bool:
     """Record one repair-required Todo note under the effective runtime root.
 
     ``runtime_root_arg`` is required on purpose: the Turn settlement must
     hand down the same ``--runtime-root`` override the dispatch resolved, so
     the legacy writer fence and the todo mutex of a promotion cannot split
     from the Turn writeback path.
+
+    Under role_v1 an acceptor Turn that returns ``repair_required`` for the
+    delivered (``in_review``) Todo it reviews records a reject verdict with
+    the result summary as feedback (fork S2); a blank summary records the
+    ``blocked`` verdict instead (G12). ``verdict_feedback`` is that raw
+    summary; ``note`` falls back to the classification. Returns ``True`` when
+    a verdict was recorded.
     """
 
+    if result_kind == "repair_required" and agent_id:
+        from ..todo_acceptance import reject_delivery_from_turn
+
+        if reject_delivery_from_turn(
+            registry_path=registry_path, runtime_root_arg=runtime_root_arg,
+            goal_id=goal_id, todo_id=todo_id, agent_id=agent_id,
+            feedback=note if verdict_feedback is None else verdict_feedback,
+        ):
+            return True
     update_goal_todo(
         registry_path=registry_path,
         goal_id=goal_id,
@@ -37,6 +55,7 @@ def write_turn_repair_update(
         dry_run=False,
         runtime_root_arg=runtime_root_arg,
     )
+    return False
 
 
 def write_turn_validated_completion(

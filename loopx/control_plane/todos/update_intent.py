@@ -43,6 +43,7 @@ def build_canonical_update_intent(
     clear_resume_when: bool = False,
     no_followup: bool | None = None,
     clear_claim: bool = False,
+    role_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return only explicitly requested fields, retaining explicit clears.
 
@@ -80,6 +81,7 @@ def build_canonical_update_intent(
         "clear_resume_when": clear_resume_when if clear_resume_when else None,
         "no_followup": no_followup,
         "clear_claim": clear_claim if clear_claim else None,
+        "role_contract": role_contract if role_contract else None,
     }
     return {key: value for key, value in values.items() if value is not None}
 

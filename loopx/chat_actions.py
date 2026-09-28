@@ -13,6 +13,7 @@ from .bootstrap import bootstrap_project
 from .chat import apply_todo_review_preview, build_todo_review_preview
 from .chat_action_normalization import ChatActionNormalizationMixin
 from .chat_action_store import ActionConflictError, ChatActionStore
+from .chat_gate_actions import ChatGateActionMixin
 from .chat_goal_lifecycle_actions import ChatGoalLifecycleActionMixin
 from .chat_monitor_actions import ChatMonitorActionMixin
 from .chat_store import ChatSessionStore
@@ -184,6 +185,7 @@ class ChatActionService(
     ChatGoalLifecycleActionMixin,
     ChatMonitorActionMixin,
     ChatTodoActionMixin,
+    ChatGateActionMixin,
 ):
     """Validate previews and route applies through canonical LoopX services."""
 
@@ -1225,6 +1227,11 @@ class ChatActionService(
                 else "The monitor execution request is bound to the current Goal state."
             ]
             permission = "durable_write"
+        elif action_kind == "gate.resolve":
+            fingerprint, canonical_update_basis, evidence = self._gate_resolve_preview(
+                normalized
+            )
+            permission = "durable_write"
         elif action_kind == "agent.bind":
             binding = read_goal_agent_binding_with_source_route(
                 registry_path=self.registry_path,
@@ -1373,7 +1380,9 @@ class ChatActionService(
             return self._apply_todo_update(proposal_id, proposal, parameters)
         if action_kind == "monitor.update":
             return self._apply_monitor_update(proposal_id, proposal, parameters)
-        if action_kind in {"goal.update", "gate.resolve"}:
+        if action_kind == "gate.resolve":
+            return self._apply_gate_resolve(proposal_id, proposal, parameters)
+        if action_kind == "goal.update":
             raise ProtectedActionGate(
                 action_kind,
                 gate={

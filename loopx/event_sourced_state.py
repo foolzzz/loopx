@@ -13,6 +13,7 @@ from .control_plane.todos.contract import (
     TODO_MONITOR_METADATA_FIELDS,
     TODO_STATUS_DONE,
     TODO_STATUS_BLOCKED,
+    TODO_STATUS_IN_REVIEW,
     TODO_STATUS_DEFERRED,
     TODO_STATUS_OPEN,
     TODO_TASK_PATTERN,
@@ -33,6 +34,8 @@ from .control_plane.todos.contract import (
     normalize_todo_goal_bound,
     normalize_todo_id,
     normalize_todo_id_list,
+    normalize_todo_reject_count,
+    normalize_todo_acceptance_criteria,
     normalize_todo_status,
     normalize_todo_task_domain,
     normalize_todo_task_repository,
@@ -58,6 +61,9 @@ TODO_UPDATED = "todo_updated"
 TODO_BLOCKED = "todo_blocked"
 TODO_DEFERRED = "todo_deferred"
 TODO_COMPLETED = "todo_completed"
+# role_v1 acceptance (fork S2): delivered for review, and reopened on rejection.
+TODO_IN_REVIEW = "todo_in_review"
+TODO_REOPENED = "todo_reopened"
 REFRESH_RECORDED = "refresh_recorded"
 RUN_RECORDED = "run_recorded"
 QUOTA_SPENT = "quota_spent"
@@ -82,6 +88,8 @@ SUPPORTED_EVENT_TYPES = {
     TODO_BLOCKED,
     TODO_DEFERRED,
     TODO_COMPLETED,
+    TODO_IN_REVIEW,
+    TODO_REOPENED,
     REFRESH_RECORDED,
     RUN_RECORDED,
     QUOTA_SPENT,
@@ -97,6 +105,8 @@ TODO_EVENT_TYPES = {
     TODO_BLOCKED,
     TODO_DEFERRED,
     TODO_COMPLETED,
+    TODO_IN_REVIEW,
+    TODO_REOPENED,
 }
 
 
@@ -349,6 +359,11 @@ def backfill_todo_events_from_markdown(
             payload["global_gate"] = global_gate
         if excluded_agents:
             payload["excluded_agents"] = excluded_agents
+        acceptance_criteria = normalize_todo_acceptance_criteria(record.get("acceptance_criteria"))
+        if acceptance_criteria:
+            payload["acceptance_criteria"] = _redact_public_backfill_text(
+                acceptance_criteria, privacy=privacy
+            )
         _copy_todo_added_validation_fields(record, payload)
         if privacy == PUBLIC_PRIVACY:
             for key in (
@@ -434,6 +449,23 @@ def backfill_todo_events_from_markdown(
                     event_type=TODO_BLOCKED,
                     refs=refs,
                     payload=blocked_payload,
+                    recorded_at=recorded_at,
+                    producer=producer,
+                    privacy=privacy,
+                )
+            )
+        elif status == TODO_STATUS_IN_REVIEW:
+            review_payload: dict[str, Any] = {}
+            for key in ("evidence", "delivered_by"):
+                if record.get(key):
+                    review_payload[key] = _redact_public_backfill_text(record[key], privacy=privacy)
+            events.append(
+                make_state_event(
+                    event_id=_backfill_event_id(goal_id=normalized_goal_id, todo_id=todo_id, suffix="review"),
+                    goal_id=normalized_goal_id,
+                    event_type=TODO_IN_REVIEW,
+                    refs=refs,
+                    payload=review_payload,
                     recorded_at=recorded_at,
                     producer=producer,
                     privacy=privacy,
@@ -816,6 +848,10 @@ def _decode_added_todo_content(event: dict[str, Any]) -> dict[str, Any]:
         todo["claimed_by"] = claimed_by
     if actor_agent_id:
         todo["created_by"] = actor_agent_id
+    # Fork G2: orchestrator-owned per-todo acceptance criteria.
+    acceptance_criteria = normalize_todo_acceptance_criteria(payload.get("acceptance_criteria"))
+    if acceptance_criteria:
+        todo["acceptance_criteria"] = acceptance_criteria
     _copy_todo_added_validation_fields(payload, todo)
     return todo
 
@@ -894,6 +930,9 @@ def _decode_todo_event_content(event: dict[str, Any]) -> dict[str, Any]:
         for key in TODO_MONITOR_METADATA_FIELDS:
             if payload.get(key):
                 todo[key] = compact_text(payload[key])
+        acceptance_criteria = normalize_todo_acceptance_criteria(payload.get("acceptance_criteria"))
+        if acceptance_criteria:
+            todo["acceptance_criteria"] = acceptance_criteria
         if payload.get("text") or payload.get("title"):
             title = compact_text(payload.get("text") or payload.get("title"))
             todo["title"] = title
@@ -905,6 +944,16 @@ def _decode_todo_event_content(event: dict[str, Any]) -> dict[str, Any]:
             todo["reason"] = compact_text(payload["reason"])
         if payload.get("resume_when"):
             todo["resume_when"] = compact_text(payload["resume_when"])
+    elif event_type in (TODO_IN_REVIEW, TODO_REOPENED):
+        for key in ("evidence", "note", "reason", "review_feedback"):
+            if payload.get(key):
+                todo[key] = compact_text(payload[key])
+        delivered_by = normalize_todo_claimed_by(payload.get("delivered_by"))
+        if delivered_by:
+            todo["delivered_by"] = delivered_by
+        reject_count = normalize_todo_reject_count(payload.get("reject_count"))
+        if reject_count:
+            todo["reject_count"] = reject_count
     elif event_type == TODO_COMPLETED:
         for key in (
             "evidence",

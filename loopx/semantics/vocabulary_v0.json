@@ -779,12 +779,14 @@
       "values": [
         "canonical_checkout",
         "independent_git_worktree",
-        "local_goal_workspace"
+        "local_goal_workspace",
+        "todo_workspace_root"
       ],
       "value_notes": {
         "canonical_checkout": "Captured inside a git repository when the resolved git dir and the git common dir are the same path, which is what distinguishes the main checkout from a linked worktree. A goal that requires peers to deliver from their own worktrees rejects a delivery captured with this kind.",
         "independent_git_worktree": "Captured inside a git repository when the resolved git dir differs from the git common dir, the signal that this delivery ran in its own linked worktree. It is the kind a multi-agent goal demands: state refresh raises when a peer independent worktree is required and the capture says otherwise, and completion validation names it as the required workspace.",
-        "local_goal_workspace": "Captured on the same non-git local-goal branch that produces the local_goal identity kind, so the two are always emitted together. The snapshot validator rejects a non-git identity paired with any other workspace kind, with a revision digest, or with a peer independent worktree requirement."
+        "local_goal_workspace": "Captured on the same non-git local-goal branch that produces the local_goal identity kind, so the two are always emitted together. The snapshot validator rejects a non-git identity paired with any other workspace kind, with a revision digest, or with a peer independent worktree requirement.",
+        "todo_workspace_root": "Captured when the delivery path is not a git worktree but is the registered fork S5 per-Todo workspace root of exactly the settling goal and Todo, and every repo in it is a linked worktree of the Goal-declared repository on the Todo branch. It is always emitted with the todo_workspace identity kind and, like independent_git_worktree, satisfies a peer independent worktree requirement."
       }
     },
     "delivery_workspace_identity_kind": {
@@ -797,11 +799,13 @@
       },
       "values": [
         "git_repository",
-        "local_goal"
+        "local_goal",
+        "todo_workspace"
       ],
       "value_notes": {
-        "git_repository": "Captured when git rev-parse resolves a worktree root from the delivery path, the origin remote normalizes to a canonical repository identity, and both the git dir and the git common dir resolve. A missing origin or an unresolvable git dir yields no snapshot at all rather than downgrading to local_goal, so this kind always means a verified remote-backed identity.",
-        "local_goal": "Captured when the delivery path is inside no git worktree, no peer independent worktree is required, a local goal id was supplied, the path is the registered local project root or a child of it, and the resolved project identity carries the loopx prefix. Any one of those failing produces no snapshot, so this kind is never a fallback for a partially identified workspace."
+        "git_repository": "Captured when git rev-parse resolves a worktree root from the delivery path and both the git dir and the git common dir resolve. The identity is the origin remote normalized to a canonical repository identity, or, when there is no usable origin, local: plus the sha256 of the realpath of the git common dir, so a checkout and its linked worktrees share it. An unresolvable git dir yields no snapshot at all rather than downgrading to local_goal.",
+        "local_goal": "Captured when the delivery path is inside no git worktree, no peer independent worktree is required, a local goal id was supplied, the path is the registered local project root or a child of it, and the resolved project identity carries the loopx prefix. Any one of those failing produces no snapshot, so this kind is never a fallback for a partially identified workspace.",
+        "todo_workspace": "Captured for a multi-repo delivery from its fork S5 per-Todo workspace root (decision 29). The identity is todo-workspace:<goal>/<todo>, and only this kind carries the todo_workspace field: the goal, the Todo, the Todo branch and per repo its root-relative path, HEAD commit and repo id. Quota spend must come from the same root with the same repos."
       }
     },
     "delivery_workspace_requirement": {
