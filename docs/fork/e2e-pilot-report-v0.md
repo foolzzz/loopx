@@ -19,7 +19,7 @@ pass. `main` is untouched in both repos.
 
 ## Setup
 
-All paths below are relative to the pilot dir `/Users/a/ai/loopx-pilots/`.
+All paths below are relative to the pilot dir `<pilot-dir>` (a local directory outside the repo).
 
 - **State home.**
   - Runtime root: `.runtime/`, with the registry at `.runtime/registry.json` and
