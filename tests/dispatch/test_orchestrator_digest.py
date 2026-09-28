@@ -112,8 +112,19 @@ def test_the_digest_carries_what_the_orchestrator_used_to_discover_with_cli_call
 
 def test_the_digest_names_an_escalation_and_system_gates(tmp_path: Path) -> None:
     fixture = write_fixture(tmp_path, agents=AGENTS)
+    criteria, feedback = "k" * 900, "rejected by acc (#2): " + "f" * 500
+    blocked = add_goal_todo(
+        **_kw(fixture), role="agent", text="Build the badge", task_class="advancement_task", claimed_by="dev",
+        role_contract={"required_role": "developer", "requires_acceptance": True, "acceptance_criteria": criteria},
+    )["todo_id"]
+    update_goal_todo(**_kw(fixture), todo_id=blocked, role="agent", agent_id="dev", status="blocked",
+                     reason="escalated", role_contract={"reject_count": 2, "review_feedback": feedback})
+    other = add_goal_todo(
+        **_kw(fixture), role="agent", text="Other work", task_class="advancement_task", claimed_by="dev",
+        role_contract={"required_role": "developer", "acceptance_criteria": "o" * 900},
+    )["todo_id"]
     escalation = add_goal_todo(
-        **_kw(fixture), role="agent", text="Escalation: todo_abc was rejected 2 times by acc. Decide: reassign.",
+        **_kw(fixture), role="agent", text=f"Escalation: {blocked} was rejected 2 times by acc. Decide: reassign.",
         task_class="advancement_task", action_kind="replan", claimed_by="orch",
         role_contract={"required_role": "orchestrator", "requires_acceptance": False},
     )["todo_id"]
@@ -123,7 +134,10 @@ def test_the_digest_names_an_escalation_and_system_gates(tmp_path: Path) -> None
 
     register_gate_kind(fixture["runtime"], GOAL_ID, gate, kind="push_request")
     digest = _digest(fixture, escalation)
-    assert "escalation of `todo_abc` (rejected twice, now blocked)" in digest
+    assert f"escalation of `{blocked}` (rejected twice, now blocked)" in digest
+    # The escalated todo is shown whole; other todos are clipped.
+    assert f"  criteria: {criteria}\n" in digest and f"  feedback: {feedback}\n" in digest
+    assert "o" * 300 not in digest and f"- `{other}` [open]" in digest
     assert f"- `{gate}` kind=push_request awaiting_user: Push request: push it?" in digest
 
 

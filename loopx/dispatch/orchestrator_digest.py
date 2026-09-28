@@ -58,6 +58,10 @@ SECTION_BUDGETS = {
 _TEXT_CHARS = 160
 _CRITERIA_CHARS = 280
 _FEEDBACK_CHARS = 320
+# The todo this Turn is about (the launch todo or the todo it escalates) is shown in full:
+# its criteria up to the 1000-character field limit and its whole review feedback.
+_FOCUS_CRITERIA_CHARS = 1000
+_FOCUS_FEEDBACK_CHARS = 600
 _WAIT_CHARS = 200
 _MESSAGE_CHARS = 260
 _OBJECTIVE_CHARS = 300
@@ -199,13 +203,14 @@ def _todo_head(row: Mapping[str, Any]) -> str:
     repos = row.get("task_repositories") or ([row["task_repository"]] if row.get("task_repository") else [])
     if repos:
         parts.append("repos=" + ",".join(str(repo) for repo in repos))
-    if row.get("priority"):
+    if row.get("priority") and not str(row.get("text") or "").startswith(f"[{row['priority']}]"):
         parts.append(str(row["priority"]))
     return " ".join(parts) + f": {_clip(row.get('text'), _TEXT_CHARS)}"
 
 
 def _todo_lines(
     rows: Sequence[Mapping[str, Any]], waits: Mapping[str, Sequence[str]], superseded: set[str],
+    focus: set[str] = frozenset(),
 ) -> list[str]:
     live = sorted(
         (row for row in rows if str(row.get("status") or "") in _LIVE_STATUSES),
@@ -220,12 +225,15 @@ def _todo_lines(
     for row in live:
         todo_id = str(row.get("todo_id"))
         item = [f"- {_todo_head(row)}"]
+        focused = todo_id in focus
         if row.get("acceptance_criteria"):
-            item.append(f"  criteria: {_clip(row['acceptance_criteria'], _CRITERIA_CHARS)}")
+            limit = _FOCUS_CRITERIA_CHARS if focused else _CRITERIA_CHARS
+            item.append(f"  criteria: {_clip(row['acceptance_criteria'], limit)}")
         if waits.get(todo_id):
             item.append(f"  waits: {_clip('; '.join(waits[todo_id]), _WAIT_CHARS)}")
         if row.get("review_feedback"):
-            item.append(f"  feedback: {_clip(row['review_feedback'], _FEEDBACK_CHARS)}")
+            limit = _FOCUS_FEEDBACK_CHARS if focused else _FEEDBACK_CHARS
+            item.append(f"  feedback: {_clip(row['review_feedback'], limit)}")
         delivery = _delivery_state(row, todo_id in superseded)
         if delivery:
             item.append(f"  delivery: {delivery}")
@@ -392,6 +400,14 @@ def _launch_lines(todo: Mapping[str, Any] | None, launch_reason: str | None, awa
     return lines
 
 
+def _focus_ids(todo: Mapping[str, Any] | None) -> set[str]:
+    from ..todo_acceptance import escalated_todo_id
+
+    if not todo:
+        return set()
+    return {str(item) for item in (todo.get("todo_id"), escalated_todo_id(todo)) if item}
+
+
 def bound_digest(text: str, max_chars: int = DIGEST_MAX_CHARS) -> str:
     """Cut ``text`` to ``max_chars`` on a line boundary with the truncation marker."""
 
@@ -453,7 +469,7 @@ def build_orchestrator_digest(
         "",
         *_plan_lines(runtime_root, goal_id),
         "",
-        *_todo_lines(agent_rows, waits, superseded),
+        *_todo_lines(agent_rows, waits, superseded, _focus_ids(by_id.get(str(todo_id)) if todo_id else None)),
         "",
         *_event_lines(runtime_root, goal_id),
     ]
