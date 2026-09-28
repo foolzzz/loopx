@@ -37,6 +37,7 @@ from .orchestrator_actions import (
     is_orchestrator_action_todo,
     live_orchestrator_todo,
 )
+from .orchestrator_digest import orchestrator_digest_or_note
 from .prompts import compose_system_prompt, dispatch_prompt_addendum, replace_system_prompt_argument
 from . import settlement_retry
 from .review_checkouts import (
@@ -974,6 +975,13 @@ class Dispatcher:
                         if role == "orchestrator" else None
                     ),
                     loopx_command=self._loopx_command(),
+                    state_digest=(
+                        orchestrator_digest_or_note(
+                            registry_path=self.registry_path, runtime_root=self.runtime_root, goal_id=goal_id,
+                            todo_id=str(todo_id) if todo_id else None, launch_reason=decision.get("reason"),
+                        )
+                        if role == policy.ROLE_ORCHESTRATOR else None
+                    ),
                 ),
             )
             host_args = replace_system_prompt_argument(host_args, prompt_path)

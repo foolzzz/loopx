@@ -15,6 +15,16 @@ from pathlib import Path
 from ..control_plane.turn_driver.codex_cli import RESULT_PATH_HYGIENE_INSTRUCTION
 
 RESULT_PATH_HYGIENE_RULE = RESULT_PATH_HYGIENE_INSTRUCTION
+# Decision 43: how the orchestrator uses the launch-time state digest.
+ORCHESTRATOR_DIGEST_GUIDANCE = (
+    "The goal state digest below was computed by LoopX when this Turn launched and is current as of "
+    "launch. Start from it: do not run status, `loopx todo list`, `gate list` or `plan list` just to "
+    "discover state it already shows. Use a CLI read only for detail the digest omits or truncates "
+    "(a whole gate thread: `loopx gate show`; one todo: `loopx todo list --goal-id G --todo-id T`; a plan card: "
+    "`loopx plan show`). Write only through the CLI, as before: LoopX validates every write against "
+    "the current state, so if a write is refused because something changed since launch, re-read "
+    "just that item."
+)
 
 
 def dispatch_prompt_addendum(
@@ -27,6 +37,7 @@ def dispatch_prompt_addendum(
     awaiting_gates: Sequence[str] | None = None,
     loopx_command: str = "loopx",
     review_checkout: bool = False,
+    state_digest: str | None = None,
 ) -> str:
     """Render the dispatch context for one Turn.
 
@@ -34,6 +45,8 @@ def dispatch_prompt_addendum(
     runtime root) the dispatcher itself uses. The orchestrator must run its
     gate and plan commands against the same state home; a bare ``loopx``
     would fall back to the default registry, which may be another state home.
+    ``state_digest`` is the bounded goal-state digest rendered at launch for an
+    orchestrator Turn (decision 43); it is appended after the guidance.
     """
 
     lx = loopx_command or "loopx"
@@ -152,6 +165,12 @@ def dispatch_prompt_addendum(
                 + ", ".join(f"`{gate}`" for gate in awaiting_gates)
                 + ". Read each thread and answer, or propose a conclusion."
             )
+        if state_digest:
+            lines += [
+                f"- {ORCHESTRATOR_DIGEST_GUIDANCE}",
+                "",
+                state_digest.rstrip(),
+            ]
     return "\n".join(lines) + "\n"
 
 
