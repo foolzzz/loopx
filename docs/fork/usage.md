@@ -147,7 +147,8 @@ Choices and guards:
 
 **Upgrade.** Run `git pull --ff-only` on `main`, then run the install command
 again. Each promoted run creates a new snapshot and repoints `loopx` to it. A
-run that fails the promotion guard only refreshes `loopx-canary`.
+run that fails the promotion guard leaves `loopx` unchanged; see the promotion
+guard above.
 
 **Roll back.** `loopx update --rollback <release-id>` repoints `loopx` to a
 snapshot. The release ids are the directory names under
