@@ -221,8 +221,11 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
   A goal without a repo list keeps its legacy single `repo`, which acts as the
   repo `main`.
 - **Workspaces.** `loopx workspace prepare | status | merge | cleanup`. A
-  todo gets one worktree per repo it names, all on the branch
-  `loopx/<goal>/<todo>`.
+  todo gets one worktree per selected repo, all on the branch
+  `loopx/<goal>/<todo>`. The selected repos are the todo's
+  `task_repositories`, or, for a manual command on a todo that names none,
+  every goal repo. The dispatcher prepares workspaces only for todos that
+  name repos.
   - The merge is atomic across the todo's repos: if any repo fails, none is
     merged.
   - Each repo with changes gets a no-ff merge commit with `LoopX-Goal` and
@@ -230,7 +233,6 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
   - Each repo's merge target is its default branch (`merge_target=main`, the
     default) or a task branch (`merge_target=task_branch`, named
     `loopx-task/<goal>` unless `task_branch` is set).
-  - The dispatcher prepares workspaces itself.
 - **Delivery identity (decision 29, #12).** A multi-repo Turn settles against
   a todo workspace identity. A repo without `origin` gets a local `repo_id`,
   so it works without a fake remote.
@@ -274,8 +276,10 @@ Covers 2026-09-25 to 2026-09-28: PRs #1 to #29, 136 non-merge commits.
 
 - **Turn usage.** Every claude-code and codex-cli Turn records a `turn_usage`
   block: tokens, cost and host steps when the host reports them, and the
-  duration. A Turn that times out or crashes records its duration only. The rows go to an
-  append-only `<runtime-root>/goals/<goal>/usage.jsonl`.
+  duration. A Turn that times out or crashes without host accounting records
+  its duration only. A crash before the ledger write is recorded when the
+  Turn is replayed. The rows go to an append-only
+  `<runtime-root>/goals/<goal>/usage.jsonl`.
 - **Estimated pricing.** A provider can declare a `pricing` table, which
   estimates the cost of hosts that report no USD, such as Codex through CPA.
 - **Reports.** `loopx usage report [--by role|agent|goal|todo|model|day]` shows
