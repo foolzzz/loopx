@@ -303,7 +303,9 @@ def review_gate_preflight(
     entry = review_gate_entry(runtime_root, goal_id, gate_todo_id)
     if entry is None:
         if option is not None:
-            raise ValueError("a gate option applies only to an acceptor-blocked or budget_exhausted gate")
+            raise ValueError(
+                "a gate option applies only to an acceptor-blocked, budget_exhausted or goal_complete gate"
+            )
         return None
     selected = resolve_review_gate_option(decision, option)
     if selected == OPTION_ACCEPT_MANUALLY:

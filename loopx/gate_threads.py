@@ -50,9 +50,12 @@ GATE_KIND_ACCEPTOR_BLOCKED = "acceptor_blocked"
 GATE_KIND_PUSH_REQUEST = "push_request"
 # Decision 41: opened by LoopX when a goal's usage budget is exhausted (``loopx.usage_budget_gate``).
 GATE_KIND_BUDGET_EXHAUSTED = "budget_exhausted"
+# Decision 42: opened by LoopX when a role_v1 goal's work is merged and its push resolved
+# (``loopx.goal_complete_gate``).
+GATE_KIND_GOAL_COMPLETE = "goal_complete"
 GATE_KINDS = (
     GATE_KIND_DECISION, GATE_KIND_PLAN_APPROVAL, GATE_KIND_ACCEPTOR_BLOCKED, GATE_KIND_PUSH_REQUEST,
-    GATE_KIND_BUDGET_EXHAUSTED,
+    GATE_KIND_BUDGET_EXHAUSTED, GATE_KIND_GOAL_COMPLETE,
 )
 
 MAX_MESSAGE_CHARS = 4000
@@ -429,8 +432,9 @@ def resolve_gate(
 
     The same path as ``loopx todo complete --role user --decision-outcome`` and
     the dashboard ``gate.resolve``; the lifecycle actor is the agent the gate
-    blocks. ``option`` picks one of an acceptor-blocked (G12) or
-    budget_exhausted (decision 41) gate's options and implies its decision.
+    blocks. ``option`` picks one of an acceptor-blocked (G12),
+    budget_exhausted (decision 41) or goal_complete (decision 42) gate's
+    options and implies its decision.
     """
 
     from .todos import complete_goal_todo
@@ -440,10 +444,13 @@ def resolve_gate(
     if not _gate_is_open(gate):
         raise GateThreadError("gate_closed", f"gate {todo_id!r} is already {gate.get('status')}")
     if option is not None and decision is None:
+        from .goal_complete_gate import GOAL_COMPLETE_OPTION_DECISIONS
         from .todo_review_blocked import REVIEW_GATE_OPTION_DECISIONS
         from .usage_budget_gate import BUDGET_GATE_OPTION_DECISIONS
 
-        decision = {**REVIEW_GATE_OPTION_DECISIONS, **BUDGET_GATE_OPTION_DECISIONS}.get(option)
+        decision = {
+            **REVIEW_GATE_OPTION_DECISIONS, **BUDGET_GATE_OPTION_DECISIONS, **GOAL_COMPLETE_OPTION_DECISIONS,
+        }.get(option)
     if decision not in {"approve", "reject", "cancel"}:
         raise GateThreadError("decision_required", "gate resolve requires --decision approve|reject|cancel or --option")
     bound = gate.get("bound_agent") or gate.get("blocks_agent")
@@ -496,7 +503,8 @@ def gate_view(
     for key in ("review_todo_id", "acceptor_agent", "options", "decision_option",
                 "push_reason", "push_repos", "previous_errors", "push_outcome",
                 "budget_usd", "spent_usd", "spent_ratio", "estimated_usd", "by_role", "default_raise_usd",
-                "budget_outcome"):
+                "budget_outcome", "completion_key", "completion_repos", "completion_todos", "completion_usage",
+                "follow_ups", "completion_outcome"):
         if entry.get(key):
             view[key] = entry[key]
     return view
