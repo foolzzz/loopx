@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import plistlib
 import sys
 from collections.abc import Mapping, Sequence
@@ -14,6 +15,22 @@ def launchd_label(runtime_root: Path) -> str:
     return f"com.loopx.dispatch.{digest}"
 
 
+def loopx_source_root() -> Path:
+    """The directory that holds the ``loopx`` package this process runs."""
+
+    import loopx
+
+    return Path(loopx.__file__).resolve().parent.parent
+
+
+def _pinned_pythonpath(source_root: Path, current: str | None) -> str:
+    entries = [str(source_root)]
+    for entry in (current or "").split(os.pathsep):
+        if entry and os.path.normpath(entry) not in {os.path.normpath(item) for item in entries}:
+            entries.append(entry)
+    return os.pathsep.join(entries)
+
+
 def render_launchd_plist(
     *,
     registry_path: Path,
@@ -22,6 +39,7 @@ def render_launchd_plist(
     environ: Mapping[str, str],
     python: str | None = None,
     label: str | None = None,
+    source_root: Path | None = None,
 ) -> str:
     runtime_root = Path(runtime_root).expanduser()
     log_dir = runtime_root / "dispatch" / "logs"
@@ -42,6 +60,11 @@ def render_launchd_plist(
     env = {"PATH": environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")}
     if environ.get("HOME"):
         env["HOME"] = environ["HOME"]
+    # launchd passes only these variables, so pin the job to the LoopX that
+    # rendered this plist (an installed release snapshot or a checkout), not
+    # whatever the interpreter's site-packages resolves, such as an editable
+    # install of another checkout. Turns the dispatcher starts inherit it.
+    env["PYTHONPATH"] = _pinned_pythonpath(source_root or loopx_source_root(), environ.get("PYTHONPATH"))
     payload = {
         "Label": label or launchd_label(runtime_root),
         "ProgramArguments": program,

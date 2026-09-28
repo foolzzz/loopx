@@ -174,14 +174,13 @@ id.
    `~/.local/bin/<name>.legacy-disabled`. Rename it back, or delete it if you
    no longer want it.
 
-**The dispatcher under launchd.** `loopx dispatch launchd-plist` runs
-`<LOOPX_PYTHON> -m loopx.cli` with only `PATH` and `HOME` set. The checkout's
-`.venv` has the checkout installed in editable mode, so a launchd dispatcher
-runs the **checkout's current code**, not the snapshot. The `loopx` command
-and a foreground `loopx dispatch serve` run the snapshot, and so do the Turns
-they start. Keep the checkout on `main` while a launchd dispatcher runs.
-Alternatively, add `PYTHONPATH` pointing at the snapshot to the plist's
-`EnvironmentVariables`.
+**The dispatcher under launchd.** `loopx dispatch launchd-plist` pins the
+plist's `PYTHONPATH` to the LoopX that renders it. Render it with the
+installed `loopx`, and the resident dispatcher and the Turns it starts run
+that snapshot, not the checkout that the `.venv` installs in editable mode.
+The plist names the snapshot's path. After an upgrade, render the plist again
+and reload it with `launchctl unload` and then `launchctl load`. Until you
+do, the dispatcher keeps running the old snapshot.
 
 ### B. Source checkout only
 

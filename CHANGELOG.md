@@ -384,6 +384,11 @@ These behaviors differ from upstream.
   keychain launch-env subprocess (#3).
 - **Hermetic tests (#29).** Multi-agent delivery tests settle from a private
   linked worktree, so they pass from any checkout.
+- **launchd dispatcher code.** `loopx dispatch launchd-plist` set only
+  `PATH` and `HOME`. With the checkout's `.venv` as the Python, a resident
+  dispatcher therefore ran the checkout's current code instead of the
+  installed snapshot. The plist now pins `PYTHONPATH` to the LoopX source
+  that rendered it. Render the plist again after an upgrade.
 - **Owner writes on unclaimed todos.** A plan todo without a `bound_agent`
   has no claim owner, because Turns do not claim todos. Two owner actions on
   such a todo failed, because the owner is not a registered agent:
@@ -415,10 +420,6 @@ These behaviors differ from upstream.
 - **Dashboard from source.** A source checkout without the local install
   needs `npm run build:chat` before `loopx dashboard` can serve the chat
   bundle. `scripts/install-local.sh` builds it into the release.
-- **launchd dispatcher code.** `loopx dispatch launchd-plist` runs
-  `<python> -m loopx.cli` without `PYTHONPATH`. With the checkout's `.venv`
-  as the Python, the resident dispatcher runs the checkout's current code,
-  not the installed snapshot.
 - **Budgets.** A budget pause never kills running Turns, so spend can end up
   above the budget.
 - **Usage recording.** The generic-cli and dsh hosts record no usage. A
