@@ -77,6 +77,47 @@ quickstart below.
 | Turn | One headless agent run (`loopx turn run-once`). It has a typed result, independent validation of material results, and an idempotent writeback. |
 | merge target | Where accepted work lands in each repo. It is the task branch `loopx-task/<goal>` with `merge_target=task_branch`, or the default branch with `merge_target=main`. |
 
+### Supported agents
+
+The dispatcher launches agents through two runtimes. An agent file names
+one of them in `runtime`, plus a provider whose kind fits it. LoopX keeps no
+model allowlist: any model that the runtime's CLI and your provider accept
+works.
+
+| runtime | drives | provider kinds | role-specific behavior |
+|---|---|---|---|
+| `claude-code` | Claude Code: a fresh `claude -p` session per Turn | `anthropic` | Reports its own cost. Receives the dispatcher's system-prompt addendum, and as orchestrator the goal state digest. Settings: `permission_mode`, `reasoning_effort` (`low` to `max`), `system_prompt_file` and raw `extra_args`. |
+| `codex-cli` | Codex CLI (`codex exec`) | `openai`, `openai-compatible`, `codex-cpa` (a local CPA proxy) | Reports no USD, so its cost is estimated from the provider's `pricing`. Receives no system-prompt addendum or state digest. Settings: `sandbox`, `reasoning_effort` (`none` to `ultra`), and `extra_args` as `KEY=VALUE` config overrides. |
+
+Each provider authenticates with a CLI login, an OAuth token or an API key;
+see [step 1](#step-1-describe-your-providers).
+
+Choosing agents for the roles:
+
+- **Any runtime can fill any role.** Roles come from the registry, and each
+  goal has at most one orchestrator.
+- **Run the orchestrator on `claude-code`.** Only claude-code receives the
+  state digest and the orchestrator's command guidance. A codex-cli
+  orchestrator gets neither.
+- **The acceptor runs without a sandbox by default**, so it can build and
+  test: `danger-full-access` on codex-cli, `bypassPermissions` on
+  claude-code. The developer and the orchestrator default to `read-only` on
+  codex-cli and `dontAsk` on claude-code. Set `permission_mode: acceptEdits`
+  for a claude-code developer. An explicit value in the agent file wins over
+  these defaults.
+- **The end-to-end pilots used** a claude-code orchestrator
+  (`claude-fable-5-1`), a claude-code developer (`claude-opus-4-6`, two
+  Turns at a time) and a codex-cli acceptor through CPA (`gpt-5.6-sol`).
+
+Not supported by the dispatcher:
+
+- `turn run-once` also has `dsh` and `generic-cli` hosts, but agent files
+  accept only `claude-code` and `codex-cli`, so the dispatcher cannot launch
+  them, and they record no usage.
+- Upstream host integrations (Codex App, OpenCode, KunlunCode and the other
+  `/loopx` surfaces) drive the upstream heartbeat loop. The role dispatcher
+  does not launch them.
+
 ## 2. Install
 
 Pick one of three ways:
