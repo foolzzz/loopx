@@ -19,6 +19,10 @@ in one locked state-file write. A goal with promoted canonical authority
 creates each todo with a deterministic operation id
 (``plan-<plan_id>-<key>``), so an interrupted apply resumes on retry without
 duplicates; the plan record stays ``applying`` until every todo exists.
+Only the owner's approve starts an apply: ``apply_plan`` reads the gate todo
+and refuses ``plan_not_approved`` unless it is closed with approve, so
+``loopx plan apply`` recovers an interrupted apply and never replaces the
+approve.
 
 Durable layout: ``<runtime_root>/goals/<goal>/plans/<plan_id>.json``.
 """
@@ -53,6 +57,9 @@ PLAN_APPLYING = "applying"
 PLAN_APPLIED = "applied"
 PLAN_REJECTED = "rejected"
 PLAN_CANCELLED = "cancelled"
+
+# apply_plan refuses a card whose plan_approval gate is not closed with approve.
+PLAN_NOT_APPROVED = "plan_not_approved"
 
 MAX_PLAN_TODOS = 50
 _KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -553,11 +560,54 @@ def propose_plan(
     return {"ok": True, "changed": True, "plan": record}
 
 
+def require_plan_gate_approved(
+    *, registry_path: Path, goal_id: str, record: Mapping[str, Any], runtime_root_arg: str | None = None,
+) -> None:
+    """Decision 12: a plan is applied only after the owner approves its gate.
+
+    The evidence is the plan's ``plan_approval`` gate todo as the goal's todo
+    authority holds it (Markdown or promoted canonical, archived rows
+    included): ``done`` with ``decision_outcome=approve``. It is never a caller
+    flag, nor the gate-thread index, which settlement marks only after the gate
+    closed. ``loopx plan apply`` therefore still recovers an approved plan
+    whose settlement or apply was interrupted, and refuses one the owner has
+    not approved with ``plan_not_approved``.
+    """
+
+    from .control_plane.todos.contract import TODO_STATUS_DONE, normalize_todo_decision_outcome
+    from .todos import list_goal_todos
+
+    plan_id, gate_id = str(record.get("plan_id")), str(record.get("gate_todo_id") or "")
+    listed = list_goal_todos(
+        registry_path=registry_path, goal_id=goal_id, todo_id=gate_id, runtime_root_arg=runtime_root_arg,
+    ) if gate_id else {}
+    gate = next((row for row in listed.get("todos") or [] if row.get("todo_id") == gate_id), None)
+    if gate is None:
+        raise PlanCardError(
+            PLAN_NOT_APPROVED, f"plan {plan_id!r} cannot be applied: its plan_approval gate {gate_id!r} was not found",
+        )
+    status, decision = gate.get("status"), normalize_todo_decision_outcome(gate.get("decision_outcome"))
+    if status == TODO_STATUS_DONE and decision == "approve":
+        return
+    state = f"closed with {decision or 'no decision'}" if status == TODO_STATUS_DONE else f"still {status}"
+    raise PlanCardError(
+        PLAN_NOT_APPROVED,
+        f"plan {plan_id!r} is not approved: its plan_approval gate {gate_id!r} is {state}. "
+        f"Only the owner's approve applies a plan: `loopx gate resolve --goal-id {goal_id} "
+        f"--todo-id {gate_id} --decision approve`; `loopx plan apply` only recovers an approved plan.",
+    )
+
+
 def apply_plan(
     *, registry_path: Path, runtime_root: Path, goal_id: str, plan_id: str,
     runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
-    """Apply an approved (or interrupted) plan exactly once."""
+    """Apply an approved (or interrupted) plan exactly once.
+
+    Refused with ``plan_not_approved`` unless the plan's gate is closed with
+    approve (:func:`require_plan_gate_approved`); the check also covers an
+    ``applying`` record, so no caller can start or finish an unapproved apply.
+    """
 
     from .control_plane.coordination.local_authority import read_canonical_todos_if_promoted
 
@@ -569,6 +619,9 @@ def apply_plan(
             return {"ok": True, "applied": False, "already_applied": True, "plan": record}
         if status not in {PLAN_PENDING, PLAN_APPLYING}:
             raise PlanCardError("plan_not_applicable", f"plan {plan_id!r} is {status}; nothing to apply")
+        require_plan_gate_approved(
+            registry_path=registry_path, goal_id=goal_id, record=record, runtime_root_arg=runtime_root_arg,
+        )
         record["status"] = PLAN_APPLYING
         record["updated_at"] = _now()
         atomic_write_json(path, record)
