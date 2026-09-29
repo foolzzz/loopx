@@ -58,7 +58,8 @@ PUSH_OWNED_BRANCH_PREFIXES = ("loopx-task/", "loopx/")
 # Plan statuses of a local-only repo: skipped, never pushed, never pending.
 PUSH_STATUS_NO_REMOTE = "no_remote"
 PUSH_STATUS_NOT_A_GIT_REPO = "not_a_git_repo"
-PUSH_LOCAL_ONLY_STATUSES = frozenset({PUSH_STATUS_NO_REMOTE, PUSH_STATUS_NOT_A_GIT_REPO})
+PUSH_STATUS_NO_COMMITS = "no_commits"
+PUSH_LOCAL_ONLY_STATUSES = frozenset({PUSH_STATUS_NO_REMOTE, PUSH_STATUS_NOT_A_GIT_REPO, PUSH_STATUS_NO_COMMITS})
 
 _ABSOLUTE_PATH = re.compile(r"(?:file://)?(?<![\w.~-])/[^\s'\"]+")
 
@@ -164,9 +165,10 @@ def repo_push_plan(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: st
     """What pushing one repo's merge target would send, without touching the network.
 
     ``status`` is ``ready`` (commits to push), ``up_to_date``, a local-only
-    status (``no_remote``, or ``not_a_git_repo`` for the implicit repo of a goal
-    whose project directory is not a git repository; both skipped),
-    ``no_branch`` or ``error``.
+    status (skipped: ``no_remote``; for the implicit repo of a goal created
+    without ``--repo``, ``not_a_git_repo`` or ``no_commits`` when its project
+    directory is no git repository or has no commit yet), ``no_branch`` or
+    ``error``.
     """
 
     from .workspace.git_workspace import WorkspaceError, _resolve_repo
@@ -175,11 +177,15 @@ def repo_push_plan(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: st
     try:
         resolved = _resolve_repo(repo, goal_id=goal_id)
     except WorkspaceError as exc:
-        if exc.code == "not_a_git_repo" and repo.get("legacy"):
-            # A goal created without --repo names its project directory as
-            # the implicit repo; a plain directory has nothing to push.
+        # A goal created without --repo names its project directory as the
+        # implicit repo; a plain directory, or a repo with no commit yet (an
+        # unborn HEAD), has nothing to push. A declared repo stays an error.
+        if repo.get("legacy") and exc.code == "not_a_git_repo":
             return {"name": name, "status": PUSH_STATUS_NOT_A_GIT_REPO,
                     "note": "the project directory is not a git repository; nothing to push"}
+        if repo.get("legacy") and exc.code == "default_branch_unresolved" and _rev(str(repo["path"]), "HEAD") is None:
+            return {"name": name, "status": PUSH_STATUS_NO_COMMITS,
+                    "note": "the project directory has no commit yet; nothing to push"}
         return {"name": name, "status": "error", "error": exc.reason}
     path = resolved["path"]
     branch = str(resolved["target_branch"])
