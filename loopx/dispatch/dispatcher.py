@@ -1118,22 +1118,6 @@ class Dispatcher:
         if self.config.no_global_sync:
             argv.append("--no-global-sync")
         argv.extend(self.config.extra_turn_args)
-        try:
-            with open(stdout_path, "wb") as stdout, open(stderr_path, "wb") as stderr:
-                child = subprocess.Popen(
-                    argv,
-                    cwd=str(run_project),
-                    env=env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stdout,
-                    stderr=stderr,
-                    start_new_session=True,
-                )
-        except OSError:
-            if review_checkout is not None:
-                remove_acceptor_review(goal, review_checkout, self.runtime_root)
-            raise
-        self.children[run_id] = child
         record = {
             "run_id": run_id,
             "goal_id": goal_id,
@@ -1148,7 +1132,7 @@ class Dispatcher:
             "crashes": crashes,
             "settlement_retries": settlement_retries,
             "reason": decision.get("reason"),
-            "pid": child.pid,
+            "pid": None,
             "started_at": self.clock(),
             "project": str(run_project),
             "workspace_repos": sorted(repo_paths),
@@ -1159,7 +1143,31 @@ class Dispatcher:
             "stdout_path": str(stdout_path),
             "stderr_path": str(stderr_path),
         }
+        # Persist the run before the child exists, so a dispatcher that dies
+        # between the two never leaves a Turn it does not know about (its
+        # project-directory slot, its todo). A run whose pid is still unset
+        # after a restart is not alive, so reap() settles it as a crash.
         self._running()[run_id] = record
+        save_state(self.runtime_root, self.state)
+        try:
+            with open(stdout_path, "wb") as stdout, open(stderr_path, "wb") as stderr:
+                child = subprocess.Popen(
+                    argv,
+                    cwd=str(run_project),
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=stdout,
+                    stderr=stderr,
+                    start_new_session=True,
+                )
+        except OSError:
+            self._running().pop(run_id, None)
+            save_state(self.runtime_root, self.state)
+            if review_checkout is not None:
+                remove_acceptor_review(goal, review_checkout, self.runtime_root)
+            raise
+        self.children[run_id] = child
+        record["pid"] = child.pid
         save_state(self.runtime_root, self.state)
         report["launched"].append({key: record[key] for key in ("run_id", "goal_id", "agent_id", "role", "todo_id", "turn_instance_id", "turn_instance_reused", "reason")})
         return run_id
