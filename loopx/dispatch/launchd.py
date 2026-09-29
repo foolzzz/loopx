@@ -48,7 +48,9 @@ def render_launchd_plist(
         "-m",
         "loopx.cli",
         "--registry",
-        str(Path(registry_path).expanduser()),
+        # launchd starts the job in the runtime root, not where this was rendered.
+        # Absolute, but a symlinked registry keeps its link path.
+        os.path.abspath(Path(registry_path).expanduser()),
         "--runtime-root",
         str(runtime_root),
         "dispatch",

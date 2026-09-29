@@ -120,8 +120,11 @@ class Dispatcher:
         clock: Callable[[], float] = _now,
     ) -> None:
         self.config = config
-        self.runtime_root = Path(config.runtime_root).expanduser()
-        self.registry_path = Path(config.registry_path).expanduser()
+        # Absolute once: Turns and their validators run in todo worktrees, where
+        # the default relative registry (.loopx/registry.json) does not resolve.
+        # Symlinks are kept: registry writes replace and lock the path as given.
+        self.runtime_root = Path(os.path.abspath(Path(config.runtime_root).expanduser()))
+        self.registry_path = Path(os.path.abspath(Path(config.registry_path).expanduser()))
         self.environ = dict(os.environ if config.environ is None else config.environ)
         self._should_run = should_run or self._loopx_should_run
         self._preflight = preflight or _default_preflight
@@ -156,6 +159,21 @@ class Dispatcher:
         from ..agent_registry import load_goal_from_registry
 
         return load_goal_from_registry(self.registry_path, goal_id)
+
+    def _failure_text_roots(self) -> list[tuple[str, str]]:
+        """Known local roots, as given and resolved, that a failure summary names by placeholder."""
+
+        registry_dir = self.registry_path.parent
+        roots = [
+            ("<runtime-root>", self.runtime_root),
+            ("<state-home>", registry_dir.parent if registry_dir.name == ".loopx" else registry_dir),
+            *([("<project>", Path(self.config.project).expanduser())] if self.config.project else []),
+            ("<home>", Path.home()),
+        ]
+        return [
+            (form, label) for label, root in roots
+            for form in dict.fromkeys((os.path.abspath(root), os.path.realpath(root)))
+        ]
 
     def _goal_project(self, goal: Mapping[str, Any]) -> Path:
         if self.config.project is not None:
@@ -1130,7 +1148,7 @@ class Dispatcher:
             stdout_text = Path(run["stdout_path"]).read_text(encoding="utf-8", errors="replace")
         except (OSError, KeyError):
             stdout_text = ""
-        outcome = policy.classify_outcome(returncode, stdout_text)
+        outcome = policy.classify_outcome(returncode, stdout_text, roots=self._failure_text_roots())
         if returncode is not None and returncode < 0:
             outcome["outcome"] = policy.OUTCOME_CRASHED
         now = self.clock()
@@ -1185,6 +1203,7 @@ class Dispatcher:
                 ),
                 "failures": failures,
                 "reason": outcome["outcome"],
+                **({"error": outcome["error"]} if outcome.get("error") else {}),
             }
         if run.get("orchestrator_action") and run.get("todo_id"):
             # A failed Turn on an action todo (typically its validator, when
@@ -1218,7 +1237,10 @@ class Dispatcher:
             prompt.unlink()
         except OSError:
             pass
-        return {key: record.get(key) for key in ("run_id", "goal_id", "agent_id", "todo_id", "outcome", "failure_kind", "returncode")}
+        reaped = {key: record.get(key) for key in ("run_id", "goal_id", "agent_id", "todo_id", "outcome", "failure_kind", "returncode")}
+        # A failed run says why in the pass log, not only in its runs/<id>.out.json.
+        reaped.update({key: record[key] for key in ("error_code", "error") if record.get(key)})
+        return reaped
 
     def _keep_unsettled_turn(
         self,
@@ -1491,6 +1513,7 @@ def dispatch_status(runtime_root: Path) -> dict[str, Any]:
         "agent_slots": slots,
         "provider_cooldowns": active(state.get("provider_cooldowns") or {}),
         "agent_cooldowns": active(state.get("agent_cooldowns") or {}),
+        "todo_cooldowns": active(state.get("todo_cooldowns") or {}),
         "gates": state.get("gates") or {},
         "retry_turns": state.get("retry_turns") or {},
         "recent": [

@@ -35,6 +35,10 @@ launchctl load ~/Library/LaunchAgents/com.loopx.dispatch.plist   # you install i
 ```
 
 The global `--registry` and `--runtime-root` options select the state home as usual.
+The dispatcher makes the registry path and the runtime root absolute once, so every
+Turn, its validator and the launchd job find them from their own working directory:
+a todo worktree, a review checkout or the runtime root. Symlinks are not resolved,
+because registry writes replace and lock the path as given.
 Only one dispatcher can run per runtime root. `serve` and `serve --once` take an
 exclusive `flock` on `<runtime-root>/dispatch/serve.lock`. A second dispatcher on the
 same runtime root exits with code 3 (`dispatcher_locked`).
@@ -60,7 +64,17 @@ After an upgrade, render and load the plist again. Its logs go to
 
 1. **Reap** finished children. The pass classifies each child from its exit code and
    its `--format json` output: `committed`, `host_failed` (with the host's
-   `failure_kind`), `failed` or `crashed`.
+   `failure_kind`), `failed` or `crashed`. The reaped entry of a failed child
+   also carries run-once's `error_code` and its `error` (else its `reason`): one
+   line of at most 300 characters. The runtime root, state home, `--project` and
+   home directory, as given and resolved, are replaced first by `<runtime-root>`,
+   `<state-home>`, `<project>` and `<home>`, even when they hold spaces. Other
+   absolute paths (POSIX, `~/`, drive and UNC paths, `file://` URLs, quoted paths)
+   then become `<path>`; an unquoted path with spaces outside those roots may be
+   masked only in part. The credentials the host stderr tail below redacts are
+   redacted last. The text stays in your local dispatcher log and status.
+   `failure_kind` stays the host's typed kind, so it is empty when the Turn
+   failed before or after the host call.
 2. For each goal, load the registered agents and their registry roles (S1), and
    resolve each agent's config file (S3 `resolve_agent`). The pass skips disabled
    agents and agents whose config is invalid, and reports why.
@@ -246,7 +260,9 @@ After an upgrade, render and load the plist again. Its logs go to
   of relaunching on every pass. The backoff is keyed by todo and agent, so a
   developer's failures do not hold back the acceptor's review of the same todo;
   a workspace-prepare failure cools the todo down for everyone. LoopX's repair and replan routing still decides what
-  happens to the todo itself.
+  happens to the todo itself. The backoff keeps the last failed Turn's error, and
+  `dispatch status` lists each todo cooldown with its failure count, its end time
+  (UTC) and that error.
 - **Push request (G8, decision 38).** Every pass over a role_v1 goal asks
   `loopx.push_requests.request_push(require_all_merged=True)`. Once no agent
   todo of the goal is `open`, `in_review`, `blocked` or `deferred` (the same

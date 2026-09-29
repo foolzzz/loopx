@@ -409,7 +409,12 @@ off. So give every plan todo a `validation_command`, or pass a fallback.
 
 - `serve` watches the state files and runs a reconcile pass every
   `--tick-seconds` (default 60). It prints one JSON line per pass that acts,
-  and an idle heartbeat line after 15 minutes without output.
+  and an idle heartbeat line after 15 minutes without output. A Turn that
+  failed shows its `error_code` and `error` there.
+- In the state home, `serve` needs no `--registry`. It hands every Turn the
+  registry as an absolute path, so a developer Turn that runs in its todo's
+  worktree still finds the goal. `launchd-plist` writes the same absolute
+  path into the job.
 - `--once` runs one pass, waits for the Turns it launched, and exits. Use it
   for cron or for debugging.
 - Only one dispatcher runs per runtime root. A second one exits with code 3.
@@ -457,7 +462,7 @@ decision, and the orchestrator can propose again.
 
 ```sh
 loopx todo list --goal-id todo-due          # todos plus "Dependency waits"
-loopx dispatch status                       # running Turns, per-agent slots, cooldowns (--format json adds gates, retries)
+loopx dispatch status                       # running Turns, per-agent slots, provider/agent/todo cooldowns (--format json adds gates, retries)
 loopx status --goal-id todo-due             # goals, gates, attention queue
 loopx usage report --goal todo-due --by role
 loopx dashboard --goal-id todo-due          # browser: Role board tab (角色看板)
@@ -735,7 +740,7 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `dispatch serve --goal-id G [--goal-id G2 ...] [options]` | Run the resident dispatcher. |
-| `dispatch status` | Running Turns, per-agent slots, provider and agent cooldowns. With `--format json`, it also lists the gates the dispatcher opened and its retry identities. |
+| `dispatch status` | Running Turns, per-agent slots, provider, agent and todo cooldowns. A todo cooldown shows its failure count, when it ends and the last error. With `--format json`, it also lists the gates the dispatcher opened and its retry identities. |
 | `dispatch launchd-plist --goal-id G [options] [--label L]` | Print a launchd job that runs `serve`. It installs nothing. |
 
 `serve` options (`launchd-plist` takes the same, except `--once`):
@@ -947,6 +952,7 @@ In each code repo:
 | `dispatch serve` exits with code 3 (`dispatcher_locked`) | Another dispatcher already serves this runtime root. Check it with `loopx dispatch status`. |
 | An agent never runs, and `dispatch status` shows it unavailable | Its auth preflight failed. Run `loopx provider check`, log in again, then approve the "needs re-login" gate. |
 | A provider is in cooldown | It hit a rate limit, a quota or an upstream 5xx. The provider backs off automatically, and a long cooldown opens a gate. |
+| An agent is idle and `dispatch status` shows its todo cooling down | The agent's Turns on that todo failed. The line shows the failure count, when the cooldown ends and the last error. The full output is in `<runtime-root>/dispatch/runs/<run>.out.json`. Fix the cause; the todo is retried when the cooldown ends. |
 | A todo is never picked up | Run `loopx todo list` and read "Dependency waits": a dependency that requires acceptance must be accepted (and merged, when it has repos). Then check `loopx quota should-run --goal-id G --agent-id A`. |
 | A todo's finished work keeps failing validation | The todo declares no validation command, no built-in validator applies, and `serve` has no `--validation-command-json`, so every material result fails. Add a validation command or a fallback. |
 | `workspace_unverified` | The todo's worktree is missing or off its branch. Run `loopx workspace prepare` again. It reuses the existing branch. |

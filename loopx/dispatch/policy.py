@@ -7,9 +7,11 @@ allowed: slots, cooldowns and how a finished child's outcome is classified.
 
 from __future__ import annotations
 from ..control_plane.quota.effective_action import EffectiveAction
+from ..control_plane.turn_driver.host_stderr import redact_host_stderr_line
 
 import json
-from collections.abc import Mapping
+import re
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 ROLE_ORCHESTRATOR = "orchestrator"
@@ -30,6 +32,18 @@ OUTCOME_COMMITTED = "committed"
 OUTCOME_FAILED = "failed"
 OUTCOME_HOST_FAILED = "host_failed"
 OUTCOME_CRASHED = "crashed"
+# A failed Turn's error in the pass log and dispatch status: one redacted line.
+FAILURE_TEXT_MAX_CHARS = 300
+# Absolute paths outside the known roots (see failure_text). A match never
+# spans whitespace, except a quoted path, whose quotes delimit it. The
+# lookbehinds leave URLs, relative paths, ratios and paths after a placeholder.
+_PATH_SEGMENT = r"[^\s/\\\"'`<>|,;:()\[\]{}]+"
+_ABSOLUTE_PATH = re.compile(
+    r"(?P<quote>[\"'`])(?:~?/|[A-Za-z]:[/\\]|\\\\)[^\"'`\n]*(?P=quote)"
+    r"|\bfile://[^\s\"'`<>]*"
+    rf"|(?<![\w.:/\\~>-])(?:~(?:/{_PATH_SEGMENT})+|/{_PATH_SEGMENT}(?:/{_PATH_SEGMENT})+)/?"
+    rf"|(?<![\w\\])(?:[A-Za-z]:|\\\\{_PATH_SEGMENT})(?:[/\\]{_PATH_SEGMENT})+[/\\]?"
+)
 
 
 def slot_limit(role: str | None, max_concurrency: int) -> int:
@@ -151,8 +165,13 @@ def alternate_todo(
     return None
 
 
-def classify_outcome(returncode: int | None, stdout_text: str) -> dict[str, Any]:
-    """Classify one finished ``turn run-once`` child from its exit and JSON output."""
+def classify_outcome(
+    returncode: int | None, stdout_text: str, *, roots: Iterable[tuple[str, str]] = (),
+) -> dict[str, Any]:
+    """Classify one finished ``turn run-once`` child from its exit and JSON output.
+
+    ``roots`` are the known local roots for ``failure_text``.
+    """
 
     payload: Any = None
     text = (stdout_text or "").strip()
@@ -187,10 +206,39 @@ def classify_outcome(returncode: int | None, stdout_text: str) -> dict[str, Any]
     else:
         outcome = OUTCOME_FAILED
     error = payload.get("error")
+    if not error and outcome != OUTCOME_COMMITTED:
+        # A journaled failure (validation, settlement) names its reason instead.
+        error = payload.get("reason")
+    error_code = payload.get("error_code")
     return {
         "outcome": outcome,
         "returncode": returncode,
         "failure_kind": failure_kind,
         "status": str(status) if status is not None else None,
-        "error": str(error)[:300] if error else None,
+        "error": failure_text(error, roots=roots),
+        "error_code": error_code[:80] if isinstance(error_code, str) and error_code else None,
     }
+
+
+def failure_text(value: Any, *, roots: Iterable[tuple[str, str]] = ()) -> str | None:
+    """A failed Turn's error as one line, with local paths and credentials redacted, then bounded.
+
+    ``roots`` pairs each known local root (the dispatcher passes its runtime
+    root, state home, project and home, as given and resolved) with a
+    placeholder such as ``<runtime-root>``. They are replaced exactly, longest
+    first and only at path boundaries, so a root that holds spaces is masked
+    whole. Any other absolute path is then masked as ``<path>``. That match
+    stops at whitespace, so an unquoted path with spaces outside the known
+    roots may be masked only in part. The text stays in the owner's local
+    dispatcher log and status.
+    """
+
+    text = " ".join(str(value or "").split())
+    if not text:
+        return None
+    for root, label in sorted(roots, key=lambda item: len(item[0]), reverse=True):
+        root = " ".join(root.split()).rstrip("/\\")
+        if root:  # never the filesystem root alone
+            text = re.sub(rf"(?<![\w.~-]){re.escape(root)}(?![\w.-])", lambda _match: label, text)
+    text = _ABSOLUTE_PATH.sub(lambda match: f"{match['quote'] or ''}<path>{match['quote'] or ''}", text)
+    return redact_host_stderr_line(text)[:FAILURE_TEXT_MAX_CHARS]
