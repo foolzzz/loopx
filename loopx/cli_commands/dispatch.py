@@ -11,6 +11,7 @@ import json
 import os
 import signal
 import sys
+import time
 from pathlib import Path
 
 from ..dispatch import (
@@ -181,7 +182,11 @@ def render_dispatch_pass(payload) -> str:
     for item in payload.get("launched") or []:
         lines.append(f"- launched {item['agent_id']} on {item['goal_id']} todo {item.get('todo_id') or '-'} ({item.get('reason')})")
     for item in (payload.get("reaped") or []) + (payload.get("finished") or []):
-        lines.append(f"- finished {item['agent_id']} todo {item.get('todo_id') or '-'}: {item.get('outcome')} {item.get('failure_kind') or ''}".rstrip())
+        detail = ": ".join(str(item[key]) for key in ("error_code", "error") if item.get(key))
+        lines.append(
+            f"- finished {item['agent_id']} todo {item.get('todo_id') or '-'}: {item.get('outcome')} {item.get('failure_kind') or ''}".rstrip()
+            + (f" — {detail}" if detail else "")
+        )
     for item in payload.get("gates_opened") or []:
         lines.append(f"- opened user gate {item.get('todo_id')} ({item.get('key')})")
     for item in payload.get("skipped") or []:
@@ -208,4 +213,14 @@ def render_dispatch_status(payload) -> str:
         lines.append(f"- provider {name} cooling down {item.get('remaining_seconds')}s ({item.get('kind')})")
     for name, item in (payload.get("agent_cooldowns") or {}).items():
         lines.append(f"- agent {name} unavailable {item.get('remaining_seconds')}s ({item.get('status')})")
+    for key, item in (payload.get("todo_cooldowns") or {}).items():
+        # Keyed goal/todo@agent (failure backoff) or goal/todo (every agent).
+        scope, _, agent_id = key.partition("@")
+        goal_id, _, todo_id = scope.partition("/")
+        until = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(float(item.get("until") or 0)))
+        lines.append(
+            f"- todo {todo_id} of {goal_id} ({agent_id or 'every agent'}) cooling down {item.get('remaining_seconds')}s "
+            f"until {until}, failures {item.get('failures') or 0} ({item.get('reason')})"
+            + (f": {item['error']}" if item.get("error") else "")
+        )
     return "\n".join(lines)
