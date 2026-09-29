@@ -363,8 +363,10 @@ def test_doctor_markdown_projects_runtime_lifecycle_for_app_health() -> None:
 
 
 def test_missing_required_runtime_fails_doctor_health(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("loopx.doctor.DEFAULT_RUNTIME_ROOT", tmp_path / "runtime")
     ready = {
         "schema_version": "loopx_effect_runtime_readiness_v0",
         "ready": True,
@@ -413,8 +415,10 @@ def test_missing_required_runtime_fails_doctor_health(
 
 
 def test_deep_doctor_fails_when_present_runtime_cannot_execute_semantics(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("loopx.doctor.DEFAULT_RUNTIME_ROOT", tmp_path / "runtime")
     failed = {
         "schema_version": "loopx_effect_runtime_readiness_v0",
         "ready": False,

@@ -11,6 +11,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+_RUNTIME_ROOT_GUARD_DIR = Path(__file__).resolve().parent / "runtime_root_guard"
+sys.path.insert(0, str(_RUNTIME_ROOT_GUARD_DIR))
+
+# Importing the plugin starts the real-runtime-root guard before any test runs;
+# re-exporting its fixture and hooks registers them for this suite.
+from real_runtime_root_guard_plugin import (  # noqa: E402,F401
+    _refuse_real_loopx_runtime_root,
+    pytest_sessionfinish,
+    pytest_terminal_summary,
+    pytest_testnodedown,
+)
 from loopx.canary.runner import SMOKE_SUITE_CHOICES  # noqa: E402
 
 

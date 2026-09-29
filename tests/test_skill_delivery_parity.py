@@ -350,8 +350,9 @@ class TestSkillDeliveryModes:
             assert agent_type_uses_host_managed_skills(canonical) == (
                 canonical in host_managed)
 
-    def test_onboarding_skill_delivery_contract(self):
+    def test_onboarding_skill_delivery_contract(self, monkeypatch):
         with tempfile.TemporaryDirectory() as td:
+            monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(Path(td) / "runtime"))
             project = Path(td) / "project"
             project.mkdir()
             reg = project / ".loopx" / "registry.json"

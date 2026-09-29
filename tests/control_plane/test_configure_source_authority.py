@@ -21,6 +21,15 @@ from loopx.control_plane.goals.configure_goal_service import (
 from loopx.global_registry import sync_project_registry_to_global
 
 
+@pytest.fixture(autouse=True)
+def isolated_default_runtime_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Global projection also locks the default runtime; keep it under tmp_path."""
+    monkeypatch.setattr(
+        "loopx.control_plane.runtime.runtime_projection_route.DEFAULT_RUNTIME_ROOT",
+        tmp_path / "default-runtime",
+    )
+
+
 @pytest.fixture
 def mirrored_goal(tmp_path):
     source = tmp_path / "project" / ".loopx" / "registry.json"

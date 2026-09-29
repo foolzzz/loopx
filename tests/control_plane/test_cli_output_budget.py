@@ -383,9 +383,18 @@ def _stable_budget_fixture_root(root: Path):
             raise RuntimeError(f"refusing to replace non-symlink fixture root: {alias}")
         alias.unlink()
     alias.symlink_to(root, target_is_directory=True)
+    # Project-alias resolution reads the default runtime's global registry.
+    # examples/control_plane/cli-output-budget-regression-smoke.py calls these
+    # tests without pytest fixtures, so isolate it here instead of monkeypatch.
+    previous_runtime_root = os.environ.get("LOOPX_RUNTIME_ROOT")
+    os.environ["LOOPX_RUNTIME_ROOT"] = str(alias / "default-runtime")
     try:
         yield alias
     finally:
+        if previous_runtime_root is None:
+            os.environ.pop("LOOPX_RUNTIME_ROOT", None)
+        else:
+            os.environ["LOOPX_RUNTIME_ROOT"] = previous_runtime_root
         alias.unlink(missing_ok=True)
 
 

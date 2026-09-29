@@ -527,7 +527,7 @@ def test_goal_configuration_service_rechecks_revision_before_write(
         configure_goal_service.configure_goal_with_global_sync(
             registry_path=registry_path,
             goal_id="goal-example",
-            runtime_root_override=None,
+            runtime_root_override=str(tmp_path / "runtime"),
             execute=True,
             expected_goal_configuration_revision="sha256:" + "0" * 64,
             explore_graph_enabled=True,

@@ -834,6 +834,7 @@ def test_traex_activation_command_renders_visible_goal_task_body(tmp_path: Path)
 
 def test_connected_traex_commands_all_render_the_canonical_visible_goal(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     goal_id = "traex-connected-project-fixture"
     project, home = _write_onboarding_goal(
@@ -841,6 +842,7 @@ def test_connected_traex_commands_all_render_the_canonical_visible_goal(
         goal_id=goal_id,
         registered_agents=["traex-connected-agent"],
     )
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".codex" / "loopx"))
     packet = build_loopx_bootstrap_command_pack(
         project=project,
         goal_id=goal_id,
@@ -886,6 +888,7 @@ def test_connected_traex_commands_all_render_the_canonical_visible_goal(
 
 def test_traex_multi_agent_onboarding_choice_executes_visible_goal_command(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     goal_id = "traex-multi-agent-fixture"
     project, home = _write_onboarding_goal(
@@ -893,6 +896,7 @@ def test_traex_multi_agent_onboarding_choice_executes_visible_goal_command(
         goal_id=goal_id,
         registered_agents=["traex-main", "traex-reviewer"],
     )
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".codex" / "loopx"))
     packet = build_agent_onboarding_packet(
         project=project,
         agent_type="traex-cli",
@@ -1227,10 +1231,13 @@ def test_ambiguous_codex_requires_app_ide_or_cli_selection() -> None:
     ]
 
 
-def test_codex_app_startup_saves_v2_and_loads_the_current_contract(tmp_path: Path) -> None:
+def test_codex_app_startup_saves_v2_and_loads_the_current_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     goal_id = "app-bootstrap-fixture"
     project, home = _write_onboarding_goal(
         tmp_path, goal_id=goal_id, registered_agents=["worker-a"])
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".codex" / "loopx"))
     packet = build_agent_onboarding_packet(
         project=project, agent_type="codex-app", goal_id=goal_id,
         agent_id="worker-a", cli_bin=str(REPO_ROOT / "scripts" / "loopx"))

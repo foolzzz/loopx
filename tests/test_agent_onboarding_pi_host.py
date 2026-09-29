@@ -58,6 +58,7 @@ def test_pi_onboarding_install_command_executes_from_another_cwd(
     monkeypatch,
 ) -> None:
     monkeypatch.delenv("LOOPX_SKILLS_DIR", raising=False)
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
     project, _ = _connected_project(tmp_path)
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -108,6 +109,7 @@ def test_pi_onboarding_renders_project_skill_commands_with_change_quality(
     monkeypatch,
 ) -> None:
     monkeypatch.delenv("LOOPX_SKILLS_DIR", raising=False)
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
     project, registry_path = _connected_project(tmp_path)
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
     registry["goals"][0]["control_plane"] = {

@@ -105,7 +105,7 @@ def test_http_history_reads_real_markdown_without_writes(tmp_path, count):
         f"- [x] {text}{index}\n  <!-- loopx:todo todo_id=todo_history_{index} status=done task_class=advancement_task note={encode_metadata_value(evidence)} -->" for index in range(count)
     ) + "\n\n## User Todo\n", encoding="utf-8")
     registry = tmp_path / "registry.json"
-    registry.write_text(json.dumps({"runtime_root": str(tmp_path / "runtime"), "goals": [{"id": "history-goal", "repo": str(tmp_path), "state_file": "active.md"}]}))
+    registry.write_text(json.dumps({"common_runtime_root": str(tmp_path / "runtime"), "goals": [{"id": "history-goal", "repo": str(tmp_path), "state_file": "active.md"}]}))
     before = state.read_bytes()
     server = ChatHTTPServer(("127.0.0.1", 0), ChatRequestHandler)
     server.registry_path = registry

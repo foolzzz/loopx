@@ -37,6 +37,12 @@ REGISTERED_GOAL_ID = "live-goal"
 GOAL_TEXT = "Continue the interrupted refactor."
 
 
+@pytest.fixture(autouse=True)
+def isolated_global_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Project-alias resolution reads the default runtime's global registry."""
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
+
+
 def _project(
     root: Path,
     *,

@@ -19,6 +19,8 @@ def installed(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
     monkeypatch.setenv("LOOPX_REGISTRY", str(tmp_path / "registry.json"))
+    # Hook processes record pending changes under the default runtime root.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     source = Path(__file__).resolve().parents[2]
     monkeypatch.setenv("PYTHONPATH", str(source))
     binary = tmp_path / "bin"

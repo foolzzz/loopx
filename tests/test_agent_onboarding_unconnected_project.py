@@ -11,8 +11,10 @@ from loopx.agent_onboarding import build_agent_onboarding_packet
 def test_agent_onboard_serves_a_packet_before_the_project_registry_exists(
     tmp_path: Path,
     agent_type: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """First-run onboarding must answer, not raise, when .loopx/registry.json is absent."""
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
     project = tmp_path / "fresh-project"
     project.mkdir()
 

@@ -182,7 +182,8 @@ def test_inactive_legacy_inspection_does_not_project_todos(tmp_path, monkeypatch
     registry = tmp_path / "registry.json"
     state = tmp_path / "state.md"
     state.write_text("---\nhandoff_mode: hard_lease\n---\n# Synthetic state\n")
-    registry.write_text(json.dumps({"goals": [{"id": GOAL, "repo": str(tmp_path), "state_file": str(state)}]}))
+    registry.write_text(json.dumps({"common_runtime_root": str(tmp_path / "runtime"),
+        "goals": [{"id": GOAL, "repo": str(tmp_path), "state_file": str(state)}]}))
     import loopx.todos
     def forbidden_projection(**_):
         raise AssertionError("inactive inspection must not parse Todo history")
@@ -201,7 +202,8 @@ def test_legacy_inspection_reloads_lease_after_demanding_todo_facts(tmp_path, mo
     registry = tmp_path / "registry.json"
     state = tmp_path / "state.md"
     state.write_text("---\nhandoff_mode: hard_lease\n---\n# Synthetic state\n")
-    registry.write_text(json.dumps({"goals": [{"id": GOAL, "repo": str(tmp_path), "state_file": str(state),
+    registry.write_text(json.dumps({"common_runtime_root": str(tmp_path / "runtime"),
+        "goals": [{"id": GOAL, "repo": str(tmp_path), "state_file": str(state),
         "coordination": {"registered_agents": ["agent-a"]}}]}))
     runtime = tmp_path / "runtime"
     lease_path = runtime / "goals" / GOAL / "task-leases" / f"{TODO}.json"
