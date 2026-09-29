@@ -550,6 +550,40 @@ def test_a_plain_gate_decision_records_closed_by_without_a_thread(tmp_path: Path
         "cli", ORCH, None)
 
 
+@pytest.mark.parametrize("revise", [False, True])
+@pytest.mark.parametrize(("turn", "agent_args", "error_code"), [
+    (DEV, ("--agent-id", ORCH), "gate_reply_identity_mismatch"),
+    (ORCH, ("--agent-id", DEV), "gate_reply_identity_mismatch"),
+    (DEV, (), "not_orchestrator"),  # the Turn's own agent, which is not the orchestrator
+    (ORCH, ("--agent-id", ORCH), None),
+    (ORCH, (), None),
+])
+def test_an_agent_turn_proposes_plans_only_as_its_own_agent(
+    tmp_path: Path, capsys, monkeypatch, revise: bool, turn: str, agent_args: tuple[str, ...], error_code: str | None,
+) -> None:
+    """A plan propose or revise writes an orchestrator message on the plan gate's thread, like a reply."""
+
+    registry, runtime = fixture(tmp_path)
+    revise_args = ("--revise", _propose(registry, runtime)["plan_id"]) if revise else ()
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(json.dumps({**PLAN, "title": "Todo app v2"}), encoding="utf-8")
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    monkeypatch.setenv("LOOPX_AGENT_TURN", turn)
+    code, payload = _cli_json(registry, runtime, capsys, "plan", "propose", "--goal-id", GOAL,
+                              "--plan-file", str(plan_file), *agent_args, *revise_args)
+    if error_code:
+        assert (code, payload["error_code"]) == (1, error_code)
+        # Refused before any write: no plan record, gate, thread message or event.
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+        return
+    assert code == 0, payload
+    plan = payload["plan"]
+    assert (plan["revision"], plan["proposed_by"]) == (2 if revise else 1, ORCH)
+    last = read_gate_thread(runtime, GOAL, plan["gate_todo_id"])[-1]
+    assert (last["author"], last["agent_id"]) == ("orchestrator", ORCH)
+    assert read_gate_index(runtime, GOAL)["gates"][plan["gate_todo_id"]]["awaiting"] == AWAITING_USER
+
+
 def test_cli_plan_propose_show_and_list(tmp_path: Path, capsys) -> None:
     registry, runtime = fixture(tmp_path)
     plan_file = tmp_path / "plan.json"

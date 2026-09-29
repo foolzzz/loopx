@@ -298,15 +298,17 @@ def require_gate_decision_outside_agent_turn(*, goal_id: str, todo_id: str) -> N
     )
 
 
-def require_gate_reply_identity(*, author: str, agent_id: str | None, goal_id: str, todo_id: str) -> str | None:
-    """Return a gate reply's agent id; inside an agent Turn, only the Turn's own agent replies.
+def require_gate_reply_identity(*, author: str, agent_id: str | None, action: str) -> str | None:
+    """Return the agent id of a gate-thread message; inside an agent Turn, only the Turn's own agent writes one.
 
-    Outside an agent Turn nothing changes. Inside one, a ``user`` reply (the
-    owner's) or an ``agent_id`` other than the Turn's is refused
+    A reply (``reply_to_gate``) and a plan propose or revise
+    (``plan_cards.propose_plan``) each write one. Outside an agent Turn
+    nothing changes. Inside one, a ``user`` message (the owner's) or an
+    ``agent_id`` other than the Turn's is refused
     (``gate_reply_identity_mismatch``), and an omitted ``agent_id`` is the
-    Turn's. Only the goal orchestrator may then reply (``reply_to_gate``).
-    Checked before anything is written. A guardrail, not a security boundary:
-    see :mod:`loopx.control_plane.agents.agent_turn`.
+    Turn's. The caller then requires the goal orchestrator. Checked before
+    anything is written. A guardrail, not a security boundary: see
+    :mod:`loopx.control_plane.agents.agent_turn`.
     """
 
     from .control_plane.agents.agent_turn import AGENT_TURN_ENV_VAR, agent_turn_marker
@@ -318,9 +320,9 @@ def require_gate_reply_identity(*, author: str, agent_id: str | None, goal_id: s
         claimed = "the owner (--as user)" if author == AUTHOR_USER else f"agent {agent_id!r}"
         raise GateThreadError(
             GATE_REPLY_IDENTITY_MISMATCH,
-            f"this agent Turn ({AGENT_TURN_ENV_VAR}={turn_agent}) cannot reply to gate {todo_id!r} as {claimed}; "
-            f"it replies as its own agent, and only the goal orchestrator replies: loopx gate reply --goal-id "
-            f"{goal_id} --todo-id {todo_id} --as orchestrator --agent-id {turn_agent} --text '...'.",
+            f"this agent Turn ({AGENT_TURN_ENV_VAR}={turn_agent}) cannot {action} as {claimed}; it writes on gate "
+            f"threads only as its own agent (--as orchestrator --agent-id {turn_agent} for a reply), and only the "
+            "goal orchestrator writes there.",
         )
     return turn_agent
 
@@ -561,7 +563,7 @@ def reply_to_gate(
 
     goal = _goal(registry_path, goal_id)
     todo_id = _safe_todo_id(todo_id)
-    agent_id = require_gate_reply_identity(author=author, agent_id=agent_id, goal_id=goal_id, todo_id=todo_id)
+    agent_id = require_gate_reply_identity(author=author, agent_id=agent_id, action=f"reply to gate {todo_id!r}")
     if author == AUTHOR_ORCHESTRATOR:
         require_goal_orchestrator(goal, agent_id)
     elif author == AUTHOR_USER:

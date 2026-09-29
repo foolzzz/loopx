@@ -250,7 +250,11 @@ A reply made while the variable is set is the marker's agent's. A reply as
 the marker exits 1 with `error_code=gate_reply_identity_mismatch` before
 anything is written. An omitted `--agent-id` is the marker's. Only the goal
 orchestrator replies as an agent, so a developer or acceptor Turn still gets
-`not_orchestrator`. Without the variable, replies work as before.
+`not_orchestrator`. `loopx plan propose`, with or without `--revise`, writes
+the orchestrator's message on the plan gate's thread, so the same rule applies
+to its `--agent-id`: it defaults to the marker, and a different id fails with
+`gate_reply_identity_mismatch` before the plan, the gate or the message is
+written. Without the variable, replies and proposals work as before.
 
 This is a guardrail against accidental self-approval and impersonation, not a
 security boundary. Agents run as your OS user, so an agent that unsets the

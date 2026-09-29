@@ -77,7 +77,9 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     )
     add_format(propose)
     propose.add_argument("--goal-id", required=True)
-    propose.add_argument("--agent-id", required=True, help="The goal orchestrator.")
+    propose.add_argument(
+        "--agent-id", help="The goal orchestrator; inside an agent Turn it defaults to, and must match, LOOPX_AGENT_TURN.",
+    )
     propose.add_argument("--plan-file", required=True, help="Plan JSON (see docs/fork/gates-plans-intake-v0.md).")
     propose.add_argument("--revise", dest="revise_plan_id", help="Revise this pending plan in place (same gate).")
     plan_show = plan_actions.add_parser("show", help="Show one plan card.")
