@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from ..control_plane.agents.agent_turn import agent_turn_env
 from ..control_plane.turn_driver.host_candidate import (
     ACCEPTED_RESULT_KINDS as ACCEPTED_RESULT_KINDS,
     COMPLETED_PHASES as COMPLETED_PHASES,
@@ -480,6 +481,8 @@ def _execute_turn_host_request(
             # Bind invocation-scoped tools to the verified Turn, never stale
             # ambient process identity. This is an SDK override map, not an
             # environment allowlist: the SDK still inherits the parent env.
+            # LOOPX_AGENT_TURN marks the runtime as an agent Turn, so the
+            # LoopX commands its tools run cannot decide user gates.
             envelope = _mapping(request.get("turn_envelope"))
             selected = _mapping(_mapping(envelope.get("action")).get("selected_todo"))
             runner_arguments["env"] = {
@@ -488,6 +491,7 @@ def _execute_turn_host_request(
                 "LOOPX_TURN_AGENT_ID": str(envelope.get("agent_id") or ""),
                 "LOOPX_TURN_TODO_ID": str(selected.get("todo_id") or ""),
                 "LOOPX_TURN_WORKSPACE": str(workspace),
+                **agent_turn_env(request),
             }
         outcome = normalize_runner_outcome(runner(**runner_arguments))
     except DshHostResultError as exc:

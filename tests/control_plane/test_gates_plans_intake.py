@@ -412,6 +412,106 @@ def test_plan_validation_and_approve_preflight(tmp_path: Path) -> None:
     assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "pending"
 
 
+# --- agent Turns cannot decide user gates --------------------------------------------
+
+
+def _cli_json(registry: Path, runtime: Path, capsys, *argv: str) -> tuple[int, dict]:
+    code = main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json", *argv])
+    return code, json.loads(capsys.readouterr().out)
+
+
+@pytest.mark.parametrize("provider", [None, "file"])
+@pytest.mark.parametrize("surface", ["gate_resolve", "todo_complete"])
+def test_an_agent_turn_cannot_decide_its_own_plan_gate(
+    tmp_path: Path, capsys, monkeypatch, provider: str | None, surface: str,
+) -> None:
+    registry, runtime = fixture(tmp_path, provider)
+    plan = _propose(registry, runtime)
+    gate_id = plan["gate_todo_id"]
+    before = rows(registry)
+    monkeypatch.setenv("LOOPX_AGENT_TURN", ORCH)  # what the Turn host exports to the model process
+    decide = {
+        "gate_resolve": ["gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_id, "--decision", "approve"],
+        "todo_complete": ["todo", "complete", "--goal-id", GOAL, "--todo-id", gate_id, "--role", "user",
+                          "--decision-outcome", "approve", "--agent-id", ORCH],
+    }[surface]
+    code, refused = _cli_json(registry, runtime, capsys, *decide)
+    assert code == 1
+    assert refused["error_code"] == "gate_decision_refused_in_agent_turn"
+    assert "loopx gate reply" in refused["error"]
+    # Refused before anything is written: the gate stays open and the plan is not applied.
+    assert rows(registry) == before
+    assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "pending"
+    assert "closed_by" not in read_gate_index(runtime, GOAL)["gates"][gate_id]
+    with pytest.raises(PlanCardError, match="is not approved"):
+        apply_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, plan_id=plan["plan_id"])
+    # Replying stays allowed, for the orchestrator and for the owner.
+    code, _ = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
+                        "--as", "orchestrator", "--agent-id", ORCH, "--text", "Waiting for your approval.")
+    assert code == 0
+    code, replied = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
+                              "--text", "Looks good.")
+    assert code == 0 and replied["awaiting"] == AWAITING_ORCHESTRATOR
+
+
+def test_closing_a_plan_gate_without_a_decision_never_applies_the_plan(tmp_path: Path, capsys, monkeypatch) -> None:
+    """Superseding a gate (or updating it to done) is not a decision; plan apply needs a recorded approve."""
+
+    registry, runtime = fixture(tmp_path)
+    monkeypatch.setenv("LOOPX_AGENT_TURN", ORCH)
+    superseded, updated = _propose(registry, runtime), _propose(registry, runtime, {**PLAN, "title": "Other"})
+    code, _ = _cli_json(registry, runtime, capsys, "todo", "supersede", "--goal-id", GOAL, "--todo-id",
+                        superseded["gate_todo_id"], "--role", "user", "--agent-id", ORCH, "--reason", "stale")
+    assert code == 0
+    code, _ = _cli_json(registry, runtime, capsys, "todo", "update", "--goal-id", GOAL, "--todo-id",
+                        updated["gate_todo_id"], "--role", "user", "--status", "done", "--agent-id", ORCH)
+    assert code == 0
+    state = rows(registry)
+    for plan in (superseded, updated):
+        gate = state[plan["gate_todo_id"]]
+        assert gate["status"] == "done" and not gate.get("decision_outcome")
+        assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "pending"
+        code, refused = _cli_json(registry, runtime, capsys, "plan", "apply", "--goal-id", GOAL,
+                                  "--plan-id", plan["plan_id"])
+        assert code == 1 and refused["error_code"] == "plan_not_approved"
+    assert not [row for row in state.values() if row["role"] == "agent"]  # no plan todo was created
+
+
+def test_an_owner_gate_decision_records_closed_by(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    plan = _propose(registry, runtime)
+    gate_id = plan["gate_todo_id"]
+    code, payload = _cli_json(registry, runtime, capsys, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_id,
+                              "--decision", "approve")
+    assert code == 0, payload
+    assert payload["plan_card"]["status"] == "applied"
+    closed_by = read_gate_index(runtime, GOAL)["gates"][gate_id]["closed_by"]
+    # The lifecycle actor defaults to the agent the gate blocks; the surface says who decided.
+    assert {key: closed_by[key] for key in ("surface", "actor", "agent_turn")} == {
+        "surface": "cli", "actor": ORCH, "agent_turn": None}
+    assert closed_by["at"]
+    code, shown = _cli_json(registry, runtime, capsys, "gate", "show", "--goal-id", GOAL, "--todo-id", gate_id)
+    assert code == 0 and shown["closed_by"] == closed_by
+    assert main(["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
+                 "--todo-id", gate_id]) == 0
+    assert f"- closed by: cli (actor {ORCH}) at {closed_by['at']}" in capsys.readouterr().out
+
+
+def test_a_plain_gate_decision_records_closed_by_without_a_thread(tmp_path: Path, capsys) -> None:
+    """A gate nobody replied to has no index entry yet; its decision still records who made it."""
+
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    assert gate_id not in read_gate_index(runtime, GOAL)["gates"]
+    code, payload = _cli_json(registry, runtime, capsys, "todo", "complete", "--goal-id", GOAL, "--todo-id", gate_id,
+                              "--role", "user", "--decision-outcome", "reject", "--agent-id", ORCH)
+    assert code == 0, payload
+    entry = read_gate_index(runtime, GOAL)["gates"][gate_id]
+    assert (entry["closed"], entry["decision_outcome"]) == (True, "reject")
+    assert (entry["closed_by"]["surface"], entry["closed_by"]["actor"], entry["closed_by"]["agent_turn"]) == (
+        "cli", ORCH, None)
+
+
 def test_cli_plan_propose_show_and_list(tmp_path: Path, capsys) -> None:
     registry, runtime = fixture(tmp_path)
     plan_file = tmp_path / "plan.json"

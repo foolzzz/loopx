@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any
 from ...authority import validate_public_safe_text
 from ...file_lock import LockAcquireTimeoutError, exclusive_file_lock
 from ...runtime import validate_goal_id_path_segment
+from ..agents.agent_turn import agent_turn_env
 from ..effect_program import (
     SettlementStepKind,
     interpret_turn_result_packet,
@@ -694,6 +696,7 @@ def _run_host(
             cwd=project,
             input=json.dumps(request, ensure_ascii=False, separators=(",", ":")),
             text=True, encoding="utf-8", errors="replace",
+            env={**os.environ, **agent_turn_env(request)},
             capture_output=True,
             timeout=max(1.0, timeout_seconds),
             check=False,

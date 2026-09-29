@@ -23,6 +23,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ..agents.agent_turn import agent_turn_env
 from .codex_cli import (
     OUTPUT_DRAIN_TIMEOUT_SECONDS,
     _has_subagent_topology,
@@ -231,7 +232,7 @@ def run_claude_code_host(
         if not prompt_path.is_file():
             raise ValueError("Claude Code system prompt file does not exist")
     extra = _validate_extra_args(extra_args)
-    child_env = {**os.environ, **dict(env or {})}
+    child_env = {**os.environ, **dict(env or {}), **agent_turn_env(request)}
     resolved = (
         shutil.which(claude_bin, path=child_env.get("PATH"))
         if os.path.sep not in claude_bin

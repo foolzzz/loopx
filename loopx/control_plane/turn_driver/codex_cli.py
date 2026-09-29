@@ -22,6 +22,7 @@ from ...agent_config.codex_config import (
     normalize_codex_config_override,
 )
 from ...runtime import validate_goal_id_path_segment
+from ..agents.agent_turn import agent_turn_env
 from .subagent_execution_topology import (
     child_execution_receipts_json_schema,
 )
@@ -1051,6 +1052,7 @@ def run_codex_cli_host(
             text=True,
             encoding="utf-8",
             errors="replace",
+            env={**os.environ, **agent_turn_env(request)},
             start_new_session=True,
         )
         observed_session: list[str] = []

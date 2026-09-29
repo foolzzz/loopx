@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_registry import registered_agent_ids_from_registry, require_registered_agent_id
-from .gate_threads import require_user_gate_author
+from .gate_threads import GATE_DECISION_SURFACE_CLI, require_user_gate_author
 from .todo_acceptance_criteria import guard_acceptance_criteria_update, guard_acceptance_criteria_write
 from .history import load_registry
 from .paths import resolve_runtime_root
@@ -1653,14 +1653,14 @@ def complete_goal_todo(
     runtime_root_arg: str | None = None,
     decision_outcome: str | None = None,
     dry_run: bool = False,
-    gate_option: str | None = None,
+    gate_option: str | None = None, gate_decision_surface: str = GATE_DECISION_SURFACE_CLI,
     **options: Any,
 ) -> dict[str, Any]:
     """Complete a todo; closing a user gate also settles its thread and plan card.
 
-    An approve on a ``plan_approval`` gate is refused while its plan does not
-    validate, so the gate stays open; after the gate closes, the plan is
-    applied (approve) or closed (reject/cancel). See ``loopx.plan_cards``.
+    A gate decision is refused inside an agent Turn, and an approve while its plan does not
+    validate, so the gate stays open; after it closes, who decided (``closed_by``) and the plan
+    (applied on approve, else closed) are recorded. See ``loopx.plan_cards``.
     """
 
     from .plan_cards import gate_decision_preflight, settle_gate_decision
@@ -1681,10 +1681,10 @@ def complete_goal_todo(
         if plan_id and dry_run:
             payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
         return payload
-    settled = settle_gate_decision(
-        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
-        todo_id=todo_id, decision=payload.get("decision_outcome") or decision_outcome,
-        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"),
+    settled = settle_gate_decision(  # it settles the recorded decision; the request only has to match it
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
+        decision=decision_outcome, replayed=payload.get("idempotent_replay") is True, surface=gate_decision_surface,
+        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"), actor=options.get("agent_id"),
     )
     if settled is not None:  # a plan card, or an acceptor-blocked gate option (G12)
         payload[settled.pop("payload_key", "plan_card")] = settled

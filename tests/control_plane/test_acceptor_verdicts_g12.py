@@ -337,6 +337,27 @@ def test_each_gate_option_applies_via_the_web_resolve_path(tmp_path, monkeypatch
     _assert_option_applied(fx, todo_id, sha, gate_id, option)
 
 
+def test_an_agent_turn_cannot_pick_a_blocked_review_option(tmp_path, monkeypatch) -> None:
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    monkeypatch.setenv("LOOPX_AGENT_TURN", "orch")
+    for argv in (
+        ("gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_id, "--option", "accept_manually"),
+        ("todo", "complete", "--goal-id", GOAL, "--todo-id", gate_id, "--role", "user",
+         "--decision-outcome", "approve", "--agent-id", "acc"),
+    ):
+        code, payload = _cli(fx, *argv)
+        assert code == 1 and payload["error_code"] == "gate_decision_refused_in_agent_turn", payload
+    assert _todo(fx, gate_id)["status"] == "open"
+    assert _todo(fx, todo_id)["status"] == "in_review"
+    entry = read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]
+    assert "review_gate" not in entry and "closed_by" not in entry and not entry.get("closed")
+    target = f"loopx-task/{GOAL}"
+    assert git(fx["api"], "rev-parse", "--verify", "-q", target) == git(fx["api"], "rev-parse", "main")  # nothing merged
+    assert blocked_review_todo_ids(fx["registry"], fx["runtime"], GOAL) == {todo_id}
+
+
 def _web_preview(fx: dict, gate_id: str, parameters: dict) -> tuple[ChatActionService, dict]:
     service = ChatActionService(store=ChatActionStore(fx["runtime"].parent / "actions"),
                                 registry_path=fx["registry"])
