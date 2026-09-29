@@ -110,8 +110,10 @@ A gate can be answered from the CLI and the dashboard in any order:
 - **Decisions only on a read gate.** The drawer offers decisions (the primary
   button and every option under **More decisions**) only after a successful
   read of the gate it shows now that is still open. While the gate is being
-  read, after a failed read (the panel keeps retrying) and on a closed gate,
-  every decision is disabled and a status line says why. Switching to another
+  read, after any failed read, including a failed refresh after a successful
+  read (the last facts stay shown and the panel keeps retrying), and on a
+  closed gate, every decision is disabled and a status line says why; the next
+  successful read restores them. Switching to another
   gate clears the previous gate's state before the new gate is drawn, so its
   option and facts are never reused. A todo that is not a user gate offers no
   decision, since `gate.resolve` refuses it.
@@ -139,8 +141,10 @@ A gate can be answered from the CLI and the dashboard in any order:
   example "Approve (close_goal)" / "批准（close_goal）", and sends that
   `option` explicitly (`retry_acceptance`, `raise_budget` or `close_goal`, the
   same default as a bare CLI approve). The other options stay in **More
-  decisions**. Plan approvals, push requests and plain decisions keep the plain
-  approve.
+  decisions**. Named options come from the gate's own `options` list: only
+  listed options are offered, and when the list cannot be read no named option
+  (the primary included) is offered and the drawer points to `loopx gate show`.
+  Plan approvals, push requests and plain decisions keep the plain approve.
 
 The default (Markdown) `loopx gate show` renders the same plan card for a
 `plan_approval` gate: its title, revision and status, summary, and one line per
