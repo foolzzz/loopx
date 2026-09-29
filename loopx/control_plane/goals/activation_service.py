@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import hashlib
 from pathlib import Path
@@ -42,6 +42,7 @@ class GoalActivationAuthorityRouteMode(str, Enum):
     REQUESTED_TO_GLOBAL = "requested_to_global"
     # The shared registry holds no copy of the goal (it was bootstrapped or
     # created with --no-global-sync): only the goal's own registry is written.
+    # Confirmed under the shared registry's lock before the write.
     SOURCE_ONLY = "source_only"
     ORPHANED_GLOBAL_STOP_FALLBACK = "orphaned_global_stop_fallback"
 
@@ -217,12 +218,12 @@ def _source_and_target(
     # A transition keeps an existing shared projection consistent; it never
     # creates one. Registering a goal there belongs to bootstrap and
     # sync-global, which honor --no-global-sync.
-    projected = _same_path(target_registry, requested_registry) or (
-        _goal_or_none(load_registry(target_registry), goal_id) is not None
+    projected = _same_path(target_registry, requested_registry) or _is_projected(
+        target_registry, goal_id
     )
     return GoalActivationAuthorityRoute(
         source_registry=requested_registry,
-        target_registry=target_registry if projected else requested_registry,
+        target_registry=target_registry,
         sync_runtime_root=str(resolution["target_runtime_root"]),
         mode=(
             GoalActivationAuthorityRouteMode.REQUESTED_TO_GLOBAL
@@ -231,6 +232,10 @@ def _source_and_target(
         ),
         source_status=GoalActivationSourceStatus.AVAILABLE,
     )
+
+
+def _is_projected(target_registry: Path, goal_id: str) -> bool:
+    return _goal_or_none(load_registry(target_registry), goal_id) is not None
 
 
 def _readback(
@@ -286,6 +291,7 @@ def set_goal_activation_state(
     target_registry = authority_route.target_registry
     sync_runtime_root = authority_route.sync_runtime_root
     registries_are_distinct = not _same_path(source_registry, target_registry)
+    source_only = authority_route.mode is GoalActivationAuthorityRouteMode.SOURCE_ONLY
     source_identity = _goal_activation_source_identity(source_registry)
     target_source_identity = (
         _projected_source_identity(
@@ -338,11 +344,7 @@ def set_goal_activation_state(
         "source_fingerprint_schema_version": (
             GOAL_ACTIVATION_SOURCE_FINGERPRINT_SCHEMA_VERSION
         ),
-        "target_global_registry": (
-            None
-            if authority_route.mode is GoalActivationAuthorityRouteMode.SOURCE_ONLY
-            else str(target_registry)
-        ),
+        "target_global_registry": None if source_only else str(target_registry),
         "authority_route": authority_route.public_summary(),
         "expected_state_fingerprint": normalized_fingerprint,
         "observed_state_fingerprint": observed_fingerprint,
@@ -377,7 +379,7 @@ def set_goal_activation_state(
             "Repair the Goal source registry route before resuming this Goal."
         )
 
-    if registries_are_distinct:
+    if registries_are_distinct and not source_only:
         writability = probe_registry_write_path(target_registry, create_parent=True)
         payload["global_registry_writability"] = writability
         if not writability.get("ok"):
@@ -408,7 +410,22 @@ def set_goal_activation_state(
             else nullcontext()
         )
         with target_lock:
-            if registries_are_distinct:
+            if source_only and _is_projected(target_registry, normalized_goal_id):
+                # Decided here, under the shared registry's lock: a concurrent
+                # sync-global registered the goal after the route pre-check, so
+                # its shared copy is kept consistent like any projected goal.
+                source_only = False
+                authority_route = replace(
+                    authority_route,
+                    mode=GoalActivationAuthorityRouteMode.REQUESTED_TO_GLOBAL,
+                )
+                target_source_identity = _projected_source_identity(
+                    target_registry,
+                    goal_id=normalized_goal_id,
+                )
+                payload["authority_route"] = authority_route.public_summary()
+                payload["target_global_registry"] = str(target_registry)
+            if registries_are_distinct and not source_only:
                 locked_target_source_identity = _projected_source_identity(
                     target_registry,
                     goal_id=normalized_goal_id,
@@ -481,7 +498,7 @@ def set_goal_activation_state(
                 transaction.commit(source_payload)
                 payload["written"] = True
 
-            if registries_are_distinct:
+            if registries_are_distinct and not source_only:
                 sync_payload = sync_project_registry_to_global(
                     registry_path=source_registry,
                     runtime_root_override=sync_runtime_root,
@@ -500,7 +517,7 @@ def set_goal_activation_state(
                 if sync_payload is not None and not sync_payload.get("ok")
                 else _readback(
                     source_registry=source_registry,
-                    target_registry=target_registry,
+                    target_registry=source_registry if source_only else target_registry,
                     goal_id=normalized_goal_id,
                     expected_state=target_state,
                 )
@@ -510,7 +527,10 @@ def set_goal_activation_state(
     payload["ok"] = bool(sync_ok and readback.get("verified"))
     payload["partial_write"] = bool(payload["written"] and not payload["ok"])
     payload["projection_reconciled"] = bool(
-        not changed and registries_are_distinct and readback.get("verified")
+        not changed
+        and registries_are_distinct
+        and not source_only
+        and readback.get("verified")
     )
     if not payload["ok"]:
         payload["error"] = "goal activation shared registry readback did not verify"
