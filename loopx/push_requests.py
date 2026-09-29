@@ -585,7 +585,7 @@ def render_push_request_markdown(payload: Mapping[str, Any]) -> str:
         lines = [f"Would open a push gate for {goal_id} ({reason}); dry run, nothing opened."]
     else:
         lines = [f"No push gate opened for {goal_id}: {reason}."]
-    if payload.get("pending_todo_ids"):
+    if isinstance(payload.get("pending_todo_ids"), list) and payload["pending_todo_ids"]:
         lines.append("- unfinished todos: " + ", ".join(f"`{todo}`" for todo in payload["pending_todo_ids"]))
     if payload.get("declined_gate"):
         lines.append(f"- declined at gate `{payload['declined_gate']}`; new merges offer it again")

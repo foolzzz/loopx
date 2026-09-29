@@ -335,7 +335,12 @@ _UNAVAILABLE = "unavailable"
 def _number(value: Any) -> float | None:
     """A recorded figure, or None when it is missing or not a number (shown as unavailable, never as 0)."""
 
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except OverflowError:
+        return None
 
 
 def _figure(value: Any, spec: str) -> str:

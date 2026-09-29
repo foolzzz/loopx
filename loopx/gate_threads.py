@@ -782,19 +782,32 @@ def _render_plan_card_markdown(card: Mapping[str, Any]) -> list[str]:
 _SETTLEMENT_PAYLOAD_KEYS = ("review_gate", "plan_card", "budget_gate", "push", "goal_complete")
 
 
+# Summary sections are built from gate index data; one malformed section is shown as
+# unavailable instead of failing the whole command.
+_SECTION_ERRORS = (AttributeError, TypeError, ValueError, OverflowError)
+
+
+def _section(render: Any, *args: Any) -> list[str]:
+    try:
+        return list(render(*args))
+    except _SECTION_ERRORS:
+        return ["- summary unavailable: the gate's recorded data is malformed; see `--format json`"]
+
+
 def _render_resolved_markdown(payload: Mapping[str, Any], key: str | None) -> str:
-    settled = (payload.get(key) if key else None) or {}
+    settled = payload.get(key) if key else None
+    settled = settled if isinstance(settled, Mapping) else {}
     head = ("Would resolve" if payload.get("dry_run") else "Resolved") + (
         f" gate `{payload.get('todo_id')}`: {payload.get('decision_outcome')}") + (
         f" ({settled.get('option')})" if settled.get("option") else "")
     if key == "push":
         from .push_requests import push_outcome_markdown
 
-        return "\n".join([head, *push_outcome_markdown(settled)]) + "\n"
+        return "\n".join([head, *_section(push_outcome_markdown, settled)]) + "\n"
     if key == "goal_complete":
         from .goal_complete_gate import completion_outcome_markdown
 
-        return "\n".join([head, *completion_outcome_markdown(settled)]) + "\n"
+        return "\n".join([head, *_section(completion_outcome_markdown, settled)]) + "\n"
     return head + (f"; error: {settled.get('error')}" if settled.get("error") else "") + "\n"
 
 
@@ -853,11 +866,11 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
     if payload.get("kind") == GATE_KIND_PUSH_REQUEST:
         from .push_requests import render_push_gate_markdown
 
-        lines += render_push_gate_markdown(payload)
+        lines += _section(render_push_gate_markdown, payload)
     elif payload.get("kind") == GATE_KIND_GOAL_COMPLETE:
         from .goal_complete_gate import render_goal_complete_markdown
 
-        lines += render_goal_complete_markdown(payload)
+        lines += _section(render_goal_complete_markdown, payload)
     lines += ["", "## Thread", ""]
     messages: Iterable[Mapping[str, Any]] = payload.get("messages") or []
     any_message = False

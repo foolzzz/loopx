@@ -1086,3 +1086,21 @@ def test_push_outcome_markdown_tolerates_a_non_text_repo_status(status) -> None:
 
     assert lines[0] == "- push: failed"
     assert lines[1] == "- `api`: unknown: remote rejected"
+
+
+def test_gate_markdown_shows_a_malformed_summary_as_unavailable() -> None:
+    from loopx.goal_complete_gate import render_goal_complete_markdown
+    from loopx.push_requests import render_push_request_markdown
+
+    huge = {"ok": True, "todo_id": "todo_x", "kind": "goal_complete", "status": "open",
+            "completion_usage": {"turns": 10**400, "cost_usd": 10**400}, "messages": []}
+    text = render_gate_markdown(huge)
+    assert "# Gate `todo_x` (goal_complete)" in text and "## Thread" in text
+    assert "unavailable" in "\n".join(render_goal_complete_markdown(huge))
+
+    assert render_gate_markdown({"ok": True, "todo_id": "todo_y", "decision_outcome": "approve",
+                                 "push": [1]}).startswith("Resolved gate `todo_y`: approve")
+    assert render_gate_markdown({"ok": True, "todo_id": "todo_z", "decision_outcome": "approve",
+                                 "goal_complete": 3}).startswith("Resolved gate `todo_z`: approve")
+    assert "No push gate opened" in render_push_request_markdown(
+        {"ok": True, "goal_id": "g", "reason": "todos_pending", "pending_todo_ids": 3})
