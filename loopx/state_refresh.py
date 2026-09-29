@@ -29,7 +29,9 @@ from .control_plane.agents.workspace_guard import (
     PeerDeliveryWorkspace,
     capture_delivery_workspace,
     delivery_workspace_satisfies,
+    goal_project_directory,
     peer_delivery_workspace,
+    todo_sources_view,
 )
 from .control_plane.quota.refresh_external_delivery import (
     finish_external_delivery_refresh, refresh_recovery_payload,
@@ -1338,7 +1340,8 @@ def refresh_state_run(
                 delivery_requirement,
                 delivery_workspace,
                 delivery_path=delivery_workspace_path or Path.cwd(),
-                project_directory=resolved_project,
+                # The registered directory: --project must not widen it.
+                project_directory=goal_project_directory(registry_goal),
             ):
                 if delivery_requirement is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY:
                     raise ValueError(
@@ -1685,15 +1688,20 @@ def refresh_state_run(
 def _settlement_todo(
     state_file: Path, *, todo_id: str, registry_path: Path, goal_id: str, runtime_root: Path,
 ) -> dict[str, Any] | None:
-    """The durable record of the settled Todo; ``None`` when it cannot be read (fails closed)."""
+    """The settled Todo as every persisted source records it.
 
-    from .control_plane.todos.durable_completion import read_persisted_todo_record
+    ``None`` (unknown, so the delivery rule stays strict) when a source
+    cannot be read, none holds the Todo, or they disagree about its repos.
+    """
+
+    from .control_plane.todos.durable_completion import read_todo_record_sources
 
     try:
-        todo, _todo_ids = read_persisted_todo_record(
+        records = read_todo_record_sources(
             state_file, todo_id=todo_id, registry_path=registry_path, goal_id=goal_id,
             runtime_root=runtime_root,
         )
     except (OSError, ValueError):
         return None
-    return todo
+    view = todo_sources_view(records)
+    return dict(view) if view is not None else None

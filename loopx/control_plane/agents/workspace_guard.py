@@ -38,7 +38,8 @@ class PeerDeliveryWorkspace(str, Enum):
     """Where one peer's accountable delivery must be refreshed from."""
 
     # A single-agent Goal, a policy that turns the guard off, or the role_v1
-    # orchestrator, which plans from the Goal's state home and delivers no code.
+    # orchestrator on a Todo without repositories: it plans from the Goal's
+    # state home and delivers no code.
     ANY = "any"
     # An independent git worktree or the Todo's verified per-Todo workspace root.
     INDEPENDENT_WORKTREE = "independent_worktree"
@@ -57,6 +58,32 @@ def todo_names_repository(todo: Mapping[str, Any]) -> bool:
     )
 
 
+def todo_sources_view(records: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    """One view of a Todo for ``peer_delivery_workspace`` from all its persisted records.
+
+    Records that disagree about the repositories give ``None``, an unknown
+    Todo, for which the rule stays strict: a stale source without repository
+    fields never relaxes a Todo that another source says names a repository.
+    """
+
+    repositories = {
+        (
+            tuple(normalize_todo_task_repositories(record.get("task_repositories"))),
+            normalize_todo_task_repository(record.get("task_repository")),
+        )
+        for record in records
+    }
+    return records[0] if records and len(repositories) == 1 else None
+
+
+def goal_project_directory(goal: Mapping[str, Any] | None) -> Path | None:
+    """The Goal's registered project directory (its ``repo``), never a caller's ``--project``."""
+
+    raw = str((goal or {}).get("repo") or "").strip()
+    path = Path(raw).expanduser() if raw else None
+    return path if path is not None and path.is_absolute() else None
+
+
 def peer_delivery_workspace(
     goal: Mapping[str, Any] | None,
     *,
@@ -68,10 +95,11 @@ def peer_delivery_workspace(
 
     ``workspace_guard_policy.peer_independent_worktree_required`` set to
     ``true`` keeps every peer of a multi-agent Goal on independent worktrees,
-    and any other explicit value turns the guard off. Without it, a role_v1
-    Goal exempts the orchestrator and lets a developer or acceptor deliver a
-    Todo that names no repository from the Goal's project directory. An
-    unknown Todo fails closed.
+    and any other explicit value turns the guard off. Without it, on a role_v1
+    Goal and a Todo that names no repository, the orchestrator is exempt and
+    a developer or acceptor delivers from the Goal's project directory. A
+    Todo that names a repository, or an unknown one, keeps the independent
+    worktree for every role.
     """
 
     goal = goal if isinstance(goal, Mapping) else {}
@@ -95,13 +123,11 @@ def peer_delivery_workspace(
     except ValueError:
         role_v1 = False
     role = agent_role_for_goal(dict(goal), agent_id) if role_v1 else None
+    if not isinstance(todo, Mapping) or todo_names_repository(todo):
+        return PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
     if role == AGENT_ROLE_ORCHESTRATOR:
         return PeerDeliveryWorkspace.ANY
-    if (
-        role in {AGENT_ROLE_DEVELOPER, AGENT_ROLE_ACCEPTOR}
-        and isinstance(todo, Mapping)
-        and not todo_names_repository(todo)
-    ):
+    if role in {AGENT_ROLE_DEVELOPER, AGENT_ROLE_ACCEPTOR}:
         return PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
     return PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
 
@@ -805,10 +831,10 @@ def build_agent_workspace_guard(
     )
     if requirement is PeerDeliveryWorkspace.ANY:
         return None
-    goal_project = Path(str(goal.get("repo") or goal.get("project") or goal.get("root") or "")).expanduser()
+    goal_project = goal_project_directory(goal)
     if (
         requirement is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
-        and goal_project.is_absolute()
+        and goal_project is not None
         and _is_same_or_child_path(current_path, goal_project)
     ):
         return None

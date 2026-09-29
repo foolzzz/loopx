@@ -161,6 +161,50 @@ def read_persisted_todo_record_with_source(
     return block, existing_todo_ids, projection_source
 
 
+def read_todo_record_sources(
+    state_file: Path,
+    *,
+    todo_id: str,
+    registry_path: Path | None = None,
+    goal_id: str | None = None,
+    runtime_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Every persisted record of one Todo, for a caller that must see all of them.
+
+    Once promoted, the canonical record is the only one. Before that, the
+    Markdown block and the event projection item are both returned when
+    present: ``read_persisted_todo_record`` prefers the block, while status
+    and should-run prefer the projection, so a check that must not be relaxed
+    by a stale source reads both. Raises ``ValueError`` when no source holds
+    the Todo, and lets read errors propagate.
+    """
+
+    if runtime_root is not None and goal_id is not None:
+        from ..coordination.local_authority import read_canonical_todos_if_promoted
+
+        if read_canonical_todos_if_promoted(runtime_root=runtime_root, goal_id=goal_id) is not None:
+            todo, _todo_ids = read_persisted_todo_record(
+                state_file, todo_id=todo_id, registry_path=registry_path, goal_id=goal_id,
+                runtime_root=runtime_root,
+            )
+            return [todo]
+    records: list[dict[str, Any]] = []
+    match = find_todo_block(state_file.read_text(encoding="utf-8").splitlines(), todo_id=todo_id)
+    if match is not None:
+        records.append(dict(match[4]))
+    if registry_path is not None and goal_id is not None:
+        context = event_projection_todo_context(
+            registry_path=registry_path, goal_id=goal_id, state_path=state_file, todo_id=todo_id, role=None,
+        )
+        if context is not None:
+            records.append(dict(context["item"]))
+    if not records:
+        raise ValueError(
+            f"todo_id {normalize_todo_id(todo_id) or todo_id!r} was not found in persisted Todo lifecycle state"
+        )
+    return records
+
+
 def project_durable_completion_outcome(
     *,
     todo: Mapping[str, Any],
