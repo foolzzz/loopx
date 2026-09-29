@@ -179,7 +179,7 @@ def _repo_completion(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: 
                      push_state: Mapping[str, Any]) -> dict[str, Any]:
     """One repo's merge target, merged todo commits and push result (``pending`` blocks)."""
 
-    from .push_requests import repo_push_plan, redact_paths
+    from .push_requests import PUSH_LOCAL_ONLY_STATUSES, repo_push_plan, redact_paths
     from .workspace.git_workspace import WorkspaceError, _resolve_repo
 
     plan = repo_push_plan(goal, repo, goal_id)
@@ -203,7 +203,7 @@ def _repo_completion(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: 
     declined = (push_state.get("declined") or {}).get("heads") or {}
     if status == "no_branch":
         return {**row, "push": "no_merges"}
-    if status == "no_remote":
+    if status in PUSH_LOCAL_ONLY_STATUSES:  # skipped by the push gate as well
         return {**row, "push": "local_only"}
     if status == "up_to_date":
         pushed = last.get(name, {})
