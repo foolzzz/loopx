@@ -305,3 +305,28 @@ def test_a_session_reports_refusals_it_cannot_charge_to_a_running_test(tmp_path:
     assert "recorded under tests/test_other_module.py::test_other" in output
     assert not stand_in.exists()
 
+
+def test_a_subprocess_started_outside_the_checkout_imports_loopx_from_the_tested_tree(
+    tmp_path: Path,
+) -> None:
+    import loopx
+
+    # PathFinder searches sys.path only; an editable install resolves through a
+    # meta-path finder after it and may point at another checkout.
+    probe = (
+        "import importlib.machinery, loopx; "
+        "print(loopx.__file__); "
+        "print(importlib.machinery.PathFinder.find_spec('loopx').origin)"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    tested = REPO_ROOT / "loopx" / "__init__.py"
+    assert Path(loopx.__file__).resolve() == tested
+    assert completed.returncode == 0, completed.stderr
+    assert [Path(line).resolve() for line in completed.stdout.splitlines()] == [tested, tested]

@@ -9,6 +9,11 @@ A refusal fails the test it was recorded under, at that test's teardown.
 Refusals recorded under another test or under no test are reported once for
 the whole session, which then exits with a failure status. Under xdist each
 worker hands those refusals to the controller.
+
+The session environment also puts the source tree under test first on
+PYTHONPATH, so a Python subprocess that inherits it imports ``loopx`` from that
+tree whatever its cwd, instead of from wherever the environment's editable
+install points.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import pytest
 import real_runtime_root_guard as guard
 
 GUARD_DIR = Path(__file__).resolve().parent
+SOURCE_ROOT = GUARD_DIR.parents[1]
 _WORKER_OUTPUT_KEY = "loopx_runtime_root_unattributed"
 _unattributed: list[dict[str, object]] = []
 
@@ -57,8 +63,10 @@ def _start() -> None:
     atexit.register(Path(report_path).unlink, missing_ok=True)
     guard.configure(roots, report_path)
     guard.install()
+    # The guard's sitecustomize first, then the tree under test ahead of any
+    # editable install of another checkout.
     os.environ["PYTHONPATH"] = os.pathsep.join(
-        part for part in (str(GUARD_DIR), os.environ.get("PYTHONPATH")) if part
+        part for part in (str(GUARD_DIR), str(SOURCE_ROOT), os.environ.get("PYTHONPATH")) if part
     )
 
 
