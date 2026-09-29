@@ -309,6 +309,41 @@ def test_stop_and_resume_sync_source_global_and_quota(
     assert resumed_quota["allowed_slots"] == 4
 
 
+def test_a_goal_synced_while_a_source_only_stop_runs_is_stopped_in_the_shared_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The source_only route is decided under the shared registry's lock, not by the pre-check."""
+
+    runtime_root = tmp_path / "runtime"
+    source_registry = tmp_path / "project" / ".loopx" / "registry.json"
+    _write_json(source_registry, {
+        "schema_version": "0.1",
+        "common_runtime_root": str(runtime_root),
+        "goals": [{"id": "goal-one", "display_name": "A public Goal", "repo": str(tmp_path / "project"),
+                   "quota": {"compute": 1, "allowed_slots": 4, "spent_slots": 0}}],
+    })
+    global_registry = runtime_root / "registry.global.json"
+    decide_route = activation_service._source_and_target
+
+    def route_then_concurrent_sync(**kwargs: object) -> object:
+        route = decide_route(**kwargs)
+        assert route.mode is activation_service.GoalActivationAuthorityRouteMode.SOURCE_ONLY
+        # Another process registers the still-active goal before the stop writes.
+        assert sync_project_registry_to_global(registry_path=source_registry, runtime_root_override=str(runtime_root),
+                                               goal_id="goal-one", dry_run=False)["ok"] is True
+        return route
+
+    monkeypatch.setattr(activation_service, "_source_and_target", route_then_concurrent_sync)
+    stopped = set_goal_activation_state(registry_path=source_registry, goal_id="goal-one", state="stopped",
+                                        runtime_root_override=str(runtime_root), actor_kind="owner", execute=True)
+
+    assert stopped["ok"] is True, stopped
+    assert stopped["authority_route"]["mode"] == "requested_to_global"
+    assert stopped["global_sync"]["ok"] is True and stopped["readback"]["verified"] is True
+    assert goal_activation_state(_goal(source_registry)) is GoalActivationState.STOPPED
+    assert goal_activation_state(_goal(global_registry)) is GoalActivationState.STOPPED
+
+
 def test_activation_and_agent_registration_share_source_to_global_lock_order(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

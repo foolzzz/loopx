@@ -23,8 +23,10 @@ from loopx.gate_threads import (
     gate_view,
     gates_awaiting_orchestrator,
     list_gates,
+    mark_gate_closed,
     read_gate_index,
     read_gate_thread,
+    register_gate_kind,
     render_gate_markdown,
     reply_to_gate,
 )
@@ -414,6 +416,30 @@ def test_plan_validation_and_approve_preflight(tmp_path: Path) -> None:
     assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "pending"
 
 
+def test_plan_text_keeps_its_internal_whitespace(tmp_path: Path, capsys) -> None:
+    """Spaces inside a quoted argument change a criterion's meaning; only the ends are trimmed."""
+
+    registry, runtime = fixture(tmp_path)
+    item = {"key": "greet", "text": "  Make greet('  Ada ')  trim its input ",
+            "acceptance": " greet('  Ada ') returns 'Hello, Ada'\n  and greet('') raises ",
+            "validation_command": " python -c \"print('  Ada ')\" "}
+    plan = _propose(registry, runtime, {"title": "Greeting", "todos": [item]})
+    [stored] = read_plan(runtime, GOAL, plan["plan_id"])["plan"]["todos"]
+    assert stored["text"] == "Make greet('  Ada ')  trim its input"
+    assert stored["acceptance"] == "greet('  Ada ') returns 'Hello, Ada'\n  and greet('') raises"
+    assert stored["validation_command"] == "python -c \"print('  Ada ')\""
+    assert main(["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
+                 "--todo-id", plan["gate_todo_id"]]) == 0
+    shown = capsys.readouterr().out
+    assert "Make greet('  Ada ')  trim its input" in shown and "`python -c \"print('  Ada ')\"`" in shown
+    # The bounds and the duplicate check are unchanged: todos differing only in spacing are one todo.
+    with pytest.raises(PlanCardError, match="duplicate todo text"):
+        _propose(registry, runtime, {"title": "Twice", "todos": [
+            {"key": "a", "text": "Write  the README"}, {"key": "b", "text": "Write the  README"}]})
+    with pytest.raises(PlanCardError, match="at most 1000 characters"):
+        _propose(registry, runtime, {"title": "Long", "todos": [{"key": "a", "text": "A", "acceptance": "x" * 1001}]})
+
+
 # --- agent Turns cannot decide user gates --------------------------------------------
 
 
@@ -535,6 +561,87 @@ def test_an_owner_gate_decision_records_closed_by(
     assert f"- closed by: cli (actor {actor}) at {closed_by['at']}" in capsys.readouterr().out
 
 
+def test_markdown_gate_resolve_names_the_gate_and_its_decision(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    argv = ["--registry", str(registry), "--runtime-root", str(runtime), "gate", "resolve", "--goal-id", GOAL,
+            "--todo-id", gate_id, "--decision", "approve"]
+    assert main([*argv, "--dry-run"]) == 0
+    assert capsys.readouterr().out.strip() == f"Would resolve gate `{gate_id}`: approve"
+    assert main(argv) == 0
+    assert capsys.readouterr().out.strip() == f"Resolved gate `{gate_id}`: approve"
+
+
+def _show_markdown(registry: Path, runtime: Path, capsys, gate_id: str) -> str:
+    assert main(["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
+                 "--todo-id", gate_id]) == 0
+    shown = capsys.readouterr().out
+    assert f"# Gate `{gate_id}`" in shown and "## Thread" in shown
+    return shown
+
+
+def test_gate_show_markdown_skips_malformed_push_entries_and_redacts_paths(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry, "Push request: push the merged work?")
+    register_gate_kind(runtime, GOAL, gate_id, kind="push_request", extra={
+        "push_repos": [None, "api", {"name": "web", "status": "error", "error": "repo /srv/checkouts/web is missing"},
+                       {"name": "api", "status": "ready", "branch": "main", "remote": "origin",
+                        "unpushed_commits": 1, "commit_range": "a..b", "log": "not a list"}],
+        "previous_errors": [None, {"name": "api", "error_tail": "fatal: /srv/remotes/api.git refused"}],
+    })
+    shown = _show_markdown(registry, runtime, capsys, gate_id)
+    assert "- `web`: skipped, repo <path> is missing" in shown
+    assert "- `api`: main -> origin, 1 commit(s), a..b\n" in shown
+    assert "- previous push failed: `api`: fatal: <path> refused" in shown
+    assert "/srv/" not in shown
+
+
+def test_gate_show_markdown_survives_malformed_completion_data(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry, "Goal complete: close it?")
+    register_gate_kind(runtime, GOAL, gate_id, kind="goal_complete", extra={
+        "completion_todos": {"accepted": 1, "rejects": 0, "superseded": 0},
+        "completion_repos": [None, {"name": "api", "branch": "main", "push": "local_only",
+                                    "merged_todo_commits": [None, {"sha": "abc1234", "todo_id": "todo_a"}]}],
+        "completion_usage": {"cost_usd": 0, "cost_estimated_usd": None, "turns": 2, "agent_hours": "unknown",
+                             "by_role": [None, {"role": "developer", "cost_usd": "n/a", "turns": 2}]},
+    })
+    shown = _show_markdown(registry, runtime, capsys, gate_id)
+    assert "- todos: 1 accepted, 0 reject(s), 0 superseded" in shown
+    assert "- `api`: 1 merge(s) on main, local only" in shown and "  - merged: abc1234 todo_a" in shown
+    assert "- usage: $0.00 (unavailable estimated), 2 Turn(s), unavailable agent-h" in shown
+    assert "  - developer: unavailable, 2 Turn(s)" in shown
+
+
+def test_an_adopted_completion_gate_shows_its_options_and_outcome(tmp_path: Path, capsys) -> None:
+    """A gate adopted by its text has no completion snapshot; its options and outcome still show."""
+
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry, "Goal complete: adopted without a snapshot?")
+    register_gate_kind(runtime, GOAL, gate_id, kind="goal_complete", extra={
+        "options": ["close_goal", "add_work", "leave_open"], "adopted": True})
+    shown = _show_markdown(registry, runtime, capsys, gate_id)
+    assert "## Completion" in shown and "- options: close_goal, add_work, leave_open" in shown
+    assert "- todos:" not in shown
+    mark_gate_closed(runtime, GOAL, gate_id, decision="cancel", extra={
+        "completion_outcome": {"ok": True, "option": "leave_open", "decision": "cancel"}})
+    assert "- outcome: leave_open, the goal stays open" in _show_markdown(registry, runtime, capsys, gate_id)
+
+
+def test_missing_completion_usage_is_unavailable_and_real_zeros_stay_zero(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    missing = open_gate(registry, "Goal complete: usage lost?")
+    register_gate_kind(runtime, GOAL, missing, kind="goal_complete", extra={"completion_todos": {"accepted": 1}})
+    shown = _show_markdown(registry, runtime, capsys, missing)
+    assert "- usage: unavailable" in shown and "$0.00" not in shown and "0 Turn(s)" not in shown
+    zero = open_gate(registry, "Goal complete: nothing spent?")
+    register_gate_kind(runtime, GOAL, zero, kind="goal_complete", extra={
+        "completion_todos": {"accepted": 1},
+        "completion_usage": {"cost_usd": 0.0, "cost_estimated_usd": 0.0, "turns": 0, "agent_hours": 0.0}})
+    shown = _show_markdown(registry, runtime, capsys, zero)
+    assert "- usage: $0.00 ($0.00 estimated), 0 Turn(s), 0.00 agent-h" in shown
+
+
 def test_a_plain_gate_decision_records_closed_by_without_a_thread(tmp_path: Path, capsys) -> None:
     """A gate nobody replied to has no index entry yet; its decision still records who made it."""
 
@@ -642,6 +749,50 @@ def test_goal_create_end_to_end_with_separate_state_home(tmp_path: Path, capsys)
     assert main([*argv[:10], "--goal-id", "other", "--doc", str(doc), "--agent", "dev=developer",
                  "--no-global-sync"]) == 1
     assert "exactly one --agent ID=orchestrator" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_stopping_a_goal_created_with_no_global_sync_leaves_the_shared_registry_alone(
+    tmp_path: Path, capsys,
+) -> None:
+    """Stop and resume (the path close_goal takes) write only the registry of a goal that was never synced."""
+
+    from loopx.control_plane.goals.activation import goal_is_stopped
+    from loopx.control_plane.goals.activation_service import set_goal_activation_state
+    from loopx.global_registry import sync_project_registry_to_global
+    from loopx.history import load_registry
+    from loopx.registry import registry_goals
+
+    runtime = tmp_path / "runtime"
+    doc = tmp_path / "requirements.md"
+    doc.write_text("# Local goal\n", encoding="utf-8")
+    shared = runtime / "registry.global.json"
+    shared.parent.mkdir(parents=True)
+    shared.write_text(json.dumps({"schema_version": "0.1", "registry_role": "global-local", "goals": []}),
+                      encoding="utf-8")
+    before = shared.read_bytes()
+    assert main(["--runtime-root", str(runtime), "--format", "json", "goal", "create", "--project",
+                 str(tmp_path / "progress"), "--goal-id", "local-goal", "--doc", str(doc), "--agent",
+                 "orch=orchestrator", "--no-global-sync"]) == 0, capsys.readouterr().out
+    registry = Path(json.loads(capsys.readouterr().out)["registry"])
+    assert shared.read_bytes() == before
+
+    for state in ("stopped", "active"):
+        changed = set_goal_activation_state(registry_path=registry, goal_id="local-goal", state=state,
+                                            runtime_root_override=str(runtime), actor_kind="owner", execute=True)
+        assert changed["ok"] is True and changed["written"] is True, changed
+        assert changed["authority_route"]["mode"] == "source_only" and "global_sync" not in changed
+        loaded = json.loads(registry.read_text(encoding="utf-8"))["goals"][0]
+        assert goal_is_stopped(loaded) is (state == "stopped")
+        assert shared.read_bytes() == before, "the shared registry is neither created nor modified"
+
+    # Once the goal is synced, the same transition keeps its shared copy consistent.
+    assert sync_project_registry_to_global(registry_path=registry, runtime_root_override=str(runtime),
+                                           goal_id="local-goal", dry_run=False)["ok"] is True
+    stopped = set_goal_activation_state(registry_path=registry, goal_id="local-goal", state="stopped",
+                                        runtime_root_override=str(runtime), actor_kind="owner", execute=True)
+    assert stopped["ok"] is True and stopped["authority_route"]["mode"] == "requested_to_global"
+    [projected] = [goal for goal in registry_goals(load_registry(shared)) if goal.get("id") == "local-goal"]
+    assert goal_is_stopped(projected)
 
 
 # --- web endpoint -------------------------------------------------------------------
@@ -922,3 +1073,34 @@ def test_only_the_role_v1_orchestrator_skips_the_peer_worktree_guard() -> None:
     assert _role_v1_orchestrator(role_v1, DEV) is False and _role_v1_orchestrator(role_v1, ACC) is False
     assert _role_v1_orchestrator(peer_v1, ORCH) is False
     assert _role_v1_orchestrator(role_v1, None) is False
+
+
+@pytest.mark.parametrize("status", [[], {}, None, 3])
+def test_push_outcome_markdown_tolerates_a_non_text_repo_status(status) -> None:
+    from loopx.push_requests import push_outcome_markdown
+
+    lines = push_outcome_markdown({
+        "decision": "approve", "ok": False,
+        "repos": [{"name": "api", "status": status, "error_tail": "remote rejected"}],
+    })
+
+    assert lines[0] == "- push: failed"
+    assert lines[1] == "- `api`: unknown: remote rejected"
+
+
+def test_gate_markdown_shows_a_malformed_summary_as_unavailable() -> None:
+    from loopx.goal_complete_gate import render_goal_complete_markdown
+    from loopx.push_requests import render_push_request_markdown
+
+    huge = {"ok": True, "todo_id": "todo_x", "kind": "goal_complete", "status": "open",
+            "completion_usage": {"turns": 10**400, "cost_usd": 10**400}, "messages": []}
+    text = render_gate_markdown(huge)
+    assert "# Gate `todo_x` (goal_complete)" in text and "## Thread" in text
+    assert "unavailable" in "\n".join(render_goal_complete_markdown(huge))
+
+    assert render_gate_markdown({"ok": True, "todo_id": "todo_y", "decision_outcome": "approve",
+                                 "push": [1]}).startswith("Resolved gate `todo_y`: approve")
+    assert render_gate_markdown({"ok": True, "todo_id": "todo_z", "decision_outcome": "approve",
+                                 "goal_complete": 3}).startswith("Resolved gate `todo_z`: approve")
+    assert "No push gate opened" in render_push_request_markdown(
+        {"ok": True, "goal_id": "g", "reason": "todos_pending", "pending_todo_ids": 3})

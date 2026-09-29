@@ -165,6 +165,9 @@ def handle_gate_plan_goal_command(
     renderer = render_gate_markdown
     try:
         if args.command == "goal" and args.goal_command == "request-push":
+            from ..push_requests import render_push_request_markdown
+
+            renderer = render_push_request_markdown
             payload = _request_push(args, registry_path=registry_path, runtime_root_arg=runtime_root_arg)
         elif args.command == "goal":
             renderer = render_goal_create_markdown

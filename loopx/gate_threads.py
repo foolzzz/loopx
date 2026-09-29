@@ -778,6 +778,39 @@ def _render_plan_card_markdown(card: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+# The settlement a gate resolve payload carries (``complete_goal_todo`` names it by gate kind).
+_SETTLEMENT_PAYLOAD_KEYS = ("review_gate", "plan_card", "budget_gate", "push", "goal_complete")
+
+
+# Summary sections are built from gate index data; one malformed section is shown as
+# unavailable instead of failing the whole command.
+_SECTION_ERRORS = (AttributeError, TypeError, ValueError, OverflowError)
+
+
+def _section(render: Any, *args: Any) -> list[str]:
+    try:
+        return list(render(*args))
+    except _SECTION_ERRORS:
+        return ["- summary unavailable: the gate's recorded data is malformed; see `--format json`"]
+
+
+def _render_resolved_markdown(payload: Mapping[str, Any], key: str | None) -> str:
+    settled = payload.get(key) if key else None
+    settled = settled if isinstance(settled, Mapping) else {}
+    head = ("Would resolve" if payload.get("dry_run") else "Resolved") + (
+        f" gate `{payload.get('todo_id')}`: {payload.get('decision_outcome')}") + (
+        f" ({settled.get('option')})" if settled.get("option") else "")
+    if key == "push":
+        from .push_requests import push_outcome_markdown
+
+        return "\n".join([head, *_section(push_outcome_markdown, settled)]) + "\n"
+    if key == "goal_complete":
+        from .goal_complete_gate import completion_outcome_markdown
+
+        return "\n".join([head, *_section(completion_outcome_markdown, settled)]) + "\n"
+    return head + (f"; error: {settled.get('error')}" if settled.get("error") else "") + "\n"
+
+
 def render_gate_markdown(payload: Mapping[str, Any]) -> str:
     if not payload.get("ok"):
         return f"gate: error: {payload.get('error')}\n"
@@ -791,13 +824,9 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
         if len(lines) == 2:
             lines.append("- none")
         return "\n".join(lines) + "\n"
-    if "messages" not in payload and ("review_gate" in payload or "plan_card" in payload):
-        settled = payload.get("review_gate") or payload.get("plan_card") or {}
-        return (
-            f"Resolved gate `{payload.get('todo_id')}`: {payload.get('decision_outcome')}"
-            + (f" ({settled.get('option')})" if settled.get("option") else "")
-            + (f"; error: {settled.get('error')}" if settled.get("error") else "") + "\n"
-        )
+    settled_key = next((key for key in _SETTLEMENT_PAYLOAD_KEYS if key in payload), None)
+    if "messages" not in payload and (settled_key or payload.get("decision_outcome")):
+        return _render_resolved_markdown(payload, settled_key)
     if "message" in payload and "messages" not in payload:
         message = payload["message"]
         return (
@@ -834,6 +863,14 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
         from .plan_criteria_changes import render_criteria_changes_markdown
 
         lines += render_criteria_changes_markdown(payload["criteria_changes"])
+    if payload.get("kind") == GATE_KIND_PUSH_REQUEST:
+        from .push_requests import render_push_gate_markdown
+
+        lines += _section(render_push_gate_markdown, payload)
+    elif payload.get("kind") == GATE_KIND_GOAL_COMPLETE:
+        from .goal_complete_gate import render_goal_complete_markdown
+
+        lines += _section(render_goal_complete_markdown, payload)
     lines += ["", "## Thread", ""]
     messages: Iterable[Mapping[str, Any]] = payload.get("messages") or []
     any_message = False
