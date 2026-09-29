@@ -651,6 +651,17 @@ from the dashboard drawer, which lists the same options.
 `loopx todo complete --role user --decision-outcome ...` is the older
 equivalent.
 
+Only you decide gates. LoopX marks the process that runs each agent Turn's
+model with `LOOPX_AGENT_TURN`. An agent that runs `gate resolve` or `todo
+complete --decision-outcome` there, with or without `--option`, is refused with
+`gate_decision_refused_in_agent_turn` and writes nothing; it can still reply
+with `gate reply`. This guards against accidental self-approval. It is not a
+security boundary: agents run as your OS user, and one that removes the variable
+bypasses it. Every decision records `closed_by` in the gate index: the surface
+(`cli`, `dashboard` or `system`), the lifecycle actor (or `owner`), the agent
+Turn marker if one was set, and the time. `gate show` prints it. Details:
+[gates-plans-intake-v0](gates-plans-intake-v0.md#only-the-owner-decides-user-gates).
+
 | kind | opened by | holds | resolve with |
 |---|---|---|---|
 | `decision` | the orchestrator: a question or a choice | the agent it blocks | `--decision approve \| reject \| cancel`, after replying in the thread |
@@ -733,9 +744,9 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `gate list --goal-id G [--awaiting user\|orchestrator]` | Open user gates, their kind and who they await. |
-| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan id (read the plan with `plan show`), criteria changes, push repos, the budget or the completion summary. |
+| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan id (read the plan with `plan show`), criteria changes, push repos, the budget or the completion summary. Once decided, who decided it (`closed_by`). |
 | `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Replying never closes a gate. |
-| `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). |
+| `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). Refused inside an agent Turn. |
 
 ### `loopx plan`
 
@@ -746,7 +757,7 @@ The orchestrator uses these commands. You mostly read them.
 | `plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]` | Propose a plan card, or revise a pending one in place. The card opens a `plan_approval` gate. |
 | `plan show --goal-id G --plan-id P` | The plan's todos, dependencies, criteria and criteria changes. |
 | `plan list --goal-id G [--require-status pending\|applying\|applied\|rejected\|cancelled]` | The goal's plans. With `--require-status`, exits 1 unless a plan has that status. |
-| `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of a plan whose gate is recorded done with decision approve. Until then it exits 1 with `plan_not_approved` and creates no todos. It checks the recorded decision, not who made it, so it does not stop an orchestrator from approving its own gate. |
+| `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of a plan whose gate is recorded done with decision approve. Until then it exits 1 with `plan_not_approved` and creates no todos. It checks the recorded decision, not who made it; an agent Turn cannot record one (see [section 5](#5-gates-reference)). |
 
 A plan file looks like this:
 
