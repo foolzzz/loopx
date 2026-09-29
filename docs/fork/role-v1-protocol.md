@@ -540,9 +540,10 @@ to developer, cancel is cancel the todo. An option must match its decision.
 `accept_manually` is refused while the todo is no longer `in_review`, and the
 gate stays open. The applied option is recorded as `decision_option` in the
 gate index (with a compact `review_outcome`) and as a `review_gate_decided`
-event. The first settlement wins: settling the gate again, for example through
-a `todo complete` replay with another option, replays the recorded option and
-applies nothing.
+event. One settlement runs at a time per gate. Settling the gate again, for
+example through a `todo complete` replay with another option, replays the
+recorded outcome and applies nothing; only a failed outcome (the todo write or
+the manual accept did not complete) is retried, with the recorded option.
 
 The owner is not a registered agent, so each option's todo write is
 attributed to the todo's claim owner. An unclaimed delivery falls back to the

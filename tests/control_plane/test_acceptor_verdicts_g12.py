@@ -407,6 +407,37 @@ def test_a_lost_web_receipt_recovers_a_defaulted_review_option(tmp_path, monkeyp
     assert len(_events(fx, "review_gate_decided")) == 1
 
 
+def test_a_failed_review_gate_effect_is_surfaced_and_a_web_retry_applies_it_once(tmp_path, monkeypatch) -> None:
+    import loopx.todos as todos
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    service, proposal = _web_preview(fx, gate_id, {"option": "return_to_developer",
+                                                   "note": "install the toolchain first"})
+    with monkeypatch.context() as patch:
+        def unavailable(*args, **kwargs):
+            raise OSError("Synthetic todo store failure")
+
+        patch.setattr(todos, "update_goal_todo", unavailable)
+        failed = service.apply(proposal["proposal_id"])["proposal"]
+    assert failed["status"] == "failed", failed
+    failure = failed["failure"]
+    assert failure["error_code"] == "gate_settlement_retry_required", failure
+    assert (failure["details"]["gate_todo_id"], failure["details"]["settlement"], failure["details"]["option"]) == (
+        gate_id, "review_gate", "return_to_developer")
+    assert _todo(fx, todo_id)["status"] == "in_review"
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]["ok"] is False
+
+    retried = service.apply(proposal["proposal_id"])["proposal"]
+    assert retried["status"] == "applied", retried
+    todo = _todo(fx, todo_id)
+    assert todo["status"] == "open" and "install the toolchain first" in todo["review_feedback"]
+    outcome = read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]
+    assert (outcome["ok"], outcome["applied"], outcome["option"]) == (True, True, "return_to_developer")
+    assert [event["details"]["applied"] for event in _events(fx, "review_gate_decided")] == [False, True]
+
+
 @pytest.mark.parametrize("option", REVIEW_GATE_OPTIONS)
 def test_each_gate_option_applies_to_an_unclaimed_delivery(tmp_path, monkeypatch, option: str) -> None:
     # A plan todo without a bound agent is delivered unclaimed: Turns do not claim it. The

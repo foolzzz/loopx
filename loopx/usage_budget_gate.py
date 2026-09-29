@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any
 
 from .file_lock import exclusive_file_lock
-from .gate_threads import GATE_KIND_BUDGET_EXHAUSTED, read_gate_index, record_gate_settlement, register_gate_kind
+from .gate_threads import GATE_KIND_BUDGET_EXHAUSTED, read_gate_index, register_gate_kind, run_gate_settlement
 from .usage_accounting.budget import (
     budget_status,
     read_usage_budget,
@@ -360,43 +360,47 @@ def settle_budget_gate(
 ) -> dict[str, Any] | None:
     """After a ``budget_exhausted`` gate closed, apply the chosen option.
 
-    Returns None for other gates. Settling the same gate again replays its
-    recorded outcome.
+    Returns None for other gates. One settlement per gate runs at a time: a
+    recorded outcome replays, and only a failed one is retried (with its
+    recorded option); see ``gate_threads.run_gate_settlement``.
     """
 
     entry = budget_gate_entry(runtime_root, goal_id, gate_todo_id)
     if entry is None:
         return None
-    if isinstance(entry.get("budget_outcome"), Mapping):
-        return {"payload_key": "budget_gate", **dict(entry["budget_outcome"]), "replayed": True}
-    selected = resolve_budget_gate_option(decision, option)
-    outcome: dict[str, Any] = {
-        "ok": True, "gate_todo_id": gate_todo_id, "decision": decision, "option": selected,
-        "previous_budget_usd": read_usage_budget(runtime_root, goal_id),
-        "at": datetime.now().astimezone().isoformat(timespec="seconds"),
-    }
-    try:
-        if selected == BUDGET_OPTION_RAISE:
-            target = _raised_budget(entry, runtime_root, goal_id, note, require_cover=False)
-            outcome["budget_usd"] = write_usage_budget(runtime_root, goal_id, target)["budget_usd"]
-        elif selected == BUDGET_OPTION_CONTINUE:
-            write_usage_budget(runtime_root, goal_id, None)
-            outcome["budget_usd"] = None
-        else:
-            outcome["goal_stop"] = _stop_goal(Path(registry_path), goal_id, gate_todo_id, runtime_root_arg)
-            if outcome["goal_stop"].get("ok") is False:
-                outcome.update(ok=False, error="the goal could not be stopped; stop it with loopx goal-lifecycle")
-            outcome["resume"] = (
-                f"loopx goal-lifecycle --goal-id {goal_id} --operation resume --actor-kind owner --execute"
-            )
-    except (OSError, ValueError) as error:  # the gate is closed; report, never raise
-        outcome.update(ok=False, error=str(error)[:400])
-    recorded, first = record_gate_settlement(runtime_root, goal_id, gate_todo_id, decision=decision,
-                                             option=selected, outcome_key="budget_outcome", outcome=outcome)
-    if not first:  # a concurrent settlement recorded its outcome first
-        return {"payload_key": "budget_gate", **recorded, "replayed": True}
-    _event(runtime_root, goal_id, "usage_budget_decided", todo_id=gate_todo_id, status=selected, details={
-        "gate_id": gate_todo_id, "option": selected, "ok": outcome["ok"],
+
+    def apply(decided: str | None, selected: str) -> dict[str, Any]:
+        outcome: dict[str, Any] = {
+            "ok": True, "gate_todo_id": gate_todo_id, "decision": decided, "option": selected,
+            "previous_budget_usd": read_usage_budget(runtime_root, goal_id),
+            "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        }
+        try:
+            if selected == BUDGET_OPTION_RAISE:
+                target = _raised_budget(entry, runtime_root, goal_id, note, require_cover=False)
+                outcome["budget_usd"] = write_usage_budget(runtime_root, goal_id, target)["budget_usd"]
+            elif selected == BUDGET_OPTION_CONTINUE:
+                write_usage_budget(runtime_root, goal_id, None)
+                outcome["budget_usd"] = None
+            else:
+                outcome["goal_stop"] = _stop_goal(Path(registry_path), goal_id, gate_todo_id, runtime_root_arg)
+                if outcome["goal_stop"].get("ok") is False:
+                    outcome.update(ok=False, error="the goal could not be stopped; stop it with loopx goal-lifecycle")
+                outcome["resume"] = (
+                    f"loopx goal-lifecycle --goal-id {goal_id} --operation resume --actor-kind owner --execute"
+                )
+        except (OSError, ValueError) as error:  # the gate is closed; report, never raise
+            outcome.update(ok=False, error=str(error)[:400])
+        return outcome
+
+    outcome, applied = run_gate_settlement(
+        runtime_root, goal_id, gate_todo_id, decision=decision, option=resolve_budget_gate_option(decision, option),
+        outcome_key="budget_outcome", apply=apply,
+    )
+    if not applied:
+        return {"payload_key": "budget_gate", **outcome, "replayed": True}
+    _event(runtime_root, goal_id, "usage_budget_decided", todo_id=gate_todo_id, status=outcome["option"], details={
+        "gate_id": gate_todo_id, "option": outcome["option"], "ok": outcome["ok"],
         **({"budget_usd": outcome["budget_usd"]} if outcome.get("budget_usd") is not None else {}),
     })
     return {"payload_key": "budget_gate", **outcome}

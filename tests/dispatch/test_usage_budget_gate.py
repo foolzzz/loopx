@@ -493,3 +493,110 @@ def test_a_web_preview_is_stale_after_the_cli_picks_another_option(tmp_path: Pat
     entry = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]
     assert entry["budget_outcome"]["option"] == "continue_without_limit"
     assert read_usage_budget(fixture["runtime"], GOAL_ID) is None
+
+
+def test_concurrent_settlements_apply_one_effect_and_the_loser_replays_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # One settler raises the budget while another stops the goal, at the same time.
+    import threading
+
+    import loopx.usage_budget_gate as budget_gate
+
+    fixture = _fixture(tmp_path)
+    gate_id = _exhaust(fixture, _dispatcher(fixture, GoalShouldRun({})))
+    effects: list[str] = []
+    rendezvous = threading.Barrier(2, timeout=2)  # both effects in flight at once, if the code lets them
+
+    def effect(name: str, real: Any) -> Any:
+        def run(*args: Any, **kwargs: Any) -> Any:
+            effects.append(name)
+            with contextlib.suppress(threading.BrokenBarrierError):
+                rendezvous.wait()
+            return real(*args, **kwargs)
+        return run
+
+    monkeypatch.setattr(budget_gate, "write_usage_budget", effect("raise", budget_gate.write_usage_budget))
+    monkeypatch.setattr(budget_gate, "_stop_goal", effect("stop", budget_gate._stop_goal))
+    start = threading.Barrier(2, timeout=10)
+    results: dict[str, Any] = {}
+
+    def settle(name: str, decision: str, option: str, note: str | None) -> None:
+        start.wait()
+        try:
+            results[name] = settle_budget_gate(
+                registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_id=GOAL_ID,
+                gate_todo_id=gate_id, decision=decision, option=option, note=note,
+            )
+        except BaseException as error:  # surfaced below
+            results[name] = error
+
+    threads = [threading.Thread(target=settle, args=("raise", "approve", "raise_budget", "$0.2")),
+               threading.Thread(target=settle, args=("stop", "reject", "stop_goal", None))]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+    assert all(isinstance(result, dict) for result in results.values()), results
+    assert len(effects) == 1, f"only one effect may apply, applied: {effects}"
+    [winner] = effects
+    option = {"raise": "raise_budget", "stop": "stop_goal"}[winner]
+    assert {result["option"] for result in results.values()} == {option}
+    assert sorted(bool(result.get("replayed")) for result in results.values()) == [False, True]
+    assert (read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2) is (winner == "raise")
+    assert goal_is_stopped(load_goal_from_registry(fixture["registry"], GOAL_ID)) is (winner == "stop")
+    assert read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]["budget_outcome"]["option"] == option
+    assert len(_events(fixture, "usage_budget_decided")) == 1
+
+
+def _break_budget_writes(monkeypatch: pytest.MonkeyPatch) -> None:
+    import loopx.usage_budget_gate as budget_gate
+
+    def unavailable(*args: Any, **kwargs: Any) -> None:
+        raise OSError("Synthetic budget store failure")
+
+    monkeypatch.setattr(budget_gate, "write_usage_budget", unavailable)
+
+
+def test_a_failed_budget_effect_is_surfaced_and_a_web_retry_applies_it_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+    with monkeypatch.context() as patch:
+        _break_budget_writes(patch)
+        failed = service.apply(proposal["proposal_id"])["proposal"]
+    assert failed["status"] == "failed", failed
+    failure = failed["failure"]
+    assert failure["error_code"] == "gate_settlement_retry_required", failure
+    assert failure["details"]["gate_todo_id"] == gate_id
+    assert (failure["details"]["settlement"], failure["details"]["option"]) == ("budget_gate", "raise_budget")
+    assert _budget_gates(fixture) == [], "the gate decision is recorded"
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.05
+    assert read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]["budget_outcome"]["ok"] is False
+
+    retried = service.apply(proposal["proposal_id"])["proposal"]
+    assert retried["status"] == "applied", retried
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+    outcome = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]["budget_outcome"]
+    assert (outcome["ok"], outcome["option"]) == (True, "raise_budget")
+    assert [event["details"]["ok"] for event in _events(fixture, "usage_budget_decided")] == [False, True]
+    assert service.apply(proposal["proposal_id"])["proposal"]["receipt"] == retried["receipt"]
+
+
+def test_a_failed_budget_effect_is_retried_by_a_later_cli_settlement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    gate_id = _exhaust(fixture, _dispatcher(fixture, GoalShouldRun({})))
+    with monkeypatch.context() as patch:
+        _break_budget_writes(patch)
+        code, payload = _cli(fixture, "gate", "resolve", "--goal-id", GOAL_ID, "--todo-id", gate_id,
+                             "--option", "raise_budget", "--note", "$0.2")
+    assert code == 0 and payload["budget_gate"]["ok"] is False, payload
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.05
+    # The same decision settled again (a `todo complete` replay) retries the recorded option.
+    code, payload = _cli(fixture, "todo", "complete", "--goal-id", GOAL_ID, "--todo-id", gate_id, "--role", "user",
+                         "--decision-outcome", "approve", "--agent-id", "orch", "--note", "$0.2")
+    assert code == 0, payload
+    assert payload["budget_gate"]["ok"] is True and payload["budget_gate"]["option"] == "raise_budget", payload
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2

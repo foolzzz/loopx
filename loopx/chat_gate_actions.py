@@ -10,10 +10,11 @@ carry the owner/dashboard provenance.
 
 Every write records the proposal's operation id as the gate's completion
 identity (Markdown and canonical alike), so a closed gate is this proposal's
-own only when it carries that identity. Its settlement (the plan, budget,
-review or goal-completion effect that follows the closure) is re-run until it
-is recorded, and a recorded settlement replays. A gate another surface
-decided makes the proposal stale.
+own only when it carries that identity; a gate another surface decided makes
+the proposal stale. The settlement that follows the closure (the plan, budget,
+review, goal-completion or push effect) must finish before the receipt says
+applied: one that did not leaves the proposal failed with a typed code, and a
+retry re-runs it (a recorded settlement replays, a failed one is retried).
 """
 
 from __future__ import annotations
@@ -33,9 +34,13 @@ _TERMINAL_BASIS_SCHEMA = "loopx_chat_canonical_terminal_basis_v0"
 _STALE_AUTHORITY_CODES = frozenset(
     {"provider_revision_mismatch", "authority_source_changed", "provider_revision_conflict"}
 )
-# The payload key under which a closed gate's plan settlement is reported
-# (``complete_goal_todo`` and ``settle_gate_decision`` share it).
+# Payload keys under which a closed gate's settlement is reported
+# (``complete_goal_todo`` and ``settle_gate_decision`` share them).
 _PLAN_SETTLEMENT_KEY = "plan_card"
+_PUSH_SETTLEMENT_KEY = "push"
+# Typed settlements whose failed effect the next settlement of the gate retries
+# (``gate_threads.run_gate_settlement``).
+_RETRIED_SETTLEMENT_KEYS = ("budget_gate", "goal_complete", "review_gate")
 
 
 class ChatGateActionMixin:
@@ -200,9 +205,10 @@ class ChatGateActionMixin:
     def _settle_gate(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Re-run the closed gate's settlement, keyed like ``complete_goal_todo``'s payload.
 
-        Settlement is idempotent: a recorded typed outcome (budget, review,
-        goal completion, push) replays without mutation and an applied plan
-        reports ``already_applied``; a missing one runs now.
+        Settlement is idempotent: a recorded typed outcome replays without
+        mutation (a failed budget, review or goal-completion outcome is retried
+        with its recorded option) and an applied plan reports
+        ``already_applied``; a missing one runs now.
         """
 
         from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
@@ -227,24 +233,18 @@ class ChatGateActionMixin:
     ) -> dict[str, Any]:
         """Record the applied receipt once the gate's settlement finished.
 
-        ``settled`` carries each settlement under its payload key. A plan whose
-        apply was interrupted (the gate is closed, the plan is still applying)
-        is not applied yet: the proposal asks for a retry, which re-runs the
-        idempotent plan apply.
+        ``settled`` carries each settlement under its payload key. A settlement
+        that did not finish leaves the proposal failed with a typed code instead
+        (see ``_settlement_failure``); the gate decision itself is recorded.
         """
 
-        plan = settled.get(_PLAN_SETTLEMENT_KEY)
-        if isinstance(plan, Mapping) and plan.get("ok") is False:
-            failed = self.store.mark_failed(
-                proposal_id, error_code="plan_apply_recovery_required",
-                message="The gate decision is recorded but its plan is not applied yet. Retry this proposal to finish the plan apply.",
-                details={
-                    "operation_id": operation_id,
-                    "plan_id": plan.get("plan_id"),
-                    "plan_status": plan.get("status"),
-                    "recovery": plan.get("recovery"),
-                },
-            )
+        failure = self._settlement_failure(
+            settled, goal_id=str(parameters["goal_id"]), gate_todo_id=str(parameters["todo_id"]),
+            operation_id=operation_id,
+        )
+        if failure is not None:
+            error_code, message, details = failure
+            failed = self.store.mark_failed(proposal_id, error_code=error_code, message=message, details=details)
             return {"proposal": failed, "turn": None}
         stored = self.store.apply(
             proposal_id,
@@ -255,6 +255,52 @@ class ChatGateActionMixin:
             ),
         )
         return {"proposal": stored, "turn": None}
+
+    @staticmethod
+    def _settlement_failure(
+        settled: Mapping[str, Any], *, goal_id: str, gate_todo_id: str, operation_id: str,
+    ) -> tuple[str, str, dict[str, Any]] | None:
+        """The typed failure of a settlement that did not finish, else None.
+
+        - An interrupted plan apply: retrying the proposal re-runs the
+          idempotent apply (``plan_apply_recovery_required``).
+        - A failed budget, goal-completion or review effect: retrying the
+          proposal re-runs the recorded option (``gate_settlement_retry_required``).
+        - A failed push is recorded on its gate by design and retried through
+          the follow-up push gate it opened (``gate_push_failed``).
+        The outcome's own error text stays in the gate index (``loopx gate show``).
+        """
+
+        def failed(key: str) -> Mapping[str, Any] | None:
+            value = settled.get(key)
+            return value if isinstance(value, Mapping) and value.get("ok") is False else None
+
+        base = {"operation_id": operation_id, "gate_todo_id": gate_todo_id}
+        plan = failed(_PLAN_SETTLEMENT_KEY)
+        if plan is not None:
+            return (
+                "plan_apply_recovery_required",
+                "The gate decision is recorded but its plan is not applied yet. Retry this proposal to finish the plan apply.",
+                {**base, "plan_id": plan.get("plan_id"), "plan_status": plan.get("status"),
+                 "recovery": plan.get("recovery")},
+            )
+        push = failed(_PUSH_SETTLEMENT_KEY)
+        if push is not None:
+            return (
+                "gate_push_failed",
+                "The push was approved but did not complete. Approve its follow-up push gate to retry it.",
+                {**base, "retry_gate_todo_id": push.get("follow_up_gate_todo_id")},
+            )
+        for key in _RETRIED_SETTLEMENT_KEYS:
+            outcome = failed(key)
+            if outcome is not None:
+                return (
+                    "gate_settlement_retry_required",
+                    "The gate decision is recorded but its effect did not apply. Retry this proposal to re-run it.",
+                    {**base, "settlement": key, "option": outcome.get("option"),
+                     "inspect": f"loopx gate show --goal-id {goal_id} --todo-id {gate_todo_id}"},
+                )
+        return None
 
     def _resume_closed_gate(
         self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any], *,

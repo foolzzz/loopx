@@ -24,7 +24,7 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from .file_lock import exclusive_file_lock
 from .history import validate_goal_id_path_segment
@@ -59,6 +59,9 @@ GATE_KINDS = (
 )
 
 MAX_MESSAGE_CHARS = 4000
+# A settlement holds its gate's lock across its effect (a merge, a goal stop), so a
+# concurrent settler of the same gate waits longer than an ordinary mutation.
+GATE_SETTLEMENT_LOCK_TIMEOUT_SECONDS = 120.0
 
 
 class GateThreadError(ValueError):
@@ -89,6 +92,12 @@ def gate_thread_path(runtime_root: Path, goal_id: str, todo_id: str) -> Path:
 
 def gate_index_path(runtime_root: Path, goal_id: str) -> Path:
     return gates_dir(runtime_root, goal_id) / "index.json"
+
+
+def gate_settlement_lock_path(runtime_root: Path, goal_id: str, todo_id: str) -> Path:
+    """The path whose sibling lock serialises one gate's typed settlement."""
+
+    return gates_dir(runtime_root, goal_id) / f"{_safe_todo_id(todo_id)}.settle"
 
 
 def _now() -> str:
@@ -196,44 +205,56 @@ def mark_gate_closed(
     runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return _close_gate_entry(runtime_root, goal_id, todo_id, decision=decision, extra=extra)[0]
-
-
-def record_gate_settlement(
-    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None, option: str,
-    outcome_key: str, outcome: Mapping[str, Any],
-) -> tuple[dict[str, Any], bool]:
-    """Close a typed gate with its settled option and outcome; the first settlement wins.
-
-    Returns the recorded outcome and whether this call recorded it. An outcome
-    already recorded under ``outcome_key`` is never overwritten, nor are its
-    ``decision_option`` and decision, so a later settlement replays it.
-    """
-
-    entry, recorded = _close_gate_entry(
-        runtime_root, goal_id, todo_id, decision=decision,
-        extra={"decision_option": option, outcome_key: dict(outcome)}, first_writer_key=outcome_key,
-    )
-    return dict(entry[outcome_key]), recorded
-
-
-def _close_gate_entry(
-    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
-    extra: Mapping[str, Any] | None, first_writer_key: str | None = None,
-) -> tuple[dict[str, Any], bool]:
     todo_id = _safe_todo_id(todo_id)
     index_path = gate_index_path(runtime_root, goal_id)
     index_path.parent.mkdir(parents=True, exist_ok=True)
     with exclusive_file_lock(index_path):
         messages = read_gate_thread(runtime_root, goal_id, todo_id)
         previous = read_gate_index(runtime_root, goal_id)["gates"].get(todo_id)
-        if first_writer_key is not None and isinstance((previous or {}).get(first_writer_key), Mapping):
-            return dict(previous), False
         entry = _index_entry(previous, messages, closed=True)
         if decision:
             entry["decision_outcome"] = decision
         entry.update(dict(extra or {}))
-        return _write_index_entry(runtime_root, goal_id, todo_id, entry), True
+        return _write_index_entry(runtime_root, goal_id, todo_id, entry)
+
+
+def run_gate_settlement(
+    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None, option: str,
+    outcome_key: str, apply: Callable[[str | None, str], Mapping[str, Any]],
+) -> tuple[dict[str, Any], bool]:
+    """Claim, apply and record one typed gate settlement in one critical section.
+
+    Under the gate's exclusive settlement lock: an outcome recorded under
+    ``outcome_key`` that did not fail replays, and nothing runs. Otherwise
+    ``apply(decision, option)`` runs the effect and its outcome is recorded
+    with ``decision_option`` before the lock is released. A recorded failed
+    outcome (``ok`` false) is not final: the next settlement retries it with
+    the recorded decision and option, so the first recorded option stays the
+    gate's choice. Returns the outcome and whether this call ran the effect.
+
+    Lock order: this per-gate lock is taken first and held across the effect.
+    The effect then takes its own locks (the budget file, the goal lifecycle,
+    todo writes, the git workspace), and the gate index lock is taken last to
+    record. No effect settles a user gate, so settlement locks never nest and
+    no lock the effect holds is ever waited on while taking this one.
+    """
+
+    todo_id = _safe_todo_id(todo_id)
+    lock_path = gate_settlement_lock_path(runtime_root, goal_id, todo_id)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with exclusive_file_lock(lock_path, timeout_seconds=GATE_SETTLEMENT_LOCK_TIMEOUT_SECONDS,
+                             operation="settle_gate"):
+        entry = read_gate_index(runtime_root, goal_id)["gates"].get(todo_id) or {}
+        recorded = entry.get(outcome_key)
+        if isinstance(recorded, Mapping):
+            if recorded.get("ok") is not False:
+                return dict(recorded), False
+            decision = entry.get("decision_outcome") or decision
+            option = str(entry.get("decision_option") or option)
+        outcome = dict(apply(decision, option))
+        mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision,
+                         extra={"decision_option": option, outcome_key: outcome})
+        return outcome, True
 
 
 def append_gate_message(
