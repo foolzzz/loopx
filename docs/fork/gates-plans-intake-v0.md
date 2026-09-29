@@ -46,11 +46,12 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
 - The recorded decision wins on every surface. The dashboard `gate.resolve`
   records its proposal id as the gate's completion identity. A proposal whose
   gate another surface closed first is stale (HTTP 409) and writes nothing,
-  even when the decision is the same. A CLI replay (`gate resolve` or `todo
-  complete --decision-outcome`) on a closed gate that names another decision
+  even when the decision is the same. `loopx gate resolve` on a closed gate
+  is refused with `error_code=gate_closed`. A `todo complete
+  --decision-outcome` replay on a closed gate that names another decision
   than the recorded one, or names one for a gate closed without a decision, is
   refused with `error_code=gate_already_decided` before it writes or settles
-  anything. A replay of the recorded decision is idempotent. Settlement always
+  anything. A `todo complete` replay of the recorded decision is idempotent. Settlement always
   runs on the recorded decision, never on the caller's. It reports
   `applied` only once the settlement that follows the closure finished; otherwise
   the proposal is `failed` with a typed code, and retrying it re-runs the

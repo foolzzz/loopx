@@ -652,8 +652,10 @@ Every gate has a thread (`gate reply`, `gate show`) and closes with
 `loopx gate resolve --goal-id G --todo-id GATE ...`. You can also close it
 from the dashboard drawer, which offers the options the gate lists. The
 decision recorded first wins on every surface. A later dashboard decision on
-the same gate is reported stale and changes nothing. A CLI replay that names
-another decision is refused with `gate_already_decided`. If the drawer cannot read the gate or
+the same gate is reported stale and changes nothing. `loopx gate resolve` on
+a closed gate fails with `gate_closed`, and a `todo complete
+--decision-outcome` replay that names another decision fails with
+`gate_already_decided`. If the drawer cannot read the gate or
 its options, it disables the decisions: use `loopx gate show` and
 `loopx gate resolve` instead.
 `loopx todo complete --role user --decision-outcome ...` is the older
