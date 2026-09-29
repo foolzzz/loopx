@@ -156,7 +156,10 @@ def test_a_developer_turn_command_resolves_its_goal_from_the_todo_worktree(
 
 
 def test_a_failed_turn_reports_its_error_and_the_status_shows_the_todo_cooldown(tmp_path: Path) -> None:
-    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"}})
+    # The state lives under a symlink to a directory whose name holds a space.
+    (tmp_path / "My Drive").mkdir()
+    (tmp_path / "linked").symlink_to(tmp_path / "My Drive", target_is_directory=True)
+    fixture = write_fixture(tmp_path / "linked", agents={"dev": {"role": "developer"}})
     set_modes(fixture, {"dev": ["error"]})
     clock = Clock(time.time())  # dispatch status compares cooldowns with the wall clock
     dispatcher = _dispatcher(fixture, should_run=ScriptedShouldRun({"dev": ["todo_aaa"]}), clock=clock)
@@ -168,9 +171,12 @@ def test_a_failed_turn_reports_its_error_and_the_status_shows_the_todo_cooldown(
     [reaped] = report["reaped"]
     assert (reaped["outcome"], reaped["failure_kind"]) == ("failed", None)
     assert reaped["error_code"] == "fixture_goal_unresolved"
-    assert reaped["error"].startswith(f"goal_id not found in canonical source registry: {GOAL_ID}")
-    # Redacted and bounded: no local path or credential reaches the pass log.
-    assert "/Users/someone" not in reaped["error"] and "sk-fixture" not in reaped["error"]
+    # The runtime root, as given and resolved, is named by its placeholder; the
+    # credential is redacted.
+    assert reaped["error"] == (
+        f"goal_id not found in canonical source registry: {GOAL_ID} (providers <runtime-root>/providers.yaml,"
+        " real <runtime-root>/providers.yaml, api_key=<redacted>"
+    )
     assert "failed — fixture_goal_unresolved: goal_id not found" in render_dispatch_pass(report)
 
     clock.now += 61  # past the first backoff: the second failure doubles it
@@ -195,18 +201,22 @@ def test_failure_text_is_one_redacted_line_of_at_most_300_characters() -> None:
     assert committed["error"] is None
 
 
+SPACE_FREE_PATHS = [
+    "/Volumes/state/providers.yaml",
+    "/opt/x/y",
+    "C:\\Users\\a\\b",
+    "\\\\srv\\share\\f",
+    "~/work/progress/.loopx/registry.json",
+    "~/providers.yaml",
+]
+
+
 @pytest.mark.parametrize(
-    "path",
-    [
-        "/Volumes/state/providers.yaml",
-        "/opt/x/y",
-        "C:\\Users\\a\\b",
-        "\\\\srv\\share\\f",
-        "/Volumes/My Drive/state/providers.yaml",
-        "~/work/progress/.loopx/registry.json",
-    ],
+    ("path", "quote"),
+    [(path, quote) for path in SPACE_FREE_PATHS for quote in ("", "'")]
+    # Quotes delimit a path with spaces unambiguously.
+    + [("/Volumes/My Drive/state/providers.yaml", "'"), ("/Volumes/My Drive/providers local.yaml", '"')],
 )
-@pytest.mark.parametrize("quote", ["", "'"])
 def test_failure_text_masks_any_absolute_path(path: str, quote: str) -> None:
     # The shape of run-once's missing-provider error, which names the runtime root.
     error = f"provider 'p' is not defined in {quote}{path}{quote}; api_key=sk-fixture0123456789 see https://example.com/docs/x"
@@ -216,3 +226,25 @@ def test_failure_text_masks_any_absolute_path(path: str, quote: str) -> None:
         assert fragment not in text, text
     assert text.startswith("provider 'p' is not defined in ") and "<path>" in text
     assert "sk-fixture" not in text and "https://example.com/docs/x" in text
+
+
+def test_failure_text_names_known_roots_by_placeholder_even_with_spaces() -> None:
+    roots = [("/Volumes/My Drive", "<home>"), ("/Volumes/My Drive/state", "<runtime-root>")]
+    text = policy.failure_text(
+        "not defined in /Volumes/My Drive/state/providers.yaml; see /Volumes/My Drive/notes and "
+        "/Volumes/My Drive/stateful/x",
+        roots=roots,
+    )
+    # Longest root first, and only at a path boundary.
+    assert text == "not defined in <runtime-root>/providers.yaml; see <home>/notes and <home>/stateful/x"
+
+
+def test_failure_text_keeps_urls_relative_paths_and_ratios_and_still_redacts_credentials() -> None:
+    text = policy.failure_text(
+        "missing /opt/x retry 1/2 at 3/4 on 2026/09/29 in .loopx/registry.json, see https://example.com/docs/x; "
+        "'/Volumes/My Drive/api_key=sk-fixture0123456789/x' \"api_key=sk-fixture9876543210\" api_key=sk-fixture5555555555"
+    )
+    assert text is not None
+    assert text.startswith("missing <path> retry 1/2 at 3/4 on 2026/09/29 in .loopx/registry.json, ")
+    assert "see https://example.com/docs/x; '<path>' " in text
+    assert "sk-fixture" not in text and text.count("<redacted>") == 2, text

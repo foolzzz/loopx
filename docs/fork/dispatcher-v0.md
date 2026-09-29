@@ -66,9 +66,13 @@ After an upgrade, render and load the plist again. Its logs go to
    its `--format json` output: `committed`, `host_failed` (with the host's
    `failure_kind`), `failed` or `crashed`. The reaped entry of a failed child
    also carries run-once's `error_code` and its `error` (else its `reason`): one
-   line of at most 300 characters. Every absolute local path is masked first
-   (POSIX and `~/` paths, drive and UNC paths, `file://` URLs, quoted paths with
-   spaces), then the credentials the host stderr tail below redacts.
+   line of at most 300 characters. The runtime root, state home, `--project` and
+   home directory, as given and resolved, are replaced first by `<runtime-root>`,
+   `<state-home>`, `<project>` and `<home>`, even when they hold spaces. Other
+   absolute paths (POSIX, `~/`, drive and UNC paths, `file://` URLs, quoted paths)
+   then become `<path>`; an unquoted path with spaces outside those roots may be
+   masked only in part. The credentials the host stderr tail below redacts are
+   redacted last. The text stays in your local dispatcher log and status.
    `failure_kind` stays the host's typed kind, so it is empty when the Turn
    failed before or after the host call.
 2. For each goal, load the registered agents and their registry roles (S1), and

@@ -160,6 +160,21 @@ class Dispatcher:
 
         return load_goal_from_registry(self.registry_path, goal_id)
 
+    def _failure_text_roots(self) -> list[tuple[str, str]]:
+        """Known local roots, as given and resolved, that a failure summary names by placeholder."""
+
+        registry_dir = self.registry_path.parent
+        roots = [
+            ("<runtime-root>", self.runtime_root),
+            ("<state-home>", registry_dir.parent if registry_dir.name == ".loopx" else registry_dir),
+            *([("<project>", Path(self.config.project).expanduser())] if self.config.project else []),
+            ("<home>", Path.home()),
+        ]
+        return [
+            (form, label) for label, root in roots
+            for form in dict.fromkeys((os.path.abspath(root), os.path.realpath(root)))
+        ]
+
     def _goal_project(self, goal: Mapping[str, Any]) -> Path:
         if self.config.project is not None:
             return Path(self.config.project).expanduser()
@@ -1133,7 +1148,7 @@ class Dispatcher:
             stdout_text = Path(run["stdout_path"]).read_text(encoding="utf-8", errors="replace")
         except (OSError, KeyError):
             stdout_text = ""
-        outcome = policy.classify_outcome(returncode, stdout_text)
+        outcome = policy.classify_outcome(returncode, stdout_text, roots=self._failure_text_roots())
         if returncode is not None and returncode < 0:
             outcome["outcome"] = policy.OUTCOME_CRASHED
         now = self.clock()
