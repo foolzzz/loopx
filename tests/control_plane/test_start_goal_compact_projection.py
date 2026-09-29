@@ -820,7 +820,9 @@ def test_explicit_capability_route_survives_compact_detail_readback(
 
 def test_bootstrap_message_does_not_reintroduce_semantic_route_selection(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
     project = _write_connected_project(tmp_path)
     common = {
         "project": project,

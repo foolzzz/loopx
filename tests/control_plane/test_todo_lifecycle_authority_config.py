@@ -27,6 +27,7 @@ def _registry(tmp_path: Path) -> Path:
     registry.write_text(
         json.dumps(
             {
+                "common_runtime_root": str(tmp_path / "runtime"),
                 "goals": [
                     {
                         "id": GOAL_ID,

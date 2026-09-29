@@ -37,7 +37,11 @@ def test_parse_repo_spec_and_legacy_fallback(tmp_path):
     assert [repo["name"] for repo in declared] == ["a"]
 
 
-def test_configure_goal_upserts_repos_and_cli_writes_them(tmp_path, capsys):
+def test_configure_goal_upserts_repos_and_cli_writes_them(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(
+        "loopx.control_plane.runtime.runtime_projection_route.DEFAULT_RUNTIME_ROOT",
+        tmp_path / "default-runtime",
+    )
     registry = tmp_path / "registry.json"
     registry.write_text(
         json.dumps(

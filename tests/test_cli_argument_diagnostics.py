@@ -171,11 +171,14 @@ def test_quota_include_detail_rejects_other_command_sections(
     command: str,
     section: str,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
     exit_code = main(
         [
             "--format",
             "json",
+            "--runtime-root",
+            str(tmp_path / "runtime"),
             "quota",
             command,
             "--goal-id",

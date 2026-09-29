@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -41,7 +42,9 @@ def registry(tmp_path: Path) -> Path:
     return path
 
 
-def test_cli_persists_model_without_enabling_spawn(registry: Path) -> None:
+def test_cli_persists_model_without_enabling_spawn(registry: Path, tmp_path: Path) -> None:
+    # The CLI also projects into the default runtime under HOME; keep it in tmp_path.
+    env = {**os.environ, "HOME": str(tmp_path / "home")}
     command = [
         sys.executable,
         "-m",
@@ -59,12 +62,12 @@ def test_cli_persists_model_without_enabling_spawn(registry: Path) -> None:
         "max",
     ]
     before = registry.read_bytes()
-    preview = subprocess.run(command, capture_output=True, text=True, check=True)
+    preview = subprocess.run(command, capture_output=True, text=True, check=True, env=env)
     assert json.loads(preview.stdout)["dry_run"] is True
     assert registry.read_bytes() == before
     applied = json.loads(
         subprocess.run(
-            command + ["--execute"], capture_output=True, text=True, check=True
+            command + ["--execute"], capture_output=True, text=True, check=True, env=env
         ).stdout
     )
     config = {"model": "gpt-5.6-luna", "reasoning_effort": "max"}
