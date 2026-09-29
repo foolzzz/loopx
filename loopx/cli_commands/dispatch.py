@@ -206,6 +206,13 @@ def render_dispatch_status(payload) -> str:
         lines.append(
             f"- {run['agent_id']} ({run.get('role') or '-'}) goal {run['goal_id']} todo {run.get('todo_id') or '-'} "
             f"pid {run.get('pid')} {'alive' if run.get('alive') else 'exited'} {run.get('running_seconds')}s"
+            + (" in the project directory" if run.get("workspace") == "project_directory" else "")
+        )
+    for item in (payload.get("last_pass") or {}).get("project_directory_waits") or []:
+        # One project-directory Turn per goal (dispatch policy).
+        lines.append(
+            f"- {item.get('agent_id')} waits on todo {item.get('todo_id') or '-'} of {item.get('goal_id')}: "
+            f"{item.get('reason')} (todo {item.get('running_todo_id') or '-'})"
         )
     for agent_id, slot in (payload.get("agent_slots") or {}).items():
         lines.append(f"- slots {agent_id} ({slot.get('role') or '-'}): {slot.get('running')}/{slot.get('max')}")

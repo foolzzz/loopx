@@ -267,11 +267,15 @@ class Dispatcher:
                 self._reconcile_goal(goal_id, report)
             except Exception as exc:  # noqa: BLE001 - one goal never stops the others
                 report["errors"].append({"goal_id": goal_id, "error": f"{type(exc).__name__}: {exc}"[:400]})
+        project_waits = [
+            item for item in report["skipped"] if item.get("reason") == policy.PROJECT_DIRECTORY_TURN_RUNNING_REASON
+        ]
         self.state["last_pass"] = {
             "at": now,
             "trigger": trigger,
             "launched": len(report["launched"]),
             "errors": len(report["errors"]),
+            **({"project_directory_waits": project_waits} if project_waits else {}),
         }
         save_state(self.runtime_root, self.state)
         return report
@@ -443,6 +447,14 @@ class Dispatcher:
                     else set()
                 )
                 held |= deferred
+                # One project-directory Turn per goal: while it runs, a free slot
+                # takes a todo with repos from the same lane instead.
+                project_run = (
+                    policy.project_directory_run(runs.values(), goal_id)
+                    if role in {policy.ROLE_DEVELOPER, policy.ROLE_ACCEPTOR} else None
+                )
+                if project_run is not None:
+                    held |= policy.project_directory_todo_ids(self._agent_todo_records(goal_id))
                 if todo_id and (todo_id in in_flight | cooling | held) and role != policy.ROLE_ORCHESTRATOR:
                     # Fill a free slot of this agent with its next executable todo.
                     alternate = policy.alternate_todo(payload, exclude=in_flight | cooling | held)
@@ -486,6 +498,21 @@ class Dispatcher:
                 if todo_id and self._todo_cooling(goal_id, str(todo_id), agent_id, now):
                     skip("todo_cooldown", todo_id=todo_id)
                     break
+                todo_record = (
+                    self._todo_record(goal_id, str(todo_id)) or {}
+                    if todo_id and decision.get("todo_is_agent_todo", True)
+                    and role in {policy.ROLE_DEVELOPER, policy.ROLE_ACCEPTOR}
+                    else None
+                )
+                if (
+                    project_run is not None
+                    and policy.turn_workspace(role, todo_record) is policy.TurnWorkspace.PROJECT_DIRECTORY
+                ):
+                    skip(
+                        policy.PROJECT_DIRECTORY_TURN_RUNNING_REASON, todo_id=todo_id,
+                        running_run_id=project_run.get("run_id"), running_todo_id=project_run.get("todo_id"),
+                    )
+                    break
                 if not preflight_done:
                     record = self._preflight(definition, self.environ)
                     preflight_done = True
@@ -498,7 +525,7 @@ class Dispatcher:
                     # todo this pass reserved, not re-select one of its own.
                     decision = {**decision, "pinned": True}
                 try:
-                    launched = self._launch(goal, definition, role, decision, project, report)
+                    launched = self._launch(goal, definition, role, decision, project, report, todo=todo_record)
                 except Exception as exc:  # noqa: BLE001 - one agent's launch never stops the others
                     report["errors"].append(
                         {"goal_id": goal_id, "agent_id": agent_id, "error": f"launch: {type(exc).__name__}: {exc}"[:400]}
@@ -524,6 +551,14 @@ class Dispatcher:
             if isinstance(item, Mapping) and item.get("todo_id") == todo_id:
                 return dict(item)
         return None
+
+    def _agent_todo_records(self, goal_id: str) -> list[Mapping[str, Any]]:
+        from ..todos import list_goal_todos
+
+        listed = list_goal_todos(
+            registry_path=self.registry_path, goal_id=goal_id, role="agent", runtime_root_arg=str(self.runtime_root),
+        )
+        return [item for item in listed.get("todos") or [] if isinstance(item, Mapping)]
 
     def _journaled_turn_key(self, goal_id: str, turn_instance_id: str) -> str | None:
         """The turn key run-once journaled for this Turn identity, if any."""
@@ -601,7 +636,7 @@ class Dispatcher:
         if role not in {policy.ROLE_DEVELOPER, policy.ROLE_ACCEPTOR, None}:
             return True, None, {}, None
         goal_id = str(goal.get("id"))
-        repos = [str(item) for item in (todo.get("task_repositories") or []) if item]
+        repos = policy.todo_repo_names(todo)
         if not repos:
             return True, None, {}, None
         from ..workspace import git_workspace
@@ -908,7 +943,11 @@ class Dispatcher:
         decision: Mapping[str, Any],
         project: Path,
         report: dict[str, Any],
+        *,
+        todo: Mapping[str, Any] | None = None,
     ) -> str | None:
+        """Launch one Turn; ``todo`` is the record the pass already read, if any."""
+
         from ..agent_config import AgentConfigError, provider_launch_env, turn_run_once_host_arguments
         from ..turn_identity import mint_turn_instance_id
 
@@ -919,11 +958,15 @@ class Dispatcher:
         repo_paths: dict[str, str] = {}
         validation_argv: list[str] | None = None
         validation_timeout: int | None = None
-        todo: Mapping[str, Any] = {}
+        workspace: policy.TurnWorkspace | None = None
         review_checkout: dict[str, Any] | None = None
         run_id = f"{int(self.clock())}-{uuid.uuid4().hex[:8]}"
-        if todo_id and decision.get("todo_is_agent_todo", True):
-            todo = self._todo_record(goal_id, str(todo_id)) or {}
+        if not (todo_id and decision.get("todo_is_agent_todo", True)):
+            todo = {}
+        else:
+            if todo is None:
+                todo = self._todo_record(goal_id, str(todo_id)) or {}
+            workspace = policy.turn_workspace(role, todo)
             ok, cwd, repo_paths, review_checkout = self._prepare_workspace(
                 goal, str(todo_id), todo, role, report, attempt=run_id,
             )
@@ -1109,6 +1152,7 @@ class Dispatcher:
             "started_at": self.clock(),
             "project": str(run_project),
             "workspace_repos": sorted(repo_paths),
+            **({"workspace": workspace.value} if workspace is not None else {}),
             **({"orchestrator_action": True}
                if role == policy.ROLE_ORCHESTRATOR and todo_id and is_orchestrator_action_todo(todo) else {}),
             **({"review_checkout": review_checkout} if review_checkout is not None else {}),
@@ -1484,7 +1528,7 @@ def dispatch_status(runtime_root: Path) -> dict[str, Any]:
     for run in (state.get("runs") or {}).values():
         runs.append(
             {
-                **{key: run.get(key) for key in ("run_id", "goal_id", "agent_id", "role", "todo_id", "pid", "turn_instance_id")},
+                **{key: run.get(key) for key in ("run_id", "goal_id", "agent_id", "role", "todo_id", "pid", "turn_instance_id", "workspace")},
                 "alive": pid_alive(run.get("pid")),
                 "running_seconds": round(now - float(run.get("started_at") or now), 1),
             }
