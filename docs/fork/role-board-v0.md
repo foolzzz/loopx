@@ -170,9 +170,11 @@ hides the strip without breaking the board.
 python -m pytest -q tests/control_plane/test_role_board_projection.py
 cd apps/presentation/dashboard
 npm run smoke:role-board              # schema + stage/swimlane derivation (in smoke:personal-workspace)
-npm run smoke:gate-drawer             # gate-thread schema + typed-gate options (in smoke:personal-workspace)
-npm run smoke:role-board-browser      # renders the tab from smoke/role-board-fixture.json, zh + en,
-                                      # and the gate drawer: plan todos, budget facts, option label, polling
+npm run smoke:gate-drawer             # gate-thread sections, decision readiness, typed-gate options
+                                      # (in smoke:personal-workspace and its packaged variant)
+npm run smoke:role-board-browser      # renders the tab from smoke/role-board-fixture.json, zh + en, and the
+                                      # gate drawer: readiness (delayed, failed, switched, closed), submitted
+                                      # {decision, option}, polling order, focus and hidden (in smoke:personal-workspace)
 npm run smoke:status-projection-contract
 ```
 
