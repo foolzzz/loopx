@@ -383,9 +383,18 @@ def _stable_budget_fixture_root(root: Path):
             raise RuntimeError(f"refusing to replace non-symlink fixture root: {alias}")
         alias.unlink()
     alias.symlink_to(root, target_is_directory=True)
+    # Project-alias resolution reads the default runtime's global registry.
+    # examples/control_plane/cli-output-budget-regression-smoke.py calls these
+    # tests without pytest fixtures, so isolate it here instead of monkeypatch.
+    previous_runtime_root = os.environ.get("LOOPX_RUNTIME_ROOT")
+    os.environ["LOOPX_RUNTIME_ROOT"] = str(alias / "default-runtime")
     try:
         yield alias
     finally:
+        if previous_runtime_root is None:
+            os.environ.pop("LOOPX_RUNTIME_ROOT", None)
+        else:
+            os.environ["LOOPX_RUNTIME_ROOT"] = previous_runtime_root
         alias.unlink(missing_ok=True)
 
 
@@ -858,9 +867,7 @@ def test_manifest_covers_the_declared_agent_facing_surface_set() -> None:
 
 def test_real_cli_output_stays_inside_the_characterized_baseline(
     tmp_path: Path,
-    monkeypatch,
 ) -> None:
-    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
     for scenario in SCENARIOS:
         results = _measure_scenario(tmp_path / scenario.name, scenario)
         for formats in results.values():
@@ -1446,10 +1453,7 @@ def test_status_and_quota_json_ignore_compatibility_reexport_bindings(
         assert semantic_receipts() == baseline
 
 
-def test_collection_growth_and_bootstrap_duplication_are_explicit(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
+def test_collection_growth_and_bootstrap_duplication_are_explicit(tmp_path: Path) -> None:
     small = _measure_scenario(tmp_path / "small", SCENARIOS[0])
     crowded = _measure_scenario(tmp_path / "crowded", SCENARIOS[1])
     added_todos = SCENARIOS[1].todo_count - SCENARIOS[0].todo_count
@@ -1507,10 +1511,7 @@ def test_collection_growth_and_bootstrap_duplication_are_explicit(
     assert bootstrap_duplication["objective_content"]["duplicate_occurrences"] > 0
 
 
-def test_explicit_compact_and_detail_modes_are_characterized(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
+def test_explicit_compact_and_detail_modes_are_characterized(tmp_path: Path) -> None:
     # Match the other budget scenarios: runner/xdist path length is not a
     # prompt revision. Exercise real long paths separately below.
     with _stable_budget_fixture_root(tmp_path / "variants") as root:
