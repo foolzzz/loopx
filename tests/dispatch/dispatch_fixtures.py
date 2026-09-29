@@ -142,7 +142,14 @@ if mode == "failed":
     print(json.dumps({"ok": False, "status": "failed", "reason": "validation_failed",
                       "effects": {"host_invoked": True}}))
     raise SystemExit(1)
-kind = {"rate_limited": "rate_limited", "quota": "quota_exhausted", "auth": "auth_failed"}[mode]
+if mode == "error":
+    # run-once's CLI-edge error payload: the Turn failed before any host call.
+    print(json.dumps({"ok": False, "mode": "run_once", "error_code": "fixture_goal_unresolved",
+                      "error": "goal_id not found in canonical source registry: " + opt("--goal-id")
+                               + " (registry /Users/someone/state/.loopx/registry.json, api_key=sk-fixture0123456789)",
+                      "effects": {"host_invoked": False}}))
+    raise SystemExit(1)
+kind ={"rate_limited": "rate_limited", "quota": "quota_exhausted", "auth": "auth_failed"}[mode]
 print(json.dumps({"ok": False, "status": "failed", "host_failure": {"kind": kind, "retryable": True}}))
 raise SystemExit(1)
 '''

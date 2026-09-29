@@ -1,9 +1,10 @@
-"""A Turn finds its goal from any cwd.
+"""A Turn finds its goal from any cwd, and a failed Turn says why.
 
 `dispatch serve` handed every Turn the registry path it was given, and the
 default is relative (`.loopx/registry.json`). A developer Turn runs in its todo
 worktree, so it failed before calling the model with `goal_id not found in
-canonical source registry`.
+canonical source registry`, and the pass log only recorded `outcome: failed`
+with `failure_kind: null`: the reason was left in `runs/<run>.out.json`.
 """
 
 from __future__ import annotations
@@ -12,16 +13,18 @@ import json
 import plistlib
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from loopx.dispatch import DispatchConfig, Dispatcher
+from loopx.cli_commands.dispatch import render_dispatch_pass, render_dispatch_status
+from loopx.dispatch import DispatchConfig, Dispatcher, dispatch_status, policy
 from loopx.paths import DEFAULT_PROJECT_REGISTRY
 from loopx.todos import add_goal_todo
-from tests.dispatch.dispatch_fixtures import GOAL_ID, git_env, make_repo, read_jsonl, write_fixture
-from tests.dispatch.test_loopx_dispatcher import Clock, ScriptedShouldRun, _cli
+from tests.dispatch.dispatch_fixtures import GOAL_ID, git_env, make_repo, read_jsonl, set_modes, write_fixture
+from tests.dispatch.test_loopx_dispatcher import Clock, ScriptedShouldRun, _cli, _dispatcher
 
 
 def _from_state_home(fixture: dict[str, Any], should_run: ScriptedShouldRun) -> Dispatcher:
@@ -114,3 +117,43 @@ def test_a_developer_turn_command_resolves_its_goal_from_the_todo_worktree(
     assert payload["route"]["selected_todo_id"] == todo_id
     assert payload["route"]["would_invoke_host"] is True
     assert payload["effects"]["host_invoked"] is False
+
+
+def test_a_failed_turn_reports_its_error_and_the_status_shows_the_todo_cooldown(tmp_path: Path) -> None:
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"}})
+    set_modes(fixture, {"dev": ["error"]})
+    clock = Clock(time.time())  # dispatch status compares cooldowns with the wall clock
+    dispatcher = _dispatcher(fixture, should_run=ScriptedShouldRun({"dev": ["todo_aaa"]}), clock=clock)
+    launched = dispatcher.run_once(wait=False)["launched"]
+    for run in launched:
+        dispatcher.children[run["run_id"]].wait(timeout=30)
+    report = dispatcher.reconcile()
+
+    [reaped] = report["reaped"]
+    assert (reaped["outcome"], reaped["failure_kind"]) == ("failed", None)
+    assert reaped["error_code"] == "fixture_goal_unresolved"
+    assert reaped["error"].startswith(f"goal_id not found in canonical source registry: {GOAL_ID}")
+    # Redacted and bounded: no local path or credential reaches the pass log.
+    assert "/Users/someone" not in reaped["error"] and "sk-fixture" not in reaped["error"]
+    assert "goal_id not found" in render_dispatch_pass(report)
+
+    clock.now += 61  # past the first backoff: the second failure doubles it
+    dispatcher.run_once()
+    status = dispatch_status(fixture["runtime"])
+    cooldown = status["todo_cooldowns"][f"{GOAL_ID}/todo_aaa@dev"]
+    assert cooldown["failures"] == 2 and cooldown["remaining_seconds"] > 0
+    [line] = [line for line in render_dispatch_status(status).splitlines() if "todo_aaa" in line]
+    until = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(cooldown["until"]))
+    assert "(dev)" in line and f"until {until}" in line and "failures 2" in line
+    assert "goal_id not found" in line
+
+
+def test_failure_text_is_one_redacted_line_of_at_most_300_characters() -> None:
+    long = policy.classify_outcome(1, json.dumps({"ok": False, "error": "word\n" * 400, "error_code": "code"}))
+    assert long["error_code"] == "code"
+    assert len(long["error"]) <= policy.FAILURE_TEXT_MAX_CHARS == 300 and "\n" not in long["error"]
+    # A journaled failure carries its reason instead of an error.
+    failed = policy.classify_outcome(1, json.dumps({"ok": False, "status": "failed", "reason": "validation_failed"}))
+    assert (failed["error"], failed["error_code"]) == ("validation_failed", None)
+    committed = policy.classify_outcome(0, json.dumps({"ok": True, "reason": "done"}))
+    assert committed["error"] is None

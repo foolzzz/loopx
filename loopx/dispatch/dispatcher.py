@@ -1187,6 +1187,7 @@ class Dispatcher:
                 ),
                 "failures": failures,
                 "reason": outcome["outcome"],
+                **({"error": outcome["error"]} if outcome.get("error") else {}),
             }
         if run.get("orchestrator_action") and run.get("todo_id"):
             # A failed Turn on an action todo (typically its validator, when
@@ -1220,7 +1221,10 @@ class Dispatcher:
             prompt.unlink()
         except OSError:
             pass
-        return {key: record.get(key) for key in ("run_id", "goal_id", "agent_id", "todo_id", "outcome", "failure_kind", "returncode")}
+        reaped = {key: record.get(key) for key in ("run_id", "goal_id", "agent_id", "todo_id", "outcome", "failure_kind", "returncode")}
+        # A failed run says why in the pass log, not only in its runs/<id>.out.json.
+        reaped.update({key: record[key] for key in ("error_code", "error") if record.get(key)})
+        return reaped
 
     def _keep_unsettled_turn(
         self,
@@ -1493,6 +1497,7 @@ def dispatch_status(runtime_root: Path) -> dict[str, Any]:
         "agent_slots": slots,
         "provider_cooldowns": active(state.get("provider_cooldowns") or {}),
         "agent_cooldowns": active(state.get("agent_cooldowns") or {}),
+        "todo_cooldowns": active(state.get("todo_cooldowns") or {}),
         "gates": state.get("gates") or {},
         "retry_turns": state.get("retry_turns") or {},
         "recent": [

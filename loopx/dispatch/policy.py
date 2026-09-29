@@ -7,6 +7,7 @@ allowed: slots, cooldowns and how a finished child's outcome is classified.
 
 from __future__ import annotations
 from ..control_plane.quota.effective_action import EffectiveAction
+from ..control_plane.turn_driver.host_stderr import redact_host_stderr_line
 
 import json
 from collections.abc import Mapping
@@ -30,6 +31,8 @@ OUTCOME_COMMITTED = "committed"
 OUTCOME_FAILED = "failed"
 OUTCOME_HOST_FAILED = "host_failed"
 OUTCOME_CRASHED = "crashed"
+# A failed Turn's error in the pass log and dispatch status: one redacted line.
+FAILURE_TEXT_MAX_CHARS = 300
 
 
 def slot_limit(role: str | None, max_concurrency: int) -> int:
@@ -187,10 +190,22 @@ def classify_outcome(returncode: int | None, stdout_text: str) -> dict[str, Any]
     else:
         outcome = OUTCOME_FAILED
     error = payload.get("error")
+    if not error and outcome != OUTCOME_COMMITTED:
+        # A journaled failure (validation, settlement) names its reason instead.
+        error = payload.get("reason")
+    error_code = payload.get("error_code")
     return {
         "outcome": outcome,
         "returncode": returncode,
         "failure_kind": failure_kind,
         "status": str(status) if status is not None else None,
-        "error": str(error)[:300] if error else None,
+        "error": failure_text(error),
+        "error_code": error_code[:80] if isinstance(error_code, str) and error_code else None,
     }
+
+
+def failure_text(value: Any) -> str | None:
+    """One line, with credentials and local paths redacted, then bounded."""
+
+    text = " ".join(str(value or "").split())
+    return redact_host_stderr_line(text)[:FAILURE_TEXT_MAX_CHARS] if text else None
