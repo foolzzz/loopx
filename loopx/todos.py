@@ -1681,9 +1681,9 @@ def complete_goal_todo(
         if plan_id and dry_run:
             payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
         return payload
-    settled = settle_gate_decision(
-        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
-        todo_id=todo_id, decision=payload.get("decision_outcome") or decision_outcome, surface=gate_decision_surface,
+    settled = settle_gate_decision(  # it settles the recorded decision; the request only has to match it
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
+        decision=decision_outcome, replayed=payload.get("idempotent_replay") is True, surface=gate_decision_surface,
         runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"), actor=options.get("agent_id"),
     )
     if settled is not None:  # a plan card, or an acceptor-blocked gate option (G12)

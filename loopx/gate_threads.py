@@ -72,6 +72,8 @@ GATE_SETTLEMENT_APPLYING = "applying"
 GATE_SETTLEMENT_INTERRUPTED = "settlement was interrupted before its outcome was recorded; retry to recover"
 # An agent Turn may not record a user-gate decision (see ``require_gate_decision_outside_agent_turn``).
 GATE_DECISION_REFUSED_IN_AGENT_TURN = "gate_decision_refused_in_agent_turn"
+# A request whose decision differs from the gate's recorded one (see ``plan_cards``).
+GATE_ALREADY_DECIDED = "gate_already_decided"
 # Where a user-gate decision was recorded: the ``closed_by.surface`` of its index entry.
 GATE_DECISION_SURFACE_CLI = "cli"
 GATE_DECISION_SURFACE_DASHBOARD = "dashboard"
@@ -220,7 +222,11 @@ def mark_gate_closed(
     runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
     extra: Mapping[str, Any] | None = None, closed_by: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Mark a gate's index entry closed (creating the entry). A recorded ``closed_by`` is kept."""
+    """Mark a gate's index entry closed (creating the entry).
+
+    A recorded ``closed_by`` is kept, except that the writer's record replaces
+    one a replay left (``replayed: true``).
+    """
 
     todo_id = _safe_todo_id(todo_id)
     index_path = gate_index_path(runtime_root, goal_id)
@@ -231,7 +237,8 @@ def mark_gate_closed(
         entry = _index_entry(previous, messages, closed=True)
         if decision:
             entry["decision_outcome"] = decision
-        if closed_by is not None and not entry.get("closed_by"):
+        recorded = entry.get("closed_by")
+        if closed_by is not None and (not recorded or (recorded.get("replayed") and not closed_by.get("replayed"))):
             entry["closed_by"] = dict(closed_by)
         entry.update(dict(extra or {}))
         return _write_index_entry(runtime_root, goal_id, todo_id, entry)
@@ -239,14 +246,16 @@ def mark_gate_closed(
 
 def record_gate_decision(
     runtime_root: Path, goal_id: str, todo_id: str, *, decision: str, surface: str, actor: str | None,
+    replayed: bool = False,
 ) -> dict[str, Any]:
-    """Mark a decided user gate closed and record who decided it.
+    """Mark a decided user gate closed with its recorded decision and record who decided it.
 
     ``closed_by`` is ``{surface, actor, agent_turn, at}``: ``cli``,
     ``dashboard`` or ``system``; the lifecycle actor, or ``owner`` without
     one; the agent-Turn marker of the recording process (null outside an
-    agent Turn); and when. A replayed or re-settled decision keeps the first
-    record.
+    agent Turn); and when. The call that wrote the decision records it. A
+    replay records it only when it is missing (the writer stopped before
+    settling), marked ``replayed: true``, and never overwrites it.
     """
 
     from .control_plane.agents.agent_turn import agent_turn_marker
@@ -257,6 +266,7 @@ def record_gate_decision(
         )
     return mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision, closed_by={
         "surface": surface, "actor": actor or "owner", "agent_turn": agent_turn_marker(), "at": _now(),
+        **({"replayed": True} if replayed else {}),
     })
 
 
@@ -769,6 +779,7 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
         lines.append(
             f"- closed by: {closed_by.get('surface')} (actor {closed_by.get('actor')}"
             + (f", agent Turn {closed_by['agent_turn']}" if closed_by.get("agent_turn") else "")
+            + (", replayed" if closed_by.get("replayed") else "")
             + f") at {closed_by.get('at')}"
         )
     if payload.get("plan_id"):

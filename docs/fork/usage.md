@@ -650,23 +650,25 @@ loopx goal request-push --goal-id G                         # open the push gate
 
 Every gate has a thread (`gate reply`, `gate show`) and closes with
 `loopx gate resolve --goal-id G --todo-id GATE ...`. You can also close it
-from the dashboard drawer, which offers the options the gate lists. Whichever
-surface decides first wins, and a later dashboard decision on the same gate
-is reported stale and changes nothing. If the drawer cannot read the gate or
+from the dashboard drawer, which offers the options the gate lists. The
+decision recorded first wins on every surface. A later dashboard decision on
+the same gate is reported stale and changes nothing. A CLI replay that names
+another decision is refused with `gate_already_decided`. If the drawer cannot read the gate or
 its options, it disables the decisions: use `loopx gate show` and
 `loopx gate resolve` instead.
 `loopx todo complete --role user --decision-outcome ...` is the older
 equivalent.
 
 Only you decide gates. LoopX marks the process that runs each agent Turn's
-model with `LOOPX_AGENT_TURN`. An agent that runs `gate resolve` or `todo
+model with `LOOPX_AGENT_TURN` (except the in-process `--dsh-runner` test hook). An agent that runs `gate resolve` or `todo
 complete --decision-outcome` there, with or without `--option`, is refused with
 `gate_decision_refused_in_agent_turn` and writes nothing; it can still reply
 with `gate reply`. This guards against accidental self-approval. It is not a
 security boundary: agents run as your OS user, and one that removes the variable
 bypasses it. Every decision records `closed_by` in the gate index: the surface
 (`cli`, `dashboard` or `system`), the lifecycle actor (or `owner`), the agent
-Turn marker if one was set, and the time. `gate show` prints it. Details:
+Turn marker if one was set, and the time. A replay that fills in a missing
+record marks it `replayed`. `gate show` prints it. Details:
 [gates-plans-intake-v0](gates-plans-intake-v0.md#only-the-owner-decides-user-gates).
 
 | kind | opened by | holds | resolve with |

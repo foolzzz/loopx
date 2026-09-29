@@ -18,6 +18,7 @@ import pytest
 import loopx.plan_cards as plan_cards_module
 import loopx.todos as todos_module
 from loopx.cli import main
+from loopx.gate_threads import GateThreadError, read_gate_index
 from loopx.plan_cards import PlanCardError, apply_plan, propose_plan, read_plan
 from loopx.rollout_event_log import load_rollout_events, rollout_event_log_path
 from loopx.todos import archive_completed_todos, complete_goal_todo, list_goal_todos
@@ -249,17 +250,79 @@ def test_replaying_an_approve_through_settlement_does_not_apply_a_recorded_rejec
                                   decision_outcome="approve", note="changed my mind", no_followup=True,
                                   agent_id=ORCH)
 
-    if provider is None:
-        # Markdown replays the closed gate and hands settlement the caller's
-        # approve; the guard reads the recorded reject and refuses the plan.
-        settled = replay()
-        assert settled["plan_card"]["ok"] is False, settled["plan_card"]
-        assert "not approved" in settled["plan_card"]["error"]
-    else:
-        # A canonical provider refuses a conflicting replay of the closed gate.
-        with pytest.raises(ValueError):
-            replay()
+    # Every provider refuses a replay whose decision differs from the recorded
+    # one before it writes or settles anything.
+    with pytest.raises(GateThreadError) as refused:
+        replay()
+    assert refused.value.code == "gate_already_decided" and "reject" in str(refused.value)
     assert rows(registry) == before
     assert rows(registry)[gate_id]["decision_outcome"] == "reject"
     assert read_plan(runtime, GOAL, plan_id)["status"] == "pending"
     assert _decided_events(runtime) == []
+
+
+def _cli_decide(registry: Path, runtime: Path, gate_id: str, decision: str,
+                capsys: pytest.CaptureFixture[str]) -> tuple[int, dict]:
+    code = main(["--registry", str(registry), "--runtime-root", str(runtime), "--format", "json", "todo",
+                 "complete", "--goal-id", GOAL, "--todo-id", gate_id, "--role", "user",
+                 "--decision-outcome", decision, "--agent-id", ORCH])
+    return code, json.loads(capsys.readouterr().out)
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+@pytest.mark.parametrize("settled", [False, True])
+def test_a_conflicting_replay_is_refused_and_changes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    provider: str | None, settled: bool,
+) -> None:
+    registry, runtime, plan = _setup(tmp_path, monkeypatch, provider)
+    plan_id, gate_id = plan["plan_id"], plan["gate_todo_id"]
+    if settled:
+        _decide(registry, gate_id, "approve")
+    else:  # the writer stopped before settlement: the plan is still pending
+        _close_gate_without_settlement(monkeypatch, registry, gate_id, "approve")
+    before = (rows(registry), read_gate_index(runtime, GOAL)["gates"][gate_id], read_plan(runtime, GOAL, plan_id))
+
+    code, refused = _cli_decide(registry, runtime, gate_id, "cancel", capsys)
+    assert code == 1, refused
+    assert refused["error_code"] == "gate_already_decided" and "approve" in refused["error"]
+    assert (rows(registry), read_gate_index(runtime, GOAL)["gates"][gate_id],
+            read_plan(runtime, GOAL, plan_id)) == before
+    assert read_plan(runtime, GOAL, plan_id)["status"] == ("applied" if settled else "pending")
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_a_same_decision_replay_stays_idempotent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str | None,
+) -> None:
+    registry, runtime, plan = _setup(tmp_path, monkeypatch, provider)
+    plan_id, gate_id = plan["plan_id"], plan["gate_todo_id"]
+    _decide(registry, gate_id, "approve")
+    before = (rows(registry), read_gate_index(runtime, GOAL)["gates"][gate_id]["closed_by"],
+              read_plan(runtime, GOAL, plan_id))
+    replay = _decide(registry, gate_id, "approve")
+    assert replay["plan_card"]["ok"] is True and replay["plan_card"]["status"] == "applied"
+    # The writer's record stands: the replay neither rewrites it nor applies again.
+    assert (rows(registry), read_gate_index(runtime, GOAL)["gates"][gate_id]["closed_by"],
+            read_plan(runtime, GOAL, plan_id)) == before
+    assert "replayed" not in before[1]
+    assert len(_decided_events(runtime)) == 1
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_a_replay_after_an_interrupted_settlement_records_closed_by_as_replayed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str | None,
+) -> None:
+    registry, runtime, plan = _setup(tmp_path, monkeypatch, provider)
+    plan_id, gate_id = plan["plan_id"], plan["gate_todo_id"]
+    _close_gate_without_settlement(monkeypatch, registry, gate_id, "approve")
+    assert "closed_by" not in read_gate_index(runtime, GOAL)["gates"][gate_id]
+
+    replay = _decide(registry, gate_id, "approve")
+    assert replay["plan_card"]["status"] == "applied" == read_plan(runtime, GOAL, plan_id)["status"]
+    entry = read_gate_index(runtime, GOAL)["gates"][gate_id]
+    assert entry["decision_outcome"] == "approve"
+    closed_by = entry["closed_by"]
+    assert (closed_by["surface"], closed_by["actor"], closed_by["replayed"]) == ("cli", ORCH, True)
+    _decide(registry, gate_id, "approve")  # a later replay keeps the first record
+    assert read_gate_index(runtime, GOAL)["gates"][gate_id]["closed_by"] == closed_by

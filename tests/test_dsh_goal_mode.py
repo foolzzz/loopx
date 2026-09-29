@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from hashlib import sha256
@@ -571,6 +572,29 @@ def test_run_dsh_host_returns_the_typed_result_in_process(tmp_path: Path) -> Non
     assert result["result_kind"] == "validated_progress"
     assert result["completed_phases"] == list(dsh_goal_mode.COMPLETED_PHASES)
     assert (tmp_path / ".local" / ".dsh-sessions").is_dir()
+
+
+def test_an_explicit_dsh_runner_runs_in_process_without_the_agent_turn_marker(
+    tmp_path: Path,
+) -> None:
+    # The --dsh-runner hook is an in-process function that gets no env mapping,
+    # so the adapter has nowhere to put LOOPX_AGENT_TURN and must not set it on
+    # the Turn process (the one that settles the Turn) instead.
+    seen = tmp_path / "seen.json"
+    runner = tmp_path / "recording_runner.py"
+    runner.write_text(
+        "import json, os\n"
+        "def run_dsh_turn(**kwargs):\n"
+        f"    open({str(seen)!r}, 'w').write(json.dumps({{'keys': sorted(kwargs), "
+        "'marker': os.environ.get('LOOPX_AGENT_TURN')}))\n"
+        "    return json.dumps({'result_kind': 'wait', 'summary': 'recorded'})\n",
+        encoding="utf-8",
+    )
+    config = turn_host_adapter.DshHostConfig(workspace=tmp_path, dsh_runner=runner)
+    turn_host_adapter.run_dsh_host(_signed_request(), config=config)
+    recorded = json.loads(seen.read_text(encoding="utf-8"))
+    assert "env" not in recorded["keys"] and recorded["marker"] is None
+    assert "LOOPX_AGENT_TURN" not in os.environ
 
 
 def test_run_dsh_host_maps_terminal_provider_failure_without_an_exception(

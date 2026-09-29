@@ -43,9 +43,15 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   A `goal_complete` gate (decision 42) takes `--option close_goal|add_work|
   leave_open` (the note carries the follow-up); see
   [below](#goal-complete-gate-decision-42).
-- The dashboard `gate.resolve` records its proposal id as the gate's completion
-  identity. A proposal whose gate another surface closed first is stale (HTTP
-  409) and writes nothing, even when the decision is the same. It reports
+- The recorded decision wins on every surface. The dashboard `gate.resolve`
+  records its proposal id as the gate's completion identity. A proposal whose
+  gate another surface closed first is stale (HTTP 409) and writes nothing,
+  even when the decision is the same. A CLI replay (`gate resolve` or `todo
+  complete --decision-outcome`) on a closed gate that names another decision
+  than the recorded one, or names one for a gate closed without a decision, is
+  refused with `error_code=gate_already_decided` before it writes or settles
+  anything. A replay of the recorded decision is idempotent. Settlement always
+  runs on the recorded decision, never on the caller's. It reports
   `applied` only once the settlement that follows the closure finished; otherwise
   the proposal is `failed` with a typed code, and retrying it re-runs the
   settlement: `plan_apply_recovery_required` (an interrupted plan apply; the
@@ -61,8 +67,8 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   needs (such as the raised budget), so a crash after the effect is retried with
   the same choice and inputs. A recorded outcome replays and applies nothing. A
   failed one (`ok: false`) is retried by the next settlement (a dashboard retry,
-  or a `loopx todo complete --role user --decision-outcome` replay) with the first
-  recorded option, which stays the gate's choice. A manual accept that completed
+  or a `loopx todo complete --role user --decision-outcome` replay of the same
+  decision) with the first recorded option, which stays the gate's choice. A manual accept that completed
   the todo but not its post-accept step re-runs that step on retry.
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
@@ -215,6 +221,12 @@ subprocess that runs the model, and only there. The dispatcher and the `loopx
 turn run-once` process that settles the Turn never carry it. Every LoopX command
 the model runs inherits it.
 
+One exception: a dsh host started with `--dsh-runner` calls that runner as a
+Python function inside the `turn run-once` process and hands it no environment
+mapping, so it gets no marker. LoopX does not set the variable on the Turn
+process instead, since that process settles the Turn. The hook exists for
+hermetic tests; the built-in dsh runner (no `--dsh-runner`) gets the marker.
+
 While it is set, recording a decision exits 1 with
 `error_code=gate_decision_refused_in_agent_turn` before anything is written. The
 message says that the owner decides gates and points to `loopx gate reply`. The
@@ -245,8 +257,12 @@ Every decision records who made it in the gate's index entry:
   otherwise null;
 - `at`: when.
 
-A replayed or re-settled decision keeps the first record. `loopx gate show` shows
-it in both formats (`closed by: cli (actor orch) at ...` in Markdown).
+The call that wrote the decision records `closed_by`. A replay of the same
+decision records it only when it is missing, because the writer stopped before
+settling, and then adds `"replayed": true`. A replay never overwrites it. The
+index `decision_outcome` is always the recorded decision. `loopx gate show`
+shows `closed_by` in both formats (`closed by: cli (actor orch) at ...` in
+Markdown, with `, replayed` for a replay's record).
 
 ## Goal complete gate (decision 42)
 
