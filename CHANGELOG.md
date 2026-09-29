@@ -357,6 +357,27 @@ These behaviors differ from upstream.
   acceptor role cannot open user gates or write acceptance criteria. After
   planning, a change to a todo's criteria needs a user-approved plan card.
   Only the owner, using no `--agent-id`, may still edit criteria directly.
+- **Agent Turns cannot decide user gates.** Every Turn host sets
+  `LOOPX_AGENT_TURN=<agent id>` in the environment of the model process it
+  starts. With it set, `loopx gate resolve` and
+  `loopx todo complete --role user --decision-outcome` refuse to record a
+  decision on a user gate, with `gate_decision_refused_in_agent_turn`. The
+  orchestrator replies with `loopx gate reply` instead. This guards against
+  accidental self-approval and is not a security boundary: an agent that
+  unsets the variable bypasses it. `issue-fix pr-gate-reconcile --execute`,
+  which closes the gate of a merged or closed PR as `system`, is refused too
+  when it runs inside an agent Turn and would close a gate.
+- **Gate decisions are audited.** A user-gate decision records `closed_by`
+  in the gate index, with the surface (`cli`, `dashboard` or `system`), the
+  actor, the agent Turn if any, and the time. `loopx gate show` shows it. It
+  is written after the decision itself; if the process dies in between, a
+  replay of the same decision writes it, marked `replayed: true`.
+- **The recorded gate decision wins.** Settlement always runs on the
+  decision recorded on the gate, never on the caller's. A
+  `todo complete --decision-outcome` replay that names another decision is
+  refused with `gate_already_decided` and writes nothing. A replay of the
+  recorded decision is idempotent. `gate resolve` on a closed gate still fails
+  with `gate_closed`.
 - **Turn prompts.** Both built-in hosts now ask for repo-relative paths in
   results, and carry role guidance, acceptance criteria and review feedback.
 - **codex-cli errors (N9, #24).** An upstream 5xx, `auth_unavailable`, a
@@ -400,6 +421,16 @@ These behaviors differ from upstream.
   keychain launch-env subprocess (#3).
 - **Hermetic tests (#29).** Multi-agent delivery tests settle from a private
   linked worktree, so they pass from any checkout.
+- **Tests no longer touch the real runtime root.** 23 test modules read or
+  wrote `~/.codex/loopx`, leaving goals such as `example-goal` and a
+  `repository-change-window/` directory behind. They now use temporary
+  runtime roots. A test-session guard refuses audited file operations (open,
+  mkdir, remove, rename, listdir and similar) under the real runtime root and
+  names the offending test. It covers the test process and Python
+  subprocesses that inherit its `PYTHONPATH` and guard environment. It does
+  not see stat, lstat, access or readlink calls (so not `Path.exists()`),
+  `dir_fd`-relative paths, access through an unpinned symlink alias, Python
+  subprocesses that drop that environment, or non-Python subprocesses.
 - **launchd dispatcher code.** `loopx dispatch launchd-plist` set only
   `PATH` and `HOME`. With the checkout's `.venv` as the Python, a resident
   dispatcher therefore ran the checkout's current code instead of the
@@ -474,9 +505,11 @@ These behaviors differ from upstream.
 - **Usage recording.** The generic-cli and dsh hosts record no usage. A
   codex-cli Turn that times out before `turn.completed` records its duration
   only.
-- **Gate authority.** Plan apply checks the recorded gate decision, not who
-  recorded it. An orchestrator with CLI access can still resolve its own
-  gates, including approving its own plan.
+- **Gate authority.** Agent Turns cannot decide user gates, but this is a
+  guardrail, not a security boundary: agents run as your OS user, and an
+  agent that unsets `LOOPX_AGENT_TURN` can still decide a gate. `closed_by`
+  records who decided each gate. A DSH Turn run through an explicit
+  `--dsh-runner` runs in process and does not carry the marker.
 - **CLI crash while closing a typed gate.** The CLI closes the gate before
   its settlement records the chosen option. If the process dies between the
   two, the option is not recorded yet, and a retry settles with the option
