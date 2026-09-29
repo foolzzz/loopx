@@ -6,13 +6,19 @@ upstream [`loopx-project/loopx`](https://github.com/loopx-project/loopx) at
 ([design-v0](docs/fork/design-v0.md)). For upstream history before that
 point, see the upstream releases and [docs/update-notes](docs/update-notes/README.md).
 
-The package version in `pyproject.toml` is still the upstream `1.2.0`. Until the
-fork cuts its own tag, its changes are listed under **Unreleased**. Pull request
-numbers refer to [michaelx1993/loopx](https://github.com/michaelx1993/loopx/pulls).
+The fork's first release is `2.0.0` (tag `v2.0.0`). It moves past the upstream
+`1.2.0` it branched from, because the role-based orchestration model changes
+how a goal runs. Changes after a release are listed under **Unreleased** until
+the next tag. Pull request numbers in the 2.0.0 entry refer to
+[michaelx1993/loopx](https://github.com/michaelx1993/loopx/pulls).
 
 To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
-## [Unreleased] - Fork v0: role-based multi-agent orchestration
+## [Unreleased]
+
+No changes yet.
+
+## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 
 Covers the fork's first round, 2026-09-25 to 2026-09-28 (PRs #1 to #29,
 136 non-merge commits), and the fixes that followed it.
