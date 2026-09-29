@@ -36,7 +36,7 @@ from .completion_state import (
     normalize_todo_completion_recovery,
 )
 from .completion_fence import evaluate_todo_completion_fence
-from .event_writeback import event_projection_todo_context
+from .event_writeback import event_projection_todo_context, event_projection_todo_record
 
 
 TodoCompletionProjectionSource = Literal["materialized", "event_log"]
@@ -176,7 +176,8 @@ def read_todo_record_sources(
     present: ``read_persisted_todo_record`` prefers the block, while status
     and should-run prefer the projection, so a check that must not be relaxed
     by a stale source reads both. Raises ``ValueError`` when no source holds
-    the Todo, and lets read errors propagate.
+    the Todo, and lets read errors propagate, including an event log that
+    exists but cannot be read (``StateEventError``, a ``ValueError``).
     """
 
     if runtime_root is not None and goal_id is not None:
@@ -193,11 +194,11 @@ def read_todo_record_sources(
     if match is not None:
         records.append(dict(match[4]))
     if registry_path is not None and goal_id is not None:
-        context = event_projection_todo_context(
-            registry_path=registry_path, goal_id=goal_id, state_path=state_file, todo_id=todo_id, role=None,
+        projected = event_projection_todo_record(
+            registry_path=registry_path, goal_id=goal_id, state_path=state_file, todo_id=todo_id,
         )
-        if context is not None:
-            records.append(dict(context["item"]))
+        if projected is not None:
+            records.append(projected)
     if not records:
         raise ValueError(
             f"todo_id {normalize_todo_id(todo_id) or todo_id!r} was not found in persisted Todo lifecycle state"
