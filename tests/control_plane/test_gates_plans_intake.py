@@ -361,6 +361,8 @@ def test_dashboard_plan_approve_settles_after_a_crash_between_closure_and_settle
     record = read_plan(runtime, GOAL, plan["plan_id"])
     assert record["status"] == "applied" and len(record["todo_id_map"]) == 5
     assert set(rows(registry)) == before | set(record["todo_id_map"].values())
+    closed_by = read_gate_index(runtime, GOAL)["gates"][plan["gate_todo_id"]]["closed_by"]
+    assert (closed_by["surface"], closed_by["actor"]) == ("dashboard", "owner")  # the resumed settlement records it
 
 
 def test_plan_thread_carries_change_requests_and_revision(tmp_path: Path) -> None:
@@ -445,13 +447,45 @@ def test_an_agent_turn_cannot_decide_its_own_plan_gate(
     assert "closed_by" not in read_gate_index(runtime, GOAL)["gates"][gate_id]
     with pytest.raises(PlanCardError, match="is not approved"):
         apply_plan(registry_path=registry, runtime_root=runtime, goal_id=GOAL, plan_id=plan["plan_id"])
-    # Replying stays allowed, for the orchestrator and for the owner.
-    code, _ = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
-                        "--as", "orchestrator", "--agent-id", ORCH, "--text", "Waiting for your approval.")
-    assert code == 0
+    # Replying stays allowed, as the Turn's own agent; the owner's reply is not the Turn's to write.
     code, replied = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
+                              "--as", "orchestrator", "--agent-id", ORCH, "--text", "Waiting for your approval.")
+    assert code == 0 and replied["awaiting"] == AWAITING_USER
+    code, refused = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
                               "--text", "Looks good.")
-    assert code == 0 and replied["awaiting"] == AWAITING_ORCHESTRATOR
+    assert code == 1 and refused["error_code"] == "gate_reply_identity_mismatch"
+
+
+@pytest.mark.parametrize(("turn", "reply_args", "error_code"), [
+    (ORCH, (), "gate_reply_identity_mismatch"),  # the default author is the owner
+    (ORCH, ("--as", "user"), "gate_reply_identity_mismatch"),
+    (DEV, (), "gate_reply_identity_mismatch"),
+    (DEV, ("--as", "orchestrator", "--agent-id", ORCH), "gate_reply_identity_mismatch"),
+    (DEV, ("--as", "orchestrator", "--agent-id", DEV), "not_orchestrator"),  # only the orchestrator replies
+    (ACC, ("--as", "orchestrator"), "not_orchestrator"),
+])
+def test_an_agent_turn_cannot_reply_as_the_owner_or_another_agent(
+    tmp_path: Path, capsys, monkeypatch, turn: str, reply_args: tuple[str, ...], error_code: str,
+) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    monkeypatch.setenv("LOOPX_AGENT_TURN", turn)
+    code, refused = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
+                              "--text", "Approved, go ahead.", *reply_args)
+    assert (code, refused["error_code"]) == (1, error_code)
+    assert read_gate_thread(runtime, GOAL, gate_id) == []
+
+
+@pytest.mark.parametrize("reply_args", [("--as", "orchestrator", "--agent-id", ORCH), ("--as", "orchestrator")])
+def test_an_orchestrator_turn_replies_as_itself(tmp_path: Path, capsys, monkeypatch, reply_args) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    monkeypatch.setenv("LOOPX_AGENT_TURN", ORCH)
+    code, replied = _cli_json(registry, runtime, capsys, "gate", "reply", "--goal-id", GOAL, "--todo-id", gate_id,
+                              "--text", "SQLite is simpler.", *reply_args)
+    assert code == 0, replied
+    assert (replied["message"]["author"], replied["message"]["agent_id"]) == ("orchestrator", ORCH)
+    assert replied["awaiting"] == AWAITING_USER
 
 
 def test_closing_a_plan_gate_without_a_decision_never_applies_the_plan(tmp_path: Path, capsys, monkeypatch) -> None:
@@ -477,24 +511,28 @@ def test_closing_a_plan_gate_without_a_decision_never_applies_the_plan(tmp_path:
     assert not [row for row in state.values() if row["role"] == "agent"]  # no plan todo was created
 
 
-def test_an_owner_gate_decision_records_closed_by(tmp_path: Path, capsys) -> None:
+@pytest.mark.parametrize(("agent_args", "actor"), [((), "owner"), (("--agent-id", ORCH), ORCH)])
+def test_an_owner_gate_decision_records_closed_by(
+    tmp_path: Path, capsys, agent_args: tuple[str, ...], actor: str,
+) -> None:
     registry, runtime = fixture(tmp_path)
     plan = _propose(registry, runtime)
     gate_id = plan["gate_todo_id"]
     code, payload = _cli_json(registry, runtime, capsys, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_id,
-                              "--decision", "approve")
+                              "--decision", "approve", *agent_args)
     assert code == 0, payload
     assert payload["plan_card"]["status"] == "applied"
+    # The todo write is still attributed to the agent the gate blocks; closed_by names who decided.
+    assert payload["mutation_authority"]["actor_agent_id"] == ORCH
     closed_by = read_gate_index(runtime, GOAL)["gates"][gate_id]["closed_by"]
-    # The lifecycle actor defaults to the agent the gate blocks; the surface says who decided.
     assert {key: closed_by[key] for key in ("surface", "actor", "agent_turn")} == {
-        "surface": "cli", "actor": ORCH, "agent_turn": None}
+        "surface": "cli", "actor": actor, "agent_turn": None}
     assert closed_by["at"]
     code, shown = _cli_json(registry, runtime, capsys, "gate", "show", "--goal-id", GOAL, "--todo-id", gate_id)
     assert code == 0 and shown["closed_by"] == closed_by
     assert main(["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
                  "--todo-id", gate_id]) == 0
-    assert f"- closed by: cli (actor {ORCH}) at {closed_by['at']}" in capsys.readouterr().out
+    assert f"- closed by: cli (actor {actor}) at {closed_by['at']}" in capsys.readouterr().out
 
 
 def test_a_plain_gate_decision_records_closed_by_without_a_thread(tmp_path: Path, capsys) -> None:

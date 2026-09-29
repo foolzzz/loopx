@@ -74,17 +74,23 @@ def test_gate_resolve_applies_decision_with_note_and_readback(
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
+@pytest.mark.parametrize(("agent_id", "actor"), [(None, "owner"), ("agent-a", "agent-a")])
 def test_gate_resolve_records_the_dashboard_as_the_deciding_surface(
-    tmp_path: Path, provider: str | None,
+    tmp_path: Path, provider: str | None, agent_id: str | None, actor: str,
 ) -> None:
     registry, gate_id, _target_id = fixture(tmp_path, provider)  # no marker: the owner runs the dashboard
     service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
-    applied = service.apply(preview(service, gate_id, "approve")["proposal_id"])["proposal"]
+    parameters = {"goal_id": "goal-a", "todo_id": gate_id, "decision": "approve",
+                  **({"agent_id": agent_id} if agent_id else {})}
+    proposal = service.preview({"action_kind": "gate.resolve", "summary": "approve the gate",
+        "normalized_parameters": parameters, "context": {}, "idempotency_key": "gate-1"})
+    applied = service.apply(proposal["proposal_id"])["proposal"]
     assert applied["status"] == "applied", applied
     entry = read_gate_index(tmp_path / "runtime", "goal-a")["gates"][gate_id]
     assert (entry["closed"], entry["decision_outcome"]) == (True, "approve")
     closed_by = entry["closed_by"]
-    assert (closed_by["surface"], closed_by["actor"], closed_by["agent_turn"]) == ("dashboard", "agent-a", None)
+    # The todo write stays attributed to the gate's agent; closed_by names who decided.
+    assert (closed_by["surface"], closed_by["actor"], closed_by["agent_turn"]) == ("dashboard", actor, None)
     assert closed_by["at"]
 
 

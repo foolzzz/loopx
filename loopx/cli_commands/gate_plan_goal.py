@@ -24,9 +24,13 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
     reply.add_argument("--text", required=True)
     reply.add_argument(
         "--as", dest="author", choices=["user", "orchestrator"], default="user",
-        help="user (owner, default) or orchestrator (requires --agent-id of the goal orchestrator).",
+        help="user (owner, default) or orchestrator (requires --agent-id of the goal orchestrator). "
+             "Inside an agent Turn (LOOPX_AGENT_TURN) only orchestrator, as the Turn's agent.",
     )
-    reply.add_argument("--agent-id", help="The goal orchestrator's agent id when replying --as orchestrator.")
+    reply.add_argument(
+        "--agent-id", help="The goal orchestrator's agent id when replying --as orchestrator; inside an agent Turn "
+                           "it defaults to, and must match, LOOPX_AGENT_TURN.",
+    )
     show = gate_actions.add_parser("show", help="Show a user gate's status and discussion thread.")
     add_format(show)
     show.add_argument("--goal-id", required=True)
@@ -56,7 +60,10 @@ def register_gate_plan_goal_commands(subparsers, add_format) -> None:
         help="Decision note; return_to_developer stores it as review_feedback, raise_budget reads the new "
              "USD budget from it (default +50%%), add_work hands it to the orchestrator as the follow-up.",
     )
-    resolve.add_argument("--agent-id", help="Lifecycle actor; defaults to the agent the gate blocks.")
+    resolve.add_argument(
+        "--agent-id", help="Lifecycle actor; defaults to the agent the gate blocks. closed_by records it only when "
+                           "given, else owner.",
+    )
     resolve.add_argument("--dry-run", action="store_true")
     listing = gate_actions.add_parser("list", help="List open user gates with their thread state.")
     add_format(listing)
