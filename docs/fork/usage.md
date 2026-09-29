@@ -471,7 +471,10 @@ The dashboard's **Role board** shows:
 - a cost strip.
 
 Clicking a gate opens its drawer, where you can read the thread, reply and
-decide.
+decide. The drawer refreshes every 5 s while it is open, and shows what you
+are deciding: the plan card, the push commits, the budget or the goal
+summary. It enables decisions only once it has read the gate and the gate is
+still open.
 
 What happens on its own:
 
@@ -647,7 +650,11 @@ loopx goal request-push --goal-id G                         # open the push gate
 
 Every gate has a thread (`gate reply`, `gate show`) and closes with
 `loopx gate resolve --goal-id G --todo-id GATE ...`. You can also close it
-from the dashboard drawer, which lists the same options.
+from the dashboard drawer, which offers the options the gate lists. Whichever
+surface decides first wins, and a later dashboard decision on the same gate
+is reported stale and changes nothing. If the drawer cannot read the gate or
+its options, it disables the decisions: use `loopx gate show` and
+`loopx gate resolve` instead.
 `loopx todo complete --role user --decision-outcome ...` is the older
 equivalent.
 

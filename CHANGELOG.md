@@ -151,6 +151,9 @@ Covers the fork's first round, 2026-09-25 to 2026-09-28 (PRs #1 to #29,
 - **Web gate decisions (#2).** The dashboard's `gate.resolve` now applies
   through the CLI decision path. It supports approve, reject and cancel with
   an optional note (at most 600 characters), and shows a readback afterwards.
+  On `acceptor_blocked`, `budget_exhausted` and `goal_complete` gates, each
+  button names the option it submits, such as "Approve (raise_budget)", and
+  only the options the gate lists are offered.
 - **Web discussion panel.** The gate drawer lists the thread and has a reply
   box. Two loopback-only endpoints back it: `GET /api/chat/gate-thread` and
   `POST /api/chat/gate-thread/reply`.
@@ -303,9 +306,22 @@ Covers the fork's first round, 2026-09-25 to 2026-09-28 (PRs #1 to #29,
   acceptance criteria, why it waits on dependencies, and its plan link.
 - **The usage strip.** It shows cost, agent-hours, cost per accepted todo and
   the budget share.
-- **The gate drawer.** It shows the discussion thread and reply box, plus the
-  typed options of `acceptor_blocked`, `budget_exhausted` and `goal_complete`
-  gates. Criteria changes appear old and new side by side.
+- **The gate drawer.** It shows the discussion thread and reply box. While
+  it is open and the page is visible, it re-reads the gate every 5 s and on
+  focus, so a reply or decision made from the CLI shows up without reopening
+  it. Above the thread, a card per gate kind shows what you are deciding:
+  - a plan approval shows the plan card, with each todo's contract, and its
+    criteria changes, old and new side by side;
+  - a push request shows each repo's branch, remote and commits;
+  - a budget gate shows the spend against the budget and the default raise;
+  - a goal-complete gate shows the review counts, merges, push results and
+    cost.
+
+  Decisions are enabled only after a successful read of the gate the drawer
+  shows, and only while that gate is open. A failed refresh disables them
+  until the next successful read. A part that cannot be read is shown as
+  unavailable, never as empty. The role board shows each gate's real kind,
+  and `loopx gate show` prints the same plan card.
 
 ### Changed
 
@@ -400,6 +416,35 @@ These behaviors differ from upstream.
   An owner write is now attributed to the todo's claim owner, else a
   registered fallback (the blocked acceptor, or the agent that proposed the
   plan), else the orchestrator. Both actions now complete.
+- **Push gate and deferred todos.** The automatic `push_request` gate
+  counted `open`, `in_review` and `blocked` todos as pending work, but not
+  `deferred` ones. A goal whose plan dependents were not released yet could
+  therefore be offered for push while that work still waited. A deferred todo
+  now keeps the automatic gate closed, as it already did for the
+  `goal_complete` gate. An explicit `loopx goal request-push` is unchanged.
+- **Plan apply before approval.** `loopx plan apply` applied a plan whose
+  `plan_approval` gate was still open. It also applied a plan whose gate was
+  recorded `reject`, when the card was not settled yet. A plan now applies
+  only when its gate is recorded done with the decision `approve`. Otherwise
+  the apply fails with `plan_not_approved` and writes nothing. Recovering an
+  interrupted apply is unchanged.
+- **Dashboard and CLI deciding the same gate.** A gate can now be decided
+  from the dashboard and the CLI in any order:
+  - A dashboard decision whose gate another surface closed first is reported
+    `stale` and changes nothing, even when the decision matches. Before, it
+    could report an option you did not choose.
+  - The typed gates (`budget_exhausted`, `goal_complete` and
+    `acceptor_blocked`) settle one at a time per gate. The chosen option and
+    its inputs, such as the note or the budget raise target, are recorded
+    before the effect runs. A retry after a crash therefore repeats the first
+    choice with the same inputs, and a default budget raise is never applied
+    twice.
+  - A settlement that did not finish is no longer reported as applied. This
+    covers an interrupted plan apply, a failed push, a failed effect, a failed
+    write and a lock timeout. The dashboard marks the decision `failed` with
+    a typed code (`gate_settlement_retry_required`,
+    `plan_apply_recovery_required` or `gate_push_failed`). Retrying it
+    finishes the settlement.
 
 ### Known limitations
 
@@ -425,6 +470,12 @@ These behaviors differ from upstream.
 - **Usage recording.** The generic-cli and dsh hosts record no usage. A
   codex-cli Turn that times out before `turn.completed` records its duration
   only.
+- **Gate authority.** Plan apply checks the recorded gate decision, not who
+  recorded it. An orchestrator with CLI access can still resolve its own
+  gates, including approving its own plan.
+- **Typed gates with unreadable options.** When the dashboard cannot read a
+  typed gate's option list, it disables that gate's decisions. Decide it with
+  `loopx gate resolve --option ...` instead.
 - **Orchestrator ergonomics.** The orchestrator cannot run
   `todo add --agent-id` for agent todos (N11), so it omits `--agent-id`. Its
   clarification questions may arrive in the plan gate thread instead of a
