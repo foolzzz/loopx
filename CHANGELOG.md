@@ -362,14 +362,17 @@ These behaviors differ from upstream.
   starts. With it set, `loopx gate resolve` and
   `loopx todo complete --role user --decision-outcome` refuse to record a
   decision on a user gate, with `gate_decision_refused_in_agent_turn`. The
-  orchestrator replies with `loopx gate reply` instead. This guards against
+  orchestrator replies with `loopx gate reply` instead, and only as itself: a
+  reply as the owner (the default `--as user`) or with another `--agent-id` is
+  refused with `gate_reply_identity_mismatch`. This guards against
   accidental self-approval and is not a security boundary: an agent that
   unsets the variable bypasses it. `issue-fix pr-gate-reconcile --execute`,
   which closes the gate of a merged or closed PR as `system`, is refused too
   when it runs inside an agent Turn and would close a gate.
 - **Gate decisions are audited.** A user-gate decision records `closed_by`
   in the gate index, with the surface (`cli`, `dashboard` or `system`), the
-  actor, the agent Turn if any, and the time. `loopx gate show` shows it. It
+  actor (the agent named with `--agent-id`, else `owner`), the agent Turn if
+  any, and the time. `loopx gate show` shows it. It
   is written after the decision itself; if the process dies in between, a
   replay of the same decision writes it, marked `replayed: true`.
 - **The recorded gate decision wins.** Settlement always runs on the

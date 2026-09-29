@@ -26,7 +26,7 @@ from .control_plane.coordination.local_authority import (
     LocalCoordinationAuthorityRejection,
     LocalCoordinationAuthorityUnavailable,
 )
-from .gate_threads import GATE_DECISION_SURFACE_DASHBOARD
+from .gate_threads import GATE_DECISION_ACTOR_OWNER, GATE_DECISION_SURFACE_DASHBOARD
 from .todos import complete_goal_todo, list_goal_todos
 
 GATE_DURABLE_DECISIONS = frozenset({"approve", "reject", "cancel"})
@@ -98,6 +98,12 @@ class ChatGateActionMixin:
             )
         return str(requested or bound) if (requested or bound) else None
 
+    @staticmethod
+    def _gate_decider(parameters: dict[str, Any]) -> str:
+        """Who ``closed_by`` records: the agent the owner named, else the owner, never the gate's agent."""
+
+        return str(parameters.get("agent_id") or GATE_DECISION_ACTOR_OWNER)
+
     def _gate_terminal_basis(self, goal_id: str) -> dict[str, Any] | None:
         basis = self._canonical_update_basis(goal_id)
         if basis is None:
@@ -135,6 +141,7 @@ class ChatGateActionMixin:
             agent_id=actor,
             authority_reason=GATE_AUTHORITY_REASON,
             gate_decision_surface=GATE_DECISION_SURFACE_DASHBOARD,
+            gate_decision_actor=self._gate_decider(parameters),
             dry_run=dry_run,
             **options,
         )
@@ -216,8 +223,6 @@ class ChatGateActionMixin:
         from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
         from .plan_cards import settle_gate_decision
 
-        goal_id = str(parameters["goal_id"])
-        gate = self._gate_row(self._gate_rows(goal_id), goal_id, str(parameters["todo_id"]))
         settled = settle_gate_decision(
             registry_path=self.registry_path,
             runtime_root=effective_runtime_root(self.registry_path, None),
@@ -227,7 +232,7 @@ class ChatGateActionMixin:
             # Only this proposal's own closure is settled here, so an audit that an
             # interrupted closure did not record yet is the dashboard's.
             surface=GATE_DECISION_SURFACE_DASHBOARD,
-            actor=self._gate_actor(gate, parameters),
+            actor=self._gate_decider(parameters),
             option=parameters.get("option"),
             note=parameters.get("note"),
         )

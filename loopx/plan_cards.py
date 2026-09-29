@@ -49,6 +49,7 @@ from .gate_threads import (
     record_gate_decision,
     register_gate_kind,
     require_gate_decision_outside_agent_turn,
+    require_gate_reply_identity,
     require_goal_orchestrator,
 )
 from .history import validate_goal_id_path_segment
@@ -529,15 +530,20 @@ def _refresh_plan_gate_text(
 
 
 def propose_plan(
-    *, registry_path: Path, runtime_root: Path, goal_id: str, agent_id: str,
+    *, registry_path: Path, runtime_root: Path, goal_id: str, agent_id: str | None,
     plan: Any, revise_plan_id: str | None = None, runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
-    """Store a pending plan and open (or reuse) its plan_approval gate."""
+    """Store a pending plan and open (or reuse) its plan_approval gate.
+
+    Its gate-thread message is the orchestrator's: inside an agent Turn, as the Turn's own agent.
+    """
 
     from .todos import add_goal_todo
 
     goal = _goal(registry_path, goal_id)
     try:
+        agent_id = require_gate_reply_identity(author=AUTHOR_ORCHESTRATOR, agent_id=agent_id,
+                                               action="propose or revise a plan")
         require_goal_orchestrator(goal, agent_id)
     except GateThreadError as error:
         raise PlanCardError(error.code, str(error)) from None
