@@ -38,7 +38,7 @@ from loopx.control_plane.agents.workspace_guard import (
     peer_delivery_workspace,
 )
 from loopx.dispatch import DispatchConfig, Dispatcher, dispatch_status
-from loopx.dispatch.state import load_state
+from loopx.dispatch.state import empty_state, load_state, save_state
 from loopx.event_sourced_state import TODO_ADDED, AppendOnlyStateEventStore, make_state_event
 from loopx.goal_complete_gate import goal_completion_snapshot
 from loopx.push_requests import repo_push_plan
@@ -256,6 +256,29 @@ def _role_goal(project: Path, model: str = "role_v1", **extra: Any) -> dict[str,
     return {"id": GOAL, "repo": str(project), "coordination": coordination, **extra}
 
 
+def test_an_unreadable_event_source_keeps_the_guard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The goal's event log exists but cannot be read: the projection read
+    # falls back to the Markdown block, which names no repo. Unreadable is
+    # not absent, so the todo is unknown and keeps the independent worktree.
+    fx = _goal(tmp_path, monkeypatch, git_project=True)
+    todo_id = _add_todo(fx, "Write NOTES.md naming the three LoopX roles")
+    [goal] = json.loads(fx["registry"].read_text(encoding="utf-8"))["goals"]
+    event_log = (fx["project"] / goal["state_file"]).with_name("events.jsonl")
+    AppendOnlyStateEventStore(event_log).append_many([
+        make_state_event(
+            event_id="add-notes", goal_id=GOAL, event_type=TODO_ADDED, refs={"todo_id": todo_id},
+            payload={"role": "agent", "text": "Write NOTES.md naming the three LoopX roles", "claimed_by": "dev",
+                     "task_repository": "https://example.test/fixture/notes.git"},
+        ),
+    ])
+    with event_log.open("a", encoding="utf-8") as handle:
+        handle.write("{not json\n")
+
+    refused = _run_once(fx, "dev", todo_id)
+    assert refused.get("ok") is False, json.dumps(refused)[:3000]
+    assert DELIVERY_REFUSED in str(refused.get("error")), json.dumps(refused)[:3000]
+
+
 def test_the_delivery_workspace_rule_is_relaxed_only_for_role_v1_todos_without_repos(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -401,6 +424,44 @@ def test_a_run_is_recorded_before_its_turn_starts_and_a_restart_reclaims_it(
         assert runs[0]["turn_instance_id"] == started["turn_instance_id"] and isinstance(runs[0]["pid"], int)
     finally:
         _release_and_wait(fixture, restarted)
+
+
+def test_a_locked_pass_rereads_the_state_before_it_reaps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer", "max_concurrency": 2}})
+    first = _add_todo(fixture, "Write GLOSSARY.md", goal_id=GOAL_ID, priority="P0")
+    _add_todo(fixture, "Write FAQ.md", goal_id=GOAL_ID, priority="P1")
+    set_modes(fixture, {"dev": ["hold"]})
+    # Dispatcher A has recorded a project-directory run but not its pid yet.
+    run = {
+        "run_id": "a-run", "goal_id": GOAL_ID, "agent_id": "dev", "role": "developer", "todo_id": first,
+        "turn_instance_id": "dispatch:a-run", "pid": None, "started_at": 1.0, "project": str(fixture["project"]),
+        "workspace_repos": [], "workspace": "project_directory",
+        "stdout_path": str(tmp_path / "a-run.out.json"), "stderr_path": str(tmp_path / "a-run.err.log"),
+    }
+    save_state(fixture["runtime"], {**empty_state(), "runs": {"a-run": run}})
+    # B reads that snapshot, then A records the pid of its still-running Turn.
+    b = Dispatcher(DispatchConfig(
+        registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_ids=[GOAL_ID], no_global_sync=True,
+        environ=fixture["environ"], loopx_argv=(sys.executable, str(fixture["fake_loopx"])),
+    ), clock=Clock())
+    assert b.state["runs"]["a-run"]["pid"] is None
+    turn = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+    try:
+        save_state(fixture["runtime"], {**empty_state(), "runs": {"a-run": {**run, "pid": turn.pid}}})
+        report = b.run_once(wait=False)
+        assert report["reaped"] == [], report["reaped"]
+        runs = load_state(fixture["runtime"])["runs"]
+        assert runs["a-run"]["pid"] == turn.pid
+        assert [item["run_id"] for item in report["launched"]] == []
+        assert [r["run_id"] for r in runs.values() if r.get("workspace") == "project_directory"] == ["a-run"]
+    finally:
+        turn.kill()
+        turn.wait()
+        _release_and_wait(fixture, b)
 
 
 # --- goal_complete ---------------------------------------------------------------------------
