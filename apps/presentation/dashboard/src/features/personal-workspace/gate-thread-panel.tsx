@@ -32,11 +32,19 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onState }: {
   const applied = useRef(0);
   const pending = useRef(0);
   const shown = useRef(false);
+  // The last successful read of this gate, shown (but not decidable) while a later read fails.
+  const lastView = useRef<GateThreadView | null>(null);
   const messagesRef = useRef<HTMLOListElement>(null);
 
   // `poll` skips while a read is in flight; `force` (open, after a reply) always reads.
-  // Responses apply in issue order, so a slow older read never replaces a newer one.
+  // Responses, failed ones included, apply in issue order, so a slow older read never
+  // replaces a newer outcome.
   const load = useCallback(async (mode: "force" | "poll") => {
+    // After a successful read, any failed read makes the gate non-actionable until a read succeeds.
+    const refreshFailed = () => {
+      const last = lastView.current;
+      if (last && last.awaiting !== "closed") onState?.({ goalId, todoId, status: "retrying", view: last });
+    };
     if (mode === "poll" && pending.current > 0) return;
     const mine = generation.current;
     const request = ++issued.current;
@@ -47,19 +55,28 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onState }: {
       applied.current = request;
       if (next.goal_id !== goalId || next.todo_id !== todoId) {
         // A read of another gate is never this gate's state.
-        if (!shown.current) {
+        if (shown.current) {
+          refreshFailed();
+        } else {
           setLoadError(true);
           onState?.({ goalId, todoId, status: "unavailable" });
         }
         return;
       }
       shown.current = true;
+      lastView.current = next;
       setView(next);
       setLoadError(false);
       onState?.({ goalId, todoId, status: next.awaiting === "closed" ? "closed" : "ready", view: next });
     } catch (error) {
-      // A failed background read keeps the last thread; the next poll retries.
-      if (mine !== generation.current || request < applied.current || mode === "poll") return;
+      if (mine !== generation.current || request < applied.current) return;
+      applied.current = request;
+      if (shown.current) {
+        // The last thread stays on screen; the next poll retries.
+        refreshFailed();
+        return;
+      }
+      if (mode === "poll") return; // the first read already reported this gate unavailable
       const code = error instanceof ChatApiError ? String(error.payload.error_code ?? "") : "";
       if (HIDDEN_ERROR_CODES.has(code)) {
         setHidden(true);
@@ -76,6 +93,7 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onState }: {
   useEffect(() => {
     generation.current += 1;
     shown.current = false;
+    lastView.current = null;
     setView(null);
     setHidden(false);
     setLoadError(false);

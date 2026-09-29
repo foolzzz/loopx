@@ -9,6 +9,7 @@ import {
   gateDecisionAccess,
   gateOptionChoices,
   primaryGateOption,
+  typedGateChoices,
   type GateThreadState,
 } from "../src/features/personal-workspace/gate-decisions";
 
@@ -118,8 +119,21 @@ const completion = {
 };
 const complete = ready(parseGateThreadView({ ...completeGate, ...completion }).sections.completion, "completion");
 equal([complete.completion_todos.accepted, complete.completion_usage.turns, complete.completion_repos?.[0].push,
-  complete.completion_repos?.[0].merged_todo_commits.length, complete.follow_ups?.[0].text],
+  complete.completion_repos?.[0].merged_todo_commits?.length, complete.follow_ups?.[0].text],
 [3, 12, "pushed", 1, "Budget at 80%"], "goal completion fields survive parsing");
+// Real `goal_complete_gate._repo_completion` rows: a merge target branch not created yet
+// (no head, no merged_todo_commits) and a branch without this goal's merges.
+const noBranchRepo = { name: "api", branch: "loopx-task/g", remote: null, head: null, push: "no_merges" };
+const noMergesRepo = { name: "web", branch: "main", remote: null, head: "51396a934a4827671bf0e5e3ac82152a9eda1bac",
+  merged_todo_commits: [], push: "local_only" };
+const nothingToPushRepo = { name: "docs", branch: "main", remote: "origin", head: "a7a8980d228fd1944f9600a73eecf1cdb60ce040",
+  merged_todo_commits: [], push: "nothing_to_push", unpushed_commits: 1 };
+for (const [name, repo] of [["no branch", noBranchRepo], ["no merges", noMergesRepo], ["nothing to push", nothingToPushRepo]] as const) {
+  const parsed = parseGateThreadView({ ...completeGate, ...completion, completion_repos: [repo] }).sections.completion;
+  equal(state(parsed), "ready", `a completion with a ${name} repo is ready`);
+}
+equal(ready(parseGateThreadView({ ...completeGate, ...completion, completion_repos: [noBranchRepo] }).sections.completion,
+  "no-branch completion").completion_repos?.[0].merged_todo_commits, undefined, "a no-branch repo carries no merge list, not an empty one");
 for (const [name, payload] of [
   ["todo counts as text", { ...completeGate, ...completion, completion_todos: "3" }],
   ["merged commits not a list", { ...completeGate, ...completion, completion_repos: [{ name: "api", merged_todo_commits: 4 }] }],
@@ -161,6 +175,23 @@ equal(access({ ...readyState, goalId: "other" }), [false, "pending", null], "the
 equal(access({ ...readyState, status: "closed" }), [false, "closed", "todo_budget"], "a closed gate is shown but not actionable");
 equal(access({ goalId: "g", todoId: "todo_budget", status: "unavailable" }), [false, "unavailable", null], "a failed read is not actionable");
 equal(access({ goalId: "g", todoId: "todo_budget", status: "not_gate" }), [false, "not_gate", null], "a non-gate todo is not actionable");
+
+// Named options come from the gate's own option list: only listed ones are offered, and an unreadable
+// list offers none (the primary included), so no named decision is guessed from the kind alone.
+const offered = (kind: string, options: GateSection<string[]> | undefined) => {
+  const typed = typedGateChoices(kind, options);
+  return typed && [typed.optionsReadable, typed.choices.filter((choice) => choice.offered).map((choice) => choice.option),
+    typed.primary?.option ?? null, typed.primary?.offered ?? false];
+};
+equal(offered("budget_exhausted", { state: "ready", value: ["raise_budget", "continue_without_limit", "stop_goal"] }),
+  [true, ["raise_budget", "continue_without_limit", "stop_goal"], "raise_budget", true], "a listed option set is offered in full");
+equal(offered("budget_exhausted", { state: "ready", value: ["stop_goal"] }), [true, ["stop_goal"], "raise_budget", false],
+  "only the listed options are offered; an unlisted primary is not");
+const malformedOptions = parseGateThreadView({ ...budgetGate, options: "raise_budget", budget_usd: 0.6, spent_usd: 1 }).sections.options;
+equal(offered("budget_exhausted", malformedOptions), [false, [], "raise_budget", false], "malformed options offer no named option");
+equal(offered("goal_complete", undefined), [false, [], "close_goal", false], "a typed gate without its option list offers none");
+equal(typedGateChoices("decision", undefined), null, "plain decisions keep the generic decisions");
+equal(typedGateChoices("plan_approval", malformedOptions), null, "plan approvals keep the generic decisions");
 
 // Typed gates: the primary approve names the option it selects (the backend's approve default).
 equal(["acceptor_blocked", "budget_exhausted", "goal_complete"].map((kind) => primaryGateOption(kind)?.option),

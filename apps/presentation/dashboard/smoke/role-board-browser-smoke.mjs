@@ -83,7 +83,7 @@ function gateThread(todoId, server) {
   }
   if (todoId === "todo_rb_budget") {
     // Decision 41: a budget_exhausted gate.
-    return { ...base, kind: "budget_exhausted", options: ["raise_budget", "continue_without_limit", "stop_goal"],
+    return { ...base, kind: "budget_exhausted", options: thread.options ?? ["raise_budget", "continue_without_limit", "stop_goal"],
       budget_usd: 0.6, spent_usd: 1, spent_ratio: 1.6667, estimated_usd: 0.25, default_raise_usd: 0.9,
       by_role: [{ role: "orchestrator", cost_usd: 0.75, turns: 3 }, { role: "developer", cost_usd: 0.25, turns: 1 }] };
   }
@@ -180,6 +180,7 @@ function decisionControls(page) {
       primaryEnabled: primary ? !primary.disabled : null,
       reply: Boolean(drawer?.querySelector('[data-testid="gate-thread"] textarea')),
       resolutions: resolutions.length,
+      optionsNote: Boolean(drawer?.querySelector("[data-gate-options-unavailable]")),
       status: drawer?.querySelector("[data-gate-decision-status]")?.getAttribute("data-gate-decision-status") ?? null,
     };
   });
@@ -273,6 +274,18 @@ async function checkGateDecisions(browser, locale) {
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await until(() => api.readsByTodo.todo_rb_budget > reads, "a read on window focus", 1_000);
 
+  // A failed refresh after a successful read disables every decision (the last facts stay) until a read succeeds.
+  api.failures.add("todo_rb_budget");
+  await until(async () => (await decisionControls(page)).status === "retrying", "the failed refresh is reported", 7_000);
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.primaryEnabled, controls.enabledResolutions, controls.budgetCard], [false, 0, true],
+    "A failed refresh keeps the last facts but disables the primary and every overflow decision");
+  api.failures.delete("todo_rb_budget");
+  await until(async () => (await decisionControls(page)).primaryEnabled === true, "the next successful read re-enables decisions", 7_000);
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.status, controls.enabledResolutions, controls.label], [null, 3, budgetLabel],
+    "A successful read after a failed refresh restores the decisions");
+
   // A reply lands through the CLI while the drawer stays open: the thread polls, the board row follows.
   const statusReadsBefore = api.statusReads;
   api.threads.todo_rb_budget.messages.push({ seq: 1, message_id: "m-1", author: "orchestrator", agent_id: "fable-orch",
@@ -318,6 +331,16 @@ async function checkGateDecisions(browser, locale) {
   assert.equal(api.previews.length, previews, "A disabled decision sends no preview");
   api.failures.delete("todo_rb_decision");
   await until(async () => (await decisionControls(page)).primaryEnabled === true, "the retried read enables decisions", 7_000);
+
+  // Unreadable option list: no named option and no primary on the typed gate; the note says where to look.
+  api.threads.todo_rb_budget.options = "raise_budget";
+  await row("todo_rb_decision").click();
+  await row("todo_rb_budget").click();
+  await until(async () => (await decisionControls(page)).optionsNote, "the unreadable options are reported");
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.primaryEnabled, controls.enabledResolutions, controls.resolutions, controls.budgetCard], [false, 0, 3, true],
+    "Malformed options leave the typed gate's named options and primary unclickable");
+  delete api.threads.todo_rb_budget.options;
 
   // Closed gate: shown, but not decidable, no reply box, and no more polling.
   api.threads.todo_rb_budget.closed = true;

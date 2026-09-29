@@ -170,14 +170,18 @@ function CompletionFacts({ completion }: { completion: GateCompletion }) {
         <div>
           <dt>{t("gateThread.completeRepos")}</dt>
           <dd>
-            {completion.completion_repos.map((repo) => (
-              <span data-completion-repo={repo.name} key={repo.name}>{t("gateThread.completeRepoValue", {
+            {completion.completion_repos.map((repo) => {
+              const values = {
                 branch: repo.branch ?? "-",
-                merges: repo.merged_todo_commits.length,
+                merges: repo.merged_todo_commits?.length ?? 0,
                 name: repo.name,
                 push: repo.push && COMPLETION_PUSH_KEYS[repo.push] ? t(COMPLETION_PUSH_KEYS[repo.push]) : repo.push ?? "-",
-              })}</span>
-            ))}
+              };
+              // No merge list: the merge target branch does not exist yet. An empty list: the branch has no merges.
+              const key = repo.merged_todo_commits === undefined ? "gateThread.completeRepoNoBranch"
+                : repo.merged_todo_commits.length ? "gateThread.completeRepoValue" : "gateThread.completeRepoNoMerges";
+              return <span data-completion-repo={repo.name} key={repo.name}>{t(key, values)}</span>;
+            })}
           </dd>
         </div>
       ) : null}

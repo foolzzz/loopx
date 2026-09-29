@@ -2,7 +2,7 @@
 // Each option implies its decision (`loopx gate resolve --option`); the drawer
 // sends the option explicitly, so no button relies on the backend's default.
 // It has no runtime imports so contract smokes can compile it standalone.
-import type { GateThreadView } from "../../data/gate-thread";
+import type { GateSection, GateThreadView } from "../../data/gate-thread";
 
 export type GateResolution = "approve" | "reject" | "cancel";
 
@@ -56,9 +56,34 @@ export function primaryGateOption(kind: string | null | undefined): GateOptionCh
   return gateOptionChoices(kind)?.find((choice) => choice.primary) ?? null;
 }
 
+export type OfferedGateChoice = GateOptionChoice & { offered: boolean };
+
+/**
+ * A typed gate's named options as the gate itself lists them: a choice is
+ * offered only when the gate's `options` list is readable and names it. An
+ * unreadable or missing list offers none, the primary included. Null for a
+ * gate without named options (plain decision, plan approval, push request).
+ */
+export function typedGateChoices(
+  kind: string | null | undefined,
+  options: GateSection<string[]> | undefined,
+): { choices: OfferedGateChoice[]; optionsReadable: boolean; primary: OfferedGateChoice | null } | null {
+  const choices = gateOptionChoices(kind);
+  if (!choices) return null;
+  const listed = options?.state === "ready" ? new Set(options.value) : null;
+  const marked = choices.map((choice) => ({ ...choice, offered: Boolean(listed?.has(choice.option)) }));
+  return {
+    choices: listed ? marked.filter((choice) => choice.offered) : marked,
+    optionsReadable: listed !== null,
+    primary: marked.find((choice) => choice.primary) ?? null,
+  };
+}
+
 /** What the drawer's thread panel last learned about one gate (goal + todo identity). */
 export type GateThreadState =
   | { goalId: string; todoId: string; status: "ready" | "closed"; view: GateThreadView }
+  // A read after a successful one failed: the last view stays shown, nothing is decidable until a read succeeds.
+  | { goalId: string; todoId: string; status: "retrying"; view: GateThreadView }
   | { goalId: string; todoId: string; status: "unavailable" | "not_gate" };
 
 /**
@@ -68,7 +93,7 @@ export type GateThreadState =
  */
 export type GateDecisionAccess = {
   actionable: boolean;
-  reason: "pending" | "ready" | "closed" | "unavailable" | "not_gate";
+  reason: "pending" | "ready" | "closed" | "retrying" | "unavailable" | "not_gate";
   view: GateThreadView | null;
 };
 
@@ -79,7 +104,7 @@ export function gateDecisionAccess(
   if (!state || !gate || state.goalId !== gate.goalId || state.todoId !== gate.todoId) {
     return { actionable: false, reason: "pending", view: null };
   }
-  if (state.status === "ready" || state.status === "closed") {
+  if (state.status === "ready" || state.status === "closed" || state.status === "retrying") {
     return { actionable: state.status === "ready", reason: state.status, view: state.view };
   }
   return { actionable: false, reason: state.status, view: null };

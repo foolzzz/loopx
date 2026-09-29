@@ -90,11 +90,13 @@ const completionSchema = z.object({
     turns: z.number(),
     agent_hours: z.number(),
   }),
+  // A repo whose merge target branch does not exist yet has no head and no merge list.
   completion_repos: z.array(z.object({
     name: z.string(),
     branch: optionalText,
+    head: optionalText,
     push: optionalText,
-    merged_todo_commits: z.array(z.unknown()),
+    merged_todo_commits: z.array(z.unknown()).optional(),
   })).optional(),
   follow_ups: z.array(z.object({ todo_id: optionalText, text: z.string() })).optional(),
 });

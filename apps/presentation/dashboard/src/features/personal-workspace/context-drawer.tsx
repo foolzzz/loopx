@@ -2,7 +2,7 @@ import { GoalAcceptanceObservationCard } from "./goal-acceptance-observation-car
 import { AttentionDetailCard } from "./attention-detail-card";
 import { GateThreadPanel } from "./gate-thread-panel";
 import { GateKindDetails } from "./gate-kind-details";
-import { gateDecisionAccess, gateOptionChoices, primaryGateOption, type GateThreadState } from "./gate-decisions";
+import { gateDecisionAccess, typedGateChoices, type GateThreadState } from "./gate-decisions";
 import { attentionSuccessor, canReviewAttention } from "./attention-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -158,9 +158,10 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
   }, []);
   // Decisions only on a successful read of this exact gate that is still open.
   const gateAccess = gateDecisionAccess(gateThreadState, selection.kind === "attention" ? selection.item : null);
-  const gateKind = gateAccess.view?.kind ?? null;
-  const gateChoices = gateOptionChoices(gateKind);
-  const primaryOption = primaryGateOption(gateKind);
+  // A typed gate's named options (the primary included) are offered only as the gate lists them.
+  const typedChoices = typedGateChoices(gateAccess.view?.kind, gateAccess.view?.sections.options);
+  const primaryOption = typedChoices?.primary ?? null;
+  const primaryEnabled = gateAccess.actionable && (!typedChoices || Boolean(primaryOption?.offered));
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [repositoryCopyState, setRepositoryCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [runDrawerTab, setRunDrawerTab] = useState<"record" | "details">("record");
@@ -375,6 +376,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
 
   async function previewDecision(attention: WorkspaceAttention, decision: "approve" | typeof decisionTransitions[number]["resolution"], label: string, option?: string) {
     if (readOnly || !canReviewAttention(attention) || !gateAccess.actionable) return;
+    if (typedChoices && !typedChoices.choices.some((choice) => choice.option === option && choice.offered)) return;
     const note = decisionNote.trim().slice(0, DECISION_NOTE_LIMIT);
     await callbacks.onPreviewAction?.({
       actionKind: "gate.resolve",
@@ -613,14 +615,20 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 {gateAccess.actionable ? null : (
                   <p className="personal-gate-decision-status" data-gate-decision-status={gateAccess.reason} role="status">
                     {t(gateAccess.reason === "closed" ? "drawer.gateDecisionClosed"
-                      : gateAccess.reason === "unavailable" ? "drawer.gateDecisionUnavailable" : "drawer.gateDecisionPending")}
+                      : gateAccess.reason === "retrying" ? "drawer.gateDecisionRetrying"
+                        : gateAccess.reason === "unavailable" ? "drawer.gateDecisionUnavailable" : "drawer.gateDecisionPending")}
                   </p>
                 )}
+                {typedChoices && !typedChoices.optionsReadable ? (
+                  <p className="personal-gate-decision-status" data-gate-decision-status="unavailable" data-gate-options-unavailable role="note">
+                    {t("drawer.gateOptionsUnavailable")}
+                  </p>
+                ) : null}
                 {/* A typed gate's approve names the option it selects instead of relying on the backend default. */}
                 <button
                   className="personal-primary-action"
                   data-gate-option={primaryOption?.option}
-                  disabled={!gateAccess.actionable}
+                  disabled={!primaryEnabled}
                   onClick={() => void (primaryOption
                     ? previewDecision(selection.item, primaryOption.resolution, t(primaryOption.key), primaryOption.option)
                     : previewDecision(selection.item, "approve", t("common.confirm")))}
@@ -634,9 +642,9 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 <div>
                   <button onClick={() => void callbacks.onExplainDecision?.(selection.item)} type="button"><MessageCircleQuestion size={16} />{t("drawer.explainDecision")}</button>
                   {/* Every resolution is fenced like the primary; a non-gate todo offers none (gate.resolve refuses it). */}
-                  {gateAccess.reason === "not_gate" ? null : gateChoices
-                    ? gateChoices.map((choice) => (
-                      <button data-gate-option={choice.option} disabled={!gateAccess.actionable} key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
+                  {gateAccess.reason === "not_gate" ? null : typedChoices
+                    ? typedChoices.choices.map((choice) => (
+                      <button data-gate-option={choice.option} disabled={!gateAccess.actionable || !choice.offered} key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
                     ))
                     : decisionTransitions.map((transition) => (
                       <button data-gate-decision={transition.resolution} disabled={!gateAccess.actionable} key={transition.resolution} onClick={() => void previewDecision(selection.item, transition.resolution, t(transition.key))} type="button">{t(transition.key)}</button>
