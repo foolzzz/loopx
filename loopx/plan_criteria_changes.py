@@ -302,12 +302,21 @@ def _mapping_rows(value: Any) -> list[Mapping[str, Any]] | None:
     return value
 
 
+def _criteria_change_is_well_formed(change: Mapping[str, Any]) -> bool:
+    """A persisted change names its todo, and its criteria and reason are text (or absent)."""
+
+    todo_id = change.get("todo_id")
+    if not isinstance(todo_id, str) or not todo_id.strip():
+        return False
+    return all(change.get(field) is None or isinstance(change.get(field), str) for field in ("old", "new", "reason"))
+
+
 def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]] | None:
     """Old and new criteria side by side for ``gate show`` and the dashboard.
 
     [] when there is no card or it changes no criteria; None when the card's
-    changes or their results are malformed, so callers report them unavailable
-    rather than as "no changes".
+    changes (any row) or their results are malformed, so callers report them
+    unavailable rather than as "no changes" or a partial list.
     """
 
     if plan is None:
@@ -317,7 +326,7 @@ def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]
         return None
     changes = _mapping_rows(body.get(CRITERIA_CHANGE_KEY))
     outcomes = _mapping_rows(plan.get("criteria_change_results"))
-    if changes is None or outcomes is None:
+    if changes is None or outcomes is None or not all(_criteria_change_is_well_formed(change) for change in changes):
         return None
     results = {str(item.get("todo_id")): item for item in outcomes}
     rows = []

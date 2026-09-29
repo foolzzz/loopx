@@ -507,7 +507,12 @@ def test_a_malformed_plan_card_is_reported_unavailable_not_empty(tmp_path: Path,
     lambda record: record["plan"].update(criteria_changes=7),
     lambda record: record["plan"].update(criteria_changes=["openapi covers paging"]),
     lambda record: record.update(criteria_change_results=["applied"]),
-], ids=["changes-not-a-list", "changes-not-objects", "results-not-objects"])
+    lambda record: record["plan"].update(criteria_changes=[
+        {"old": "openapi covers CRUD", "new": "openapi covers paging", "reason": "paging"}]),
+    lambda record: record["plan"].update(criteria_changes=[
+        {"todo_id": "todo_0123456789ab", "old": "openapi covers CRUD", "new": 5, "reason": "paging"}]),
+], ids=["changes-not-a-list", "changes-not-objects", "results-not-objects", "change-without-todo-id",
+        "new-not-text"])
 def test_malformed_criteria_changes_are_reported_unavailable_not_empty(tmp_path: Path, mutate) -> None:
     registry, runtime = fixture(tmp_path)
     plan = _propose(registry, runtime)
