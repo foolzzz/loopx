@@ -424,27 +424,31 @@ These behaviors differ from upstream.
   `goal_complete` gate. An explicit `loopx goal request-push` is unchanged.
 - **Plan apply before approval.** `loopx plan apply` applied a plan whose
   `plan_approval` gate was still open. It also applied a plan whose gate was
-  recorded `reject`, when the card was not settled yet. A plan now applies
-  only when its gate is recorded done with the decision `approve`. Otherwise
-  the apply fails with `plan_not_approved` and writes nothing. Recovering an
-  interrupted apply is unchanged.
+  recorded `reject`, when the card was not settled yet. A pending or
+  applying plan now applies only when its gate is recorded done with the
+  decision `approve`. Otherwise the apply fails with `plan_not_approved` and
+  writes nothing. A plan that was already rejected or cancelled still fails
+  with `plan_not_applicable`. Recovering an interrupted apply is unchanged.
 - **Dashboard and CLI deciding the same gate.** A gate can now be decided
   from the dashboard and the CLI in any order:
   - A dashboard decision whose gate another surface closed first is reported
     `stale` and changes nothing, even when the decision matches. Before, it
     could report an option you did not choose.
   - The typed gates (`budget_exhausted`, `goal_complete` and
-    `acceptor_blocked`) settle one at a time per gate. The chosen option and
-    its inputs, such as the note or the budget raise target, are recorded
-    before the effect runs. A retry after a crash therefore repeats the first
-    choice with the same inputs, and a default budget raise is never applied
-    twice.
-  - A settlement that did not finish is no longer reported as applied. This
-    covers an interrupted plan apply, a failed push, a failed effect, a failed
-    write and a lock timeout. The dashboard marks the decision `failed` with
-    a typed code (`gate_settlement_retry_required`,
-    `plan_apply_recovery_required` or `gate_push_failed`). Retrying it
-    finishes the settlement.
+    `acceptor_blocked`) settle one at a time per gate. Before the effect
+    runs, the settlement records the chosen option and its inputs, such as
+    the note or the budget raise target. Once that record exists, a retry
+    after a crash repeats the first choice with the same inputs, and a
+    default budget raise is never applied twice.
+  - A settlement that did not finish is no longer reported as applied. The
+    dashboard marks the decision `failed` with a typed code, and each code
+    says how to recover:
+    - `gate_settlement_retry_required`: a failed effect, a failed write or a
+      lock timeout. Retry the decision.
+    - `plan_apply_recovery_required`: an interrupted plan apply. Retry the
+      decision, or run the `loopx plan apply` command it names.
+    - `gate_push_failed`: a failed push. The failure is final for that gate;
+      approve the follow-up push gate that LoopX opens instead.
 
 ### Known limitations
 
@@ -473,6 +477,10 @@ These behaviors differ from upstream.
 - **Gate authority.** Plan apply checks the recorded gate decision, not who
   recorded it. An orchestrator with CLI access can still resolve its own
   gates, including approving its own plan.
+- **CLI crash while closing a typed gate.** The CLI closes the gate before
+  its settlement records the chosen option. If the process dies between the
+  two, the option is not recorded yet, and a retry settles with the option
+  that the retry passes.
 - **Typed gates with unreadable options.** When the dashboard cannot read a
   typed gate's option list, it disables that gate's decisions. Decide it with
   `loopx gate resolve --option ...` instead.

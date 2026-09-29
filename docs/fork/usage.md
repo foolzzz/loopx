@@ -430,8 +430,8 @@ the thread of the `plan_approval` gate that its first plan card opens.
 
 ```sh
 loopx gate list --goal-id todo-due                         # open gates, who each awaits
-loopx gate show --goal-id todo-due --todo-id <gate-id>     # status and thread; for a plan, its plan id
-loopx plan show --goal-id todo-due --plan-id <plan-id>     # the full plan card
+loopx gate show --goal-id todo-due --todo-id <gate-id>     # status, thread and, for a plan, its plan card
+loopx plan show --goal-id todo-due --plan-id <plan-id>     # the full plan, with agent bindings, estimates and todo ids
 loopx gate reply --goal-id todo-due --todo-id <gate-id> --text "Use the local date; do the contract first."
 ```
 
@@ -740,7 +740,7 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `gate list --goal-id G [--awaiting user\|orchestrator]` | Open user gates, their kind and who they await. |
-| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan id (read the plan with `plan show`), criteria changes, push repos, the budget or the completion summary. |
+| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan card, criteria changes, push repos, the budget or the completion summary. A part that cannot be read is reported with its error code. |
 | `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Replying never closes a gate. |
 | `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). |
 
