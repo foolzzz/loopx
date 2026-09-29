@@ -20,6 +20,8 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
 
 - A user reply is an owner action, so it takes no `--agent-id`. An orchestrator
   reply must come from the goal's role_v1 orchestrator. Every other agent is refused.
+  Inside an agent Turn a reply is always the Turn's own agent's (see
+  [below](#only-the-owner-decides-user-gates)).
 - The thread only accepts replies while the gate is `open` or `blocked`. Once
   the gate closes, the thread is read-only.
 - Replying never closes a gate. You (the owner) still close it with approve,
@@ -27,8 +29,9 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   [below](#only-the-owner-decides-user-gates)). You close it either through
   `loopx gate resolve --goal-id G --todo-id T --decision
   approve|reject|cancel` (the lifecycle actor defaults to the agent the gate
-  blocks), `loopx todo complete --role user --decision-outcome ... --agent-id
-  <the agent the gate blocks>` (a multi-agent goal needs the lifecycle actor; the
+  blocks; `closed_by` still records you as `owner`), `loopx todo complete
+  --role user --decision-outcome ... --agent-id <the agent the gate blocks>`
+  (a multi-agent goal needs the lifecycle actor; the
   dashboard path uses the same attribution) or through the dashboard
   `gate.resolve` action (S7). An `acceptor_blocked` gate (G12) also takes
   `--option` / `option`; see
@@ -235,25 +238,37 @@ check is the first step of `complete_goal_todo`, the one path that records a gat
 decision: `loopx gate resolve`, `loopx todo complete --decision-outcome` and the
 dashboard `gate.resolve`. `todo update` takes no decision. What stays allowed:
 
-- replying on the thread (`loopx gate reply`) and opening gates, as before;
+- replying on the thread (`loopx gate reply`), as the Turn's own agent only
+  (see below), and opening gates, as before;
 - closing a gate without a decision (`loopx todo supersede`, or `loopx todo update
   --status done`). It records no decision, so it never applies a plan
   (`plan apply` needs a recorded approve) and never runs a gate's effect;
 - the dashboard, which you start without the variable.
 
-This is a guardrail against accidental self-approval, not a security boundary.
-Agents run as your OS user, so an agent that unsets the variable bypasses it.
+A reply made while the variable is set is the marker's agent's. A reply as
+`user` (the default `--as`), which is yours, or with an `--agent-id` other than
+the marker exits 1 with `error_code=gate_reply_identity_mismatch` before
+anything is written. An omitted `--agent-id` is the marker's. Only the goal
+orchestrator replies as an agent, so a developer or acceptor Turn still gets
+`not_orchestrator`. Without the variable, replies work as before.
+
+This is a guardrail against accidental self-approval and impersonation, not a
+security boundary. Agents run as your OS user, so an agent that unsets the
+variable bypasses it.
 
 Every decision records who made it in the gate's index entry:
 
 ```json
-"closed_by": {"surface": "cli", "actor": "orch", "agent_turn": null, "at": "2026-09-28T10:00:00+08:00"}
+"closed_by": {"surface": "cli", "actor": "owner", "agent_turn": null, "at": "2026-09-28T10:00:00+08:00"}
 ```
 
 - `surface`: `cli` (`gate resolve`, `todo complete`), `dashboard` (`gate.resolve`)
   or `system` (a LoopX settler, such as the issue-fix PR gate reconcile);
-- `actor`: the lifecycle actor, or `owner` when none was given (`gate resolve`
-  defaults it to the agent the gate blocks);
+- `actor`: the agent named with `--agent-id` (the dashboard's `agent_id`), or
+  `owner` when none was given. `gate resolve` and the dashboard still attribute
+  the todo write to the agent the gate blocks when none was given, because a
+  multi-agent goal's todo write needs a registered agent; `closed_by` does not
+  record that default;
 - `agent_turn`: the value of `LOOPX_AGENT_TURN` when the decision was recorded,
   otherwise null;
 - `at`: when.
@@ -262,7 +277,7 @@ The call that wrote the decision records `closed_by`. A replay of the same
 decision records it only when it is missing, because the writer stopped before
 settling, and then adds `"replayed": true`. A replay never overwrites it. The
 index `decision_outcome` is always the recorded decision. `loopx gate show`
-shows `closed_by` in both formats (`closed by: cli (actor orch) at ...` in
+shows `closed_by` in both formats (`closed by: cli (actor owner) at ...` in
 Markdown, with `, replayed` for a replay's record).
 
 ## Goal complete gate (decision 42)
@@ -441,7 +456,7 @@ guarded on the decision path: an agent Turn cannot decide a user gate, and
 [Only the owner decides user gates](#only-the-owner-decides-user-gates)). The
 plan gate is bound to the proposing orchestrator, and `loopx gate resolve` still
 defaults its lifecycle actor to that agent; outside an agent Turn the decision
-is yours.
+is yours, and `closed_by` records it as `owner`.
 
 Changing a todo's acceptance criteria after the plan is applied is a major
 change (decision 12) and goes through a plan card (decision 40, below).
