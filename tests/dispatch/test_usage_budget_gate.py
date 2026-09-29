@@ -34,6 +34,7 @@ from loopx.usage_budget_gate import (
     BUDGET_GATE_TEXT_PREFIX,
     BUDGET_HOLD_GATE_OPEN,
     BUDGET_HOLD_STOPPED,
+    default_raised_budget,
     parse_budget_amount,
     settle_budget_gate,
 )
@@ -600,3 +601,79 @@ def test_a_failed_budget_effect_is_retried_by_a_later_cli_settlement(
     assert code == 0, payload
     assert payload["budget_gate"]["ok"] is True and payload["budget_gate"]["option"] == "raise_budget", payload
     assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+
+
+def _interrupt_outcome_record(patch: pytest.MonkeyPatch, outcome_key: str) -> None:
+    """Fail the durable record of a settlement's outcome (its effect has already run)."""
+
+    import loopx.gate_threads as gate_threads
+
+    real = gate_threads.mark_gate_closed
+
+    def record(*args: Any, **kwargs: Any) -> Any:
+        outcome = (kwargs.get("extra") or {}).get(outcome_key)
+        if isinstance(outcome, dict) and outcome.get("state") != "applying":
+            raise OSError("Synthetic failure recording the settlement outcome")
+        return real(*args, **kwargs)
+
+    patch.setattr(gate_threads, "mark_gate_closed", record)
+
+
+def test_an_interrupted_settlement_is_retried_with_its_pinned_option_and_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(tmp_path)
+    gate_id = _exhaust(fixture, _dispatcher(fixture, GoalShouldRun({})))
+
+    def settle(option: str | None) -> dict[str, Any]:
+        return settle_budget_gate(registry_path=fixture["registry"], runtime_root=fixture["runtime"],
+                                  goal_id=GOAL_ID, gate_todo_id=gate_id, decision="approve", option=option,
+                                  note=None)
+
+    raised = default_raised_budget(0.05)  # approve without an option raises the budget by half
+    assert default_raised_budget(raised) != raised
+    with monkeypatch.context() as patch:
+        _interrupt_outcome_record(patch, "budget_outcome")
+        with pytest.raises(OSError):
+            settle(None)
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == raised, "the effect ran"
+
+    # The same approve with the other approve option: the pinned choice and target win.
+    retried = settle("continue_without_limit")
+    assert (retried["ok"], retried["option"]) == (True, "raise_budget"), retried
+    assert not retried.get("replayed")
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == raised, "neither cleared nor raised twice"
+    entry = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]
+    assert entry["decision_option"] == "raise_budget"
+    assert (entry["budget_outcome"]["budget_usd"], entry["budget_outcome"]["ok"]) == (raised, True)
+    assert settle("continue_without_limit")["replayed"] is True
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == raised
+
+
+@pytest.mark.parametrize("failure", ["outcome_record", "settlement_lock_timeout"])
+def test_a_settlement_that_cannot_run_or_be_recorded_leaves_the_proposal_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    import loopx.gate_threads as gate_threads
+    from loopx.file_lock import exclusive_file_lock
+
+    fixture, gate_id, service, proposal = _raise_budget_preview(tmp_path)
+    proposal_id = proposal["proposal_id"]
+    with monkeypatch.context() as patch:
+        if failure == "outcome_record":
+            _interrupt_outcome_record(patch, "budget_outcome")
+            failed = service.apply(proposal_id)["proposal"]
+        else:  # another settlement of this gate holds its lock past the timeout
+            patch.setattr(gate_threads, "GATE_SETTLEMENT_LOCK_TIMEOUT_SECONDS", 0.0)
+            with exclusive_file_lock(gate_threads.gate_settlement_lock_path(fixture["runtime"], GOAL_ID, gate_id)):
+                failed = service.apply(proposal_id)["proposal"]
+    assert failed["status"] == "failed", failed
+    assert failed["failure"]["error_code"] == "gate_settlement_retry_required", failed["failure"]
+    assert failed["failure"]["details"]["operation_id"] == f"chat-gate:{proposal_id}"
+    assert _budget_gates(fixture) == [], "the gate decision is recorded"
+
+    retried = service.apply(proposal_id)["proposal"]
+    assert retried["status"] == "applied", retried
+    assert read_usage_budget(fixture["runtime"], GOAL_ID) == 0.2
+    outcome = read_gate_index(fixture["runtime"], GOAL_ID)["gates"][gate_id]["budget_outcome"]
+    assert (outcome["ok"], outcome["option"]) == (True, "raise_budget")

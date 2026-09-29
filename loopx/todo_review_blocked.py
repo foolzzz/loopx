@@ -41,6 +41,7 @@ from typing import Any
 
 from .agent_registry import lifecycle_agent_for_owner_write, load_goal_from_registry
 from .control_plane.todos.contract import (
+    TODO_STATUS_DONE,
     TODO_STATUS_IN_REVIEW,
     TODO_STATUS_OPEN,
     compact_todo_text,
@@ -56,6 +57,7 @@ from .todo_acceptance import (
     accept_delivered_todo,
     goal_uses_role_v1,
     resolve_todo_acceptor,
+    resume_after_accept,
 )
 
 REVIEW_GATE_TEXT_PREFIX = "Acceptor blocked: "
@@ -344,7 +346,7 @@ def settle_review_gate(
         return None
     ran: dict[str, Any] = {}
 
-    def apply(_decided: str | None, selected: str) -> dict[str, Any]:
+    def apply(_decided: str | None, selected: str, _prior: Mapping[str, Any]) -> dict[str, Any]:
         ran.update(_apply_review_option(
             registry_path=registry_path, goal_id=goal_id, gate_todo_id=gate_todo_id, entry=entry,
             selected=selected, note=note, runtime_root_arg=runtime_root_arg,
@@ -382,6 +384,19 @@ def _apply_review_option(
         "applied": False,
     }
     status = normalize_todo_status((todo or {}).get("status"))
+    if selected == OPTION_ACCEPT_MANUALLY and todo is not None and status == TODO_STATUS_DONE:
+        from .plan_dependencies import accepted_by
+
+        if accepted_by(todo) == OWNER_ACTOR:
+            # The owner's accept through this gate completed the todo, but the
+            # settlement did not finish: re-run the idempotent post-accept step.
+            try:
+                resumed = resume_after_accept(registry_path=registry_path, goal_id=goal_id,
+                                              runtime_root_arg=runtime_root_arg)
+                result.update(applied=True, **({"resumed_todo_ids": resumed} if resumed else {}))
+            except (OSError, ValueError) as error:  # the gate is closed; report, never raise
+                result.update(ok=False, error=str(error)[:400])
+            return result
     if todo is None or status != TODO_STATUS_IN_REVIEW:
         # Somebody already moved the todo (for example a later verdict).
         result["reason"] = f"todo is {status or 'missing'}, not in_review; nothing to apply"

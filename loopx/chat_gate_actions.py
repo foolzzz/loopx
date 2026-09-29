@@ -323,10 +323,31 @@ class ChatGateActionMixin:
                 proposal_id, current_state_fingerprint=_digest({"gate": readback}), receipt={},
             )
             return {"proposal": stale, "turn": None}
+        try:
+            settled = self._settle_gate(parameters)
+        except OSError as error:
+            return self._settlement_interrupted(proposal_id, todo_id, operation_id=operation_id, error=error)
         return self._record_gate_resolution(
-            proposal_id, proposal, parameters,
-            settled=self._settle_gate(parameters), operation_id=operation_id,
+            proposal_id, proposal, parameters, settled=settled, operation_id=operation_id,
         )
+
+    def _settlement_interrupted(
+        self, proposal_id: str, todo_id: str, *, operation_id: str, error: OSError,
+    ) -> dict[str, Any]:
+        """Keep the proposal retryable when the settlement could not run or be recorded.
+
+        Covers an I/O failure while recording the settlement and a settlement
+        lock timeout (``LockAcquireTimeoutError`` is an ``OSError``). A retry
+        resumes the gate through its recorded identity and re-runs the
+        settlement from its recorded intent.
+        """
+
+        failed = self.store.mark_failed(
+            proposal_id, error_code="gate_settlement_retry_required",
+            message="The gate settlement did not complete. Retry this proposal to recover it.",
+            details={"operation_id": operation_id, "gate_todo_id": todo_id, "reason": type(error).__name__},
+        )
+        return {"proposal": failed, "turn": None}
 
     def _apply_gate_resolve(
         self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any]
@@ -390,6 +411,8 @@ class ChatGateActionMixin:
             return self._resume_closed_gate(
                 proposal_id, proposal, parameters, readback=closed, operation_id=operation_id,
             )
+        except OSError as error:
+            return self._settlement_interrupted(proposal_id, todo_id, operation_id=operation_id, error=error)
         if result.get("ok") is not True:
             failed = self.store.mark_failed(
                 proposal_id, error_code="canonical_gate_validation_failed",

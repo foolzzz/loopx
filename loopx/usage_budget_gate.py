@@ -369,16 +369,24 @@ def settle_budget_gate(
     if entry is None:
         return None
 
-    def apply(decided: str | None, selected: str) -> dict[str, Any]:
+    def pin(_decided: str | None, selected: str) -> dict[str, Any]:
+        # Computed once, before the effect: a raise without an amount is relative
+        # to the current budget, so a retry must reuse this target.
+        pinned: dict[str, Any] = {"previous_budget_usd": read_usage_budget(runtime_root, goal_id)}
+        if selected == BUDGET_OPTION_RAISE:
+            pinned["budget_usd"] = _raised_budget(entry, runtime_root, goal_id, note, require_cover=False)
+        return pinned
+
+    def apply(decided: str | None, selected: str, prior: Mapping[str, Any]) -> dict[str, Any]:
+        pinned = dict(prior.get("pinned") or {}) or pin(decided, selected)
         outcome: dict[str, Any] = {
             "ok": True, "gate_todo_id": gate_todo_id, "decision": decided, "option": selected,
-            "previous_budget_usd": read_usage_budget(runtime_root, goal_id),
+            "previous_budget_usd": pinned.get("previous_budget_usd"),
             "at": datetime.now().astimezone().isoformat(timespec="seconds"),
         }
         try:
             if selected == BUDGET_OPTION_RAISE:
-                target = _raised_budget(entry, runtime_root, goal_id, note, require_cover=False)
-                outcome["budget_usd"] = write_usage_budget(runtime_root, goal_id, target)["budget_usd"]
+                outcome["budget_usd"] = write_usage_budget(runtime_root, goal_id, pinned["budget_usd"])["budget_usd"]
             elif selected == BUDGET_OPTION_CONTINUE:
                 write_usage_budget(runtime_root, goal_id, None)
                 outcome["budget_usd"] = None
@@ -395,7 +403,7 @@ def settle_budget_gate(
 
     outcome, applied = run_gate_settlement(
         runtime_root, goal_id, gate_todo_id, decision=decision, option=resolve_budget_gate_option(decision, option),
-        outcome_key="budget_outcome", apply=apply,
+        outcome_key="budget_outcome", apply=apply, pin=pin,
     )
     if not applied:
         return {"payload_key": "budget_gate", **outcome, "replayed": True}

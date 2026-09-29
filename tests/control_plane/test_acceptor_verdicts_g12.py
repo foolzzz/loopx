@@ -438,6 +438,37 @@ def test_a_failed_review_gate_effect_is_surfaced_and_a_web_retry_applies_it_once
     assert [event["details"]["applied"] for event in _events(fx, "review_gate_decided")] == [False, True]
 
 
+def test_a_manual_accept_whose_post_accept_step_failed_reruns_it_on_retry(tmp_path, monkeypatch) -> None:
+    import loopx.plan_cards as plan_cards
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    service, proposal = _web_preview(fx, gate_id, {"option": "accept_manually"})
+    real_resume, resumed_goals = plan_cards.resume_ready_plan_todos, []
+    with monkeypatch.context() as patch:
+        def unavailable(**kwargs):
+            raise OSError("Synthetic failure resuming the accepted todo's dependents")
+
+        patch.setattr(plan_cards, "resume_ready_plan_todos", unavailable)
+        failed = service.apply(proposal["proposal_id"])["proposal"]
+    assert failed["status"] == "failed", failed
+    assert failed["failure"]["error_code"] == "gate_settlement_retry_required", failed["failure"]
+    assert _todo(fx, todo_id)["status"] == "done", "the accept itself landed"
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]["ok"] is False
+
+    def counting(**kwargs):
+        resumed_goals.append(kwargs["goal_id"])
+        return real_resume(**kwargs)
+
+    monkeypatch.setattr(plan_cards, "resume_ready_plan_todos", counting)
+    retried = service.apply(proposal["proposal_id"])["proposal"]
+    assert retried["status"] == "applied", retried
+    assert resumed_goals == [GOAL], "the retry re-ran the post-accept step"
+    outcome = read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]
+    assert (outcome["ok"], outcome["applied"], outcome["option"]) == (True, True, "accept_manually")
+
+
 @pytest.mark.parametrize("option", REVIEW_GATE_OPTIONS)
 def test_each_gate_option_applies_to_an_unclaimed_delivery(tmp_path, monkeypatch, option: str) -> None:
     # A plan todo without a bound agent is delivered unclaimed: Turns do not claim it. The

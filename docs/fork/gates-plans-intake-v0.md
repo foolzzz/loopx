@@ -48,15 +48,20 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   the proposal is `failed` with a typed code, and retrying it re-runs the
   settlement: `plan_apply_recovery_required` (an interrupted plan apply; the
   details carry the `loopx plan apply` command), `gate_settlement_retry_required`
-  (a budget, goal-completion or review effect that failed; the details name the
-  gate, the settlement and the option) or `gate_push_failed` (the push failed;
+  (a budget, goal-completion or review effect that failed, or a settlement that
+  could not be recorded or waited too long for its gate's settlement lock; the
+  details name the gate and the operation) or `gate_push_failed` (the push failed;
   approve the follow-up push gate named in `retry_gate_todo_id`).
 - A typed gate (`budget_exhausted`, `goal_complete`, `acceptor_blocked`) settles
   one settlement at a time, under a per-gate lock held from reading the recorded
-  outcome through the effect to recording it. A recorded outcome replays and
-  applies nothing. A failed one (`ok: false`) is retried by the next settlement
-  (a dashboard retry, or a `loopx todo complete --role user --decision-outcome`
-  replay) with the first recorded option, which stays the gate's choice.
+  outcome through the effect to recording it. Before the effect runs, an
+  `applying` intent records the decision, the option and the inputs the effect
+  needs (such as the raised budget), so a crash after the effect is retried with
+  the same choice and inputs. A recorded outcome replays and applies nothing. A
+  failed one (`ok: false`) is retried by the next settlement (a dashboard retry,
+  or a `loopx todo complete --role user --decision-outcome` replay) with the first
+  recorded option, which stays the gate's choice. A manual accept that completed
+  the todo but not its post-accept step re-runs that step on retry.
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The

@@ -566,7 +566,7 @@ def settle_goal_complete_gate(
     if entry is None:
         return None
 
-    def apply(decided: str | None, selected: str) -> dict[str, Any]:
+    def apply(decided: str | None, selected: str, _prior: Mapping[str, Any]) -> dict[str, Any]:
         outcome: dict[str, Any] = {"ok": True, "gate_todo_id": gate_todo_id, "decision": decided,
                                    "option": selected, "at": _now()}
         try:
