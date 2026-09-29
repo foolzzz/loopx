@@ -9,6 +9,14 @@ A refusal fails the test it was recorded under, at that test's teardown.
 Refusals recorded under another test or under no test are reported once for
 the whole session, which then exits with a failure status. Under xdist each
 worker hands those refusals to the controller.
+
+The session environment also puts the source tree under test on PYTHONPATH,
+ahead of any earlier entries, so a Python subprocess that inherits it imports
+``loopx`` from that tree rather than from wherever the environment's editable
+install points. Python searches the script directory (or, for ``-c`` and
+``-m``, the cwd) before PYTHONPATH, so a subprocess started from inside
+another checkout still imports that checkout's ``loopx``. A directory whose
+path contains ``os.pathsep`` cannot be a PYTHONPATH entry and is left out.
 """
 
 from __future__ import annotations
@@ -23,18 +31,19 @@ import pytest
 import real_runtime_root_guard as guard
 
 GUARD_DIR = Path(__file__).resolve().parent
+SOURCE_ROOT = GUARD_DIR.parents[1]
 _WORKER_OUTPUT_KEY = "loopx_runtime_root_unattributed"
 _unattributed: list[dict[str, object]] = []
 
 
 def _start() -> None:
-    """Protect the real runtime roots for this process and its Python children.
+    """Protect the real LoopX roots for this process and its Python children.
 
     The roots are captured here, before any test can monkeypatch HOME: the
-    default runtime root of the starting HOME and of the account's home
-    directory, plus an ambient LOOPX_RUNTIME_ROOT. A nested pytest session
-    inherits its parent's roots instead of protecting the temporary HOME it may
-    run under.
+    default runtime root and the ``.loopx`` directory of the starting HOME and
+    of the account's home directory, plus an ambient LOOPX_RUNTIME_ROOT. A
+    nested pytest session inherits its parent's roots instead of protecting the
+    temporary HOME it may run under.
     """
 
     inherited = os.environ.get(guard.PROTECTED_ROOTS_ENV)
@@ -48,7 +57,7 @@ def _start() -> None:
             homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
         except (ImportError, KeyError):
             pass
-        roots = [guard.default_runtime_root(home) for home in homes]
+        roots = [root for home in homes for root in guard.home_roots(home)]
         ambient = os.environ.get("LOOPX_RUNTIME_ROOT")
         if ambient:
             roots.append(os.path.abspath(os.path.expanduser(ambient)))
@@ -57,9 +66,16 @@ def _start() -> None:
     atexit.register(Path(report_path).unlink, missing_ok=True)
     guard.configure(roots, report_path)
     guard.install()
-    os.environ["PYTHONPATH"] = os.pathsep.join(
-        part for part in (str(GUARD_DIR), os.environ.get("PYTHONPATH")) if part
-    )
+    # The guard's sitecustomize first, then the tree under test ahead of any
+    # editable install of another checkout.
+    os.environ["PYTHONPATH"] = python_path(GUARD_DIR, SOURCE_ROOT, existing=os.environ.get("PYTHONPATH"))
+
+
+def python_path(*directories: Path, existing: str | None = None) -> str:
+    """Directories first, then ``existing``; a directory containing os.pathsep is left out."""
+
+    parts = [str(directory) for directory in directories if directory and os.pathsep not in str(directory)]
+    return os.pathsep.join([*parts, *([existing] if existing else [])])
 
 
 _start()
@@ -91,5 +107,5 @@ def pytest_testnodedown(node, error) -> None:
 
 def pytest_terminal_summary(terminalreporter) -> None:
     if _unattributed and not hasattr(terminalreporter.config, "workeroutput"):
-        terminalreporter.section("real LoopX runtime root", red=True, bold=True)
+        terminalreporter.section("real LoopX roots", red=True, bold=True)
         terminalreporter.line(guard.describe_unattributed(_unattributed))

@@ -1475,6 +1475,8 @@ def test_runtime_service_reconciles_manager_route_before_answer(
 ) -> None:
     import loopx.extensions.lark.goal_topic_runtime as runtime
 
+    # The machine-scoped consumer lease lives under ~/.loopx; keep it in tmp_path.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     observed: list[str] = []
     stop = threading.Event()
     snapshot = {
@@ -1521,6 +1523,8 @@ def test_runtime_service_records_safe_failure_code_for_listener_exception(
 ) -> None:
     import loopx.extensions.lark.goal_topic_runtime as runtime
 
+    # The machine-scoped consumer lease lives under ~/.loopx; keep it in tmp_path.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     attempted = threading.Event()
     release = threading.Event()
     snapshot = {
