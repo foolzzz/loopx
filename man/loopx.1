@@ -1,4 +1,4 @@
-.TH LOOPX 1 "" "LoopX 1.2.0" "User Commands"
+.TH LOOPX 1 "" "LoopX 2.0.0" "User Commands"
 .SH NAME
 loopx \- control-plane helper for long-running agent work
 .SH SYNOPSIS
@@ -221,6 +221,30 @@ Register an automation agent.
 .TP
 \fBloopx agent\-directory\fR
 Produce the local, goal\-scoped peer agent directory this host can hand work to.
+.TP
+\fBloopx workspace\fR
+Prepare, inspect, atomically merge and clean up a todo's git worktrees across the Goal's repos.
+.TP
+\fBloopx dispatch serve|status|launchd\-plist\fR
+Run the resident dispatcher that launches role_v1 agent Turns on state events and a periodic tick.
+.TP
+\fBloopx usage report|budget\fR
+Turn cost, tokens and agent\-hours per role, agent, goal, todo, model or day; optional goal budget.
+.TP
+\fBloopx goal create\fR
+Create a role_v1 goal from a requirements doc: agents, repos, authority source and the orchestrator's first todo.
+.TP
+\fBloopx gate reply|show|list\fR
+Discuss a user gate with the orchestrator through its append\-only thread.
+.TP
+\fBloopx plan propose|show|list|apply\fR
+Orchestrator plan cards: a pending plan applied atomically when its plan_approval gate is approved.
+.TP
+\fBloopx agent list|show|validate\fR
+Inspect global and project agent definition files (role, runtime, provider, model).
+.TP
+\fBloopx provider list|check\fR
+List providers and run the auth preflight without printing secrets.
 .TP
 \fBloopx lark\-kanban\fR
 Project LoopX state into a Feishu/Lark Base board.
