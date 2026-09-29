@@ -567,7 +567,7 @@ def settle_goal_complete_gate(
         return None
 
     def pin(_decided: str | None, _selected: str) -> dict[str, Any]:
-        return {"note": note} if note else {}
+        return {"note": note or ""}  # pinned even when empty, so a retry never takes a new note
 
     def apply(decided: str | None, selected: str, prior: Mapping[str, Any]) -> dict[str, Any]:
         pinned_note = (prior.get("pinned") or {}).get("note", note)  # a retry keeps the first note

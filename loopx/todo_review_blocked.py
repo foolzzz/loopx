@@ -350,7 +350,7 @@ def settle_review_gate(
     ran: dict[str, Any] = {}
 
     def pin(_decided: str | None, _selected: str) -> dict[str, Any]:
-        return {"note": note} if note else {}
+        return {"note": note or ""}  # pinned even when empty, so a retry never takes a new note
 
     def apply(_decided: str | None, selected: str, prior: Mapping[str, Any]) -> dict[str, Any]:
         ran.update(_apply_review_option(

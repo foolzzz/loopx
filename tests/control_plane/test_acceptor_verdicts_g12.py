@@ -464,6 +464,31 @@ def test_an_interrupted_return_to_developer_is_retried_with_its_pinned_note(tmp_
     assert "a different note" not in todo["review_feedback"]
 
 
+def test_an_interrupted_return_to_developer_without_a_note_keeps_no_note_on_retry(tmp_path, monkeypatch) -> None:
+    import loopx.todos as todos
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+
+    def settle(note: str | None) -> dict:
+        return settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="reject", option="return_to_developer", note=note)
+
+    with monkeypatch.context() as patch:
+        def interrupted(*args, **kwargs):  # the intent is recorded; the process dies before the todo write
+            raise RuntimeError("Synthetic interruption before the todo is returned")
+
+        patch.setattr(todos, "update_goal_todo", interrupted)
+        with pytest.raises(RuntimeError):
+            settle(None)
+    retried = settle("a different note")
+    assert (retried["ok"], retried["applied"]) == (True, True), retried
+    todo = _todo(fx, todo_id)
+    assert todo["status"] == "open"
+    assert "a different note" not in todo["review_feedback"]
+
+
 def test_an_agent_named_owner_accepting_normally_is_not_this_gates_manual_accept(tmp_path, monkeypatch) -> None:
     import loopx.todo_review_blocked as review_blocked
     from loopx.agent_registry import load_goal_from_registry
