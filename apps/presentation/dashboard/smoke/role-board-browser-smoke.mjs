@@ -63,9 +63,11 @@ function statusFixture() {
   return fixture;
 }
 
-// The gate threads the drawer reads (`GET /api/chat/gate-thread`), per gate.
+// The gate threads the drawer reads (`GET /api/chat/gate-thread`), per gate, as the server holds them now.
 function gateThread(todoId, server) {
-  const base = { ok: true, goal_id: "loopx-meta", todo_id: todoId, status: "open", awaiting: "awaiting_user", messages: [] };
+  const thread = server.threads[todoId] ?? { messages: [], closed: false };
+  const base = { ok: true, goal_id: "loopx-meta", todo_id: todoId, status: thread.closed ? "done" : "open",
+    awaiting: thread.closed ? "closed" : "awaiting_user", messages: [...thread.messages] };
   if (todoId === "todo_rb_plan_gate") {
     // Decisions 12 and 40: the plan card's todos and its acceptance-criteria changes.
     return { ...base, kind: "plan_approval", plan_id: "plan_fedcba987654",
@@ -80,13 +82,20 @@ function gateThread(todoId, server) {
         new: "GET /todos returns 200 paged by 50", reason: "the user asked for paging" }] };
   }
   if (todoId === "todo_rb_budget") {
-    // Decision 41: a budget_exhausted gate; `server.budgetMessages` grows when "the CLI" replies.
+    // Decision 41: a budget_exhausted gate.
     return { ...base, kind: "budget_exhausted", options: ["raise_budget", "continue_without_limit", "stop_goal"],
       budget_usd: 0.6, spent_usd: 1, spent_ratio: 1.6667, estimated_usd: 0.25, default_raise_usd: 0.9,
-      by_role: [{ role: "orchestrator", cost_usd: 0.75, turns: 3 }, { role: "developer", cost_usd: 0.25, turns: 1 }],
-      messages: server.budgetMessages };
+      by_role: [{ role: "orchestrator", cost_usd: 0.75, turns: 3 }, { role: "developer", cost_usd: 0.25, turns: 1 }] };
   }
   return { ...base, kind: "decision" };
+}
+
+async function fulfill(route, response) {
+  try {
+    await route.fulfill({ contentType: "application/json", ...response });
+  } catch {
+    // The page closed while a delayed response was pending.
+  }
 }
 
 async function openBoard(browser, url, locale, { openGates = false } = {}) {
@@ -96,20 +105,52 @@ async function openBoard(browser, url, locale, { openGates = false } = {}) {
     // The gates are open user todos of the goal, so the drawer offers its decisions.
     const queueItem = fixture.attention_queue.items.find((item) => item.goal_id === "loopx-meta");
     const items = fixture.run_history.goals.find((item) => item.id === "loopx-meta").role_board.gates
-      .filter((gate) => gate.awaiting === "awaiting_user")
       .map((gate) => ({ goal_id: "loopx-meta", done: false, text: gate.text, todo_id: gate.todo_id, role: "user", status: "open", task_class: "user_gate" }));
     queueItem.user_todos = { source_section: "User Todo", total_count: items.length, open_count: items.length, done_count: 0, items };
   }
-  const server = { budgetMessages: [], fixture, gateThreadReads: 0, statusReads: 0 };
+  // A controllable gate server: per-gate threads, delays and failures, one slow stale read, captured previews.
+  const server = {
+    delays: {}, failures: new Set(), fixture, gateThreadReads: 0, previews: [], readsByTodo: {}, slowNext: 0, statusReads: 0,
+    threads: { todo_rb_budget: { closed: false, messages: [] }, todo_rb_decision: { closed: false, messages: [] }, todo_rb_plan_gate: { closed: false, messages: [] } },
+  };
   await page.route(`http://127.0.0.1:${port}/status.json**`, (route) => {
     server.statusReads += 1;
     return route.fulfill({ contentType: "application/json", json: server.fixture, status: 200 });
   });
   await page.route("**/api/**", (route) => route.fulfill({ contentType: "application/json", json: { ok: true }, status: 200 }));
-  await page.route("**/api/chat/gate-thread?**", (route) => {
-    server.gateThreadReads += 1;
+  await page.route((address) => address.pathname === "/api/chat/gate-thread", async (route) => {
     const todoId = new URL(route.request().url()).searchParams.get("todo_id");
-    return route.fulfill({ contentType: "application/json", status: 200, json: gateThread(todoId, server) });
+    server.gateThreadReads += 1;
+    server.readsByTodo[todoId] = (server.readsByTodo[todoId] ?? 0) + 1;
+    const payload = gateThread(todoId, server); // what the gate holds when the read arrives
+    const wait = Math.max(server.delays[todoId] ?? 0, server.slowNext);
+    server.slowNext = 0;
+    if (wait) await new Promise((resolveWait) => setTimeout(resolveWait, wait));
+    if (server.failures.has(todoId)) {
+      await fulfill(route, { json: { ok: false, error: "gate thread unavailable", error_code: "internal_error" }, status: 500 });
+      return;
+    }
+    await fulfill(route, { json: payload, status: 200 });
+  });
+  await page.route((address) => address.pathname === "/api/chat/gate-thread/reply", async (route) => {
+    const body = route.request().postDataJSON();
+    const thread = server.threads[body.todo_id];
+    const message = { seq: thread.messages.length + 1, message_id: `m-${thread.messages.length + 1}`, author: "user", agent_id: null,
+      text: body.text.trim(), at: "2026-09-28T10:05:00+00:00" };
+    thread.messages.push(message);
+    await fulfill(route, { json: { ok: true, todo_id: body.todo_id, awaiting: "awaiting_orchestrator", message }, status: 200 });
+  });
+  await page.route((address) => address.pathname === "/api/actions/preview", async (route) => {
+    const body = route.request().postDataJSON();
+    server.previews.push(body);
+    const proposal = {
+      schema_version: "loopx_chat_action_proposal_v1", proposal_id: `proposal-${body.idempotency_key}`, action_kind: body.action_kind,
+      summary: body.summary, normalized_parameters: body.normalized_parameters, context: body.context,
+      expected_state_fingerprint: "fixture-r1", permission_classification: "durable_write", validation_evidence: ["fixture validation"],
+      available_transitions: ["apply", "cancel"], status: "preview_ready", receipt: null, stale: null,
+      created_at: "2026-09-28T10:00:00Z", updated_at: "2026-09-28T10:00:00Z",
+    };
+    await fulfill(route, { json: { ok: true, proposal }, status: 201 });
   });
   await page.goto(url, { waitUntil: "networkidle" });
   await page.locator(".personal-goal-link").filter({ hasText: GOAL_TITLE }).click();
@@ -124,10 +165,42 @@ async function setPageHidden(page, hidden) {
   }, hidden);
 }
 
+// The decision controls as rendered right now (read synchronously in the page).
+function decisionControls(page) {
+  return page.evaluate(() => {
+    const drawer = document.querySelector("[data-context-drawer]");
+    const primary = drawer?.querySelector(".personal-primary-action");
+    const resolutions = [...(drawer?.querySelectorAll(".personal-compact-menu [data-gate-option], .personal-compact-menu [data-gate-decision]") ?? [])];
+    return {
+      budgetCard: Boolean(drawer?.querySelector('[data-testid="gate-budget"]')),
+      enabledResolutions: resolutions.filter((button) => !button.disabled).length,
+      label: primary?.textContent ?? null,
+      option: primary?.getAttribute("data-gate-option") ?? null,
+      planCard: Boolean(drawer?.querySelector('[data-testid="gate-plan-card"]')),
+      primaryEnabled: primary ? !primary.disabled : null,
+      reply: Boolean(drawer?.querySelector('[data-testid="gate-thread"] textarea')),
+      resolutions: resolutions.length,
+      status: drawer?.querySelector("[data-gate-decision-status]")?.getAttribute("data-gate-decision-status") ?? null,
+    };
+  });
+}
+
+async function until(check, message, timeout = 9_000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+  }
+  throw new Error(`Timed out: ${message}`);
+}
+
 /**
- * On a writable (local) source: a typed gate's approve names its option, the open
- * thread polls so a reply made elsewhere appears without reopening, a changed
- * thread refreshes the board row, and polling stops while hidden or once closed.
+ * On a writable (local) source, the gate drawer offers decisions only on a
+ * successful read of the gate it shows now, names a typed gate's option and
+ * submits it, and keeps the open thread live: a reply made elsewhere appears
+ * without reopening, a changed thread refreshes the board row, an older read
+ * never replaces a newer one, focus re-reads, and polling stops while hidden,
+ * once the gate is closed and once the drawer closes.
  */
 async function checkGateDecisions(browser, locale) {
   const zh = locale === "zh-CN";
@@ -136,40 +209,93 @@ async function checkGateDecisions(browser, locale) {
   page.on("pageerror", (error) => errors.push(error.message));
   const api = page.loopxServer;
   await page.getByRole("button", { name: zh ? "角色看板" : "Role board", exact: true }).click();
-  const gates = page.getByRole("region", { name: zh ? "等你处理" : "Waiting on you" }).locator(".personal-role-gate");
+  const row = (todoId) => page.locator(`.personal-role-gate[data-todo-id="${todoId}"]`);
   const drawer = page.locator("[data-context-drawer]");
   const approve = drawer.locator(".personal-primary-action").first();
-  const settled = () => page.waitForFunction(() => {
-    const button = document.querySelector("[data-context-drawer] .personal-primary-action");
-    return button && !button.disabled;
-  });
+  const ready = () => until(async () => (await decisionControls(page)).primaryEnabled === true, "the gate becomes actionable");
+  const plainLabel = zh ? "查看影响并决定" : "Review impact and decide";
+  const budgetLabel = zh ? "批准（raise_budget）" : "Approve (raise_budget)";
 
-  await gates.first().click();
-  await drawer.locator('[data-testid="gate-plan-card"]').waitFor({ state: "visible" });
-  await settled();
-  assert.equal(await approve.innerText(), zh ? "查看影响并决定" : "Review impact and decide", "A plan approval keeps the plain review action");
-  assert.equal(await approve.getAttribute("data-gate-option"), null, "A plan approval sends no option");
-
-  await gates.nth(1).click();
-  await drawer.locator('[data-testid="gate-budget"]').waitFor({ state: "visible" });
-  await settled();
-  assert.equal(await approve.innerText(), zh ? "批准（raise_budget）" : "Approve (raise_budget)", "Typed approve names its option");
-  assert.equal(await approve.getAttribute("data-gate-option"), "raise_budget", "Typed approve previews that option explicitly");
+  // Delayed read: nothing is decidable until this gate has been read.
+  api.delays.todo_rb_budget = 1_500;
+  await row("todo_rb_budget").click();
+  let controls = await decisionControls(page);
+  assert.deepEqual([controls.primaryEnabled, controls.status, controls.enabledResolutions, controls.option],
+    [false, "pending", 0, null], "A gate still being read offers no decision");
+  if (!zh) assert.match(await drawer.locator("[data-gate-decision-status]").innerText(), /Reading this gate/, "English pending note");
+  await ready();
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.label, controls.option, controls.enabledResolutions, controls.status],
+    [budgetLabel, "raise_budget", 3, null], "A read typed gate names its option and enables every resolution");
+  delete api.delays.todo_rb_budget;
   if (!zh) {
     assert.deepEqual(errors, [], "No page errors");
     await page.close();
     return;
   }
 
+  // Switched gate: the next gate never shows the previous gate's option or facts, not even for one render.
+  api.delays.todo_rb_plan_gate = 1_500;
+  await row("todo_rb_plan_gate").click();
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.primaryEnabled, controls.option, controls.label, controls.budgetCard, controls.enabledResolutions],
+    [false, null, plainLabel, false, 0], "Switching gates resets the decision state before the new read");
+  await ready();
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.label, controls.option, controls.planCard, controls.enabledResolutions], [plainLabel, null, true, 3],
+    "A plan approval keeps the plain review action once read");
+  delete api.delays.todo_rb_plan_gate;
+
+  // Submitted decisions: {decision, option} as the preview request carries them.
+  await approve.click();
+  await until(() => api.previews.length === 1, "the plan preview request");
+  assert.deepEqual([api.previews[0].action_kind, api.previews[0].normalized_parameters.decision, "option" in api.previews[0].normalized_parameters,
+    api.previews[0].normalized_parameters.todo_id], ["gate.resolve", "approve", false, "todo_rb_plan_gate"], "A plan approve sends no option");
+  await row("todo_rb_budget").click();
+  await ready();
+  await approve.click();
+  await until(() => api.previews.length === 2, "the budget preview request");
+  assert.deepEqual([api.previews[1].normalized_parameters.decision, api.previews[1].normalized_parameters.option],
+    ["approve", "raise_budget"], "The typed approve submits its named option");
+  await row("todo_rb_budget").click();
+  await ready();
+  await drawer.locator(".personal-compact-menu > summary").click();
+  await drawer.locator('.personal-compact-menu [data-gate-option="continue_without_limit"]').click();
+  await until(() => api.previews.length === 3, "the overflow preview request");
+  assert.deepEqual([api.previews[2].normalized_parameters.decision, api.previews[2].normalized_parameters.option],
+    ["approve", "continue_without_limit"], "An overflow option submits its own option");
+
+  // Focus re-reads at once (the 5 s poll is not due yet).
+  await row("todo_rb_budget").click();
+  await ready();
+  await page.waitForTimeout(800);
+  let reads = api.readsByTodo.todo_rb_budget;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await until(() => api.readsByTodo.todo_rb_budget > reads, "a read on window focus", 1_000);
+
   // A reply lands through the CLI while the drawer stays open: the thread polls, the board row follows.
   const statusReadsBefore = api.statusReads;
-  api.budgetMessages = [{ seq: 1, message_id: "m1", author: "orchestrator", agent_id: "fable-orch",
-    text: "CLI-REPLY: the orchestrator used $0.75", at: "2026-09-28T10:00:00+00:00" }];
+  api.threads.todo_rb_budget.messages.push({ seq: 1, message_id: "m-1", author: "orchestrator", agent_id: "fable-orch",
+    text: "CLI-REPLY: the orchestrator used $0.75", at: "2026-09-28T10:00:00+00:00" });
   api.fixture.run_history.goals.find((item) => item.id === "loopx-meta").role_board.gates
     .find((gate) => gate.todo_id === "todo_rb_budget").message_count = 1;
   await page.waitForFunction(() => document.querySelector('[data-testid="gate-thread"]')?.textContent?.includes("CLI-REPLY"), null, { timeout: 9_000 });
   await page.waitForFunction(() => /1 条消息/.test(document.querySelector('.personal-role-gate[data-todo-id="todo_rb_budget"]')?.textContent ?? ""), null, { timeout: 9_000 });
   assert.ok(api.statusReads > statusReadsBefore, "A changed thread refreshes the status projection");
+  const log = drawer.locator('[data-testid="gate-thread"] [role="log"]');
+  assert.deepEqual([await log.getAttribute("aria-live"), await log.getAttribute("aria-relevant")], ["polite", "additions text"],
+    "The message list is a polite log");
+
+  // Out of order: a slow poll started before the owner's reply must not replace the newer read.
+  reads = api.readsByTodo.todo_rb_budget;
+  api.slowNext = 4_000;
+  await until(() => api.readsByTodo.todo_rb_budget > reads, "the slow poll starts", 7_000);
+  await drawer.getByRole("textbox", { name: "回复" }).fill("UI-REPLY: raise it to $2");
+  await drawer.getByRole("button", { name: /发送回复/ }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="gate-thread"]')?.textContent?.includes("UI-REPLY"), null, { timeout: 5_000 });
+  await page.waitForTimeout(4_500);
+  assert.match(await drawer.locator('[data-testid="gate-thread"]').innerText(), /CLI-REPLY[\s\S]*UI-REPLY/,
+    "The stale slow read did not replace the newer thread");
 
   // Hidden page: no polling; visible again: an immediate read.
   await setPageHidden(page, true);
@@ -180,7 +306,33 @@ async function checkGateDecisions(browser, locale) {
   await page.waitForTimeout(500);
   assert.ok(api.gateThreadReads > readsWhileHidden, "Becoming visible re-reads the thread");
 
+  // Failed read: nothing is decidable, the note says so, and the panel retries.
+  api.failures.add("todo_rb_decision");
+  const previews = api.previews.length;
+  await row("todo_rb_decision").click();
+  await until(async () => (await decisionControls(page)).status === "unavailable", "the failed read is reported");
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.primaryEnabled, controls.enabledResolutions, controls.resolutions], [false, 0, 3],
+    "A failed read enables neither the primary nor any overflow resolution");
+  await approve.click({ force: true, timeout: 1_000 }).catch(() => {});
+  assert.equal(api.previews.length, previews, "A disabled decision sends no preview");
+  api.failures.delete("todo_rb_decision");
+  await until(async () => (await decisionControls(page)).primaryEnabled === true, "the retried read enables decisions", 7_000);
+
+  // Closed gate: shown, but not decidable, no reply box, and no more polling.
+  api.threads.todo_rb_budget.closed = true;
+  await row("todo_rb_budget").click();
+  await until(async () => (await decisionControls(page)).status === "closed", "the closed gate is reported");
+  controls = await decisionControls(page);
+  assert.deepEqual([controls.primaryEnabled, controls.enabledResolutions, controls.reply, controls.budgetCard], [false, 0, false, true],
+    "A closed gate keeps its facts but offers no decision or reply");
+  reads = api.readsByTodo.todo_rb_budget;
+  await page.waitForTimeout(5_600);
+  assert.equal(api.readsByTodo.todo_rb_budget, reads, "A closed gate is not polled");
+
   // Closing the drawer stops polling.
+  await row("todo_rb_plan_gate").click();
+  await ready();
   await drawer.locator(".personal-drawer-close").click();
   await drawer.waitFor({ state: "detached" });
   const readsAfterClose = api.gateThreadReads;

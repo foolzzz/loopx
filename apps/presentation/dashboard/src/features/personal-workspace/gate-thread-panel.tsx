@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { ChatApiError, fetchGateThread, replyToGateThread } from "../../data/chat";
 import type { GateThreadView } from "../../data/gate-thread";
+import type { GateThreadState } from "./gate-decisions";
 import { useWorkspaceI18n } from "./i18n";
 import { useVisiblePolling } from "./use-visible-polling";
 
@@ -13,10 +14,11 @@ const HIDDEN_ERROR_CODES = new Set(["not_a_user_gate", "gate_not_found", "goal_n
 /** Discussion thread of a user gate: read the messages and append an owner reply.
  * Replying never closes the gate; approve/reject/cancel stay on gate.resolve.
  * While the panel is open and the page visible it re-reads the thread every few
- * seconds and on window focus, until the gate closes. `onView` receives each
- * read, or `null` once the panel has nothing to show (not a gate, read failed). */
-export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
-  goalId: string; todoId: string; readOnly: boolean; onView?: (view: GateThreadView | null) => void;
+ * seconds and on window focus, until the gate closes. `onState` receives each
+ * successful read of this exact gate (`ready` or `closed`), or why there is
+ * none (`unavailable`, `not_gate`); the drawer offers decisions only on `ready`. */
+export function GateThreadPanel({ goalId, todoId, readOnly, onState }: {
+  goalId: string; todoId: string; readOnly: boolean; onState?: (state: GateThreadState) => void;
 }) {
   const { t } = useWorkspaceI18n();
   const [view, setView] = useState<GateThreadView | null>(null);
@@ -43,21 +45,33 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
       const next = await fetchGateThread(goalId, todoId);
       if (mine !== generation.current || request < applied.current) return;
       applied.current = request;
+      if (next.goal_id !== goalId || next.todo_id !== todoId) {
+        // A read of another gate is never this gate's state.
+        if (!shown.current) {
+          setLoadError(true);
+          onState?.({ goalId, todoId, status: "unavailable" });
+        }
+        return;
+      }
       shown.current = true;
       setView(next);
       setLoadError(false);
-      onView?.(next);
+      onState?.({ goalId, todoId, status: next.awaiting === "closed" ? "closed" : "ready", view: next });
     } catch (error) {
       // A failed background read keeps the last thread; the next poll retries.
       if (mine !== generation.current || request < applied.current || mode === "poll") return;
       const code = error instanceof ChatApiError ? String(error.payload.error_code ?? "") : "";
-      if (HIDDEN_ERROR_CODES.has(code)) setHidden(true);
-      else setLoadError(true);
-      if (!shown.current) onView?.(null);
+      if (HIDDEN_ERROR_CODES.has(code)) {
+        setHidden(true);
+        onState?.({ goalId, todoId, status: "not_gate" });
+        return;
+      }
+      setLoadError(true);
+      if (!shown.current) onState?.({ goalId, todoId, status: "unavailable" });
     } finally {
       pending.current -= 1;
     }
-  }, [goalId, todoId, onView]);
+  }, [goalId, todoId, onState]);
 
   useEffect(() => {
     generation.current += 1;
@@ -101,12 +115,12 @@ export function GateThreadPanel({ goalId, todoId, readOnly, onView }: {
     <section className="personal-detail-card personal-gate-thread" data-testid="gate-thread" aria-label={t("gateThread.title")}>
       <header>
         <strong>{t("gateThread.title")}</strong>
-        {view ? <small aria-live="polite" data-awaiting={view.awaiting}>{t(`gateThread.${view.awaiting}`)}</small> : null}
+        {view ? <small data-awaiting={view.awaiting}>{t(`gateThread.${view.awaiting}`)}</small> : null}
       </header>
       {loadError ? <p className="personal-gate-thread-empty">{t("gateThread.loadError")}</p> : null}
       {view && view.messages.length === 0 ? <p className="personal-gate-thread-empty">{t("gateThread.empty")}</p> : null}
       {view && view.messages.length ? (
-        <ol className="personal-gate-thread-messages" ref={messagesRef}>
+        <ol aria-label={t("gateThread.messages")} aria-live="polite" aria-relevant="additions text" className="personal-gate-thread-messages" ref={messagesRef} role="log">
           {view.messages.map((message) => (
             <li className={`is-${message.author}`} key={message.message_id}>
               <small>{message.author === "user" ? t("gateThread.you") : t("gateThread.orchestrator", { agent: message.agent_id ?? "" })} · {message.at}</small>

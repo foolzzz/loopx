@@ -1195,6 +1195,9 @@
 .personal-gate-facts dt { color: var(--pw-faint); }
 .personal-gate-facts dd { display: grid; gap: 2px; margin: 0; color: var(--pw-text); overflow-wrap: anywhere; }
 .personal-gate-facts-warning { color: var(--pw-amber); font-size: 11px; }
+.personal-gate-decision-status { margin: 0; color: var(--pw-muted); font-size: 12px; line-height: 1.5; }
+.personal-gate-decision-status[data-gate-decision-status="unavailable"] { color: var(--pw-amber); }
+.personal-compact-menu button:disabled { opacity: .46; cursor: default; }
 .personal-gate-facts-list { display: grid; gap: 0; margin: 6px 0 0; padding: 0; list-style: none; }
 .personal-gate-facts-list > li { display: grid; gap: 3px; padding: 7px 0; border-top: 1px solid var(--pw-line-strong); font-size: 12px; }
 .personal-gate-facts-list > li > p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }

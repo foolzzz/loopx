@@ -9,7 +9,7 @@ import {
   type TodoPreview,
 } from "./chat-model.js";
 import type {DelegationPreflight} from "./delegation-preflight.js";
-import { gateThreadReplySchema, gateThreadViewSchema } from "./gate-thread.js";
+import { gateThreadReplySchema, parseGateThreadView } from "./gate-thread.js";
 
 const configuredChatOrigin = String(import.meta.env?.VITE_LOOPX_CHAT_ORIGIN ?? "")
   .trim()
@@ -1268,7 +1268,7 @@ const GATE_THREAD_READ_TIMEOUT_MS = 10_000;
 /** Read a user gate's discussion thread (owner-local, loopback only). */
 export async function fetchGateThread(goalId: string, todoId: string) {
   const params = new URLSearchParams({ goal_id: goalId, todo_id: todoId });
-  return gateThreadViewSchema.parse(await requestJson<unknown>(`/api/chat/gate-thread?${params}`, {
+  return parseGateThreadView(await requestJson<unknown>(`/api/chat/gate-thread?${params}`, {
     signal: AbortSignal.timeout(GATE_THREAD_READ_TIMEOUT_MS),
   }));
 }

@@ -1,6 +1,15 @@
+import type { ReactNode } from "react";
 import { GitBranch } from "lucide-react";
 
-import type { GatePlanCard, GateThreadView } from "../../data/gate-thread";
+import type {
+  GateBudget,
+  GateCompletion,
+  GateCriteriaChange,
+  GatePlanCard,
+  GatePush,
+  GateSection,
+  GateThreadView,
+} from "../../data/gate-thread";
 import { useWorkspaceI18n, type WorkspaceMessageKey } from "./i18n";
 import { ROLE_BOARD_GATE_KINDS, ROLE_BOARD_ROLES, formatUsd, type RoleBoardGateKind, type RoleBoardRole } from "./role-board-model";
 
@@ -23,13 +32,24 @@ function useRoleLabel() {
     ? t(`roles.role.${role as RoleBoardRole}`) : role ?? "";
 }
 
+/** A malformed or missing part of the gate: said plainly, never shown as empty or zero. */
+function Unavailable({ testid }: { testid: string }) {
+  const { t } = useWorkspaceI18n();
+  return <p className="personal-gate-facts-warning" data-section-unavailable={testid} role="note">{t("gateThread.sectionUnavailable")}</p>;
+}
+
+function renderSection<T>(value: GateSection<T> | undefined, testid: string, render: (value: T) => ReactNode) {
+  if (!value) return null;
+  return value.state === "ready" ? render(value.value) : <Unavailable testid={testid} />;
+}
+
 function PlanCard({ plan }: { plan: GatePlanCard }) {
   const { t } = useWorkspaceI18n();
   const roleLabel = useRoleLabel();
   return (
     <div className="personal-gate-plan" data-testid="gate-plan-card">
       <p className="personal-gate-detail-lead">
-        <strong>{plan.title ?? plan.plan_id}</strong>
+        <strong>{plan.title}</strong>
         <small>{t("roles.planSummary", { count: plan.todos.length, revision: plan.revision ?? 1 })}</small>
       </p>
       {plan.summary ? <p className="personal-gate-plan-summary">{plan.summary}</p> : null}
@@ -53,8 +73,9 @@ function PlanCard({ plan }: { plan: GatePlanCard }) {
   );
 }
 
-function CriteriaChanges({ changes }: { changes: NonNullable<GateThreadView["criteria_changes"]> }) {
+function CriteriaChanges({ changes }: { changes: GateCriteriaChange[] }) {
   const { t } = useWorkspaceI18n();
+  if (!changes.length) return null;
   return (
     <div className="personal-gate-thread-criteria" data-testid="gate-criteria-changes">
       <p className="personal-gate-thread-plan">{t("gateThread.criteriaChanges")}</p>
@@ -82,19 +103,19 @@ function CriteriaChanges({ changes }: { changes: NonNullable<GateThreadView["cri
   );
 }
 
-function PushRepos({ view }: { view: GateThreadView }) {
+function PushRepos({ push }: { push: GatePush }) {
   const { t } = useWorkspaceI18n();
   return (
     <div data-testid="gate-push-repos">
-      <p className="personal-gate-thread-plan">{t(view.push_reason === "push_failed" ? "gateThread.pushRetryLead" : "gateThread.pushLead")}</p>
+      <p className="personal-gate-thread-plan">{t(push.push_reason === "push_failed" ? "gateThread.pushRetryLead" : "gateThread.pushLead")}</p>
       <ul className="personal-gate-facts-list">
-        {(view.push_repos ?? []).map((repo) => (
+        {push.push_repos.map((repo) => (
           <li data-push-repo={repo.name} key={repo.name}>
             <p><strong>{repo.name}</strong>{repo.branch ? <code>{repo.remote ? `${repo.branch} → ${repo.remote}` : repo.branch}</code> : null}</p>
-            <small>{repo.status === "ready"
-              ? t("gateThread.pushCommits", { count: repo.unpushed_commits ?? repo.log.length, range: repo.commit_range ?? "" })
+            <small>{repo.status === "ready" && repo.unpushed_commits != null && repo.commit_range
+              ? t("gateThread.pushCommits", { count: repo.unpushed_commits, range: repo.commit_range })
               : t("gateThread.pushSkipped", { reason: repo.note ?? repo.status })}</small>
-            {repo.log.length ? <ol className="personal-gate-commit-log">{repo.log.map((line) => <li key={line}><code>{line}</code></li>)}</ol> : null}
+            {repo.log?.length ? <ol className="personal-gate-commit-log">{repo.log.map((line) => <li key={line}><code>{line}</code></li>)}</ol> : null}
           </li>
         ))}
       </ul>
@@ -102,31 +123,32 @@ function PushRepos({ view }: { view: GateThreadView }) {
   );
 }
 
-function BudgetFacts({ view }: { view: GateThreadView }) {
+function BudgetFacts({ budget }: { budget: GateBudget }) {
   const { t } = useWorkspaceI18n();
   const roleLabel = useRoleLabel();
-  if (view.budget_usd == null || view.spent_usd == null) return null;
-  const ratio = view.spent_ratio ?? (view.budget_usd > 0 ? view.spent_usd / view.budget_usd : null);
+  const ratio = budget.spent_ratio ?? (budget.budget_usd > 0 ? budget.spent_usd / budget.budget_usd : null);
   return (
     <dl className="personal-gate-facts" data-testid="gate-budget">
       <div>
         <dt>{t("gateThread.budgetSpent")}</dt>
-        <dd>{t("gateThread.budgetSpentValue", { budget: formatUsd(view.budget_usd), percent: ratio == null ? "-" : Math.round(ratio * 100), spent: formatUsd(view.spent_usd) })}</dd>
+        <dd>{t("gateThread.budgetSpentValue", { budget: formatUsd(budget.budget_usd), percent: ratio == null ? "-" : Math.round(ratio * 100), spent: formatUsd(budget.spent_usd) })}</dd>
       </div>
-      {view.estimated_usd ? <div><dt>{t("gateThread.budgetEstimated")}</dt><dd>{formatUsd(view.estimated_usd)}</dd></div> : null}
-      {view.by_role?.length ? (
+      {budget.estimated_usd ? <div><dt>{t("gateThread.budgetEstimated")}</dt><dd>{formatUsd(budget.estimated_usd)}</dd></div> : null}
+      {budget.by_role?.length ? (
         <div>
           <dt>{t("gateThread.budgetByRole")}</dt>
-          <dd>{view.by_role.map((row) => t("gateThread.budgetRoleValue", { cost: formatUsd(row.cost_usd), role: roleLabel(row.role), turns: row.turns ?? 0 })).join(" / ")}</dd>
+          <dd>{budget.by_role.map((row) => row.turns == null
+            ? `${roleLabel(row.role)} ${formatUsd(row.cost_usd)}`
+            : t("gateThread.budgetRoleValue", { cost: formatUsd(row.cost_usd), role: roleLabel(row.role), turns: row.turns })).join(" / ")}</dd>
         </div>
       ) : null}
-      {view.default_raise_usd ? (
+      {budget.default_raise_usd ? (
         <div>
           <dt>{t("gateThread.budgetRaise")}</dt>
           <dd>
-            {formatUsd(view.default_raise_usd)}
+            {formatUsd(budget.default_raise_usd)}
             {/* LoopX refuses a raise that does not cover the spend; the note carries the amount. */}
-            {view.default_raise_usd <= view.spent_usd ? <small className="personal-gate-facts-warning" data-budget-raise-short>{t("gateThread.budgetRaiseShort")}</small> : null}
+            {budget.default_raise_usd <= budget.spent_usd ? <small className="personal-gate-facts-warning" data-budget-raise-short>{t("gateThread.budgetRaiseShort")}</small> : null}
           </dd>
         </div>
       ) : null}
@@ -134,25 +156,21 @@ function BudgetFacts({ view }: { view: GateThreadView }) {
   );
 }
 
-function CompletionFacts({ view }: { view: GateThreadView }) {
+function CompletionFacts({ completion }: { completion: GateCompletion }) {
   const { t } = useWorkspaceI18n();
-  const usage = view.completion_usage;
-  const todos = view.completion_todos;
-  if (!usage && !todos && !view.completion_repos?.length) return null;
+  const usage = completion.completion_usage;
   return (
     <dl className="personal-gate-facts" data-testid="gate-goal-complete">
-      {todos ? <div><dt>{t("gateThread.completeTodos")}</dt><dd>{t("gateThread.completeTodosValue", todos)}</dd></div> : null}
-      {usage ? (
-        <div>
-          <dt>{t("gateThread.completeUsage")}</dt>
-          <dd>{t("gateThread.completeUsageValue", { cost: formatUsd(usage.cost_usd ?? 0), hours: (usage.agent_hours ?? 0).toFixed(1), turns: usage.turns ?? 0 })}</dd>
-        </div>
-      ) : null}
-      {view.completion_repos?.length ? (
+      <div><dt>{t("gateThread.completeTodos")}</dt><dd>{t("gateThread.completeTodosValue", completion.completion_todos)}</dd></div>
+      <div>
+        <dt>{t("gateThread.completeUsage")}</dt>
+        <dd>{t("gateThread.completeUsageValue", { cost: formatUsd(usage.cost_usd), hours: usage.agent_hours.toFixed(1), turns: usage.turns })}</dd>
+      </div>
+      {completion.completion_repos?.length ? (
         <div>
           <dt>{t("gateThread.completeRepos")}</dt>
           <dd>
-            {view.completion_repos.map((repo) => (
+            {completion.completion_repos.map((repo) => (
               <span data-completion-repo={repo.name} key={repo.name}>{t("gateThread.completeRepoValue", {
                 branch: repo.branch ?? "-",
                 merges: repo.merged_todo_commits.length,
@@ -163,8 +181,8 @@ function CompletionFacts({ view }: { view: GateThreadView }) {
           </dd>
         </div>
       ) : null}
-      {view.follow_ups?.length ? (
-        <div><dt>{t("gateThread.completeFollowUps")}</dt><dd>{view.follow_ups.map((item) => <span key={item.todo_id ?? item.text}>{item.text}</span>)}</dd></div>
+      {completion.follow_ups?.length ? (
+        <div><dt>{t("gateThread.completeFollowUps")}</dt><dd>{completion.follow_ups.map((item) => <span key={item.todo_id ?? item.text}>{item.text}</span>)}</dd></div>
       ) : null}
     </dl>
   );
@@ -173,33 +191,38 @@ function CompletionFacts({ view }: { view: GateThreadView }) {
 /**
  * What a gate asks the owner to decide, by kind: the plan card and its criteria
  * changes, the repos a push sends, the budget spend, or the finished goal's
- * summary. A plain decision has nothing beyond its text and thread.
+ * summary. A part that is missing or malformed is reported unavailable. A plain
+ * decision has nothing beyond its text and thread.
  */
 export function GateKindDetails({ view }: { view: GateThreadView | null }) {
   const { t } = useWorkspaceI18n();
   if (!view || view.kind === "decision") return null;
-  let body = null;
+  const { sections } = view;
+  let body: ReactNode = null;
   if (view.kind === "plan_approval") {
     body = (
       <>
-        {view.plan_id ? <p className="personal-gate-thread-plan">{t("gateThread.planCard", { planId: view.plan_id })}</p> : null}
-        {view.plan ? <PlanCard plan={view.plan} /> : null}
-        {view.criteria_changes?.length ? <CriteriaChanges changes={view.criteria_changes} /> : null}
+        {sections.plan?.state === "ready" ? <p className="personal-gate-thread-plan">{t("gateThread.planCard", { planId: sections.plan.value.plan_id })}</p> : null}
+        {renderSection(sections.plan, "plan", (plan) => <PlanCard plan={plan} />)}
+        {renderSection(sections.criteriaChanges, "criteria-changes", (changes) => <CriteriaChanges changes={changes} />)}
       </>
     );
   } else if (view.kind === "acceptor_blocked") {
-    body = <p className="personal-gate-thread-plan">{t("gateThread.acceptorBlocked", { todoId: view.review_todo_id ?? "" })}</p>;
-  } else if (view.kind === "push_request" && view.push_repos?.length) {
-    body = <PushRepos view={view} />;
-  } else if (view.kind === "budget_exhausted" && view.budget_usd != null && view.spent_usd != null) {
-    body = <BudgetFacts view={view} />;
-  } else if (view.kind === "goal_complete" && (view.completion_todos || view.completion_usage || view.completion_repos?.length)) {
-    body = <CompletionFacts view={view} />;
+    body = renderSection(sections.reviewTodoId, "review-todo", (todoId) => (
+      <p className="personal-gate-thread-plan">{t("gateThread.acceptorBlocked", { todoId })}</p>
+    ));
+  } else if (view.kind === "push_request") {
+    body = renderSection(sections.push, "push", (push) => <PushRepos push={push} />);
+  } else if (view.kind === "budget_exhausted") {
+    body = renderSection(sections.budget, "budget", (budget) => <BudgetFacts budget={budget} />);
+  } else if (view.kind === "goal_complete") {
+    body = renderSection(sections.completion, "goal-complete", (completion) => <CompletionFacts completion={completion} />);
   }
   if (!body) return null;
+  const label = isGateKind(view.kind) ? t(`roles.gateKind.${view.kind}`) : view.kind;
   return (
-    <section aria-label={isGateKind(view.kind) ? t(`roles.gateKind.${view.kind}`) : view.kind} className="personal-detail-card personal-gate-kind" data-gate-kind={view.kind}>
-      <header><strong>{isGateKind(view.kind) ? t(`roles.gateKind.${view.kind}`) : view.kind}</strong></header>
+    <section aria-label={label} className="personal-detail-card personal-gate-kind" data-gate-kind={view.kind}>
+      <header><strong>{label}</strong></header>
       {body}
     </section>
   );

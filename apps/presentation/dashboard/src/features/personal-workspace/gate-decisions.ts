@@ -2,6 +2,7 @@
 // Each option implies its decision (`loopx gate resolve --option`); the drawer
 // sends the option explicitly, so no button relies on the backend's default.
 // It has no runtime imports so contract smokes can compile it standalone.
+import type { GateThreadView } from "../../data/gate-thread";
 
 export type GateResolution = "approve" | "reject" | "cancel";
 
@@ -53,4 +54,33 @@ export function gateOptionChoices(kind: string | null | undefined): readonly Gat
 /** The option the drawer's primary approve button selects on a typed gate. */
 export function primaryGateOption(kind: string | null | undefined): GateOptionChoice | null {
   return gateOptionChoices(kind)?.find((choice) => choice.primary) ?? null;
+}
+
+/** What the drawer's thread panel last learned about one gate (goal + todo identity). */
+export type GateThreadState =
+  | { goalId: string; todoId: string; status: "ready" | "closed"; view: GateThreadView }
+  | { goalId: string; todoId: string; status: "unavailable" | "not_gate" };
+
+/**
+ * Whether the drawer may offer decisions on the gate it shows now. Only a
+ * successful read of this exact gate that is still open is actionable; a read
+ * of another gate, no read yet, a failed read and a closed gate are not.
+ */
+export type GateDecisionAccess = {
+  actionable: boolean;
+  reason: "pending" | "ready" | "closed" | "unavailable" | "not_gate";
+  view: GateThreadView | null;
+};
+
+export function gateDecisionAccess(
+  state: GateThreadState | null,
+  gate: { goalId: string; todoId: string } | null,
+): GateDecisionAccess {
+  if (!state || !gate || state.goalId !== gate.goalId || state.todoId !== gate.todoId) {
+    return { actionable: false, reason: "pending", view: null };
+  }
+  if (state.status === "ready" || state.status === "closed") {
+    return { actionable: state.status === "ready", reason: state.status, view: state.view };
+  }
+  return { actionable: false, reason: state.status, view: null };
 }

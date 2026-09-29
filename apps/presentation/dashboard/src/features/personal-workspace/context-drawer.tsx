@@ -2,7 +2,7 @@ import { GoalAcceptanceObservationCard } from "./goal-acceptance-observation-car
 import { AttentionDetailCard } from "./attention-detail-card";
 import { GateThreadPanel } from "./gate-thread-panel";
 import { GateKindDetails } from "./gate-kind-details";
-import { gateOptionChoices, primaryGateOption } from "./gate-decisions";
+import { gateDecisionAccess, gateOptionChoices, primaryGateOption, type GateThreadState } from "./gate-decisions";
 import { attentionSuccessor, canReviewAttention } from "./attention-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -41,7 +41,7 @@ import type {
   WorkspaceTodo,
 } from "./personal-workspace-model";
 import type { LarkGoalConnection } from "../../data/chat";
-import { gateThreadSignature, type GateThreadView } from "../../data/gate-thread";
+import { gateThreadSignature } from "../../data/gate-thread";
 import { localizedAttentionAge, localizedGoalState, localizedSessionStatus, useWorkspaceI18n } from "./i18n";
 import { formatCostUsd, formatDurationMs, formatTokenCount, formatUsageValue } from "./personal-workspace-model";
 import { TeamPlanResult } from "./team-plan-result";
@@ -130,16 +130,24 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
   const { locale, t } = useWorkspaceI18n();
   const [correction, setCorrection] = useState("");
   const [decisionNote, setDecisionNote] = useState("");
-  // The open gate's latest thread read; `settled` once the first read answered (a view or nothing to show).
-  const [gateThread, setGateThread] = useState<{ settled: boolean; view: GateThreadView | null }>({ settled: false, view: null });
+  // The open gate's latest thread read, bound to the gate it came from. Switching
+  // gates clears it during render, before any control of the new gate is drawn.
+  const gateIdentity = selection.kind === "attention" ? `${selection.item.goalId}/${selection.item.todoId}` : null;
+  const [gateThreadState, setGateThreadState] = useState<GateThreadState | null>(null);
+  const [gateStateIdentity, setGateStateIdentity] = useState(gateIdentity);
+  if (gateStateIdentity !== gateIdentity) {
+    setGateStateIdentity(gateIdentity);
+    setGateThreadState(null);
+  }
   const gateSignatureRef = useRef<string | null>(null);
   const reconcileStatusRef = useRef(callbacks.onReconcileStatus);
   useEffect(() => {
     reconcileStatusRef.current = callbacks.onReconcileStatus;
   }, [callbacks.onReconcileStatus]);
-  const onGateView = useCallback((view: GateThreadView | null) => {
-    setGateThread({ settled: true, view });
-    if (!view) return;
+  const onGateState = useCallback((state: GateThreadState) => {
+    setGateThreadState(state);
+    if (state.status !== "ready" && state.status !== "closed") return;
+    const { view } = state;
     const signature = `${view.goal_id}/${view.todo_id}#${gateThreadSignature(view)}`;
     const previous = gateSignatureRef.current;
     gateSignatureRef.current = signature;
@@ -148,7 +156,9 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
       void Promise.resolve(reconcileStatusRef.current?.({ invalidateGoalIds: [view.goal_id] })).catch(() => undefined);
     }
   }, []);
-  const gateKind = gateThread.view?.kind ?? null;
+  // Decisions only on a successful read of this exact gate that is still open.
+  const gateAccess = gateDecisionAccess(gateThreadState, selection.kind === "attention" ? selection.item : null);
+  const gateKind = gateAccess.view?.kind ?? null;
   const gateChoices = gateOptionChoices(gateKind);
   const primaryOption = primaryGateOption(gateKind);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -186,7 +196,6 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
     setRunDrawerTab("record");
     setTodoResumeWhen("");
     setDecisionNote("");
-    setGateThread({ settled: false, view: null });
     gateSignatureRef.current = null;
     const configuration = selection.kind === "goal" ? selection.item.subagentExecution : undefined;
     setSubagentAllowedDomains(configuration?.allowedDomains ?? []);
@@ -365,7 +374,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
   }
 
   async function previewDecision(attention: WorkspaceAttention, decision: "approve" | typeof decisionTransitions[number]["resolution"], label: string, option?: string) {
-    if (readOnly || !canReviewAttention(attention)) return;
+    if (readOnly || !canReviewAttention(attention) || !gateAccess.actionable) return;
     const note = decisionNote.trim().slice(0, DECISION_NOTE_LIMIT);
     await callbacks.onPreviewAction?.({
       actionKind: "gate.resolve",
@@ -584,44 +593,53 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
               </dl>
             </section>
             {/* What the gate asks you to decide comes before the generic request details. */}
-            <GateKindDetails view={gateThread.view} />
+            <GateKindDetails view={gateAccess.view} />
             <AttentionDetailCard item={selection.item} onSelect={onSelectAttention} successor={attentionSuccessor(selection.item, attentionHistory)} />
-            <GateThreadPanel goalId={selection.item.goalId} onView={onGateView} readOnly={readOnly} todoId={selection.item.todoId} />
+            <GateThreadPanel goalId={selection.item.goalId} key={gateIdentity} onState={onGateState} readOnly={readOnly} todoId={selection.item.todoId} />
             {!readOnly && canReviewAttention(selection.item) ? <>
-              <label className="personal-decision-note">
-                <span>{t("drawer.decisionNote")}</span>
-                <textarea
-                  aria-label={t("drawer.decisionNote")}
-                  maxLength={DECISION_NOTE_LIMIT}
-                  onChange={(event) => setDecisionNote(event.target.value.slice(0, DECISION_NOTE_LIMIT))}
-                  placeholder={t("drawer.decisionNotePlaceholder")}
-                  rows={3}
-                  value={decisionNote}
-                />
-                <small>{decisionNote.length}/{DECISION_NOTE_LIMIT}</small>
-              </label>
-              {/* A typed gate's approve names the option it selects instead of relying on the backend default. */}
-              <button
-                className="personal-primary-action"
-                data-gate-option={primaryOption?.option}
-                disabled={!gateThread.settled}
-                onClick={() => void (primaryOption
-                  ? previewDecision(selection.item, primaryOption.resolution, t(primaryOption.key), primaryOption.option)
-                  : previewDecision(selection.item, "approve", t("common.confirm")))}
-                type="button"
-              >
-                <Check size={17} />{primaryOption ? t("drawer.decisionApproveOption", { option: primaryOption.option }) : t("drawer.decisionReview")}
-              </button>
+              {gateAccess.reason !== "not_gate" ? <>
+                <label className="personal-decision-note">
+                  <span>{t("drawer.decisionNote")}</span>
+                  <textarea
+                    aria-label={t("drawer.decisionNote")}
+                    maxLength={DECISION_NOTE_LIMIT}
+                    onChange={(event) => setDecisionNote(event.target.value.slice(0, DECISION_NOTE_LIMIT))}
+                    placeholder={t("drawer.decisionNotePlaceholder")}
+                    rows={3}
+                    value={decisionNote}
+                  />
+                  <small>{decisionNote.length}/{DECISION_NOTE_LIMIT}</small>
+                </label>
+                {gateAccess.actionable ? null : (
+                  <p className="personal-gate-decision-status" data-gate-decision-status={gateAccess.reason} role="status">
+                    {t(gateAccess.reason === "closed" ? "drawer.gateDecisionClosed"
+                      : gateAccess.reason === "unavailable" ? "drawer.gateDecisionUnavailable" : "drawer.gateDecisionPending")}
+                  </p>
+                )}
+                {/* A typed gate's approve names the option it selects instead of relying on the backend default. */}
+                <button
+                  className="personal-primary-action"
+                  data-gate-option={primaryOption?.option}
+                  disabled={!gateAccess.actionable}
+                  onClick={() => void (primaryOption
+                    ? previewDecision(selection.item, primaryOption.resolution, t(primaryOption.key), primaryOption.option)
+                    : previewDecision(selection.item, "approve", t("common.confirm")))}
+                  type="button"
+                >
+                  <Check size={17} />{primaryOption ? t("drawer.decisionApproveOption", { option: primaryOption.option }) : t("drawer.decisionReview")}
+                </button>
+              </> : null}
               <details className="personal-compact-menu">
                 <summary><MoreHorizontal size={17} />{t("drawer.decisionMore")}</summary>
                 <div>
                   <button onClick={() => void callbacks.onExplainDecision?.(selection.item)} type="button"><MessageCircleQuestion size={16} />{t("drawer.explainDecision")}</button>
-                  {gateChoices
+                  {/* Every resolution is fenced like the primary; a non-gate todo offers none (gate.resolve refuses it). */}
+                  {gateAccess.reason === "not_gate" ? null : gateChoices
                     ? gateChoices.map((choice) => (
-                      <button key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
+                      <button data-gate-option={choice.option} disabled={!gateAccess.actionable} key={choice.option} onClick={() => void previewDecision(selection.item, choice.resolution, t(choice.key), choice.option)} type="button">{t(choice.key)}</button>
                     ))
                     : decisionTransitions.map((transition) => (
-                      <button key={transition.resolution} onClick={() => void previewDecision(selection.item, transition.resolution, t(transition.key))} type="button">{t(transition.key)}</button>
+                      <button data-gate-decision={transition.resolution} disabled={!gateAccess.actionable} key={transition.resolution} onClick={() => void previewDecision(selection.item, transition.resolution, t(transition.key))} type="button">{t(transition.key)}</button>
                     ))}
                 </div>
               </details>
