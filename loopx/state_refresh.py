@@ -26,8 +26,10 @@ from .control_plane.work_items.delivery_outcome import (
     require_delivery_outcome,
 )
 from .control_plane.agents.workspace_guard import (
-    INDEPENDENT_DELIVERY_WORKSPACE_KINDS,
+    PeerDeliveryWorkspace,
     capture_delivery_workspace,
+    delivery_workspace_satisfies,
+    peer_delivery_workspace,
 )
 from .control_plane.quota.refresh_external_delivery import (
     finish_external_delivery_refresh, refresh_recovery_payload,
@@ -1059,27 +1061,6 @@ def refresh_state_run(
         registered_agents = registered_agents_for_goal(registry_goal)
         known_agents = {agent for agent in registered_agents if agent}
         multi_agent_goal = len(known_agents) > 1
-        workspace_guard_policy = (
-            registry_goal.get("workspace_guard_policy")
-            if isinstance(registry_goal.get("workspace_guard_policy"), dict)
-            else {}
-        )
-        explicit_peer_worktree_requirement = workspace_guard_policy.get(
-            "peer_independent_worktree_required"
-        )
-        peer_independent_worktree_required = multi_agent_goal and (
-            explicit_peer_worktree_requirement is None
-            or explicit_peer_worktree_requirement is True
-        )
-        if (
-            peer_independent_worktree_required
-            and explicit_peer_worktree_requirement is None
-            and _role_v1_orchestrator(registry_goal, normalized_agent_id)
-        ):
-            # Fork role_v1: the orchestrator plans from the goal's state home
-            # and delivers no code; its only writes are gates and plan cards.
-            # Developer and acceptor Turns still run in per-todo worktrees.
-            peer_independent_worktree_required = False
         if normalized_agent_id and known_agents and normalized_agent_id not in known_agents:
             raise ValueError(
                 f"agent_id {normalized_agent_id!r} is not registered for goal {safe_goal_id!r}"
@@ -1313,9 +1294,25 @@ def refresh_state_run(
             and workspace_requirement != "not_required"
             and not checkpoint_supplement
         ):
+            settlement_todo_id = settlement_identity.todo_id if settlement_identity else None
+            delivery_requirement = peer_delivery_workspace(
+                registry_goal,
+                agent_id=normalized_agent_id or None,
+                multi_agent=multi_agent_goal,
+                todo=(
+                    _settlement_todo(
+                        resolved_state_file, todo_id=settlement_todo_id,
+                        registry_path=registry_path, goal_id=safe_goal_id, runtime_root=runtime_root,
+                    )
+                    if multi_agent_goal and settlement_todo_id
+                    else None
+                ),
+            )
             delivery_workspace = capture_delivery_workspace(
                 current_path=delivery_workspace_path,
-                peer_independent_worktree_required=peer_independent_worktree_required,
+                peer_independent_worktree_required=(
+                    delivery_requirement is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
+                ),
                 local_goal_id=safe_goal_id,
                 local_project_root=resolved_project,
                 repository_source=(
@@ -1337,14 +1334,18 @@ def refresh_state_run(
                     else None
                 ),
             )
-            if (
-                peer_independent_worktree_required
-                and (
-                    delivery_workspace is None
-                    or delivery_workspace.get("workspace_kind")
-                    not in INDEPENDENT_DELIVERY_WORKSPACE_KINDS
-                )
+            if not delivery_workspace_satisfies(
+                delivery_requirement,
+                delivery_workspace,
+                delivery_path=delivery_workspace_path or Path.cwd(),
+                project_directory=resolved_project,
             ):
+                if delivery_requirement is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY:
+                    raise ValueError(
+                        "accountable delivery of a Todo that names no repository must be "
+                        "refreshed from the goal's project directory (or an independent git "
+                        "worktree), or name it with --delivery-workspace-path"
+                    )
                 raise ValueError(
                     "accountable peer delivery must be refreshed from the independent "
                     "git worktree (or the per-Todo workspace root) that produced it, "
@@ -1681,14 +1682,18 @@ def refresh_state_run(
         )
 
 
-def _role_v1_orchestrator(goal: Any, agent_id: str | None) -> bool:
-    if not agent_id or not isinstance(goal, dict):
-        return False
-    from .agent_registry import agent_role_for_goal
-    from .control_plane.agents.runtime_model import AgentRuntimeModel, agent_runtime_model_for_goal
+def _settlement_todo(
+    state_file: Path, *, todo_id: str, registry_path: Path, goal_id: str, runtime_root: Path,
+) -> dict[str, Any] | None:
+    """The durable record of the settled Todo; ``None`` when it cannot be read (fails closed)."""
+
+    from .control_plane.todos.durable_completion import read_persisted_todo_record
 
     try:
-        role_v1 = agent_runtime_model_for_goal(goal) is AgentRuntimeModel.ROLE_V1
-    except ValueError:
-        return False
-    return role_v1 and agent_role_for_goal(goal, agent_id) == "orchestrator"
+        todo, _todo_ids = read_persisted_todo_record(
+            state_file, todo_id=todo_id, registry_path=registry_path, goal_id=goal_id,
+            runtime_root=runtime_root,
+        )
+    except (OSError, ValueError):
+        return None
+    return todo

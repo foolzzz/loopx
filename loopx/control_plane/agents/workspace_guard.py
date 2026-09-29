@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from enum import Enum
 from hashlib import sha256
 import os
 from pathlib import Path
@@ -31,6 +32,102 @@ AGENT_WORKSPACE_GUARD_SCHEMA_VERSION = "agent_workspace_guard_v1"
 INDEPENDENT_DELIVERY_WORKSPACE_KINDS = frozenset(
     {"independent_git_worktree", "todo_workspace_root"}
 )
+
+
+class PeerDeliveryWorkspace(str, Enum):
+    """Where one peer's accountable delivery must be refreshed from."""
+
+    # A single-agent Goal, a policy that turns the guard off, or the role_v1
+    # orchestrator, which plans from the Goal's state home and delivers no code.
+    ANY = "any"
+    # An independent git worktree or the Todo's verified per-Todo workspace root.
+    INDEPENDENT_WORKTREE = "independent_worktree"
+    # A role_v1 developer or acceptor Todo that names no repository has no
+    # per-Todo workspace by design: it is delivered from the Goal's project
+    # directory. An independent worktree still satisfies it.
+    GOAL_PROJECT_DIRECTORY = "goal_project_directory"
+
+
+def todo_names_repository(todo: Mapping[str, Any]) -> bool:
+    """Whether a Todo targets a repository (``task_repositories`` or ``task_repository``)."""
+
+    return bool(
+        normalize_todo_task_repositories(todo.get("task_repositories"))
+        or normalize_todo_task_repository(todo.get("task_repository"))
+    )
+
+
+def peer_delivery_workspace(
+    goal: Mapping[str, Any] | None,
+    *,
+    agent_id: str | None,
+    multi_agent: bool,
+    todo: Mapping[str, Any] | None,
+) -> PeerDeliveryWorkspace:
+    """Decide the workspace an accountable delivery of ``todo`` by ``agent_id`` needs.
+
+    ``workspace_guard_policy.peer_independent_worktree_required`` set to
+    ``true`` keeps every peer of a multi-agent Goal on independent worktrees,
+    and any other explicit value turns the guard off. Without it, a role_v1
+    Goal exempts the orchestrator and lets a developer or acceptor deliver a
+    Todo that names no repository from the Goal's project directory. An
+    unknown Todo fails closed.
+    """
+
+    goal = goal if isinstance(goal, Mapping) else {}
+    policy = goal.get("workspace_guard_policy")
+    explicit = policy.get("peer_independent_worktree_required") if isinstance(policy, Mapping) else None
+    if not multi_agent or (explicit is not None and explicit is not True):
+        return PeerDeliveryWorkspace.ANY
+    if explicit is True:
+        return PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
+    from ...agent_registry import agent_role_for_goal
+    from .runtime_model import (
+        AGENT_ROLE_ACCEPTOR,
+        AGENT_ROLE_DEVELOPER,
+        AGENT_ROLE_ORCHESTRATOR,
+        AgentRuntimeModel,
+        agent_runtime_model_for_goal,
+    )
+
+    try:
+        role_v1 = agent_runtime_model_for_goal(goal) is AgentRuntimeModel.ROLE_V1
+    except ValueError:
+        role_v1 = False
+    role = agent_role_for_goal(dict(goal), agent_id) if role_v1 else None
+    if role == AGENT_ROLE_ORCHESTRATOR:
+        return PeerDeliveryWorkspace.ANY
+    if (
+        role in {AGENT_ROLE_DEVELOPER, AGENT_ROLE_ACCEPTOR}
+        and isinstance(todo, Mapping)
+        and not todo_names_repository(todo)
+    ):
+        return PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
+    return PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
+
+
+def delivery_workspace_satisfies(
+    requirement: PeerDeliveryWorkspace,
+    snapshot: Mapping[str, Any] | None,
+    *,
+    delivery_path: Path,
+    project_directory: Path | None,
+) -> bool:
+    """Whether a captured delivery ``snapshot`` from ``delivery_path`` meets ``requirement``."""
+
+    if requirement is PeerDeliveryWorkspace.ANY:
+        return True
+    if snapshot is None:
+        return False
+    if snapshot.get("workspace_kind") in INDEPENDENT_DELIVERY_WORKSPACE_KINDS:
+        return True
+    return (
+        requirement is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
+        and project_directory is not None
+        and _is_same_or_child_path(delivery_path, project_directory)
+    )
+
+
 PEER_WRITE_ACTION_KINDS = {
     "fix",
     "implement",
@@ -702,6 +799,19 @@ def build_agent_workspace_guard(
         if isinstance(selected_todo, dict) and selected_todo
         else next(iter(_peer_candidate_items(agent_todo_summary)), {})
     )
+    # The rule that decides the refresh-state delivery workspace decides here too.
+    requirement = peer_delivery_workspace(
+        goal, agent_id=agent_identity.get("agent_id"), multi_agent=True, todo=candidate or None,
+    )
+    if requirement is PeerDeliveryWorkspace.ANY:
+        return None
+    goal_project = Path(str(goal.get("repo") or goal.get("project") or goal.get("root") or "")).expanduser()
+    if (
+        requirement is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
+        and goal_project.is_absolute()
+        and _is_same_or_child_path(current_path, goal_project)
+    ):
+        return None
     task_repository = normalize_todo_task_repository(candidate.get("task_repository"))
     if not task_repository and _in_registered_todo_workspace(
         goal, candidate, current_path=current_path, runtime_root=runtime_root
