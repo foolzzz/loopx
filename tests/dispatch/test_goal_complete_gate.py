@@ -310,7 +310,11 @@ def test_close_goal_stops_the_goal_and_the_dispatcher_stops_considering_it(tmp_p
 
 
 def test_markdown_show_resolve_and_status_report_a_closed_goal(tmp_path, monkeypatch) -> None:
-    """Without --format json the owner sees the completion summary, what closing did and the stopped goal."""
+    """Without --format json the owner sees the completion summary, what closing did and the stopped goal.
+
+    The fixture goal lives only in its project registry, as ``goal create
+    --no-global-sync`` leaves it, so closing it must not create a shared registry.
+    """
 
     fx = _fixture(tmp_path, monkeypatch, remote=False)
     _merged(fx, ["api"], name="only")
@@ -345,6 +349,7 @@ def test_markdown_show_resolve_and_status_report_a_closed_goal(tmp_path, monkeyp
     assert code == 0
     assert [(row["id"], row["activation_state"]) for row in payload["run_history"]["goals"]] == [
         (GOAL_ID, "stopped")]
+    assert not (fx["runtime"] / "registry.global.json").exists()
 
 
 def test_add_work_opens_an_orchestrator_follow_up_that_launches_a_turn(tmp_path, monkeypatch) -> None:

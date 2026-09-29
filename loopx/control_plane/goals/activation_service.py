@@ -40,6 +40,9 @@ _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 class GoalActivationAuthorityRouteMode(str, Enum):
     SOURCE_TO_GLOBAL = "source_to_global"
     REQUESTED_TO_GLOBAL = "requested_to_global"
+    # The shared registry holds no copy of the goal (it was bootstrapped or
+    # created with --no-global-sync): only the goal's own registry is written.
+    SOURCE_ONLY = "source_only"
     ORPHANED_GLOBAL_STOP_FALLBACK = "orphaned_global_stop_fallback"
 
 
@@ -211,11 +214,21 @@ def _source_and_target(
     target_registry = (
         Path(str(resolution["target_global_registry"])).expanduser().resolve()
     )
+    # A transition keeps an existing shared projection consistent; it never
+    # creates one. Registering a goal there belongs to bootstrap and
+    # sync-global, which honor --no-global-sync.
+    projected = _same_path(target_registry, requested_registry) or (
+        _goal_or_none(load_registry(target_registry), goal_id) is not None
+    )
     return GoalActivationAuthorityRoute(
         source_registry=requested_registry,
-        target_registry=target_registry,
+        target_registry=target_registry if projected else requested_registry,
         sync_runtime_root=str(resolution["target_runtime_root"]),
-        mode=GoalActivationAuthorityRouteMode.REQUESTED_TO_GLOBAL,
+        mode=(
+            GoalActivationAuthorityRouteMode.REQUESTED_TO_GLOBAL
+            if projected
+            else GoalActivationAuthorityRouteMode.SOURCE_ONLY
+        ),
         source_status=GoalActivationSourceStatus.AVAILABLE,
     )
 
@@ -325,7 +338,11 @@ def set_goal_activation_state(
         "source_fingerprint_schema_version": (
             GOAL_ACTIVATION_SOURCE_FINGERPRINT_SCHEMA_VERSION
         ),
-        "target_global_registry": str(target_registry),
+        "target_global_registry": (
+            None
+            if authority_route.mode is GoalActivationAuthorityRouteMode.SOURCE_ONLY
+            else str(target_registry)
+        ),
         "authority_route": authority_route.public_summary(),
         "expected_state_fingerprint": normalized_fingerprint,
         "observed_state_fingerprint": observed_fingerprint,

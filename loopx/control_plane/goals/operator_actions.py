@@ -52,7 +52,11 @@ def _identity_observation(
 ) -> dict[str, Any]:
     binding_owner = (
         "source_registry"
-        if route.mode is GoalActivationAuthorityRouteMode.REQUESTED_TO_GLOBAL
+        if route.mode
+        in {
+            GoalActivationAuthorityRouteMode.REQUESTED_TO_GLOBAL,
+            GoalActivationAuthorityRouteMode.SOURCE_ONLY,
+        }
         else "global_projection"
     )
     if route.source_status is GoalActivationSourceStatus.AVAILABLE:

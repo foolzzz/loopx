@@ -572,6 +572,50 @@ def test_goal_create_end_to_end_with_separate_state_home(tmp_path: Path, capsys)
     assert "exactly one --agent ID=orchestrator" in json.loads(capsys.readouterr().out)["error"]
 
 
+def test_stopping_a_goal_created_with_no_global_sync_leaves_the_shared_registry_alone(
+    tmp_path: Path, capsys,
+) -> None:
+    """Stop and resume (the path close_goal takes) write only the registry of a goal that was never synced."""
+
+    from loopx.control_plane.goals.activation import goal_is_stopped
+    from loopx.control_plane.goals.activation_service import set_goal_activation_state
+    from loopx.global_registry import sync_project_registry_to_global
+    from loopx.history import load_registry
+    from loopx.registry import registry_goals
+
+    runtime = tmp_path / "runtime"
+    doc = tmp_path / "requirements.md"
+    doc.write_text("# Local goal\n", encoding="utf-8")
+    shared = runtime / "registry.global.json"
+    shared.parent.mkdir(parents=True)
+    shared.write_text(json.dumps({"schema_version": "0.1", "registry_role": "global-local", "goals": []}),
+                      encoding="utf-8")
+    before = shared.read_bytes()
+    assert main(["--runtime-root", str(runtime), "--format", "json", "goal", "create", "--project",
+                 str(tmp_path / "progress"), "--goal-id", "local-goal", "--doc", str(doc), "--agent",
+                 "orch=orchestrator", "--no-global-sync"]) == 0, capsys.readouterr().out
+    registry = Path(json.loads(capsys.readouterr().out)["registry"])
+    assert shared.read_bytes() == before
+
+    for state in ("stopped", "active"):
+        changed = set_goal_activation_state(registry_path=registry, goal_id="local-goal", state=state,
+                                            runtime_root_override=str(runtime), actor_kind="owner", execute=True)
+        assert changed["ok"] is True and changed["written"] is True, changed
+        assert changed["authority_route"]["mode"] == "source_only" and "global_sync" not in changed
+        loaded = json.loads(registry.read_text(encoding="utf-8"))["goals"][0]
+        assert goal_is_stopped(loaded) is (state == "stopped")
+        assert shared.read_bytes() == before, "the shared registry is neither created nor modified"
+
+    # Once the goal is synced, the same transition keeps its shared copy consistent.
+    assert sync_project_registry_to_global(registry_path=registry, runtime_root_override=str(runtime),
+                                           goal_id="local-goal", dry_run=False)["ok"] is True
+    stopped = set_goal_activation_state(registry_path=registry, goal_id="local-goal", state="stopped",
+                                        runtime_root_override=str(runtime), actor_kind="owner", execute=True)
+    assert stopped["ok"] is True and stopped["authority_route"]["mode"] == "requested_to_global"
+    [projected] = [goal for goal in registry_goals(load_registry(shared)) if goal.get("id") == "local-goal"]
+    assert goal_is_stopped(projected)
+
+
 # --- web endpoint -------------------------------------------------------------------
 
 
