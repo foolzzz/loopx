@@ -39,8 +39,10 @@ from loopx.control_plane.agents.workspace_guard import (
 )
 from loopx.dispatch import DispatchConfig, Dispatcher, dispatch_status
 from loopx.dispatch.state import load_state
+from loopx.event_sourced_state import TODO_ADDED, AppendOnlyStateEventStore, make_state_event
 from loopx.goal_complete_gate import goal_completion_snapshot
 from loopx.push_requests import repo_push_plan
+from loopx.state_refresh import refresh_state_run
 from loopx.todo_acceptance import accept_goal_todo
 from loopx.todos import add_goal_todo, complete_goal_todo, list_goal_todos
 from tests.dispatch.dispatch_fixtures import GOAL_ID, git, git_env, make_repo, set_modes, write_fixture
@@ -50,6 +52,7 @@ ROOT = Path(__file__).resolve().parents[2]
 GOAL = "norepo"
 DELIVERY_REFUSED = "accountable peer delivery must be refreshed from the independent git worktree"
 PROJECT_DIRECTORY_TURN_RUNNING = "project_directory_turn_running"
+PROJECT_DIRECTORY_REFUSED = "must be refreshed from the goal's project directory"
 ROLES = {"orch": "orchestrator", "dev": "developer", "acc": "acceptor"}
 
 # The generic-cli host: no model. It writes NOTES.md in its cwd and reports
@@ -121,20 +124,25 @@ def _todo(fx: dict[str, Any], todo_id: str) -> dict[str, Any]:
     return next(row for row in listed["todos"] if row["todo_id"] == todo_id)
 
 
-def _run_once(fx: dict[str, Any], agent_id: str, todo_id: str, **env: str) -> dict[str, Any]:
-    """``turn run-once`` with the dispatcher's arguments, from the goal's project directory."""
+def _run_once(
+    fx: dict[str, Any], agent_id: str, todo_id: str, *, project: Path | None = None,
+    turn_instance_id: str | None = None, **env: str,
+) -> dict[str, Any]:
+    """``turn run-once`` with the dispatcher's arguments, from the goal's project directory by default."""
 
+    project = project or fx["project"]
     argv = [
         sys.executable, "-m", "loopx.cli", "--registry", str(fx["registry"]), "--runtime-root", str(fx["runtime"]),
         "--format", "json", "turn", "run-once", "--goal-id", GOAL, "--agent-id", agent_id,
-        "--project", str(fx["project"]), "--host", "generic-cli",
+        "--project", str(project), "--host", "generic-cli",
         "--host-adapter-command-json", json.dumps([sys.executable, str(fx["stub"])]),
-        "--timeout-seconds", "120", "--execute", "--turn-instance-id", f"dispatch-{uuid.uuid4().hex[:12]}",
+        "--timeout-seconds", "120", "--execute",
+        "--turn-instance-id", turn_instance_id or f"dispatch-{uuid.uuid4().hex[:12]}",
         "--todo-id", todo_id, "--validation-command-json", json.dumps([sys.executable, "-c", "pass"]),
         "--no-global-sync",
     ]
     completed = subprocess.run(
-        argv, cwd=str(fx["project"]), env={**fx["environ"], **env}, capture_output=True, text=True, timeout=180,
+        argv, cwd=str(project), env={**fx["environ"], **env}, capture_output=True, text=True, timeout=180,
     )
     try:
         return json.loads(completed.stdout)
@@ -183,31 +191,91 @@ def test_a_todo_that_names_a_repo_is_still_refused_from_the_project_directory(
     assert DELIVERY_REFUSED in str(refused.get("error") or refused.get("reason")), json.dumps(refused)[:3000]
 
 
+def test_a_callers_project_never_widens_the_delivery_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The state file is absolute in the registry, so a refresh with another
+    # --project still reads and writes the real goal state.
+    fx = _goal(tmp_path, monkeypatch, git_project=False)
+    registry = json.loads(fx["registry"].read_text(encoding="utf-8"))
+    [goal] = registry["goals"]
+    goal["state_file"] = str((fx["project"] / goal["state_file"]).resolve())
+    fx["registry"].write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+    todo_id = _add_todo(fx, "Write NOTES.md naming the three LoopX roles")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    turn = f"dispatch-{uuid.uuid4().hex[:12]}"
+    refused = _run_once(fx, "dev", todo_id, project=outside, turn_instance_id=turn)
+    assert refused.get("ok") is False and PROJECT_DIRECTORY_REFUSED in str(refused.get("error")), refused
+
+    # Retry that Turn's writeback by hand, pointing --project at the outside directory.
+    with pytest.raises(ValueError, match=PROJECT_DIRECTORY_REFUSED):
+        refresh_state_run(
+            registry_path=fx["registry"], runtime_root_override=str(fx["runtime"]), goal_id=GOAL,
+            project=outside, state_file=None, classification="notes_written",
+            recommended_action="Review NOTES.md against the criteria.", next_action="Review NOTES.md.",
+            delivery_batch_scale="single_surface", delivery_outcome="primary_goal_outcome",
+            delivery_workspace_path=outside, todo_id=todo_id, turn_instance_id=turn, agent_id="dev",
+            progress_scope="goal", completion_todo_id=todo_id, completion_turn_key=turn,
+            dry_run=False, sync_global=False,
+        )
+
+
+def test_todo_sources_that_disagree_about_repos_keep_the_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The Markdown block names no repo, but the goal's event projection of the
+    # same todo does. should-run reads the projection and settlement the block;
+    # a stale source must never relax a todo that names a repo.
+    fx = _goal(tmp_path, monkeypatch, git_project=True)
+    todo_id = _add_todo(fx, "Write NOTES.md naming the three LoopX roles")
+    [goal] = json.loads(fx["registry"].read_text(encoding="utf-8"))["goals"]
+    AppendOnlyStateEventStore((fx["project"] / goal["state_file"]).with_name("events.jsonl")).append_many([
+        make_state_event(
+            event_id="add-notes", goal_id=GOAL, event_type=TODO_ADDED, refs={"todo_id": todo_id},
+            payload={"role": "agent", "priority": "P1", "text": "Write NOTES.md naming the three LoopX roles",
+                     "task_class": "advancement_task", "claimed_by": "dev",
+                     "task_repository": "https://example.test/fixture/notes.git"},
+        ),
+    ])
+
+    refused = _run_once(fx, "dev", todo_id)
+    assert refused.get("ok") is False, json.dumps(refused)[:3000]
+    assert DELIVERY_REFUSED in str(refused.get("error")), json.dumps(refused)[:3000]
+
+
+REPO_LESS = {"todo_id": "todo_notes", "action_kind": "implement"}
+NAMED = {**REPO_LESS, "task_repositories": ["main"]}
+UPSTREAM = {**REPO_LESS, "task_repository": "https://example.test/fixture/api.git"}
+
+
+def _role_goal(project: Path, model: str = "role_v1", **extra: Any) -> dict[str, Any]:
+    coordination: dict[str, Any] = {"agent_model": model, "registered_agents": sorted(ROLES)}
+    if model == "role_v1":
+        coordination["agent_roles"] = dict(ROLES)
+    return {"id": GOAL, "repo": str(project), "coordination": coordination, **extra}
+
+
 def test_the_delivery_workspace_rule_is_relaxed_only_for_role_v1_todos_without_repos(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
+    repo_less, named, upstream = REPO_LESS, NAMED, UPSTREAM
 
     def goal(model: str = "role_v1", **extra: Any) -> dict[str, Any]:
-        coordination = {"agent_model": model, "registered_agents": sorted(ROLES)}
-        if model == "role_v1":
-            coordination["agent_roles"] = dict(ROLES)
-        return {"id": GOAL, "repo": str(project), "coordination": coordination, **extra}
-
-    repo_less = {"todo_id": "todo_notes", "action_kind": "implement"}
-    named = {**repo_less, "task_repositories": ["main"]}
-    upstream = {**repo_less, "task_repository": "https://example.test/fixture/api.git"}
+        return _role_goal(project, model, **extra)
 
     def rule(agent: str, todo: dict[str, Any] | None, *, multi_agent: bool = True, **goal_kwargs: Any):
         return peer_delivery_workspace(goal(**goal_kwargs), agent_id=agent, multi_agent=multi_agent, todo=todo)
 
     assert rule("dev", repo_less) is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
     assert rule("acc", repo_less) is PeerDeliveryWorkspace.GOAL_PROJECT_DIRECTORY
-    for todo in (named, upstream, None):  # a todo with repos, or an unknown one, keeps the guard
-        assert rule("dev", todo) is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
+    assert rule("orch", repo_less) is PeerDeliveryWorkspace.ANY
+    for agent in ROLES:  # a todo with repos, or an unknown one, keeps the guard for every role
+        for todo in (named, upstream, None):
+            assert rule(agent, todo) is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE, (agent, todo)
     assert rule("dev", repo_less, model="peer_v1") is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
     required = {"workspace_guard_policy": {"peer_independent_worktree_required": True}}
     assert rule("dev", repo_less, **required) is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
-    assert rule("orch", named) is PeerDeliveryWorkspace.ANY
     assert rule("dev", named, multi_agent=False) is PeerDeliveryWorkspace.ANY
 
     # should-run's workspace guard asks the same rule.
@@ -218,6 +286,18 @@ def test_the_delivery_workspace_rule_is_relaxed_only_for_role_v1_todos_without_r
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     assert build_agent_workspace_guard(goal(), identity, selected_todo=repo_less, current_path=elsewhere)
+
+
+def test_an_orchestrator_todo_with_repos_is_still_guarded_at_should_run(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    identity = {"agent_id": "orch", "registered_agents": sorted(ROLES)}
+    guard = build_agent_workspace_guard(_role_goal(project), identity, selected_todo=NAMED, current_path=project)
+    assert guard is not None and guard["action"] == "move_to_independent_worktree", guard
+    # The orchestrator's own todos name no repo and stay exempt.
+    assert build_agent_workspace_guard(
+        _role_goal(project), identity, selected_todo=REPO_LESS, current_path=project,
+    ) is None
 
 
 # --- one project-directory Turn per goal ---------------------------------------------------
@@ -274,13 +354,65 @@ def test_the_dispatcher_runs_one_project_directory_turn_per_goal(
     _release_and_wait(fixture, dispatcher)
 
 
+class _DispatcherDied(BaseException):
+    """Stands in for the dispatcher process dying while it starts a Turn."""
+
+
+def test_a_run_is_recorded_before_its_turn_starts_and_a_restart_reclaims_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer", "max_concurrency": 2}})
+    first = _add_todo(fixture, "Write GLOSSARY.md", goal_id=GOAL_ID, priority="P0")
+    _add_todo(fixture, "Write FAQ.md", goal_id=GOAL_ID, priority="P1")
+    set_modes(fixture, {"dev": ["hold"]})
+    config = DispatchConfig(
+        registry_path=fixture["registry"], runtime_root=fixture["runtime"], goal_ids=[GOAL_ID], no_global_sync=True,
+        environ=fixture["environ"], loopx_argv=(sys.executable, str(fixture["fake_loopx"])),
+    )
+    persisted_at_start: list[dict[str, Any]] = []
+    real_popen = subprocess.Popen
+
+    def dies_while_starting(argv: Any, *args: Any, **kwargs: Any) -> Any:
+        if "run-once" not in argv:  # the auth preflight
+            return real_popen(argv, *args, **kwargs)
+        persisted_at_start.extend(load_state(fixture["runtime"]).get("runs", {}).values())
+        raise _DispatcherDied()
+
+    with monkeypatch.context() as patch:
+        patch.setattr("loopx.dispatch.dispatcher.subprocess.Popen", dies_while_starting)
+        with pytest.raises(_DispatcherDied):
+            Dispatcher(config, clock=Clock()).reconcile()
+    # The project-directory slot was already on disk when the child started.
+    [started] = persisted_at_start
+    assert started["todo_id"] == first and started["workspace"] == "project_directory"
+    assert started["pid"] is None
+
+    restarted = Dispatcher(config, clock=Clock())
+    try:
+        report = restarted.reconcile()
+        # No process holds it, so the reap settles it as a crash and one
+        # project-directory Turn runs again, under the same identity.
+        [reaped] = report["reaped"]
+        assert reaped["todo_id"] == first and reaped["outcome"] == "crashed"
+        runs = list(load_state(fixture["runtime"])["runs"].values())
+        assert [(run["todo_id"], run["workspace"]) for run in runs] == [(first, "project_directory")]
+        assert runs[0]["turn_instance_id"] == started["turn_instance_id"] and isinstance(runs[0]["pid"], int)
+    finally:
+        _release_and_wait(fixture, restarted)
+
+
 # --- goal_complete ---------------------------------------------------------------------------
 
 
-def test_goal_complete_opens_for_a_goal_whose_project_directory_is_not_a_git_repo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("no_commit_git", [False, True], ids=["plain-directory", "git-init-without-commit"])
+def test_goal_complete_opens_for_a_project_directory_with_nothing_to_push(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_commit_git: bool,
 ) -> None:
     fx = _goal(tmp_path, monkeypatch, git_project=False)
+    if no_commit_git:
+        git(fx["project"], "init", "-q", "-b", "main")  # an unborn HEAD
     api = {"registry_path": fx["registry"], "goal_id": GOAL, "runtime_root_arg": str(fx["runtime"])}
     [plan] = [row["todo_id"] for row in list_goal_todos(**api)["todos"] if row.get("claimed_by") == "orch"]
     assert complete_goal_todo(**api, todo_id=plan, role="agent", agent_id="orch", evidence="planned")["ok"]
@@ -299,6 +431,6 @@ def test_goal_complete_opens_for_a_goal_whose_project_directory_is_not_a_git_rep
     assert [item["key"] for item in opened] == ["goal_complete"]
 
     # Only the implicit repo of a goal without --repo is skipped this way; a
-    # declared repo that is not a git repository is still an error.
+    # declared repo in the same state is still an error.
     declared = {"name": "docs", "path": str(fx["project"]), "merge_target": "main"}
     assert repo_push_plan({"id": GOAL, "repos": [declared]}, declared, GOAL)["status"] == "error"
