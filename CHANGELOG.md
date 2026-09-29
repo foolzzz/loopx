@@ -357,19 +357,21 @@ These behaviors differ from upstream.
   acceptor role cannot open user gates or write acceptance criteria. After
   planning, a change to a todo's criteria needs a user-approved plan card.
   Only the owner, using no `--agent-id`, may still edit criteria directly.
-- **Only the owner decides user gates.** Every Turn host sets
+- **Agent Turns cannot decide user gates.** Every Turn host sets
   `LOOPX_AGENT_TURN=<agent id>` in the environment of the model process it
   starts. With it set, `loopx gate resolve` and
   `loopx todo complete --role user --decision-outcome` refuse to record a
-  decision on a user gate, with `gate_decision_refused_in_agent_turn`.
-  Agents answer with `loopx gate reply` instead. This guards against
+  decision on a user gate, with `gate_decision_refused_in_agent_turn`. The
+  orchestrator replies with `loopx gate reply` instead. This guards against
   accidental self-approval and is not a security boundary: an agent that
-  unsets the variable bypasses it. `issue-fix pr-gate-reconcile --execute` is
-  refused inside an agent Turn too.
-- **Gate decisions are audited.** Every user-gate decision records
-  `closed_by` in the gate index, with the surface (`cli`, `dashboard` or
-  `system`), the actor, the agent Turn if any, and the time.
-  `loopx gate show` shows it.
+  unsets the variable bypasses it. `issue-fix pr-gate-reconcile --execute`,
+  which closes the gate of a merged or closed PR as `system`, is refused too
+  when it runs inside an agent Turn and would close a gate.
+- **Gate decisions are audited.** A user-gate decision records `closed_by`
+  in the gate index, with the surface (`cli`, `dashboard` or `system`), the
+  actor, the agent Turn if any, and the time. `loopx gate show` shows it. It
+  is written after the decision itself; if the process dies in between, a
+  replay of the same decision writes it, marked `replayed: true`.
 - **The recorded gate decision wins.** Settlement always runs on the
   decision recorded on the gate, never on the caller's. A
   `todo complete --decision-outcome` replay that names another decision is
@@ -422,10 +424,13 @@ These behaviors differ from upstream.
 - **Tests no longer touch the real runtime root.** 23 test modules read or
   wrote `~/.codex/loopx`, leaving goals such as `example-goal` and a
   `repository-change-window/` directory behind. They now use temporary
-  runtime roots. A test-session guard refuses file operations under the real
-  runtime root and names the offending test, including from Python
-  subprocesses. It does not see stat or exists checks, symlinked paths, or
-  non-Python subprocesses.
+  runtime roots. A test-session guard refuses audited file operations (open,
+  mkdir, remove, rename, listdir and similar) under the real runtime root and
+  names the offending test. It covers the test process and Python
+  subprocesses that inherit its `PYTHONPATH` and guard environment. It does
+  not see stat, lstat, access or readlink calls (so not `Path.exists()`),
+  `dir_fd`-relative paths, access through an unpinned symlink alias, Python
+  subprocesses that drop that environment, or non-Python subprocesses.
 - **launchd dispatcher code.** `loopx dispatch launchd-plist` set only
   `PATH` and `HOME`. With the checkout's `.venv` as the Python, a resident
   dispatcher therefore ran the checkout's current code instead of the
