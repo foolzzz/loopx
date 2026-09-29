@@ -515,8 +515,9 @@ loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option cancel_todo
 When no agent todo of the goal is open, in review, blocked or deferred (a
 dependent still waiting on its dependency counts as unfinished), and a merge
 target has commits that its remote lacks, the dispatcher opens a
-`push_request` gate. The gate lists each repo's branch, its remote and the
-commit range.
+`push_request` gate. `gate show` lists each repo's branch, its remote, the
+commit count and range, and a short log. `gate resolve` prints the result
+per repo; after a failed push it names the follow-up gate that retries it.
 
 ```sh
 loopx gate show --goal-id todo-due --todo-id <gate-id>
@@ -525,22 +526,34 @@ loopx gate resolve --goal-id todo-due --todo-id <gate-id> --decision approve   #
 
 `reject` or `cancel` pushes nothing. The dispatcher and the orchestrator do not
 offer the same heads again until new merges arrive. You can still ask for them
-with `loopx goal request-push`. A repo without a remote is skipped. To push
-without a gate, run `git push` yourself.
+with `loopx goal request-push`, which prints the gate it opened or why none
+opened. A repo without a remote is skipped. To push without a gate, run
+`git push` yourself.
 
 ### Step 10: close the goal
 
 Once the work is merged and the push is resolved, the dispatcher opens one
-`goal_complete` gate. It needs no model Turn, and it shows the merges, the
-push results, the review counts and the cost.
+`goal_complete` gate. It needs no model Turn. `gate show` prints its
+summary: the accepted, rejected and superseded todo counts, the merges and
+push result per repo, and the cost. `gate resolve` prints what the option did.
 
 ```sh
+loopx gate show --goal-id todo-due --todo-id <gate-id>
 loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option close_goal     # stop the goal (reversible)
 loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option add_work --note "Also sort by due date"
 loopx gate resolve --goal-id todo-due --todo-id <gate-id> --option leave_open
 ```
 
 `add_work` turns your note into an orchestrator todo, so planning continues.
+After `close_goal`, `loopx status` shows the goal as `activation=stopped`.
+
+Closing a goal does not remove the todos' worktrees and branches. Remove
+each merged todo's worktrees yourself:
+
+```sh
+loopx workspace cleanup --goal-id todo-due --todo-id <todo-id> --dry-run   # preview
+loopx workspace cleanup --goal-id todo-due --todo-id <todo-id>
+```
 
 ## 4. Everyday tasks
 
@@ -617,7 +630,11 @@ loopx goal-lifecycle --goal-id G --operation resume --actor-kind owner --execute
 
 Stopping a goal stops its automatic advancement and keeps its todos and
 history. Without `--execute`, the command only previews. The `close_goal` and
-`stop_goal` gate options use the same stop.
+`stop_goal` gate options use the same stop. The stop is recorded in the goal's
+activation state (`loopx status` shows `activation=stopped`); the registry
+`status` field stays `active`. A goal that the shared registry does not list,
+for example one created with `--no-global-sync`, is stopped and resumed in
+its own registry only.
 
 ### Run or debug a single step
 
@@ -640,6 +657,7 @@ handy for recovery and scripting.
 loopx workspace prepare --goal-id G --todo-id T             # worktree per repo on loopx/G/T
 loopx workspace merge   --goal-id G --todo-id T --dry-run   # atomic, all repos or none; never pushes
 loopx workspace cleanup --goal-id G --todo-id T             # only when merged (or --force)
+loopx todo claim        --goal-id G --todo-id T --claimed-by dev --agent-id dev   # --claimed-by is required
 loopx todo accept       --goal-id G --todo-id T --agent-id acc [--note ...]
 loopx todo reject       --goal-id G --todo-id T --agent-id acc --note "criterion 2 fails: ..."
 loopx todo block-review --goal-id G --todo-id T --agent-id acc --reason "toolchain missing"
@@ -714,7 +732,7 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `goal create --project DIR --goal-id G --doc FILE [--repo SPEC]... --agent ID=ROLE... [--objective TEXT] [--no-global-sync] [--dry-run]` | Create a role_v1 goal from a requirements doc (step 4). |
-| `goal request-push --goal-id G [--agent-id ORCH] [--dry-run]` | Open the `push_request` gate now. It does not wait for pending todos. |
+| `goal request-push --goal-id G [--agent-id ORCH] [--dry-run]` | Open the `push_request` gate now. It does not wait for pending todos. Prints the gate id and its repos, or why no gate opened. |
 
 ### `loopx agent`, `loopx provider`
 
@@ -755,9 +773,9 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `gate list --goal-id G [--awaiting user\|orchestrator]` | Open user gates, their kind and who they await. |
-| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan card, criteria changes, push repos, the budget or the completion summary. A part that cannot be read is reported with its error code. Once decided, who decided it (`closed_by`). |
+| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan card, criteria changes, push repos, the budget or the completion summary. The Markdown output lists a push gate's repos with branch, remote, commit count and short log, and a goal_complete gate's counts, merges, push results and cost; once closed, their result. A part that cannot be read is reported with its error code. Once decided, who decided it (`closed_by`). |
 | `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Replying never closes a gate. |
-| `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). Refused inside an agent Turn. |
+| `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate and print the decision with its outcome (the push result per repo, the goal_complete option's effect). For options, see [section 5](#5-gates-reference). Refused inside an agent Turn. |
 
 ### `loopx plan`
 
@@ -948,7 +966,7 @@ In each code repo:
 | `workspace_unverified` | The todo's worktree is missing or off its branch. Run `loopx workspace prepare` again. It reuses the existing branch. |
 | `acceptance_criteria_change_requires_plan` | Criteria changes need a plan card. Ask the orchestrator, or edit as the owner without `--agent-id`. |
 | `not_orchestrator` on `todo supersede --by` | Only the orchestrator (`--agent-id ORCH`), or the owner with no `--agent-id`, may supersede. |
-| A multi-agent lifecycle command asks for `--agent-id` | Owner gate options, criteria edits and `supersede --by` are attributed to the claim owner, else a registered fallback, else the orchestrator. A plain `todo claim` or `supersede` still needs the acting agent's `--agent-id`. |
+| A multi-agent lifecycle command asks for `--agent-id` | Owner gate options, criteria edits and `supersede --by` are attributed to the claim owner, else a registered fallback, else the orchestrator. A plain `todo claim` or `supersede` still needs the acting agent's `--agent-id`, and `todo claim` also requires `--claimed-by`. |
 | The orchestrator seems to ignore the goal state | The state digest and system-prompt addendum only reach claude-code agents. Run the orchestrator on claude-code. |
 | The dashboard shows no chat or role board in a source checkout | Build the bundle: `cd apps/presentation/dashboard && npm run build:chat`. |
 
