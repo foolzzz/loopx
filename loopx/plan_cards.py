@@ -40,11 +40,15 @@ from typing import Any, Mapping
 from .file_lock import exclusive_file_lock
 from .gate_threads import (
     AUTHOR_ORCHESTRATOR,
+    GATE_ALREADY_DECIDED,
+    GATE_DECISION_SURFACE_CLI,
     GATE_KIND_PLAN_APPROVAL,
     GateThreadError,
     append_gate_message,
     read_gate_index,
+    record_gate_decision,
     register_gate_kind,
+    require_gate_decision_outside_agent_turn,
     require_goal_orchestrator,
 )
 from .history import validate_goal_id_path_segment
@@ -611,6 +615,48 @@ def propose_plan(
     return {"ok": True, "changed": True, "plan": record}
 
 
+def _recorded_todo(
+    registry_path: Path, goal_id: str, todo_id: str, runtime_root_arg: str | None,
+) -> dict[str, Any] | None:
+    """One todo as the goal's todo authority records it (Markdown or canonical, archived rows included)."""
+
+    from .todos import list_goal_todos
+
+    listed = list_goal_todos(
+        registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, runtime_root_arg=runtime_root_arg,
+    ) if todo_id else {}
+    return next((dict(row) for row in listed.get("todos") or [] if row.get("todo_id") == todo_id), None)
+
+
+def recorded_gate_decision(
+    *, registry_path: Path, goal_id: str, todo_id: str, decision: str | None, runtime_root_arg: str | None = None,
+) -> str | None:
+    """The decision a closed user gate records; ``None`` while it is open.
+
+    A request whose ``decision`` differs from the recorded one (or names one
+    for a gate closed without a decision) is refused with
+    ``gate_already_decided``: the recorded decision stands on every surface,
+    and nothing is written or settled for the request.
+    """
+
+    from .control_plane.todos.contract import TODO_STATUS_DONE, normalize_todo_decision_outcome, normalize_todo_id
+
+    gate_id = normalize_todo_id(todo_id) or str(todo_id)
+    gate = _recorded_todo(registry_path, goal_id, gate_id, runtime_root_arg)
+    if not gate or gate.get("role") != "user" or gate.get("task_class") != "user_gate":
+        return None
+    if gate.get("status") != TODO_STATUS_DONE:
+        return None
+    recorded = normalize_todo_decision_outcome(gate.get("decision_outcome"))
+    if recorded != normalize_todo_decision_outcome(decision):
+        raise GateThreadError(
+            GATE_ALREADY_DECIDED,
+            f"gate {gate_id!r} is already decided: {recorded or 'closed without a decision'}; the recorded "
+            f"decision stands, and {decision!r} was neither written nor settled",
+        )
+    return recorded
+
+
 def require_plan_gate_approved(
     *, registry_path: Path, goal_id: str, record: Mapping[str, Any], runtime_root_arg: str | None = None,
 ) -> None:
@@ -624,22 +670,15 @@ def require_plan_gate_approved(
     recorded approved but whose settlement or apply was interrupted, and
     refuses any other plan with ``plan_not_approved``.
 
-    This checks the recorded decision, not who recorded it. The plan gate is
-    bound to the proposing orchestrator, and ``loopx gate resolve`` (like
-    ``loopx todo complete --role user --decision-outcome``) defaults its actor
-    to that agent and accepts its decision, so this guard does not stop an
-    orchestrator with CLI access from approving its own gate. That authority
-    boundary is a separate follow-up.
+    This checks the recorded decision, not who recorded it. Who records it is
+    guarded on the decision path (``complete_goal_todo``): an agent Turn cannot
+    decide a user gate, and the gate index records ``closed_by``.
     """
 
     from .control_plane.todos.contract import TODO_STATUS_DONE, normalize_todo_decision_outcome
-    from .todos import list_goal_todos
 
     plan_id, gate_id = str(record.get("plan_id")), str(record.get("gate_todo_id") or "")
-    listed = list_goal_todos(
-        registry_path=registry_path, goal_id=goal_id, todo_id=gate_id, runtime_root_arg=runtime_root_arg,
-    ) if gate_id else {}
-    gate = next((row for row in listed.get("todos") or [] if row.get("todo_id") == gate_id), None)
+    gate = _recorded_todo(registry_path, goal_id, gate_id, runtime_root_arg)
     if gate is None:
         raise PlanCardError(
             PLAN_NOT_APPROVED, f"plan {plan_id!r} cannot be applied: its plan_approval gate {gate_id!r} was not found",
@@ -741,16 +780,24 @@ def gate_decision_preflight(
 ) -> str | None:
     """Validate the linked plan before an approve closes its gate.
 
-    Returns the linked plan id (or None). An approve against a plan that no
-    longer validates raises, so the gate stays open for discussion. An
-    acceptor-blocked gate (G12), a budget_exhausted gate (decision 41) or a
-    goal_complete gate (decision 42) validates its ``option`` instead.
+    Returns the linked plan id (or None). Any decision or option is refused
+    first inside an agent Turn: the owner decides user gates. A decision other
+    than a closed gate's recorded one is refused (``gate_already_decided``). An approve
+    against a plan that no longer validates raises, so the gate stays open for
+    discussion. An acceptor-blocked gate (G12), a budget_exhausted gate
+    (decision 41) or a goal_complete gate (decision 42) validates its
+    ``option`` instead.
     """
 
     from .goal_complete_gate import goal_complete_gate_preflight
     from .todo_review_blocked import review_gate_preflight
     from .usage_budget_gate import budget_gate_preflight
 
+    if decision is not None or option is not None:
+        require_gate_decision_outside_agent_turn(goal_id=goal_id, todo_id=todo_id)
+    if decision is not None:  # a replay that names another decision than the recorded one
+        recorded_gate_decision(registry_path=registry_path, goal_id=goal_id, todo_id=todo_id, decision=decision,
+                               runtime_root_arg=runtime_root_arg)
     if budget_gate_preflight(
         runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id, decision=decision, option=option,
         note=note,
@@ -777,13 +824,20 @@ def gate_decision_preflight(
 def settle_gate_decision(
     *, registry_path: Path, runtime_root: Path, goal_id: str, todo_id: str, decision: str | None,
     runtime_root_arg: str | None = None, option: str | None = None, note: str | None = None,
+    surface: str = GATE_DECISION_SURFACE_CLI, actor: str | None = None, replayed: bool = False,
 ) -> dict[str, Any] | None:
     """After a gate closed: apply (approve) or close (reject/cancel) its plan.
 
-    An acceptor-blocked gate (G12) applies its chosen option instead, a
-    push_request gate (G8) pushes on approve, a budget_exhausted gate
-    (decision 41) raises, clears or stops, and a goal_complete gate (decision
-    42) closes the goal, adds the owner's follow-up work or leaves it open.
+    Settlement runs on the gate's recorded decision, never the caller's: a
+    ``decision`` that differs from it is refused (``gate_already_decided``) and
+    settles nothing. It first records who decided (``closed_by``: ``surface``
+    and the lifecycle ``actor``; ``replayed`` when the completion was an
+    idempotent replay) in the gate index, before any effect runs. An
+    acceptor-blocked gate (G12) applies its chosen option
+    instead, a push_request gate (G8) pushes on approve, a budget_exhausted
+    gate (decision 41) raises, clears or stops, and a goal_complete gate
+    (decision 42) closes the goal, adds the owner's follow-up work or leaves
+    it open.
     """
 
     from .gate_threads import mark_gate_closed
@@ -792,6 +846,13 @@ def settle_gate_decision(
     from .todo_review_blocked import settle_review_gate
     from .usage_budget_gate import settle_budget_gate
 
+    if decision is not None:
+        decision = recorded_gate_decision(registry_path=registry_path, goal_id=goal_id, todo_id=todo_id,
+                                          decision=decision, runtime_root_arg=runtime_root_arg)
+        if decision is None:  # not recorded as decided: nothing to settle
+            return None
+        record_gate_decision(runtime_root, goal_id, todo_id, decision=decision, surface=surface, actor=actor,
+                             replayed=replayed)
     budget = settle_budget_gate(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,
         decision=decision, option=option, note=note, runtime_root_arg=runtime_root_arg,

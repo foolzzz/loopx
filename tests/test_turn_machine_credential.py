@@ -67,6 +67,7 @@ def test_two_goal_runtimes_use_machine_credential_for_plan_and_dispatch(tmp_path
             "LOOPX_TURN_AGENT_ID": "codex-fixture",
             "LOOPX_TURN_TODO_ID": "todo_fixture0001",
             "LOOPX_TURN_WORKSPACE": str(project.resolve()),
+            "LOOPX_AGENT_TURN": "codex-fixture",
         })
         # A conflicting Goal-local store cannot redirect machine authentication.
         provider.write_operator_provider(runtime_root=runtime, api_key=GOAL_KEY)

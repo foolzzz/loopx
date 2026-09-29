@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -8,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from loopx.control_plane.agents.agent_turn import agent_turn_env
 from loopx.control_plane.turn_driver.codex_cli import (
     CODEX_CLI_SESSION_SCHEMA_VERSION,
     CODEX_STDIO_MCP_SERVER_SCHEMA_VERSION,
@@ -21,7 +23,7 @@ from loopx.control_plane.turn_driver.codex_cli import (
     load_codex_cli_session,
     run_codex_cli_host,
 )
-from loopx.control_plane.turn_driver.executor import BuiltInHostError
+from loopx.control_plane.turn_driver.executor import BuiltInHostError, _run_host
 from loopx.control_plane.turn_driver.subagent_execution_topology import (
     OPAQUE_REF_PATTERN,
 )
@@ -81,6 +83,11 @@ prompt = sys.stdin.read()
 log = pathlib.Path(os.environ["FAKE_CODEX_LOG"])
 with log.open("a", encoding="utf-8") as handle:
     handle.write(json.dumps(args) + "\\n")
+env_log = os.environ.get("FAKE_CODEX_ENV_LOG")
+if env_log:
+    pathlib.Path(env_log).write_text(
+        json.dumps({"agent_turn": os.environ.get("LOOPX_AGENT_TURN")}), encoding="utf-8"
+    )
 turn_key = re.search(r'"turn_key":"([^"]+)"', prompt).group(1)
 print(json.dumps({
     "type": "thread.started",
@@ -176,6 +183,46 @@ def _capture_fake_codex_failure(
             timeout_seconds=5,
         )
     return exc_info.value, runtime_root
+
+
+def test_agent_turn_env_marks_the_turn_agent_only() -> None:
+    assert agent_turn_env(_request()) == {"LOOPX_AGENT_TURN": "codex-fixture"}
+    assert "LOOPX_AGENT_TURN" not in os.environ
+
+
+def test_codex_cli_host_process_carries_the_agent_turn_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable, log_path = _fake_codex(tmp_path)
+    env_log = tmp_path / "codex-env.json"
+    monkeypatch.setenv("FAKE_CODEX_LOG", str(log_path))
+    monkeypatch.setenv("FAKE_CODEX_ENV_LOG", str(env_log))
+    project = tmp_path / "project"
+    project.mkdir()
+
+    run_codex_cli_host(
+        _request(),
+        runtime_root=tmp_path / "runtime",
+        project=project,
+        codex_bin=str(executable),
+        timeout_seconds=5,
+    )
+
+    assert json.loads(env_log.read_text(encoding="utf-8")) == {"agent_turn": "codex-fixture"}
+    # Only the host subprocess carries it; the process that settles the Turn does not.
+    assert "LOOPX_AGENT_TURN" not in os.environ
+
+
+def test_generic_cli_host_process_carries_the_agent_turn_marker(tmp_path: Path) -> None:
+    script = (
+        "import json, os, sys; json.load(sys.stdin); "
+        "print(json.dumps({'agent_turn': os.environ.get('LOOPX_AGENT_TURN')}))"
+    )
+    result = _run_host(
+        _request(), argv=[sys.executable, "-c", script], project=tmp_path, timeout_seconds=10
+    )
+    assert result["value"] == {"agent_turn": "codex-fixture"}
+    assert "LOOPX_AGENT_TURN" not in os.environ
 
 
 def test_codex_cli_result_schema_requires_only_bounded_contract_fields() -> None:

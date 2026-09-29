@@ -143,7 +143,7 @@
     },
     {
       "site": "loopx/capabilities/issue_fix/pr_gate_reconcile.py::<module>.reconcile_acknowledged_issue_fix_pr_reviews::codec_read:load_registry#1",
-      "line": 372,
+      "line": 373,
       "column": 35,
       "kind": "codec_read",
       "api": "load_registry",

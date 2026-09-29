@@ -12,6 +12,7 @@ from ..control_plane.todos.handoff_mode import HandoffModeError
 from ..control_plane.todos.contract import decision_scope_metadata_value
 from ..control_plane.work_items.task_lease import TaskLeaseError
 from ..file_lock import lock_timeout_error_fields
+from ..gate_threads import GateThreadError
 from ..todo_acceptance_criteria import acceptance_criteria_event_details
 from ..control_plane.coordination.legacy_writer_fence import LegacyCoordinationWriterFenced
 from ..control_plane.coordination.shadow_management import ShadowManagementError
@@ -60,6 +61,8 @@ def todo_error_payload(args: argparse.Namespace, exc: Exception) -> dict[str, ob
                 "reason",
             }:
                 payload[key] = value
+    elif isinstance(exc, GateThreadError):
+        payload["error_code"] = exc.code
     elif isinstance(exc, TodoExternalWaitAuthoringError):
         payload["error_code"] = exc.code
         if exc.authoring_contract is not None:
