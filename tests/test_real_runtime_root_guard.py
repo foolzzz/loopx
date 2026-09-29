@@ -1,11 +1,13 @@
-"""The test session refuses access to the real user LoopX runtime root.
+"""The test session refuses access to the real user LoopX roots.
 
-These tests exercise the guard against a temporary stand-in for the real root,
-so a broken guard can never touch the owner's live runtime state.
+These tests exercise the guard against temporary stand-ins for the real
+``~/.codex/loopx`` and ``~/.loopx``, so a broken guard can never touch the
+owner's live state.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
@@ -15,6 +17,7 @@ from pathlib import Path
 import pytest
 import real_runtime_root_guard as guard
 
+from loopx.file_lock import try_exclusive_file_lock
 from loopx.paths import DEFAULT_RUNTIME_ROOT
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,14 +28,23 @@ def _stand_in(tmp_path: Path) -> Path:
     return tmp_path / "real-home" / ".codex" / "loopx"
 
 
-def test_session_protects_the_default_runtime_root_whatever_home_a_test_sets(
+def test_session_protects_the_real_loopx_roots_whatever_home_a_test_sets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert os.path.normpath(DEFAULT_RUNTIME_ROOT) in guard.protected_roots()
+    homes = [Path.home()]
+    with contextlib.suppress(ImportError, KeyError):
+        import pwd
+
+        homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
+    real_roots = {os.path.normpath(DEFAULT_RUNTIME_ROOT)}
+    for home in homes:
+        real_roots.add(os.path.normpath(home / ".codex" / "loopx"))
+        real_roots.add(os.path.normpath(home / ".loopx"))
+    assert real_roots <= set(guard.protected_roots())
 
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    assert os.path.normpath(DEFAULT_RUNTIME_ROOT) in guard.protected_roots()
+    assert real_roots <= set(guard.protected_roots())
     assert not any(root.startswith(str(tmp_path)) for root in guard.protected_roots())
 
 
@@ -60,7 +72,7 @@ def test_in_process_access_to_the_protected_root_is_refused_and_named(
     (stand_in / "registry.global.json").write_text("{}", encoding="utf-8")
 
     with guard.protecting(stand_in, tmp_path / "report.jsonl"):
-        with pytest.raises(PermissionError, match="real LoopX runtime root"):
+        with pytest.raises(PermissionError, match="real LoopX root"):
             (stand_in / "goals" / "probe").mkdir()
         with pytest.raises(PermissionError):
             (stand_in / "goals" / "probe.json").write_text("{}", encoding="utf-8")
@@ -78,8 +90,25 @@ def test_in_process_access_to_the_protected_root_is_refused_and_named(
     assert again == ([], [])
     assert list((stand_in / "goals").iterdir()) == []
     message = guard.describe(request.node.nodeid, own)
-    assert message.startswith(f"{request.node.nodeid} used the real LoopX runtime root")
+    assert message.startswith(f"{request.node.nodeid} used a real LoopX root")
     assert f"os.mkdir {stand_in / 'goals' / 'probe'} (this test process)" in message
+
+
+def test_a_machine_scoped_lease_under_the_home_loopx_directory_is_refused(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    stand_in = tmp_path / "real-home" / ".loopx"
+    lease = stand_in / "lark-consumers" / ("0" * 32)
+    lease.parent.mkdir(parents=True)
+
+    with guard.protecting(stand_in, tmp_path / "report.jsonl"):
+        with pytest.raises(PermissionError, match="real LoopX root"):
+            with try_exclusive_file_lock(lease, operation="lark_event_consumer"):
+                pass
+        own, _others = guard.take_violations(request.node.nodeid)
+
+    assert ("open", f"{lease}.lock") in [(violation["event"], violation["path"]) for violation in own]
+    assert list(lease.parent.iterdir()) == []
 
 
 def test_a_protected_root_is_also_pinned_in_its_real_form(
@@ -275,3 +304,4 @@ def test_a_session_reports_refusals_it_cannot_charge_to_a_running_test(tmp_path:
     assert "ERROR at teardown of test_refusal_recorded_for_another_test" not in output
     assert "recorded under tests/test_other_module.py::test_other" in output
     assert not stand_in.exists()
+

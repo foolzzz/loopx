@@ -1,8 +1,10 @@
-"""Refuse test access to the real user LoopX runtime root.
+"""Refuse test access to the real user LoopX roots.
 
 Tests must keep LoopX state under temporary directories. The owner's live
-runtime root (``~/.codex/loopx``) may be in use by a running dispatcher while
-the suite runs, so this guard never inspects that directory. It installs a
+roots may be in use while the suite runs: the runtime root (``~/.codex/loopx``)
+by a running dispatcher, and ``~/.loopx`` (the home registry and machine-scoped
+leases such as the Lark event consumer locks under ``lark-consumers/``) by a
+running chat server. This guard never inspects either directory. It installs a
 Python audit hook that checks the path arguments of the audited filesystem
 events listed in ``_PATH_ARGUMENTS`` (``open``, ``os.mkdir``, ``os.remove``,
 ``os.rename``, ``os.listdir``, ``os.scandir``, ``shutil.rmtree`` and similar),
@@ -17,6 +19,9 @@ shim next to this module installs the hook in those subprocesses.
 
 Not covered:
 
+- other LoopX state locations, such as a project's own ``.loopx`` directory or
+  a runtime root passed by path, unless it is the ambient
+  ``LOOPX_RUNTIME_ROOT``;
 - metadata checks that raise no audit event: ``os.stat``, ``os.lstat``,
   ``os.access`` and ``os.readlink``, hence ``Path.exists()`` and
   ``Path.stat()``;
@@ -24,7 +29,10 @@ Not covered:
 - access through a symlink or another spelling of a path that does not
   normalize to a pinned form;
 - subprocesses that drop ``PYTHONPATH`` or the report path, and non-Python
-  subprocesses.
+  subprocesses;
+- reporting a refusal that the code under test catches and retries forever:
+  nothing is written, but the test hangs instead of reaching the teardown
+  that names it.
 
 Every refusal is appended to the session's report file together with the
 ``PYTEST_CURRENT_TEST`` value it happened under, which names the test to charge
@@ -105,10 +113,11 @@ _installed = False
 _reporting = False
 
 
-def default_runtime_root(home: str | os.PathLike[str]) -> str:
-    """Return LoopX's default runtime root for ``home``."""
+def home_roots(home: str | os.PathLike[str]) -> tuple[str, str]:
+    """Return the LoopX roots under ``home``: the default runtime root and ``.loopx``."""
 
-    return os.path.join(os.path.abspath(os.fspath(home)), ".codex", "loopx")
+    home = os.path.abspath(os.fspath(home))
+    return os.path.join(home, ".codex", "loopx"), os.path.join(home, ".loopx")
 
 
 def configure(protected_roots: list[str], report_path: str) -> None:
@@ -203,8 +212,9 @@ def take_violations(
 
 _FIX_HINT = (
     "Keep LoopX state under tmp_path: give the registry a temporary "
-    "'common_runtime_root', pass --runtime-root / runtime_root, or run CLI "
-    "subprocesses with HOME set to a temporary directory."
+    "'common_runtime_root', pass --runtime-root / runtime_root, or set HOME to "
+    "a temporary directory (monkeypatch.setenv for code that resolves "
+    "Path.home(), env= for CLI subprocesses)."
 )
 
 
@@ -215,7 +225,7 @@ def _origin(record: dict[str, object]) -> str:
 
 
 def describe(nodeid: str, violations: list[dict[str, object]]) -> str:
-    lines = [f"{nodeid} used the real LoopX runtime root instead of a temporary one:"]
+    lines = [f"{nodeid} used a real LoopX root instead of a temporary one:"]
     for violation in violations[:10]:
         lines.append(f"  - {violation.get('event')} {violation.get('path')} ({_origin(violation)})")
     if len(violations) > 10:
@@ -226,7 +236,7 @@ def describe(nodeid: str, violations: list[dict[str, object]]) -> str:
 
 def describe_unattributed(records: list[dict[str, object]]) -> str:
     lines = [
-        f"{len(records)} refused access(es) to the real LoopX runtime root could not "
+        f"{len(records)} refused access(es) to a real LoopX root could not "
         "be charged to the test that was running when they were read:"
     ]
     for record in records[:20]:
@@ -319,6 +329,6 @@ def _refuse(event: str, path: str, root: str) -> None:
         _reporting = False
     raise PermissionError(
         errno.EACCES,
-        f"test guard refused {event} under the real LoopX runtime root {root}",
+        f"test guard refused {event} under the real LoopX root {root}",
         path,
     )
