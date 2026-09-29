@@ -288,23 +288,50 @@ def notify_orchestrator(
     return str(added.get("todo_id") or "") or None
 
 
-def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]]:
-    """Old and new criteria side by side for ``gate show`` and the dashboard."""
+# Reported instead of an empty list when a persisted card's changes or results are malformed.
+CRITERIA_CHANGES_MALFORMED = "criteria_changes_malformed"
 
-    if not isinstance(plan, Mapping):
+
+def _mapping_rows(value: Any) -> list[Mapping[str, Any]] | None:
+    """The rows of an optional list of objects: [] when absent, None when malformed."""
+
+    if value is None:
         return []
-    body = plan.get("plan") if isinstance(plan.get("plan"), Mapping) else {}
-    results = {str(item.get("todo_id")): item for item in plan.get("criteria_change_results") or []}
+    if not isinstance(value, list) or not all(isinstance(item, Mapping) for item in value):
+        return None
+    return value
+
+
+def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]] | None:
+    """Old and new criteria side by side for ``gate show`` and the dashboard.
+
+    [] when there is no card or it changes no criteria; None when the card's
+    changes or their results are malformed, so callers report them unavailable
+    rather than as "no changes".
+    """
+
+    if plan is None:
+        return []
+    body = plan.get("plan") if isinstance(plan, Mapping) else None
+    if not isinstance(body, Mapping):
+        return None
+    changes = _mapping_rows(body.get(CRITERIA_CHANGE_KEY))
+    outcomes = _mapping_rows(plan.get("criteria_change_results"))
+    if changes is None or outcomes is None:
+        return None
+    results = {str(item.get("todo_id")): item for item in outcomes}
     rows = []
-    for change in body.get(CRITERIA_CHANGE_KEY) or []:
-        if not isinstance(change, Mapping):
-            continue
+    for change in changes:
         row = {key: change.get(key) for key in ("todo_id", "old", "new", "reason")}
         outcome = results.get(str(change.get("todo_id")))
         if outcome:
             row["result"] = outcome.get("status")
         rows.append(row)
     return rows
+
+
+def render_criteria_changes_unavailable_markdown(code: str) -> list[str]:
+    return ["", f"_Acceptance-criteria changes unavailable ({code}); review the card before deciding._"]
 
 
 def render_criteria_changes_markdown(rows: list[Mapping[str, Any]]) -> list[str]:

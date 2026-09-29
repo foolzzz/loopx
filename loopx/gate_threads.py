@@ -59,6 +59,9 @@ GATE_KINDS = (
 )
 
 MAX_MESSAGE_CHARS = 4000
+# `plan_error` codes of a plan_approval gate whose card cannot be shown (besides PlanCardError codes).
+PLAN_CARD_UNREADABLE = "plan_unreadable"
+PLAN_CARD_MALFORMED = "plan_malformed"
 
 
 class GateThreadError(ValueError):
@@ -496,18 +499,28 @@ def gate_view(
     if entry.get("plan_id"):
         view["plan_id"] = entry["plan_id"]
         from .plan_cards import PlanCardError, plan_card_view, read_plan
-        from .plan_criteria_changes import criteria_changes_view
+        from .plan_criteria_changes import CRITERIA_CHANGES_MALFORMED, criteria_changes_view
 
+        # A missing, unreadable or malformed card leaves the thread readable and is
+        # reported by code, never shown as an empty plan or as "no criteria changes".
+        record: dict[str, Any] | None = None
         try:
-            record: dict[str, Any] | None = read_plan(runtime_root, goal_id, str(entry["plan_id"]))
-        except (PlanCardError, OSError, ValueError):
-            record = None  # a missing or unreadable card leaves the thread readable
-        card = plan_card_view(record)
-        if card:  # what approving applies: summary and each todo's contract
-            view["plan"] = card
-        changes = criteria_changes_view(record)
-        if changes:  # decision 40: old and new criteria side by side
-            view["criteria_changes"] = changes
+            record = read_plan(runtime_root, goal_id, str(entry["plan_id"]))
+        except PlanCardError as error:
+            view["plan_error"] = error.code
+        except (OSError, ValueError):
+            view["plan_error"] = PLAN_CARD_UNREADABLE
+        if record is not None:
+            card = plan_card_view(record)
+            if card:  # what approving applies: summary and each todo's contract
+                view["plan"] = card
+            else:
+                view["plan_error"] = PLAN_CARD_MALFORMED
+            changes = criteria_changes_view(record)
+            if changes is None:
+                view["criteria_changes_error"] = CRITERIA_CHANGES_MALFORMED
+            elif changes:  # decision 40: old and new criteria side by side
+                view["criteria_changes"] = changes
     for key in ("review_todo_id", "acceptor_agent", "options", "decision_option",
                 "push_reason", "push_repos", "previous_errors", "push_outcome",
                 "budget_usd", "spent_usd", "spent_ratio", "estimated_usd", "by_role", "default_raise_usd",
@@ -568,6 +581,30 @@ def gates_awaiting_orchestrator(runtime_root: Path, goal_id: str) -> list[str]:
     )
 
 
+def _render_plan_card_markdown(card: Mapping[str, Any]) -> list[str]:
+    """The bounded plan card (``plan_card_view``) a ``gate show`` reviewer decides on."""
+
+    lines = ["", f"## Plan `{card.get('plan_id')}`: {card.get('title')} "
+                 f"(revision {card.get('revision')}, {card.get('status')})"]
+    if card.get("summary"):
+        lines += ["", str(card["summary"])]
+    todos: Iterable[Mapping[str, Any]] = card.get("todos") or []
+    if todos:
+        lines.append("")
+    for index, todo in enumerate(todos, start=1):
+        facts = [str(todo.get("required_role") or "developer")]
+        if todo.get("task_repositories"):
+            facts.append("repos: " + ", ".join(todo["task_repositories"]))
+        if todo.get("depends_on"):
+            facts.append("after: " + ", ".join(todo["depends_on"]))
+        lines.append(f"{index}. `{todo.get('key')}` {todo.get('text')} ({'; '.join(facts)})")
+        if todo.get("acceptance"):
+            lines.append(f"   - acceptance: {todo['acceptance']}")
+        if todo.get("validation_command"):
+            lines.append(f"   - validation: `{todo['validation_command']}`")
+    return lines
+
+
 def render_gate_markdown(payload: Mapping[str, Any]) -> str:
     if not payload.get("ok"):
         return f"gate: error: {payload.get('error')}\n"
@@ -604,7 +641,15 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
     ]
     if payload.get("plan_id"):
         lines.append(f"- plan: `{payload['plan_id']}` (see `loopx plan show`)")
-    if payload.get("criteria_changes"):
+    if payload.get("plan_error"):
+        lines.append(f"- plan card unavailable ({payload['plan_error']}); review it with `loopx plan show` before deciding")
+    if payload.get("plan"):
+        lines += _render_plan_card_markdown(payload["plan"])
+    if payload.get("criteria_changes_error"):
+        from .plan_criteria_changes import render_criteria_changes_unavailable_markdown
+
+        lines += render_criteria_changes_unavailable_markdown(str(payload["criteria_changes_error"]))
+    elif payload.get("criteria_changes"):
         from .plan_criteria_changes import render_criteria_changes_markdown
 
         lines += render_criteria_changes_markdown(payload["criteria_changes"])
