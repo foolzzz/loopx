@@ -20,20 +20,22 @@ from typing import Any
 import pytest
 
 from loopx.cli_commands.dispatch import render_dispatch_pass, render_dispatch_status
-from loopx.dispatch import DispatchConfig, Dispatcher, dispatch_status, policy
+from loopx.dispatch import DispatchConfig, Dispatcher, dispatch_status, policy, render_launchd_plist
 from loopx.paths import DEFAULT_PROJECT_REGISTRY
 from loopx.todos import add_goal_todo
 from tests.dispatch.dispatch_fixtures import GOAL_ID, git_env, make_repo, read_jsonl, set_modes, write_fixture
 from tests.dispatch.test_loopx_dispatcher import Clock, ScriptedShouldRun, _cli, _dispatcher
 
 
-def _from_state_home(fixture: dict[str, Any], should_run: ScriptedShouldRun) -> Dispatcher:
+def _from_state_home(
+    fixture: dict[str, Any], should_run: ScriptedShouldRun, *, runtime_root: Path | None = None,
+) -> Dispatcher:
     """A dispatcher given the default relative registry, as `serve` run in the state home is."""
 
     assert not DEFAULT_PROJECT_REGISTRY.is_absolute()
     config = DispatchConfig(
         registry_path=DEFAULT_PROJECT_REGISTRY,
-        runtime_root=fixture["runtime"],
+        runtime_root=runtime_root or fixture["runtime"],
         goal_ids=[GOAL_ID],
         no_global_sync=True,
         environ=fixture["environ"],
@@ -62,6 +64,40 @@ def test_turn_commands_carry_an_absolute_registry_when_serve_got_the_relative_de
         assert Path(_option(argv, "--project")).is_absolute()
     # The CLI prefix the orchestrator is told to use names the same registry.
     assert f"--registry {fixture['registry'].resolve()}" in turns["orch"]["system_prompt"]
+
+
+def test_a_symlinked_registry_file_keeps_its_link_path_in_the_turn_and_the_plist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Registry writes replace the link path atomically and lock by path, so a
+    # Turn pinned to the old link target would read stale state and skip the locks.
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"}})
+    home = tmp_path / "linked-home"
+    link = home / DEFAULT_PROJECT_REGISTRY
+    link.parent.mkdir(parents=True)
+    link.symlink_to(fixture["registry"])
+    monkeypatch.chdir(home)
+    _from_state_home(fixture, ScriptedShouldRun({"dev": ["todo_aaa"]})).run_once()
+
+    [turn] = read_jsonl(fixture["turn_log"])
+    assert _option(turn["argv"], "--registry") == str(link)
+    plist = plistlib.loads(render_launchd_plist(
+        registry_path=DEFAULT_PROJECT_REGISTRY, runtime_root=fixture["runtime"],
+        serve_args=["--goal-id", GOAL_ID], environ={"PATH": "/usr/bin"},
+    ).encode("utf-8"))
+    assert _option(plist["ProgramArguments"], "--registry") == str(link)
+
+
+def test_a_relative_runtime_root_reaches_the_turn_as_an_absolute_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = write_fixture(tmp_path, agents={"dev": {"role": "developer"}})
+    monkeypatch.chdir(fixture["project"])
+    relative = Path("..") / fixture["runtime"].name
+    _from_state_home(fixture, ScriptedShouldRun({"dev": ["todo_aaa"]}), runtime_root=relative).run_once()
+
+    [turn] = read_jsonl(fixture["turn_log"])
+    assert _option(turn["argv"], "--runtime-root") == str(fixture["runtime"])
 
 
 def test_the_launchd_plist_carries_an_absolute_registry_when_rendered_in_the_state_home(
@@ -135,7 +171,7 @@ def test_a_failed_turn_reports_its_error_and_the_status_shows_the_todo_cooldown(
     assert reaped["error"].startswith(f"goal_id not found in canonical source registry: {GOAL_ID}")
     # Redacted and bounded: no local path or credential reaches the pass log.
     assert "/Users/someone" not in reaped["error"] and "sk-fixture" not in reaped["error"]
-    assert "goal_id not found" in render_dispatch_pass(report)
+    assert "failed — fixture_goal_unresolved: goal_id not found" in render_dispatch_pass(report)
 
     clock.now += 61  # past the first backoff: the second failure doubles it
     dispatcher.run_once()
@@ -157,3 +193,26 @@ def test_failure_text_is_one_redacted_line_of_at_most_300_characters() -> None:
     assert (failed["error"], failed["error_code"]) == ("validation_failed", None)
     committed = policy.classify_outcome(0, json.dumps({"ok": True, "reason": "done"}))
     assert committed["error"] is None
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/Volumes/state/providers.yaml",
+        "/opt/x/y",
+        "C:\\Users\\a\\b",
+        "\\\\srv\\share\\f",
+        "/Volumes/My Drive/state/providers.yaml",
+        "~/work/progress/.loopx/registry.json",
+    ],
+)
+@pytest.mark.parametrize("quote", ["", "'"])
+def test_failure_text_masks_any_absolute_path(path: str, quote: str) -> None:
+    # The shape of run-once's missing-provider error, which names the runtime root.
+    error = f"provider 'p' is not defined in {quote}{path}{quote}; api_key=sk-fixture0123456789 see https://example.com/docs/x"
+    text = policy.failure_text(error)
+    assert text is not None
+    for fragment in (path, *[part for part in path.replace("\\", "/").split("/") if len(part) > 2]):
+        assert fragment not in text, text
+    assert text.startswith("provider 'p' is not defined in ") and "<path>" in text
+    assert "sk-fixture" not in text and "https://example.com/docs/x" in text

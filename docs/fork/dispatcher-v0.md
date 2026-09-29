@@ -35,9 +35,10 @@ launchctl load ~/Library/LaunchAgents/com.loopx.dispatch.plist   # you install i
 ```
 
 The global `--registry` and `--runtime-root` options select the state home as usual.
-The dispatcher resolves the registry to an absolute path once, so every Turn, its
-validator and the launchd job find it from their own working directory: a todo
-worktree, a review checkout or the runtime root.
+The dispatcher makes the registry path and the runtime root absolute once, so every
+Turn, its validator and the launchd job find them from their own working directory:
+a todo worktree, a review checkout or the runtime root. Symlinks are not resolved,
+because registry writes replace and lock the path as given.
 Only one dispatcher can run per runtime root. `serve` and `serve --once` take an
 exclusive `flock` on `<runtime-root>/dispatch/serve.lock`. A second dispatcher on the
 same runtime root exits with code 3 (`dispatcher_locked`).
@@ -65,7 +66,9 @@ After an upgrade, render and load the plist again. Its logs go to
    its `--format json` output: `committed`, `host_failed` (with the host's
    `failure_kind`), `failed` or `crashed`. The reaped entry of a failed child
    also carries run-once's `error_code` and its `error` (else its `reason`): one
-   line of at most 300 characters, redacted like the host stderr tail below.
+   line of at most 300 characters. Every absolute local path is masked first
+   (POSIX and `~/` paths, drive and UNC paths, `file://` URLs, quoted paths with
+   spaces), then the credentials the host stderr tail below redacts.
    `failure_kind` stays the host's typed kind, so it is empty when the Turn
    failed before or after the host call.
 2. For each goal, load the registered agents and their registry roles (S1), and

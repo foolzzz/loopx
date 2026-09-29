@@ -10,6 +10,7 @@ from ..control_plane.quota.effective_action import EffectiveAction
 from ..control_plane.turn_driver.host_stderr import redact_host_stderr_line
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -33,6 +34,18 @@ OUTCOME_HOST_FAILED = "host_failed"
 OUTCOME_CRASHED = "crashed"
 # A failed Turn's error in the pass log and dispatch status: one redacted line.
 FAILURE_TEXT_MAX_CHARS = 300
+# Any absolute local path, not only the host stderr redactor's fixed roots: a
+# quoted one (it may hold spaces), a POSIX or home path of two or more segments
+# (a space inside is kept when a separator follows), a drive or UNC path, and a
+# file URL. The lookbehinds leave URLs and relative paths alone.
+_PATH_SEGMENT = r"[^\s/\\\"'`<>|,;:()\[\]{}]+"
+_PATH_PART = rf"{_PATH_SEGMENT}(?:(?: {_PATH_SEGMENT})+(?=[/\\]))?"
+_ABSOLUTE_PATH = re.compile(
+    r"(?P<quote>[\"'`])(?:~?/|[A-Za-z]:[/\\]|\\\\)[^\"'`\n]*(?P=quote)"
+    r"|\bfile://[^\s\"'`<>]*"
+    rf"|(?<![\w.:/\\~-])~?/{_PATH_PART}(?:/{_PATH_PART})+/?"
+    rf"|(?<![\w\\])(?:[A-Za-z]:|\\\\{_PATH_PART})(?:[/\\]{_PATH_PART})+[/\\]?"
+)
 
 
 def slot_limit(role: str | None, max_concurrency: int) -> int:
@@ -205,7 +218,10 @@ def classify_outcome(returncode: int | None, stdout_text: str) -> dict[str, Any]
 
 
 def failure_text(value: Any) -> str | None:
-    """One line, with credentials and local paths redacted, then bounded."""
+    """One line, with local paths and credentials redacted, then bounded."""
 
     text = " ".join(str(value or "").split())
-    return redact_host_stderr_line(text)[:FAILURE_TEXT_MAX_CHARS] if text else None
+    if not text:
+        return None
+    text = _ABSOLUTE_PATH.sub(lambda match: f"{match['quote'] or ''}<path>{match['quote'] or ''}", text)
+    return redact_host_stderr_line(text)[:FAILURE_TEXT_MAX_CHARS]

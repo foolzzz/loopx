@@ -182,9 +182,10 @@ def render_dispatch_pass(payload) -> str:
     for item in payload.get("launched") or []:
         lines.append(f"- launched {item['agent_id']} on {item['goal_id']} todo {item.get('todo_id') or '-'} ({item.get('reason')})")
     for item in (payload.get("reaped") or []) + (payload.get("finished") or []):
+        detail = ": ".join(str(item[key]) for key in ("error_code", "error") if item.get(key))
         lines.append(
             f"- finished {item['agent_id']} todo {item.get('todo_id') or '-'}: {item.get('outcome')} {item.get('failure_kind') or ''}".rstrip()
-            + (f" — {item['error']}" if item.get("error") else "")
+            + (f" — {detail}" if detail else "")
         )
     for item in payload.get("gates_opened") or []:
         lines.append(f"- opened user gate {item.get('todo_id')} ({item.get('key')})")
