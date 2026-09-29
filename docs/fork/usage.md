@@ -377,6 +377,8 @@ Notes:
 - The `--repo` spec is `NAME=PATH[,default_branch=B][,merge_target=main|task_branch][,task_branch=B]`.
   A relative path resolves against the current directory.
 - Exactly one `--agent ID=orchestrator` is required.
+- Without `--repo`, agents work directly in the state home. See
+  [Goals without a code repository](#goals-without-a-code-repository).
 - `--dry-run` previews the result. `--no-global-sync` keeps the goal out of
   the shared registry.
 - Running the command again is safe, because every step is an upsert.
@@ -668,6 +670,39 @@ loopx todo reject       --goal-id G --todo-id T --agent-id acc --note "criterion
 loopx todo block-review --goal-id G --todo-id T --agent-id acc --reason "toolchain missing"
 loopx goal request-push --goal-id G                         # open the push gate now
 ```
+
+### Goals without a code repository
+
+`loopx goal create` without `--repo` is fine for work that is not code in a
+repository, for example notes or documents in the project directory. The
+project directory (the state home) then stands in as the goal's implicit
+repo `main`, and it may or may not be a git repository.
+
+What works: planning, gates, todos, developer and acceptor Turns under the
+dispatcher, accept, reject and escalation, budgets and the `goal_complete`
+gate. The honest limits:
+
+- **No isolation.** A todo that names no repo gets no worktree and no review
+  checkout. Its developer and acceptor Turns run in the project directory
+  itself and deliver from there. There is no delivery snapshot: the acceptor
+  reviews the directory as it is, not a fixed copy of the delivery. Nothing
+  is merged and nothing can be rolled back: an accept keeps whatever is in the
+  directory, and a reject leaves it for the next developer Turn to fix.
+- **One Turn at a time.** Per goal, the dispatcher runs at most one developer
+  or acceptor Turn on such todos. Others wait, and the pass and
+  `loopx dispatch status` show them with `project_directory_turn_running`.
+  Orchestrator Turns and Turns on todos with repos are not affected.
+- **No push gate.** Nothing is merged, so the dispatcher opens no
+  `push_request` gate. A project directory that is not a git repository has
+  nothing to push; in a git project directory, whatever the agents commit
+  stays where it is until you push it.
+- **goal_complete works.** Once every todo is accepted, the `goal_complete`
+  gate opens as usual and lists the project directory as local only.
+
+Prefer `--repo` for code, when two todos should run in parallel, or when
+you want review before merge, a clean rollback of a rejected delivery, or a
+push gate. A goal may also mix both: todos that name repos get worktrees, and
+the rest run one at a time in the project directory.
 
 ## 5. Gates reference
 
