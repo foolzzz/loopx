@@ -40,11 +40,14 @@ from typing import Any, Mapping
 from .file_lock import exclusive_file_lock
 from .gate_threads import (
     AUTHOR_ORCHESTRATOR,
+    GATE_DECISION_SURFACE_CLI,
     GATE_KIND_PLAN_APPROVAL,
     GateThreadError,
     append_gate_message,
     read_gate_index,
+    record_gate_decision,
     register_gate_kind,
+    require_gate_decision_outside_agent_turn,
     require_goal_orchestrator,
 )
 from .history import validate_goal_id_path_segment
@@ -738,16 +741,20 @@ def gate_decision_preflight(
 ) -> str | None:
     """Validate the linked plan before an approve closes its gate.
 
-    Returns the linked plan id (or None). An approve against a plan that no
-    longer validates raises, so the gate stays open for discussion. An
-    acceptor-blocked gate (G12), a budget_exhausted gate (decision 41) or a
-    goal_complete gate (decision 42) validates its ``option`` instead.
+    Returns the linked plan id (or None). Any decision or option is refused
+    first inside an agent Turn: the owner decides user gates. An approve
+    against a plan that no longer validates raises, so the gate stays open for
+    discussion. An acceptor-blocked gate (G12), a budget_exhausted gate
+    (decision 41) or a goal_complete gate (decision 42) validates its
+    ``option`` instead.
     """
 
     from .goal_complete_gate import goal_complete_gate_preflight
     from .todo_review_blocked import review_gate_preflight
     from .usage_budget_gate import budget_gate_preflight
 
+    if decision is not None or option is not None:
+        require_gate_decision_outside_agent_turn(goal_id=goal_id, todo_id=todo_id)
     if budget_gate_preflight(
         runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id, decision=decision, option=option,
         note=note,
@@ -774,13 +781,17 @@ def gate_decision_preflight(
 def settle_gate_decision(
     *, registry_path: Path, runtime_root: Path, goal_id: str, todo_id: str, decision: str | None,
     runtime_root_arg: str | None = None, option: str | None = None, note: str | None = None,
+    surface: str = GATE_DECISION_SURFACE_CLI, actor: str | None = None,
 ) -> dict[str, Any] | None:
     """After a gate closed: apply (approve) or close (reject/cancel) its plan.
 
-    An acceptor-blocked gate (G12) applies its chosen option instead, a
-    push_request gate (G8) pushes on approve, a budget_exhausted gate
-    (decision 41) raises, clears or stops, and a goal_complete gate (decision
-    42) closes the goal, adds the owner's follow-up work or leaves it open.
+    A decision first records who made it (``closed_by``: ``surface`` and the
+    lifecycle ``actor``) in the gate index, before any effect runs; a recorded
+    one is kept. An acceptor-blocked gate (G12) applies its chosen option
+    instead, a push_request gate (G8) pushes on approve, a budget_exhausted
+    gate (decision 41) raises, clears or stops, and a goal_complete gate
+    (decision 42) closes the goal, adds the owner's follow-up work or leaves
+    it open.
     """
 
     from .gate_threads import mark_gate_closed
@@ -789,6 +800,8 @@ def settle_gate_decision(
     from .todo_review_blocked import settle_review_gate
     from .usage_budget_gate import settle_budget_gate
 
+    if decision is not None:
+        record_gate_decision(runtime_root, goal_id, todo_id, decision=decision, surface=surface, actor=actor)
     budget = settle_budget_gate(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, gate_todo_id=todo_id,
         decision=decision, option=option, note=note, runtime_root_arg=runtime_root_arg,

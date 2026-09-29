@@ -7,12 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_registry import registered_agent_ids_from_registry, require_registered_agent_id
-from .gate_threads import (
-    GATE_DECISION_SURFACE_CLI,
-    record_gate_decision,
-    require_gate_decision_outside_agent_turn,
-    require_user_gate_author,
-)
+from .gate_threads import GATE_DECISION_SURFACE_CLI, require_user_gate_author
 from .todo_acceptance_criteria import guard_acceptance_criteria_update, guard_acceptance_criteria_write
 from .history import load_registry
 from .paths import resolve_runtime_root
@@ -1658,26 +1653,18 @@ def complete_goal_todo(
     runtime_root_arg: str | None = None,
     decision_outcome: str | None = None,
     dry_run: bool = False,
-    gate_option: str | None = None,
-    gate_decision_surface: str = GATE_DECISION_SURFACE_CLI,
+    gate_option: str | None = None, gate_decision_surface: str = GATE_DECISION_SURFACE_CLI,
     **options: Any,
 ) -> dict[str, Any]:
     """Complete a todo; closing a user gate also settles its thread and plan card.
 
-    An approve on a ``plan_approval`` gate is refused while its plan does not
-    validate, so the gate stays open; after the gate closes, the plan is
-    applied (approve) or closed (reject/cancel). See ``loopx.plan_cards``.
-
-    This is the one path that records a user-gate decision (``gate resolve``,
-    ``todo complete --decision-outcome`` and the dashboard ``gate.resolve``):
-    it is refused inside an agent Turn, and the gate index records who decided
-    on which ``gate_decision_surface`` (``closed_by``).
+    A gate decision is refused inside an agent Turn, and an approve while its plan does not
+    validate, so the gate stays open; after it closes, who decided (``closed_by``) and the plan
+    (applied on approve, else closed) are recorded. See ``loopx.plan_cards``.
     """
 
     from .plan_cards import gate_decision_preflight, settle_gate_decision
 
-    if decision_outcome is not None or gate_option is not None:
-        require_gate_decision_outside_agent_turn(goal_id=goal_id, todo_id=todo_id)
     runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
     plan_id = gate_decision_preflight(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
@@ -1694,14 +1681,10 @@ def complete_goal_todo(
         if plan_id and dry_run:
             payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
         return payload
-    decision = payload.get("decision_outcome") or decision_outcome
-    if decision is not None:
-        record_gate_decision(runtime_root, goal_id, todo_id, decision=decision, surface=gate_decision_surface,
-                             actor=options.get("agent_id"))
     settled = settle_gate_decision(
         registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id,
-        todo_id=todo_id, decision=decision,
-        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"),
+        todo_id=todo_id, decision=payload.get("decision_outcome") or decision_outcome, surface=gate_decision_surface,
+        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"), actor=options.get("agent_id"),
     )
     if settled is not None:  # a plan card, or an acceptor-blocked gate option (G12)
         payload[settled.pop("payload_key", "plan_card")] = settled

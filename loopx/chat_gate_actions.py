@@ -214,22 +214,20 @@ class ChatGateActionMixin:
         """
 
         from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
-        from .gate_threads import record_gate_decision
         from .plan_cards import settle_gate_decision
 
-        goal_id, todo_id = str(parameters["goal_id"]), str(parameters["todo_id"])
-        runtime_root = effective_runtime_root(self.registry_path, None)
-        # Only this proposal's own closure is settled here: record who decided it,
-        # in case the closure was interrupted before its audit (a recorded one is kept).
-        gate = self._gate_row(self._gate_rows(goal_id), goal_id, todo_id)
-        record_gate_decision(runtime_root, goal_id, todo_id, decision=str(parameters["decision"]),
-                             surface=GATE_DECISION_SURFACE_DASHBOARD, actor=self._gate_actor(gate, parameters))
+        goal_id = str(parameters["goal_id"])
+        gate = self._gate_row(self._gate_rows(goal_id), goal_id, str(parameters["todo_id"]))
         settled = settle_gate_decision(
             registry_path=self.registry_path,
-            runtime_root=runtime_root,
+            runtime_root=effective_runtime_root(self.registry_path, None),
             goal_id=str(parameters["goal_id"]),
             todo_id=str(parameters["todo_id"]),
             decision=str(parameters["decision"]),
+            # Only this proposal's own closure is settled here, so an audit that an
+            # interrupted closure did not record yet is the dashboard's.
+            surface=GATE_DECISION_SURFACE_DASHBOARD,
+            actor=self._gate_actor(gate, parameters),
             option=parameters.get("option"),
             note=parameters.get("note"),
         )

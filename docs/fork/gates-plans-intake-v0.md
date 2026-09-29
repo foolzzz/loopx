@@ -218,9 +218,9 @@ the model runs inherits it.
 While it is set, recording a decision exits 1 with
 `error_code=gate_decision_refused_in_agent_turn` before anything is written. The
 message says that the owner decides gates and points to `loopx gate reply`. The
-check sits in `complete_goal_todo`, the one path that records a gate decision:
-`loopx gate resolve`, `loopx todo complete --decision-outcome` and the dashboard
-`gate.resolve`. `todo update` takes no decision. What stays allowed:
+check is the first step of `complete_goal_todo`, the one path that records a gate
+decision: `loopx gate resolve`, `loopx todo complete --decision-outcome` and the
+dashboard `gate.resolve`. `todo update` takes no decision. What stays allowed:
 
 - replying on the thread (`loopx gate reply`) and opening gates, as before;
 - closing a gate without a decision (`loopx todo supersede`, or `loopx todo update
