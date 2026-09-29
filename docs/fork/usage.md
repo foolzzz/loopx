@@ -430,8 +430,8 @@ the thread of the `plan_approval` gate that its first plan card opens.
 
 ```sh
 loopx gate list --goal-id todo-due                         # open gates, who each awaits
-loopx gate show --goal-id todo-due --todo-id <gate-id>     # status and thread; for a plan, its plan id
-loopx plan show --goal-id todo-due --plan-id <plan-id>     # the full plan card
+loopx gate show --goal-id todo-due --todo-id <gate-id>     # status, thread and, for a plan, its plan card
+loopx plan show --goal-id todo-due --plan-id <plan-id>     # the full plan, with agent bindings, estimates and todo ids
 loopx gate reply --goal-id todo-due --todo-id <gate-id> --text "Use the local date; do the contract first."
 ```
 
@@ -471,7 +471,10 @@ The dashboard's **Role board** shows:
 - a cost strip.
 
 Clicking a gate opens its drawer, where you can read the thread, reply and
-decide.
+decide. The drawer refreshes every 5 s while it is open, and shows what you
+are deciding: the plan card, the push commits, the budget or the goal
+summary. It enables decisions only once it has read the gate and the gate is
+still open.
 
 What happens on its own:
 
@@ -647,7 +650,11 @@ loopx goal request-push --goal-id G                         # open the push gate
 
 Every gate has a thread (`gate reply`, `gate show`) and closes with
 `loopx gate resolve --goal-id G --todo-id GATE ...`. You can also close it
-from the dashboard drawer, which lists the same options.
+from the dashboard drawer, which offers the options the gate lists. Whichever
+surface decides first wins, and a later dashboard decision on the same gate
+is reported stale and changes nothing. If the drawer cannot read the gate or
+its options, it disables the decisions: use `loopx gate show` and
+`loopx gate resolve` instead.
 `loopx todo complete --role user --decision-outcome ...` is the older
 equivalent.
 
@@ -733,7 +740,7 @@ the upstream ones not covered here.
 | command | purpose |
 |---|---|
 | `gate list --goal-id G [--awaiting user\|orchestrator]` | Open user gates, their kind and who they await. |
-| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan id (read the plan with `plan show`), criteria changes, push repos, the budget or the completion summary. |
+| `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan card, criteria changes, push repos, the budget or the completion summary. A part that cannot be read is reported with its error code. |
 | `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Replying never closes a gate. |
 | `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). |
 
@@ -746,7 +753,7 @@ The orchestrator uses these commands. You mostly read them.
 | `plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]` | Propose a plan card, or revise a pending one in place. The card opens a `plan_approval` gate. |
 | `plan show --goal-id G --plan-id P` | The plan's todos, dependencies, criteria and criteria changes. |
 | `plan list --goal-id G [--require-status pending\|applying\|applied\|rejected\|cancelled]` | The goal's plans. With `--require-status`, exits 1 unless a plan has that status. |
-| `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of a plan whose gate is recorded done with decision approve. Until then it exits 1 with `plan_not_approved` and creates no todos. It checks the recorded decision, not who made it, so it does not stop an orchestrator from approving its own gate. |
+| `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of a plan whose gate is recorded done with decision approve. On a pending or applying plan whose gate is not recorded approved, it exits 1 with `plan_not_approved` and creates no todos. On a rejected or cancelled plan it exits 1 with `plan_not_applicable`. It checks the recorded decision, not who made it, so it does not stop an orchestrator from approving its own gate. |
 
 A plan file looks like this:
 
