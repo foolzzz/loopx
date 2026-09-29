@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import atexit
-import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -17,55 +14,15 @@ if str(REPO_ROOT) not in sys.path:
 _RUNTIME_ROOT_GUARD_DIR = Path(__file__).resolve().parent / "runtime_root_guard"
 sys.path.insert(0, str(_RUNTIME_ROOT_GUARD_DIR))
 
-import real_runtime_root_guard  # noqa: E402
-
-
-def _start_real_runtime_root_guard() -> None:
-    """Refuse test access to the real LoopX runtime root for the whole session.
-
-    The protected roots are captured here, before any test can monkeypatch
-    HOME: the default runtime root of the starting HOME and of the account's
-    home directory, plus an ambient LOOPX_RUNTIME_ROOT. A nested pytest session
-    inherits its parent's roots instead of protecting the temporary HOME it may
-    run under. Child Python processes pick the guard up through PYTHONPATH.
-    """
-
-    inherited = os.environ.get(real_runtime_root_guard.PROTECTED_ROOTS_ENV)
-    if inherited:
-        roots = inherited.split(os.pathsep)
-    else:
-        homes = [Path.home()]
-        try:
-            import pwd
-
-            homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
-        except (ImportError, KeyError):
-            pass
-        roots = [root for home in homes for root in real_runtime_root_guard.runtime_roots_for_home(home)]
-        if os.environ.get("LOOPX_RUNTIME_ROOT"):
-            roots.append(os.path.abspath(os.path.expanduser(os.environ["LOOPX_RUNTIME_ROOT"])))
-    handle, report_path = tempfile.mkstemp(prefix="loopx-runtime-root-guard-", suffix=".jsonl")
-    os.close(handle)
-    atexit.register(Path(report_path).unlink, missing_ok=True)
-    real_runtime_root_guard.configure(roots, report_path)
-    real_runtime_root_guard.install()
-    os.environ["PYTHONPATH"] = os.pathsep.join(
-        part for part in (str(_RUNTIME_ROOT_GUARD_DIR), os.environ.get("PYTHONPATH")) if part
-    )
-
-
-_start_real_runtime_root_guard()
-
-
+# Importing the plugin starts the real-runtime-root guard before any test runs;
+# re-exporting its fixture and hooks registers them for this suite.
+from real_runtime_root_guard_plugin import (  # noqa: E402,F401
+    _refuse_real_loopx_runtime_root,
+    pytest_sessionfinish,
+    pytest_terminal_summary,
+    pytest_testnodedown,
+)
 from loopx.canary.runner import SMOKE_SUITE_CHOICES  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _refuse_real_loopx_runtime_root(request: pytest.FixtureRequest):
-    yield
-    violations = real_runtime_root_guard.take_violations()
-    if violations:
-        pytest.fail(real_runtime_root_guard.describe(request.node.nodeid, violations), pytrace=False)
 
 
 def pytest_addoption(parser) -> None:

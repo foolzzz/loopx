@@ -2,20 +2,34 @@
 
 Tests must keep LoopX state under temporary directories. The owner's live
 runtime root (``~/.codex/loopx``) may be in use by a running dispatcher while
-the suite runs, so this guard never inspects that directory. It watches this
-process's own filesystem operations through a Python audit hook and refuses the
-ones that target a protected root, which covers every way LoopX computes the
-default root (module constants, ``Path.home()``, ``~`` expansion).
+the suite runs, so this guard never inspects that directory. It installs a
+Python audit hook that checks the path arguments of the audited filesystem
+events listed in ``_PATH_ARGUMENTS`` (``open``, ``os.mkdir``, ``os.remove``,
+``os.rename``, ``os.listdir``, ``os.scandir``, ``shutil.rmtree`` and similar),
+and refuses those under a protected root with ``PermissionError`` before the
+operation runs. Each protected root is pinned in its normalized and its
+``os.path.realpath`` form. Accessed paths are only made absolute and normalized
+lexically; they are never resolved.
 
-The pytest session protects the runtime root of the HOME it started with, so a
-test that points HOME at ``tmp_path`` still resolves and uses its own temporary
-root. Child Python processes that inherit ``PYTHONPATH`` load the
-``sitecustomize`` shim next to this module and install the same hook; they
-append refusals to the report file named in the environment, which the pytest
-fixture reads back to fail the test that spawned them.
+Covered: those events in the pytest process, and in Python subprocesses that
+inherit ``PYTHONPATH`` and the session's report path. The ``sitecustomize``
+shim next to this module installs the hook in those subprocesses.
 
-This module is imported before pytest in child processes, so it must depend on
-the standard library only.
+Not covered:
+
+- metadata checks that raise no audit event: ``os.stat``, ``os.lstat``,
+  ``os.access`` and ``os.readlink``, hence ``Path.exists()`` and
+  ``Path.stat()``;
+- paths relative to a ``dir_fd``;
+- access through a symlink or another spelling of a path that does not
+  normalize to a pinned form;
+- subprocesses that drop ``PYTHONPATH`` or the report path, and non-Python
+  subprocesses.
+
+Every refusal is appended to the session's report file together with the
+``PYTEST_CURRENT_TEST`` value it happened under, which names the test to charge
+it to. This module is imported before pytest in child processes, so it must
+depend on the standard library only.
 """
 
 from __future__ import annotations
@@ -31,8 +45,9 @@ from pathlib import Path
 PROTECTED_ROOTS_ENV = "PYTEST_LOOPX_PROTECTED_RUNTIME_ROOTS"
 REPORT_PATH_ENV = "PYTEST_LOOPX_RUNTIME_ROOT_GUARD_REPORT"
 
-# Audit event -> positions of the path arguments it carries. Reads count too:
-# a test that reads the owner's live state is not hermetic either.
+# Audited event -> positions of the path arguments to check. Reads count too: a
+# test that reads the owner's live state is not hermetic either. os.symlink is
+# checked at the link location only; its target string touches nothing.
 _PATH_ARGUMENTS: dict[str, tuple[int, ...]] = {
     "open": (0,),
     "os.chdir": (0,),
@@ -50,7 +65,7 @@ _PATH_ARGUMENTS: dict[str, tuple[int, ...]] = {
     "os.rmdir": (0,),
     "os.scandir": (0,),
     "os.setxattr": (0,),
-    "os.symlink": (0, 1),
+    "os.symlink": (1,),
     "os.truncate": (0,),
     "os.utime": (0,),
     "os.walk": (0,),
@@ -69,7 +84,8 @@ _PATH_ARGUMENTS: dict[str, tuple[int, ...]] = {
     "tempfile.mkstemp": (0,),
 }
 # Positions of the ``dir_fd`` arguments of os.* events; the events report -1
-# when a path is not relative to a directory descriptor.
+# when a path is not relative to a directory descriptor. Relative paths with a
+# directory descriptor are not checked.
 _DIR_FD_ARGUMENTS: dict[str, tuple[int, ...]] = {
     "os.chmod": (2,),
     "os.chown": (3,),
@@ -89,18 +105,26 @@ _installed = False
 _reporting = False
 
 
-def runtime_roots_for_home(home: str | os.PathLike[str]) -> list[str]:
-    """Return the default LoopX runtime root for ``home`` in literal and real form."""
+def default_runtime_root(home: str | os.PathLike[str]) -> str:
+    """Return LoopX's default runtime root for ``home``."""
 
-    root = os.path.join(os.path.abspath(os.fspath(home)), ".codex", "loopx")
-    return sorted({os.path.normpath(root), os.path.realpath(root)})
+    return os.path.join(os.path.abspath(os.fspath(home)), ".codex", "loopx")
 
 
 def configure(protected_roots: list[str], report_path: str) -> None:
-    """Protect ``protected_roots`` here and in child processes that inherit the env."""
+    """Protect ``protected_roots`` here and in child processes that inherit the env.
+
+    Each root is pinned in its normalized and its real form, so the physical
+    spelling of a symlinked root is refused as well.
+    """
 
     global _protected, _report_path, _report_cursor
-    _protected = tuple(sorted({os.path.normpath(root) for root in protected_roots if root}))
+    pinned: set[str] = set()
+    for root in protected_roots:
+        if root:
+            pinned.add(os.path.normpath(os.path.abspath(root)))
+            pinned.add(os.path.realpath(root))
+    _protected = tuple(sorted(pinned))
     _report_path = report_path
     try:
         _report_cursor = os.stat(report_path).st_size
@@ -120,7 +144,11 @@ def install() -> None:
 
 
 def install_from_environment() -> None:
-    """Child-process entry point used by the ``sitecustomize`` shim."""
+    """Child-process entry point used by the ``sitecustomize`` shim.
+
+    The hook is installed only when the environment names both protected roots
+    and the session's report file.
+    """
 
     roots = [root for root in os.environ.get(PROTECTED_ROOTS_ENV, "").split(os.pathsep) if root]
     report_path = os.environ.get(REPORT_PATH_ENV)
@@ -133,41 +161,83 @@ def protected_roots() -> tuple[str, ...]:
     return _protected
 
 
-def take_violations() -> list[dict[str, object]]:
-    """Return refusals recorded by this process or its children since the last call."""
+def record_test_id(record: dict[str, object]) -> str | None:
+    """Return the node id a refusal was recorded under, without the phase suffix."""
+
+    test = record.get("test")
+    if not isinstance(test, str) or not test:
+        return None
+    return test.rsplit(" (", 1)[0]
+
+
+def take_violations(
+    nodeid: str | None,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Split refusals recorded since the last call into ``nodeid``'s and the rest.
+
+    A refusal is charged to the test named by the ``PYTEST_CURRENT_TEST`` value
+    it was recorded under. A subprocess that outlives its test therefore cannot
+    fail an unrelated test; its refusals, and those recorded under no test, land
+    in the second list.
+    """
 
     global _report_cursor
     if not _report_path:
-        return []
+        return [], []
     try:
         with open(_report_path, "rb") as report:
             report.seek(_report_cursor)
             data = report.read()
     except FileNotFoundError:
-        return []
+        return [], []
     complete = data[: data.rfind(b"\n") + 1]
     _report_cursor += len(complete)
-    violations = []
+    own: list[dict[str, object]] = []
+    others: list[dict[str, object]] = []
     for line in complete.decode("utf-8", "replace").splitlines():
         with contextlib.suppress(ValueError):
-            violations.append(json.loads(line))
-    return violations
+            record = json.loads(line)
+            (own if nodeid is not None and record_test_id(record) == nodeid else others).append(record)
+    return own, others
+
+
+_FIX_HINT = (
+    "Keep LoopX state under tmp_path: give the registry a temporary "
+    "'common_runtime_root', pass --runtime-root / runtime_root, or run CLI "
+    "subprocesses with HOME set to a temporary directory."
+)
+
+
+def _origin(record: dict[str, object]) -> str:
+    if record.get("pid") == os.getpid():
+        return "this test process"
+    return f"child pid {record.get('pid')}: {' '.join(map(str, record.get('argv') or []))}"
 
 
 def describe(nodeid: str, violations: list[dict[str, object]]) -> str:
     lines = [f"{nodeid} used the real LoopX runtime root instead of a temporary one:"]
     for violation in violations[:10]:
-        origin = "this test process" if violation.get("pid") == os.getpid() else (
-            f"child pid {violation.get('pid')}: {' '.join(map(str, violation.get('argv') or []))}"
-        )
-        lines.append(f"  - {violation.get('event')} {violation.get('path')} ({origin})")
+        lines.append(f"  - {violation.get('event')} {violation.get('path')} ({_origin(violation)})")
     if len(violations) > 10:
         lines.append(f"  - ... {len(violations) - 10} more")
-    lines.append(
-        "Keep LoopX state under tmp_path: give the registry a temporary "
-        "'common_runtime_root', pass --runtime-root / runtime_root, or run CLI "
-        "subprocesses with HOME set to a temporary directory."
-    )
+    lines.append(_FIX_HINT)
+    return "\n".join(lines)
+
+
+def describe_unattributed(records: list[dict[str, object]]) -> str:
+    lines = [
+        f"{len(records)} refused access(es) to the real LoopX runtime root could not "
+        "be charged to the test that was running when they were read:"
+    ]
+    for record in records[:20]:
+        test = record_test_id(record) or "no test"
+        lines.append(
+            f"  - {record.get('event')} {record.get('path')} "
+            f"(recorded under {test}; {_origin(record)})"
+        )
+    if len(records) > 20:
+        lines.append(f"  - ... {len(records) - 20} more")
+    lines.append(_FIX_HINT)
     return "\n".join(lines)
 
 
@@ -219,8 +289,7 @@ def _audit(event: str, args: tuple[object, ...]) -> None:
         if path is None:
             continue
         if not os.path.isabs(path):
-            # A relative symlink target resolves against the link, not the cwd.
-            if relative_to_fd or (event == "os.symlink" and position == 0):
+            if relative_to_fd:
                 continue
             try:
                 path = os.path.join(os.getcwd(), path)
