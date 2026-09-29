@@ -330,3 +330,19 @@ def test_a_subprocess_started_outside_the_checkout_imports_loopx_from_the_tested
     assert Path(loopx.__file__).resolve() == tested
     assert completed.returncode == 0, completed.stderr
     assert [Path(line).resolve() for line in completed.stdout.splitlines()] == [tested, tested]
+
+
+def test_python_path_puts_directories_first_and_leaves_out_one_containing_the_separator(
+    tmp_path: Path,
+) -> None:
+    from real_runtime_root_guard_plugin import python_path
+
+    guard_dir, source_root = tmp_path / "guard", tmp_path / "source"
+    split = tmp_path / f"a{os.pathsep}b"
+
+    assert python_path(guard_dir, source_root, existing=f"x{os.pathsep}y") == os.pathsep.join(
+        [str(guard_dir), str(source_root), "x", "y"]
+    )
+    assert python_path(guard_dir, split, source_root, existing=None) == os.pathsep.join(
+        [str(guard_dir), str(source_root)]
+    )

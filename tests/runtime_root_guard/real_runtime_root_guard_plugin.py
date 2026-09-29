@@ -10,10 +10,13 @@ Refusals recorded under another test or under no test are reported once for
 the whole session, which then exits with a failure status. Under xdist each
 worker hands those refusals to the controller.
 
-The session environment also puts the source tree under test first on
-PYTHONPATH, so a Python subprocess that inherits it imports ``loopx`` from that
-tree whatever its cwd, instead of from wherever the environment's editable
-install points.
+The session environment also puts the source tree under test on PYTHONPATH,
+ahead of any earlier entries, so a Python subprocess that inherits it imports
+``loopx`` from that tree rather than from wherever the environment's editable
+install points. Python searches the script directory (or, for ``-c`` and
+``-m``, the cwd) before PYTHONPATH, so a subprocess started from inside
+another checkout still imports that checkout's ``loopx``. A directory whose
+path contains ``os.pathsep`` cannot be a PYTHONPATH entry and is left out.
 """
 
 from __future__ import annotations
@@ -65,9 +68,14 @@ def _start() -> None:
     guard.install()
     # The guard's sitecustomize first, then the tree under test ahead of any
     # editable install of another checkout.
-    os.environ["PYTHONPATH"] = os.pathsep.join(
-        part for part in (str(GUARD_DIR), str(SOURCE_ROOT), os.environ.get("PYTHONPATH")) if part
-    )
+    os.environ["PYTHONPATH"] = python_path(GUARD_DIR, SOURCE_ROOT, existing=os.environ.get("PYTHONPATH"))
+
+
+def python_path(*directories: Path, existing: str | None = None) -> str:
+    """Directories first, then ``existing``; a directory containing os.pathsep is left out."""
+
+    parts = [str(directory) for directory in directories if directory and os.pathsep not in str(directory)]
+    return os.pathsep.join([*parts, *([existing] if existing else [])])
 
 
 _start()
