@@ -744,9 +744,10 @@ def _render_plan_card_markdown(card: Mapping[str, Any]) -> list[str]:
 _SETTLEMENT_PAYLOAD_KEYS = ("review_gate", "plan_card", "budget_gate", "push", "goal_complete")
 
 
-def _render_resolved_markdown(payload: Mapping[str, Any], key: str) -> str:
-    settled = payload.get(key) or {}
-    head = f"Resolved gate `{payload.get('todo_id')}`: {payload.get('decision_outcome')}" + (
+def _render_resolved_markdown(payload: Mapping[str, Any], key: str | None) -> str:
+    settled = (payload.get(key) if key else None) or {}
+    head = ("Would resolve" if payload.get("dry_run") else "Resolved") + (
+        f" gate `{payload.get('todo_id')}`: {payload.get('decision_outcome')}") + (
         f" ({settled.get('option')})" if settled.get("option") else "")
     if key == "push":
         from .push_requests import push_outcome_markdown
@@ -773,7 +774,7 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
             lines.append("- none")
         return "\n".join(lines) + "\n"
     settled_key = next((key for key in _SETTLEMENT_PAYLOAD_KEYS if key in payload), None)
-    if "messages" not in payload and settled_key:
+    if "messages" not in payload and (settled_key or payload.get("decision_outcome")):
         return _render_resolved_markdown(payload, settled_key)
     if "message" in payload and "messages" not in payload:
         message = payload["message"]

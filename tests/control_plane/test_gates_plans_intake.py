@@ -521,6 +521,17 @@ def test_an_owner_gate_decision_records_closed_by(tmp_path: Path, capsys) -> Non
     assert f"- closed by: cli (actor {ORCH}) at {closed_by['at']}" in capsys.readouterr().out
 
 
+def test_markdown_gate_resolve_names_the_gate_and_its_decision(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    argv = ["--registry", str(registry), "--runtime-root", str(runtime), "gate", "resolve", "--goal-id", GOAL,
+            "--todo-id", gate_id, "--decision", "approve"]
+    assert main([*argv, "--dry-run"]) == 0
+    assert capsys.readouterr().out.strip() == f"Would resolve gate `{gate_id}`: approve"
+    assert main(argv) == 0
+    assert capsys.readouterr().out.strip() == f"Resolved gate `{gate_id}`: approve"
+
+
 def test_a_plain_gate_decision_records_closed_by_without_a_thread(tmp_path: Path, capsys) -> None:
     """A gate nobody replied to has no index entry yet; its decision still records who made it."""
 
