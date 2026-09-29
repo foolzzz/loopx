@@ -692,12 +692,23 @@ gate. The honest limits:
   or acceptor Turn on such todos. Others wait, and the pass and
   `loopx dispatch status` show them with `project_directory_turn_running`.
   Orchestrator Turns and Turns on todos with repos are not affected.
+  The slot follows the `turn run-once` process the dispatcher recorded, not
+  the agent host it started: if that process is killed while its host,
+  which runs in its own session, keeps working, or if the dispatcher dies in
+  the instant between starting it and recording its pid, the dispatcher
+  frees the slot and can start a second Turn in the same directory.
+- **One goal per project directory.** The rule is per goal. Two goals that
+  share one project directory are not kept apart, and this is not
+  supported: give each goal its own directory.
 - **No push gate.** Nothing is merged, so the dispatcher opens no
   `push_request` gate. A project directory that is not a git repository has
   nothing to push; in a git project directory, whatever the agents commit
   stays where it is until you push it.
 - **goal_complete works.** Once every todo is accepted, the `goal_complete`
-  gate opens as usual and lists the project directory as local only.
+  gate opens as usual. It lists the project directory as local only when the
+  directory is not a git repository, has no commit yet, or has no remote. A
+  git project directory with a remote shows its usual push state, such as
+  already on the remote or nothing of this goal to push.
 
 Prefer `--repo` for code, when two todos should run in parallel, or when
 you want review before merge, a clean rollback of a rejected delivery, or a

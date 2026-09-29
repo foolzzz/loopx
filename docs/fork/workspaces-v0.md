@@ -113,13 +113,19 @@ from (`peer_delivery_workspace` in
 `quota should-run` workspace guard both ask it. Under role_v1, a developer or
 acceptor todo that names no repository (neither `task_repositories` nor
 `task_repository`) has no per-todo workspace by design, so its delivery
-source is the goal's project directory. Refresh then accepts the project
-directory, or anything below it: a plain directory binds to the local goal
-identity, a git directory to its repository identity. An independent
-worktree still qualifies. A todo that names a repo, an unknown todo, a
-peer_v1 goal or an agent without a role keeps the independent-worktree
-requirement, and `workspace_guard_policy.peer_independent_worktree_required:
-true` keeps it for every peer.
+source is the goal's project directory: the registered `repo` path, which a
+caller's `--project` never replaces. Refresh then accepts that directory, or
+anything below it: a plain directory binds to the local goal identity, a git
+directory to its repository identity. An independent worktree still
+qualifies. The role_v1 orchestrator is exempt on such a todo only. A todo
+that names a repo keeps the independent-worktree requirement for every role,
+and so does an unknown todo: refresh reads every persisted record of the
+todo (the canonical one once promoted, else both the Markdown block and the
+event projection), and one it cannot read, none, or records that disagree
+about the repos count as unknown. A peer_v1 goal or an agent without a role
+also keeps the requirement, and
+`workspace_guard_policy.peer_independent_worktree_required: true` keeps it
+for every peer.
 Quota for the Turn is then spent only from the same root with the same repos.
 The `quota should-run` workspace guard accepts the same root. For a one-repo
 todo it also accepts that repo's worktree inside the root.
@@ -204,8 +210,8 @@ ref.
 **Which remote.** The target branch's upstream remote (`branch.<b>.remote`),
 else `origin`. A repo with neither is local-only (G3): it is listed as
 skipped with a note and never pushed. So is the implicit repo `main` when the
-project directory is not a git repository (`not_a_git_repo`); a declared repo
-that is not a git repository stays an error. A goal whose repos are all
+project directory is not a git repository (`not_a_git_repo`) or has no commit
+yet (`no_commits`); a declared repo in either state stays an error. A goal whose repos are all
 local-only opens no gate, and its `goal_complete` gate lists them as local
 only: one set of local-only plan statuses (`PUSH_LOCAL_ONLY_STATUSES`) serves
 both gates.

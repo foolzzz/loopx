@@ -151,7 +151,15 @@ After an upgrade, render and load the plist again. Its logs go to
      should-run's compacted items. Orchestrator Turns, Turns on todos with
      repos, and settlement resumes (which run no host) are not affected.
      `dispatch status` shows the running Turn as in the project directory and
-     the last pass's waits (`last_pass.project_directory_waits`).
+     the last pass's waits (`last_pass.project_directory_waits`). Every run is
+     recorded in `state.json` before its child starts and gets its pid right
+     after, so a dispatcher that dies in between leaves a known run, which the
+     next reap settles as a crash. Known limits: the slot follows the
+     recorded `turn run-once` process, not its host, so a killed run-once
+     whose host keeps running in its own session, or a death in the instant
+     before the pid is recorded, frees it early (a lock held for the host's
+     lifetime is the follow-up); and the rule is per goal, so two goals that
+     share a project directory are not kept apart (not supported).
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
      ordinary Todo update). A released todo whose branch was cut earlier and

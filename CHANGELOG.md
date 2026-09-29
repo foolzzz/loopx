@@ -35,13 +35,17 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
     `project_directory_turn_running`, shown in the pass and in `loopx
     dispatch status`. Orchestrator Turns and Turns on todos with repos are
     unaffected.
-  - Push planning reports a non-git implicit repo as `not_a_git_repo`,
-    skipped like a repo without a remote, and the `goal_complete` gate
-    uses the same classification, so it lists the directory as local only.
+  - Push planning reports the implicit repo as `not_a_git_repo` when the
+    project directory is not a git repository, or `no_commits` when it has
+    no commit yet, skipped like a repo without a remote. The `goal_complete`
+    gate uses the same classification, so it lists the directory as local
+    only.
 
   See [Goals without a code repository](docs/fork/usage.md#goals-without-a-code-repository)
   for what works and the limits: no isolation, no delivery snapshot, no
-  merge, no rollback and no push gate.
+  merge, no rollback and no push gate. Known limitation: the one-Turn slot
+  follows the `turn run-once` process, not its host, and two goals that
+  share a project directory are not kept apart.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 
