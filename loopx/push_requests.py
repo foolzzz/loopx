@@ -498,3 +498,92 @@ def settle_push_gate(
             outcome["follow_up_gate_todo_id"] = follow_up.get("gate_todo_id")
     mark_gate_closed(runtime_root, goal_id, gate_todo_id, decision=decision, extra={"push_outcome": outcome})
     return {"payload_key": "push", **outcome}
+
+
+# --- Markdown (``gate show``, ``gate resolve`` and ``goal request-push``) ---------------------------
+
+
+def _one_line(text: Any) -> str:
+    return " ".join(str(text or "").split())
+
+
+def _repo_markdown(repo: Mapping[str, Any]) -> list[str]:
+    """One repo of a push gate: branch -> remote, commit count and range, then its bounded log."""
+
+    if repo.get("status") != "ready":
+        detail = repo.get("note") or repo.get("error") or str(repo.get("status") or "").replace("_", " ")
+        return [f"- `{repo.get('name')}`: skipped, {detail}"]
+    return [
+        f"- `{repo.get('name')}`: {repo.get('branch')} -> {repo.get('remote')}, "
+        f"{repo.get('unpushed_commits')} commit(s), {repo.get('commit_range')}",
+        *(f"  - {line}" for line in repo.get("log") or []),
+    ]
+
+
+def push_outcome_markdown(outcome: Mapping[str, Any]) -> list[str]:
+    """What settling a push gate did, per repo (the ``push`` payload or the gate's ``push_outcome``)."""
+
+    decision = outcome.get("decision")
+    if decision != "approve":
+        state = f"not pushed ({decision})"
+    elif not outcome.get("ok"):
+        state = "failed"
+    else:
+        state = "pushed" if outcome.get("pushed") else "nothing pushed"
+    lines = [f"- push: {state}"]
+    if outcome.get("error"):
+        lines.append(f"- error: {outcome['error']}")
+    for item in outcome.get("repos") or []:
+        status = item.get("status")
+        if status in {"ok", "already_pushed"}:
+            detail = f"{status}, {item.get('branch')} -> {item.get('remote')}"
+        elif status == "skipped":
+            detail = f"skipped, {item.get('note')}"
+        elif status == "head_moved":
+            detail = "not pushed, new merges arrived after the gate opened"
+        else:
+            detail = f"{status}: {_one_line(item.get('error_tail'))}"
+        lines.append(f"- `{item.get('name')}`: {detail}")
+    if outcome.get("follow_up_gate_todo_id"):
+        lines.append(f"- follow-up gate: `{outcome['follow_up_gate_todo_id']}` (approve it to push again)")
+    return lines
+
+
+def render_push_gate_markdown(view: Mapping[str, Any]) -> list[str]:
+    """The ``gate show`` section of a push_request gate: the repos it offers and, once closed, its result."""
+
+    lines = ["", f"## Push ({view.get('push_reason') or PUSH_REASON_REQUESTED})", ""]
+    for repo in view.get("push_repos") or []:
+        lines += _repo_markdown(repo)
+    for item in view.get("previous_errors") or []:
+        lines.append(f"- previous push failed: `{item.get('name')}`: {_one_line(item.get('error_tail'))}")
+    if isinstance(view.get("push_outcome"), Mapping):
+        lines += push_outcome_markdown(view["push_outcome"])
+    return lines
+
+
+def render_push_request_markdown(payload: Mapping[str, Any]) -> str:
+    """``loopx goal request-push``: the opened gate and its repos, or why none opened."""
+
+    if not payload.get("ok"):
+        return f"push request: error: {payload.get('error')}\n"
+    goal_id, gate_id, reason = payload.get("goal_id"), payload.get("gate_todo_id"), payload.get("reason")
+    if payload.get("opened"):
+        lines = [f"Opened push gate `{gate_id}` for {goal_id} ({reason})."]
+    elif gate_id:
+        lines = [f"Push gate `{gate_id}` is already open for {goal_id}."]
+    elif payload.get("gate_text"):
+        lines = [f"Would open a push gate for {goal_id} ({reason}); dry run, nothing opened."]
+    else:
+        lines = [f"No push gate opened for {goal_id}: {reason}."]
+    if payload.get("pending_todo_ids"):
+        lines.append("- unfinished todos: " + ", ".join(f"`{todo}`" for todo in payload["pending_todo_ids"]))
+    if payload.get("declined_gate"):
+        lines.append(f"- declined at gate `{payload['declined_gate']}`; new merges offer it again")
+    for repo in payload.get("repos") or []:
+        lines += _repo_markdown(repo)
+    if gate_id:
+        lines += ["", f"Review it with `loopx gate show --goal-id {goal_id} --todo-id {gate_id}`; decide with "
+                      f"`loopx gate resolve --goal-id {goal_id} --todo-id {gate_id} --decision "
+                      "approve|reject|cancel`."]
+    return "\n".join(lines) + "\n"

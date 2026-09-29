@@ -380,6 +380,53 @@ def test_a_failed_push_leaves_a_follow_up_gate_with_the_error(tmp_path, monkeypa
     assert _push_gates(fx) == []
 
 
+def test_the_markdown_cli_shows_the_gate_id_the_commits_and_each_push_result(tmp_path, monkeypatch) -> None:
+    """Without --format json the owner still sees what a push gate offers and what approving it did."""
+
+    fx = _fixture(tmp_path, monkeypatch)
+    hook = fx["bare"] / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\necho 'fixture remote refuses pushes' >&2\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+    _merged(fx, ["api", "web"])
+
+    def markdown(*argv: str) -> str:
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = cli_main(["--registry", str(fx["registry"]), "--runtime-root", str(fx["runtime"]), *argv])
+        assert code == 0, buffer.getvalue()
+        return buffer.getvalue()
+
+    requested = markdown("goal", "request-push", "--goal-id", GOAL)
+    [gate] = _push_gates(fx)
+    assert f"Opened push gate `{gate['todo_id']}` for {GOAL}" in requested
+    assert f"`api`: {TASK_BRANCH} -> origin" in requested and "`web`: skipped" in requested
+
+    [api] = [repo for repo in gate_view(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                        todo_id=gate["todo_id"])["push_repos"] if repo["name"] == "api"]
+    shown = markdown("gate", "show", "--goal-id", GOAL, "--todo-id", gate["todo_id"])
+    assert "# Gate `" + gate["todo_id"] + "` (push_request)" in shown
+    assert f"`api`: {TASK_BRANCH} -> origin, {api['unpushed_commits']} commit(s), {api['commit_range']}" in shown
+    assert f"  - {api['log'][0]}" in shown
+    assert shown.index("## Push") < shown.index("## Thread")
+
+    failed = markdown("gate", "resolve", "--goal-id", GOAL, "--todo-id", gate["todo_id"], "--decision", "approve")
+    [follow_up] = _push_gates(fx)
+    assert f"Resolved gate `{gate['todo_id']}`: approve" in failed
+    assert "- push: failed" in failed
+    assert "`api`: error" in failed and "fixture remote refuses pushes" in failed
+    assert f"follow-up gate: `{follow_up['todo_id']}`" in failed
+
+    hook.unlink()
+    pushed = markdown("gate", "resolve", "--goal-id", GOAL, "--todo-id", follow_up["todo_id"], "--decision",
+                      "approve")
+    assert f"Resolved gate `{follow_up['todo_id']}`: approve" in pushed and "- push: pushed" in pushed
+    assert f"`api`: ok, {TASK_BRANCH} -> origin" in pushed and "`web`: skipped" in pushed
+    closed = markdown("gate", "show", "--goal-id", GOAL, "--todo-id", follow_up["todo_id"])
+    assert "- push: pushed" in closed and "- previous push failed: `api`" in closed
+    assert markdown("goal", "request-push", "--goal-id", GOAL).startswith(
+        f"No push gate opened for {GOAL}: nothing_to_push")
+
+
 def test_a_rejected_non_fast_forward_is_never_forced(tmp_path, monkeypatch) -> None:
     fx = _fixture(tmp_path, monkeypatch)
     _merged(fx)

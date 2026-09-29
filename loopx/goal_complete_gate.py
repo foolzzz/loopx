@@ -336,7 +336,7 @@ def _money(value: Any) -> str:
         return "$0.00"
 
 
-def _repo_line(repo: Mapping[str, Any]) -> str:
+def _repo_state(repo: Mapping[str, Any]) -> str:
     merges = len(repo.get("merged_todo_commits") or [])
     push = {
         "pushed": f"pushed to {repo.get('remote')}",
@@ -346,23 +346,35 @@ def _repo_line(repo: Mapping[str, Any]) -> str:
         "no_merges": "no merges",
         "nothing_to_push": "nothing of this goal to push",
     }.get(str(repo.get("push")), str(repo.get("push")))
-    return f"{repo.get('name')}: {merges} merge(s) on {repo.get('branch') or '-'}, {push}"
+    return f"{merges} merge(s) on {repo.get('branch') or '-'}, {push}"
+
+
+def _repo_line(repo: Mapping[str, Any]) -> str:
+    return f"{repo.get('name')}: {_repo_state(repo)}"
+
+
+def _todos_text(todos: Mapping[str, Any]) -> str:
+    return (f"{todos.get('accepted') or 0} accepted, {todos.get('rejects') or 0} reject(s), "
+            f"{todos.get('superseded') or 0} superseded")
+
+
+def _usage_text(usage: Mapping[str, Any]) -> str:
+    per_todo = usage.get("cost_per_accepted_todo_usd")
+    return (
+        f"{_money(usage.get('cost_usd'))} ({_money(usage.get('cost_estimated_usd'))} estimated), "
+        f"{usage.get('turns') or 0} Turn(s), {float(usage.get('agent_hours') or 0):.2f} agent-h"
+        + (f", {_money(per_todo)}/accepted todo" if per_todo else "")
+    )
 
 
 def _gate_text(goal_id: str, snapshot: Mapping[str, Any]) -> str:
     """The gate label; the todo list shows its first 500 characters, so the repos come last."""
 
-    todos = snapshot["todos"]
-    usage = snapshot["usage"]
     repos = "; ".join(_repo_line(repo) for repo in snapshot["repos"]) or "none declared"
-    per_todo = usage.get("cost_per_accepted_todo_usd")
     follow_ups = snapshot.get("follow_ups") or []
     return (
         f"{GOAL_COMPLETE_GATE_TEXT_PREFIX}{goal_id} is accepted, merged and its push resolved. "
-        f"Todos: {todos['accepted']} accepted, {todos['rejects']} reject(s), {todos['superseded']} superseded. "
-        f"Usage: {_money(usage.get('cost_usd'))} ({_money(usage.get('cost_estimated_usd'))} estimated), "
-        f"{usage.get('turns') or 0} Turn(s), {float(usage.get('agent_hours') or 0):.2f} agent-h"
-        + (f", {_money(per_todo)}/accepted todo" if per_todo else "") + "."
+        f"Todos: {_todos_text(snapshot['todos'])}. Usage: {_usage_text(snapshot['usage'])}."
         + (f" {len(follow_ups)} open follow-up(s)." if follow_ups else "")
         + " Close the goal, add work (the note is the follow-up) or leave it open: `loopx gate resolve "
         f"--goal-id {goal_id} --todo-id <this gate> --option close_goal|add_work|leave_open [--note ...]`. "
@@ -627,3 +639,46 @@ def goal_complete_hold(runtime_root: Path, goal_id: str, goal: Mapping[str, Any]
     if (entry.get("completion_outcome") or {}).get("option") == GOAL_COMPLETE_OPTION_CLOSE:
         return {"reason": GOAL_COMPLETE_HOLD_CLOSED, "gate_todo_id": latest}
     return None
+
+
+# --- Markdown (``gate show`` and ``gate resolve``) ------------------------------------------------
+
+
+def completion_outcome_markdown(outcome: Mapping[str, Any]) -> list[str]:
+    """What the owner's option did (the ``goal_complete`` payload or the gate's ``completion_outcome``)."""
+
+    option = outcome.get("option")
+    if not outcome.get("ok"):
+        return [f"- outcome: {option} failed: {outcome.get('error')}"]
+    if option == GOAL_COMPLETE_OPTION_CLOSE:
+        return [f"- outcome: {option}, goal stopped", f"- resume: `{outcome.get('resume')}`"]
+    if option == GOAL_COMPLETE_OPTION_ADD_WORK:
+        return [f"- outcome: {option}, follow-up todo `{outcome.get('follow_up_todo_id')}` for the orchestrator"]
+    return [f"- outcome: {option}, the goal stays open"]
+
+
+def render_goal_complete_markdown(view: Mapping[str, Any]) -> list[str]:
+    """The ``gate show`` section of a goal_complete gate: the completion summary and, once decided, its result."""
+
+    todos = view.get("completion_todos") or {}
+    lines = ["", "## Completion", "", f"- todos: {_todos_text(todos)}" + "".join(
+        f", {todos[key]} {label}" for key, label in (("done_without_review", "done without review"),
+                                                     ("orchestrator_todos", "orchestrator todo(s)"))
+        if todos.get(key)
+    )]
+    for repo in view.get("completion_repos") or []:
+        lines.append(f"- `{repo.get('name')}`: {_repo_state(repo)}")
+        commits = repo.get("merged_todo_commits") or []
+        if commits:
+            lines.append("  - merged: " + ", ".join(
+                f"{commit.get('sha')} {commit.get('todo_id') or ''}".strip() for commit in commits))
+    usage = view.get("completion_usage") or {}
+    lines.append(f"- usage: {_usage_text(usage)}")
+    lines += [f"  - {row.get('role')}: {_money(row.get('cost_usd'))}, {row.get('turns') or 0} Turn(s)"
+              for row in usage.get("by_role") or []]
+    lines += [f"- open follow-up `{item.get('todo_id')}`: {item.get('text')}" for item in view.get("follow_ups") or []]
+    if view.get("options"):
+        lines.append("- options: " + ", ".join(view["options"]))
+    if isinstance(view.get("completion_outcome"), Mapping):
+        lines += completion_outcome_markdown(view["completion_outcome"])
+    return lines

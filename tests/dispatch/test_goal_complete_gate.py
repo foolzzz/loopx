@@ -309,6 +309,36 @@ def test_close_goal_stops_the_goal_and_the_dispatcher_stops_considering_it(tmp_p
     assert resumed["gates_opened"] == [] and len(_gates(fx, "goal_complete", open_only=False)) == 1
 
 
+def test_markdown_show_and_resolve_report_the_completion_and_the_closed_goal(tmp_path, monkeypatch) -> None:
+    """Without --format json the owner sees the completion summary and what closing the goal did."""
+
+    fx = _fixture(tmp_path, monkeypatch, remote=False)
+    _merged(fx, ["api"], name="only")
+    [opened] = _dispatcher(fx).run_once()["gates_opened"]
+
+    def markdown(*argv: str) -> str:
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = cli_main(["--registry", str(fx["registry"]), "--runtime-root", str(fx["runtime"]), *argv])
+        assert code == 0, buffer.getvalue()
+        return buffer.getvalue()
+
+    shown = markdown("gate", "show", "--goal-id", GOAL_ID, "--todo-id", opened["todo_id"])
+    assert "## Completion" in shown and shown.index("## Completion") < shown.index("## Thread")
+    assert "- todos: 1 accepted, 0 reject(s), 0 superseded" in shown
+    assert "`api`: 1 merge(s) on main, local only" in shown and "`web`: 0 merge(s) on main, local only" in shown
+    assert "- usage: $0.00 ($0.00 estimated), 0 Turn(s)" in shown
+    assert "- options: close_goal, add_work, leave_open" in shown
+
+    resolved = markdown("gate", "resolve", "--goal-id", GOAL_ID, "--todo-id", opened["todo_id"],
+                        "--option", "close_goal")
+    assert f"Resolved gate `{opened['todo_id']}`: approve (close_goal)" in resolved
+    assert "- outcome: close_goal, goal stopped" in resolved and "--operation resume" in resolved
+    assert goal_is_stopped(_goal(fx))
+    assert "- outcome: close_goal, goal stopped" in markdown("gate", "show", "--goal-id", GOAL_ID, "--todo-id",
+                                                           opened["todo_id"])
+
+
 def test_add_work_opens_an_orchestrator_follow_up_that_launches_a_turn(tmp_path, monkeypatch) -> None:
     fx = _fixture(tmp_path, monkeypatch, remote=False)
     dispatcher = _dispatcher(fx)
