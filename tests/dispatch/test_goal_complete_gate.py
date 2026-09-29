@@ -309,8 +309,8 @@ def test_close_goal_stops_the_goal_and_the_dispatcher_stops_considering_it(tmp_p
     assert resumed["gates_opened"] == [] and len(_gates(fx, "goal_complete", open_only=False)) == 1
 
 
-def test_markdown_show_and_resolve_report_the_completion_and_the_closed_goal(tmp_path, monkeypatch) -> None:
-    """Without --format json the owner sees the completion summary and what closing the goal did."""
+def test_markdown_show_resolve_and_status_report_a_closed_goal(tmp_path, monkeypatch) -> None:
+    """Without --format json the owner sees the completion summary, what closing did and the stopped goal."""
 
     fx = _fixture(tmp_path, monkeypatch, remote=False)
     _merged(fx, ["api"], name="only")
@@ -337,6 +337,14 @@ def test_markdown_show_and_resolve_report_the_completion_and_the_closed_goal(tmp
     assert goal_is_stopped(_goal(fx))
     assert "- outcome: close_goal, goal stopped" in markdown("gate", "show", "--goal-id", GOAL_ID, "--todo-id",
                                                            opened["todo_id"])
+
+    # The registry status stays "active"; the typed activation state says the goal is stopped.
+    status = markdown("status", "--goal-id", GOAL_ID)
+    assert f"`{GOAL_ID}`: status=active activation=stopped " in status
+    code, payload = _cli(fx, "status", "--goal-id", GOAL_ID)
+    assert code == 0
+    assert [(row["id"], row["activation_state"]) for row in payload["run_history"]["goals"]] == [
+        (GOAL_ID, "stopped")]
 
 
 def test_add_work_opens_an_orchestrator_follow_up_that_launches_a_turn(tmp_path, monkeypatch) -> None:

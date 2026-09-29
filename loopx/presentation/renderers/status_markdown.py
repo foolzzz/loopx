@@ -243,11 +243,15 @@ def append_run_history_markdown(lines: list[str], run_history: dict[str, Any]) -
     for goal in run_goals:
         if not isinstance(goal, dict):
             continue
+        # The registry ``status`` stays ``active`` for a stopped goal; the typed
+        # activation state is what stop/resume (and a closed goal) change.
+        activation = goal.get("activation_state")
         lines.append(
             "- "
             f"`{goal.get('id')}`: "
             f"status={goal.get('status')} "
-            f"phase={goal.get('lifecycle_phase')} "
+            + (f"activation={activation} " if activation and activation != "active" else "")
+            + f"phase={goal.get('lifecycle_phase')} "
             f"adapter={goal.get('adapter_kind')}:{goal.get('adapter_status')} "
             f"records={goal.get('raw_index_records')} "
             f"unique_runs={goal.get('unique_runs')}"
