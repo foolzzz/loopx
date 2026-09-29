@@ -1060,19 +1060,24 @@ def test_only_the_role_v1_orchestrator_skips_the_peer_worktree_guard() -> None:
     """E2E pilot: the orchestrator's plan-todo completion failed the peer worktree guard.
 
     It works from the state home and delivers no code; developers and
-    acceptors keep refreshing from their per-todo worktrees.
+    acceptors keep refreshing a todo with repos from its per-todo worktree.
     """
 
-    from loopx.state_refresh import _role_v1_orchestrator
+    from loopx.control_plane.agents.workspace_guard import PeerDeliveryWorkspace, peer_delivery_workspace
 
     coordination = {"registered_agents": [ORCH, DEV, ACC],
                     "agent_roles": {ORCH: "orchestrator", DEV: "developer", ACC: "acceptor"}}
     role_v1 = {"id": GOAL, "coordination": {"agent_model": "role_v1", **coordination}}
     peer_v1 = {"id": GOAL, "coordination": {"agent_model": "peer_v1", **coordination}}
-    assert _role_v1_orchestrator(role_v1, ORCH) is True
-    assert _role_v1_orchestrator(role_v1, DEV) is False and _role_v1_orchestrator(role_v1, ACC) is False
-    assert _role_v1_orchestrator(peer_v1, ORCH) is False
-    assert _role_v1_orchestrator(role_v1, None) is False
+    todo = {"todo_id": "todo_api", "task_repositories": ["api"]}
+
+    def rule(goal, agent):
+        return peer_delivery_workspace(goal, agent_id=agent, multi_agent=True, todo=todo)
+
+    assert rule(role_v1, ORCH) is PeerDeliveryWorkspace.ANY
+    assert rule(role_v1, DEV) is rule(role_v1, ACC) is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
+    assert rule(peer_v1, ORCH) is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
+    assert rule(role_v1, None) is PeerDeliveryWorkspace.INDEPENDENT_WORKTREE
 
 
 @pytest.mark.parametrize("status", [[], {}, None, 3])
