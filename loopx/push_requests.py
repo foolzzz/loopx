@@ -543,7 +543,7 @@ def push_outcome_markdown(outcome: Mapping[str, Any]) -> list[str]:
     if outcome.get("error"):
         lines.append(f"- error: {_error_text(outcome['error'])}")
     for item in _rows(outcome.get("repos")):
-        status = item.get("status")
+        status = item.get("status") if isinstance(item.get("status"), str) else "unknown"
         if status in {"ok", "already_pushed"}:
             detail = f"{status}, {item.get('branch')} -> {item.get('remote')}"
         elif status == "skipped":

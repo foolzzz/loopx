@@ -1073,3 +1073,16 @@ def test_only_the_role_v1_orchestrator_skips_the_peer_worktree_guard() -> None:
     assert _role_v1_orchestrator(role_v1, DEV) is False and _role_v1_orchestrator(role_v1, ACC) is False
     assert _role_v1_orchestrator(peer_v1, ORCH) is False
     assert _role_v1_orchestrator(role_v1, None) is False
+
+
+@pytest.mark.parametrize("status", [[], {}, None, 3])
+def test_push_outcome_markdown_tolerates_a_non_text_repo_status(status) -> None:
+    from loopx.push_requests import push_outcome_markdown
+
+    lines = push_outcome_markdown({
+        "decision": "approve", "ok": False,
+        "repos": [{"name": "api", "status": status, "error_tail": "remote rejected"}],
+    })
+
+    assert lines[0] == "- push: failed"
+    assert lines[1] == "- `api`: unknown: remote rejected"
