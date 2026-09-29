@@ -47,6 +47,11 @@ equal([drifted.agents[0].role, drifted.agents[0].activity], [null, "unknown"], "
 equal([drifted.todos[0].effective_role, drifted.todos[0].reject_count, drifted.todos[0].running], ["developer", 0, false],
   "unknown todo role and invalid reject count fall back");
 equal([drifted.gates[0].kind, drifted.gates[0].awaiting], ["decision", "awaiting_user"], "unknown gate kind/awaiting fall back");
+// Typed gates keep their kind (loopx.gate_threads.GATE_KINDS) instead of collapsing to "decision".
+const typedKinds = ["decision", "plan_approval", "acceptor_blocked", "push_request", "budget_exhausted", "goal_complete"];
+equal(roleBoardSchema.parse({ ...fixture, gates: typedKinds.map((kind) => ({ todo_id: `todo_${kind}`, text: kind, kind, awaiting: "awaiting_user" })) })
+  .gates.map((gate) => gate.kind), typedKinds, "every LoopX gate kind survives parsing");
+equal(parsed.gates.find((gate) => gate.todo_id === "todo_rb_budget")?.kind, "budget_exhausted", "the fixture's budget gate keeps its kind");
 
 const board = roleBoardFromProjection(parsed);
 equal(board.cards.find((card) => card.todoId === "todo_rb_review")?.acceptanceCriteria, "GET /todos returns 200; tests pass",
@@ -88,8 +93,9 @@ equal(lane("acceptor").cells.in_review.map((card) => card.todoId), ["todo_rb_rev
 equal(lane("developer").cells.rework.map((card) => [card.todoId, card.rejectCount]), [["todo_rb_rework", 2]], "rejected card is in rework");
 equal(lane("orchestrator").cells.assigned.map((card) => card.todoId), ["todo_rb_orch"], "orchestrator work stays in its lane");
 equal(grid.stageCounts, { planned: 1, assigned: 2, running: 1, in_review: 1, rework: 1, done: 1 }, "stage counts");
-equal(grid.userGates.map((gate) => gate.todoId), ["todo_rb_plan_gate", "todo_rb_decision"],
-  "gates waiting on the user come first");
+equal(grid.userGates.map((gate) => [gate.todoId, gate.kind]),
+  [["todo_rb_plan_gate", "plan_approval"], ["todo_rb_budget", "budget_exhausted"], ["todo_rb_decision", "decision"]],
+  "gates waiting on the user come first, plan approvals first among them");
 
 // Fork G9: the usage summary parses, degrades to null when malformed, and maps to the strip model.
 const usage = turnUsageSummarySchema.parse({

@@ -75,16 +75,19 @@ Gap G12 adds two card flags: `review_checkout_modified` when an acceptor Turn
 changed its throwaway review checkout (from the dispatcher's
 `review_warnings`), and `review_blocked_gate_todo_id` when an open
 `acceptor_blocked` gate holds the todo's review. A gate of that kind reports
-`kind=acceptor_blocked` with its `review_todo_id` and `options`; the dashboard
-falls back to rendering it as a decision.
+`kind=acceptor_blocked` with its `review_todo_id` and `options`.
 
 ### Gates
 
 The `gates` list holds open user gates (`role=user`, `task_class=user_gate`).
 Their kind, awaiting state and message count come from
-`goals/<G>/gates/index.json`. For plan approvals, the plan's title, status,
-revision and todo count come from its card. Gates that wait on the user sort
-first, and plan approvals sort before decisions.
+`goals/<G>/gates/index.json`. `kind` is the gate's real kind: `decision`,
+`plan_approval`, `acceptor_blocked`, `push_request`, `budget_exhausted` or
+`goal_complete` (`GATE_KINDS` in `loopx.gate_threads`). A gate linked to a plan
+card is always `plan_approval`; a gate without an index entry, or with a kind
+this reader does not know, is `decision`. For plan approvals, the plan's title,
+status, revision and todo count come from its card. Gates that wait on the user
+sort first, and plan approvals sort before the other kinds.
 
 ### Bounds
 
@@ -108,8 +111,14 @@ A goal with a board shows a **Role board** tab ("角色看板") next to **Tasks*
 The code is in `goal-role-board-view.tsx`, with the model in `role-board-model.ts`.
 
 - **Waiting on you.** This list at the top shows open gates and plan approvals.
-  Click one to open its drawer, which has the discussion thread and the
-  approve, reject and cancel actions from S6 and S7.
+  Each row has a kind badge and icon (Decision, Plan approval, Acceptor
+  blocked, Push request, Budget exhausted, Goal complete). Click one to open
+  its drawer, which has what the gate asks you to decide, the discussion
+  thread and the approve, reject and cancel actions from S6 and S7 (see
+  [gates-plans-intake-v0](gates-plans-intake-v0.md#web)). While the drawer is
+  open, it re-reads the thread; when the message count, awaiting state or
+  status changes, the board re-reads that goal's status, so a reply or
+  decision made from the CLI shows on the row without a manual refresh.
 - **Columns** are derived stages:
 
   | column | rule |
@@ -136,8 +145,9 @@ The code is in `goal-role-board-view.tsx`, with the model in `role-board-model.t
   opens the Todo drawer.
 
 The zod schema (`roleBoardSchema` in `src/data/status.ts`) maps unknown enum
-values to fallbacks, and turns a malformed board into `null`. As a result, a
-newer backend can never blank the status payload.
+values to fallbacks (an unknown gate kind becomes `decision`), and turns a
+malformed board into `null`. As a result, a newer backend can never blank the
+status payload.
 
 ### Usage strip
 
@@ -160,7 +170,11 @@ hides the strip without breaking the board.
 python -m pytest -q tests/control_plane/test_role_board_projection.py
 cd apps/presentation/dashboard
 npm run smoke:role-board              # schema + stage/swimlane derivation (in smoke:personal-workspace)
-npm run smoke:role-board-browser      # renders the tab from smoke/role-board-fixture.json, zh + en
+npm run smoke:gate-drawer             # gate-thread sections, decision readiness, typed-gate options
+                                      # (in smoke:personal-workspace and its packaged variant)
+npm run smoke:role-board-browser      # renders the tab from smoke/role-board-fixture.json, zh + en, and the
+                                      # gate drawer: readiness (delayed, failed, switched, closed), submitted
+                                      # {decision, option}, polling order, focus and hidden (in smoke:personal-workspace)
 npm run smoke:status-projection-contract
 ```
 

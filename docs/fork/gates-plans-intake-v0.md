@@ -121,6 +121,60 @@ It is backed by two chat server endpoints, which accept loopback requests only:
   owner reply. It returns 409 once the gate is closed, and 400 if the body has
   unknown fields such as `author`.
 
+A gate can be answered from the CLI and the dashboard in any order:
+
+- **Live thread.** While the drawer is open and the page is visible, the panel
+  re-reads the thread every 5 seconds and when the window regains focus. Reads
+  apply in the order they were issued, so a slow older read never replaces a
+  newer one. Polling stops while the page is hidden, once the drawer closes and
+  once the gate is closed. A read that changes the message count, the awaiting
+  state or the status also refreshes that goal's status, so the role board row
+  follows. The message list is a polite live log (`role="log"`).
+- **Decisions only on a read gate.** The drawer offers decisions (the primary
+  button and every option under **More decisions**) only after a successful
+  read of the gate it shows now that is still open. While the gate is being
+  read, after any failed read, including a failed refresh after a successful
+  read (the last facts stay shown and the panel keeps retrying), and on a
+  closed gate, every decision is disabled and a status line says why; the next
+  successful read restores them. Switching to another
+  gate clears the previous gate's state before the new gate is drawn, so its
+  option and facts are never reused. A todo that is not a user gate offers no
+  decision, since `gate.resolve` refuses it.
+- **What you decide.** Above the request details, a card per gate kind shows
+  the gate's content from the same endpoint: for `plan_approval`, the plan card
+  (`plan`: title, summary, revision, and each todo's `key`, `text`,
+  `required_role`, `depends_on`, `task_repositories`, `acceptance` and
+  `validation_command`; read from the card by `plan_card_view` in
+  `loopx.plan_cards`) and its acceptance-criteria changes; for `push_request`,
+  each repo's branch, remote, commit range, commit count and log; for
+  `budget_exhausted`, the spend against the budget, its estimated part, the
+  per-role split and the default raise (flagged when it does not cover the
+  spend, since LoopX refuses such a raise: put the amount in the decision
+  note); for `goal_complete`, the accepted, rejected and superseded todos, the
+  usage, each repo's merges and push result, and open follow-ups.
+- **Unavailable, never empty.** Each part is read on its own. A missing,
+  unreadable or malformed plan card is reported as `plan_error`
+  (`plan_not_found`, `plan_unreadable` or `plan_malformed`), and malformed
+  criteria changes as `criteria_changes_error` (`criteria_changes_malformed`),
+  instead of an empty plan or "no changes". The drawer shows such a part, and
+  any other malformed or missing part of a typed gate, as unavailable, and the
+  rest of the gate stays readable. Only an unreadable thread fails the read.
+- **Named options.** On an `acceptor_blocked`, `budget_exhausted` or
+  `goal_complete` gate, the primary button names the option it previews, for
+  example "Approve (close_goal)" / "批准（close_goal）", and sends that
+  `option` explicitly (`retry_acceptance`, `raise_budget` or `close_goal`, the
+  same default as a bare CLI approve). The other options stay in **More
+  decisions**. Named options come from the gate's own `options` list: only
+  listed options are offered, and when the list cannot be read no named option
+  (the primary included) is offered and the drawer points to `loopx gate show`.
+  Plan approvals, push requests and plain decisions keep the plain approve.
+
+The default (Markdown) `loopx gate show` renders the same plan card for a
+`plan_approval` gate: its title, revision and status, summary, and one line per
+todo with its role, repos and dependencies, followed by its acceptance and
+validation command. It names `plan_error` and `criteria_changes_error` when a
+part is unavailable.
+
 ## Only the orchestrator opens user gates (decision 11)
 
 Under role_v1, a developer or acceptor agent cannot open a user todo. This covers

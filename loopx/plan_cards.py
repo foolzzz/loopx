@@ -114,6 +114,56 @@ def list_plans(runtime_root: Path, goal_id: str) -> list[dict[str, Any]]:
     return sorted(plans, key=lambda plan: str(plan.get("created_at") or ""))
 
 
+# The todo contract a gate reviewer decides on (``gate show``, dashboard gate drawer).
+# Agent bindings and estimates stay in ``loopx plan show``.
+PLAN_CARD_VIEW_TODO_FIELDS = (
+    "key", "text", "required_role", "depends_on", "task_repositories", "acceptance", "validation_command",
+)
+
+
+def _card_todo_is_well_formed(todo: Any) -> bool:
+    if not isinstance(todo, Mapping):
+        return False
+    if not all(isinstance(todo.get(field), str) and todo.get(field) for field in ("key", "text")):
+        return False
+    if not all(
+        isinstance(todo.get(field), list) and all(isinstance(item, str) for item in todo[field])
+        for field in ("depends_on", "task_repositories")
+    ):
+        return False
+    return all(
+        todo.get(field) is None or isinstance(todo.get(field), str)
+        for field in ("required_role", "acceptance", "validation_command")
+    )
+
+
+def plan_card_view(record: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The plan a ``plan_approval`` gate asks the owner to approve.
+
+    None when the persisted card is malformed: the caller reports the card
+    unavailable instead of showing a partial or empty plan.
+    """
+
+    body = record.get("plan") if isinstance(record, Mapping) else None
+    if not isinstance(record, Mapping) or not isinstance(body, Mapping):
+        return None
+    todos = body.get("todos")
+    if not isinstance(body.get("title"), str) or not isinstance(todos, list):
+        return None
+    if not (body.get("summary") is None or isinstance(body.get("summary"), str)):
+        return None
+    if not all(_card_todo_is_well_formed(todo) for todo in todos):
+        return None
+    return {
+        "plan_id": record.get("plan_id"),
+        "status": record.get("status"),
+        "revision": record.get("revision"),
+        "title": body["title"],
+        "summary": body.get("summary"),
+        "todos": [{field: todo.get(field) for field in PLAN_CARD_VIEW_TODO_FIELDS} for todo in todos],
+    }
+
+
 # --- validation -------------------------------------------------------------
 
 
@@ -852,9 +902,16 @@ def render_plan_markdown(payload: Mapping[str, Any]) -> str:
                 f"\n- `{todo['key']}` acceptance: {todo.get('acceptance') or '-'}; "
                 f"validation: `{todo.get('validation_command') or '-'}`"
             )
-    from .plan_criteria_changes import criteria_changes_view, render_criteria_changes_markdown
+    from .plan_criteria_changes import (
+        CRITERIA_CHANGES_MALFORMED,
+        criteria_changes_view,
+        render_criteria_changes_markdown,
+        render_criteria_changes_unavailable_markdown,
+    )
 
-    lines += render_criteria_changes_markdown(criteria_changes_view(plan))
+    rows = criteria_changes_view(plan)
+    lines += (render_criteria_changes_unavailable_markdown(CRITERIA_CHANGES_MALFORMED) if rows is None
+              else render_criteria_changes_markdown(rows))
     return "\n".join(lines) + "\n"
 
 

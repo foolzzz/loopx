@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ClipboardCheck, GitBranch, MessageSquareText, ShieldCheck } from "lucide-react";
+import { CircleDollarSign, ClipboardCheck, FlagTriangleRight, GitBranch, MessageSquareText, ShieldAlert, ShieldCheck, Upload, type LucideIcon } from "lucide-react";
 
 import type { WorkspaceDrawerSelection, WorkspaceGoal, WorkspaceModel } from "./personal-workspace-model";
 import { useWorkspaceI18n } from "./i18n";
@@ -12,9 +12,19 @@ import {
   type WorkspaceRoleBoardAgent,
   type WorkspaceRoleBoardCard,
   type WorkspaceRoleBoardGate,
+  type RoleBoardGateKind,
   type RoleBoardRole,
   type WorkspaceTurnUsage,
 } from "./role-board-model";
+
+const gateKindIcons: Record<RoleBoardGateKind, LucideIcon> = {
+  acceptor_blocked: ShieldAlert,
+  budget_exhausted: CircleDollarSign,
+  decision: MessageSquareText,
+  goal_complete: FlagTriangleRight,
+  plan_approval: ClipboardCheck,
+  push_request: Upload,
+};
 
 function AgentChip({ agent }: { agent: WorkspaceRoleBoardAgent }) {
   const { t } = useWorkspaceI18n();
@@ -126,30 +136,33 @@ export function GoalRoleBoardView({
         <header><strong>{t("roles.gatesTitle")}</strong><span>{grid.userGates.length}</span></header>
         {grid.userGates.length ? (
           <ul>
-            {grid.userGates.map((gate) => (
-              <li key={gate.todoId}>
-                <button
-                  className={`personal-role-gate is-${gate.awaiting}`}
-                  data-gate-kind={gate.kind}
-                  data-todo-id={gate.todoId}
-                  onClick={() => openGate(gate)}
-                  type="button"
-                >
-                  {gate.kind === "plan_approval" ? <ClipboardCheck aria-hidden size={16} /> : <MessageSquareText aria-hidden size={16} />}
-                  <span>
-                    <strong>{gate.kind === "plan_approval" && gate.planTitle ? gate.planTitle : gate.text}</strong>
-                    <small>
-                      <span className="personal-role-badge">{t(gate.kind === "plan_approval" ? "roles.planApproval" : "roles.decision")}</span>
-                      <span className={`personal-role-badge is-${gate.awaiting}`}>{t(gate.awaiting === "awaiting_user" ? "roles.gateAwaitingUser" : "roles.gateAwaitingOrchestrator")}</span>
-                      {gate.kind === "plan_approval" && gate.planTodoCount != null
-                        ? <span>{t("roles.planSummary", { count: gate.planTodoCount, revision: gate.planRevision ?? 1 })}</span>
-                        : null}
-                      {gate.messageCount ? <span>{t("roles.messages", { count: gate.messageCount })}</span> : null}
-                    </small>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {grid.userGates.map((gate) => {
+              const KindIcon = gateKindIcons[gate.kind] ?? MessageSquareText;
+              return (
+                <li key={gate.todoId}>
+                  <button
+                    className={`personal-role-gate is-${gate.awaiting}`}
+                    data-gate-kind={gate.kind}
+                    data-todo-id={gate.todoId}
+                    onClick={() => openGate(gate)}
+                    type="button"
+                  >
+                    <KindIcon aria-hidden size={16} />
+                    <span>
+                      <strong>{gate.kind === "plan_approval" && gate.planTitle ? gate.planTitle : gate.text}</strong>
+                      <small>
+                        <span className="personal-role-badge">{t(`roles.gateKind.${gate.kind}`)}</span>
+                        <span className={`personal-role-badge is-${gate.awaiting}`}>{t(gate.awaiting === "awaiting_user" ? "roles.gateAwaitingUser" : "roles.gateAwaitingOrchestrator")}</span>
+                        {gate.kind === "plan_approval" && gate.planTodoCount != null
+                          ? <span>{t("roles.planSummary", { count: gate.planTodoCount, revision: gate.planRevision ?? 1 })}</span>
+                          : null}
+                        {gate.messageCount ? <span>{t("roles.messages", { count: gate.messageCount })}</span> : null}
+                      </small>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : <p className="personal-task-empty">{t("roles.noGates")}</p>}
       </section>

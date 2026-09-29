@@ -288,17 +288,49 @@ def notify_orchestrator(
     return str(added.get("todo_id") or "") or None
 
 
-def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]]:
-    """Old and new criteria side by side for ``gate show`` and the dashboard."""
+# Reported instead of an empty list when a persisted card's changes or results are malformed.
+CRITERIA_CHANGES_MALFORMED = "criteria_changes_malformed"
 
-    if not isinstance(plan, Mapping):
+
+def _mapping_rows(value: Any) -> list[Mapping[str, Any]] | None:
+    """The rows of an optional list of objects: [] when absent, None when malformed."""
+
+    if value is None:
         return []
-    body = plan.get("plan") if isinstance(plan.get("plan"), Mapping) else {}
-    results = {str(item.get("todo_id")): item for item in plan.get("criteria_change_results") or []}
+    if not isinstance(value, list) or not all(isinstance(item, Mapping) for item in value):
+        return None
+    return value
+
+
+def _criteria_change_is_well_formed(change: Mapping[str, Any]) -> bool:
+    """A persisted change names its todo, and its criteria and reason are text (or absent)."""
+
+    todo_id = change.get("todo_id")
+    if not isinstance(todo_id, str) or not todo_id.strip():
+        return False
+    return all(change.get(field) is None or isinstance(change.get(field), str) for field in ("old", "new", "reason"))
+
+
+def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]] | None:
+    """Old and new criteria side by side for ``gate show`` and the dashboard.
+
+    [] when there is no card or it changes no criteria; None when the card's
+    changes (any row) or their results are malformed, so callers report them
+    unavailable rather than as "no changes" or a partial list.
+    """
+
+    if plan is None:
+        return []
+    body = plan.get("plan") if isinstance(plan, Mapping) else None
+    if not isinstance(body, Mapping):
+        return None
+    changes = _mapping_rows(body.get(CRITERIA_CHANGE_KEY))
+    outcomes = _mapping_rows(plan.get("criteria_change_results"))
+    if changes is None or outcomes is None or not all(_criteria_change_is_well_formed(change) for change in changes):
+        return None
+    results = {str(item.get("todo_id")): item for item in outcomes}
     rows = []
-    for change in body.get(CRITERIA_CHANGE_KEY) or []:
-        if not isinstance(change, Mapping):
-            continue
+    for change in changes:
         row = {key: change.get(key) for key in ("todo_id", "old", "new", "reason")}
         outcome = results.get(str(change.get("todo_id")))
         if outcome:
@@ -307,13 +339,8 @@ def criteria_changes_view(plan: Mapping[str, Any] | None) -> list[dict[str, Any]
     return rows
 
 
-def plan_criteria_changes_view(runtime_root: Path, goal_id: str, plan_id: str) -> list[dict[str, Any]]:
-    from .plan_cards import PlanCardError, read_plan
-
-    try:
-        return criteria_changes_view(read_plan(runtime_root, goal_id, plan_id))
-    except (PlanCardError, OSError, ValueError):
-        return []
+def render_criteria_changes_unavailable_markdown(code: str) -> list[str]:
+    return ["", f"_Acceptance-criteria changes unavailable ({code}); review the card before deciding._"]
 
 
 def render_criteria_changes_markdown(rows: list[Mapping[str, Any]]) -> list[str]:

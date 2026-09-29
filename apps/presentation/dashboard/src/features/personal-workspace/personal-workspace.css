@@ -1176,6 +1176,36 @@
 .personal-gate-thread-reply textarea:focus { border-color: var(--pw-blue); }
 .personal-gate-thread-reply button { justify-self: end; }
 .personal-gate-thread-error { color: #b42318; font-size: 11px; }
+/* What a typed gate asks the owner to decide (plan card, push repos, budget, completion). */
+.personal-gate-kind header strong { font-size: 12.5px; }
+.personal-gate-kind code, .personal-gate-plan-todos code { font: 11px/1.45 "Geist Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.personal-gate-detail-lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 8px 0 0; color: var(--pw-text); font-size: 12.5px; }
+.personal-gate-detail-lead small { color: var(--pw-muted); font-size: 11px; }
+.personal-gate-plan-summary { margin: 4px 0 0; color: var(--pw-muted); font-size: 12px; white-space: pre-wrap; }
+.personal-gate-plan-todos { display: grid; gap: 0; margin: 8px 0 0; padding: 0; list-style: none; max-height: 360px; overflow-y: auto; }
+.personal-gate-plan-todos > li { display: grid; gap: 3px; padding: 7px 0; border-top: 1px solid var(--pw-line-strong); }
+.personal-gate-plan-todos > li > p { display: flex; gap: 8px; margin: 0; color: var(--pw-text); font-size: 12px; line-height: 1.45; }
+.personal-gate-plan-todos > li > p > code { flex: none; color: var(--pw-muted); }
+.personal-gate-plan-todos small { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--pw-muted); font-size: 10.5px; }
+.personal-gate-plan-todos small > span { display: inline-flex; align-items: center; gap: 3px; }
+.personal-gate-plan-todos .personal-gate-plan-field { color: var(--pw-muted); font-size: 11.5px; }
+.personal-gate-plan-field span { flex: none; color: var(--pw-faint); }
+.personal-gate-facts { display: grid; gap: 6px; margin: 8px 0 0; }
+.personal-gate-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; font-size: 12px; }
+.personal-gate-facts dt { color: var(--pw-faint); }
+.personal-gate-facts dd { display: grid; gap: 2px; margin: 0; color: var(--pw-text); overflow-wrap: anywhere; }
+.personal-gate-facts-warning { color: var(--pw-amber); font-size: 11px; }
+.personal-gate-decision-status { margin: 0; color: var(--pw-muted); font-size: 12px; line-height: 1.5; }
+.personal-gate-decision-status[data-gate-decision-status="unavailable"] { color: var(--pw-amber); }
+.personal-compact-menu button:disabled { opacity: .46; cursor: default; }
+.personal-gate-facts-list { display: grid; gap: 0; margin: 6px 0 0; padding: 0; list-style: none; }
+.personal-gate-facts-list > li { display: grid; gap: 3px; padding: 7px 0; border-top: 1px solid var(--pw-line-strong); font-size: 12px; }
+.personal-gate-facts-list > li > p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
+.personal-gate-facts-list small { color: var(--pw-muted); font-size: 11px; }
+.personal-gate-commit-log { display: grid; gap: 1px; margin: 2px 0 0; padding: 0; list-style: none; color: var(--pw-muted); }
+@media (max-width: 640px) {
+  .personal-gate-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
 .personal-recovery-panel { padding: 14px; margin-top: 12px; border: 1px solid #eccf94; border-radius: 12px; background: #fffaf0; }
 .personal-recovery-panel > strong { font-size: 13px; }
 .personal-recovery-panel > p, .personal-preview-unavailable { color: var(--pw-muted); font-size: 12px; line-height: 1.5; }

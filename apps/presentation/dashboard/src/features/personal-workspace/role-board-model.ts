@@ -6,9 +6,14 @@
 
 export const ROLE_BOARD_ROLES = ["orchestrator", "developer", "acceptor"] as const;
 export const ROLE_BOARD_STAGES = ["planned", "assigned", "running", "in_review", "rework", "done"] as const;
+// `loopx.gate_threads.GATE_KINDS`; the status schema maps an unknown kind to "decision".
+export const ROLE_BOARD_GATE_KINDS = [
+  "decision", "plan_approval", "acceptor_blocked", "push_request", "budget_exhausted", "goal_complete",
+] as const;
 
 export type RoleBoardRole = (typeof ROLE_BOARD_ROLES)[number];
 export type RoleBoardStage = (typeof ROLE_BOARD_STAGES)[number];
+export type RoleBoardGateKind = (typeof ROLE_BOARD_GATE_KINDS)[number];
 export type RoleBoardActivity = "running" | "idle" | "cooldown" | "unavailable" | "unknown";
 
 export type WorkspaceRoleBoardAgent = {
@@ -47,7 +52,7 @@ export type WorkspaceRoleBoardCard = {
 export type WorkspaceRoleBoardGate = {
   awaiting: "awaiting_user" | "awaiting_orchestrator";
   blocksAgent?: string | null;
-  kind: "decision" | "plan_approval";
+  kind: RoleBoardGateKind;
   messageCount: number;
   planId?: string | null;
   planRevision?: number | null;
@@ -84,7 +89,7 @@ export type RoleBoardProjectionInput = {
   gates: Array<{
     awaiting: "awaiting_user" | "awaiting_orchestrator";
     blocks_agent?: string | null;
-    kind: "decision" | "plan_approval";
+    kind: RoleBoardGateKind;
     message_count: number;
     plan_id?: string | null;
     plan_revision?: number | null;

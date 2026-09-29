@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Thread
 from urllib.error import HTTPError
@@ -23,9 +25,10 @@ from loopx.gate_threads import (
     list_gates,
     read_gate_index,
     read_gate_thread,
+    render_gate_markdown,
     reply_to_gate,
 )
-from loopx.plan_cards import PlanCardError, apply_plan, propose_plan, read_plan
+from loopx.plan_cards import PlanCardError, apply_plan, plan_path, propose_plan, read_plan, render_plan_markdown
 from loopx.rollout_event_log import load_rollout_events, rollout_event_log_path
 from loopx.todos import add_goal_todo, complete_goal_todo, list_goal_todos
 
@@ -472,19 +475,28 @@ def test_goal_create_end_to_end_with_separate_state_home(tmp_path: Path, capsys)
 # --- web endpoint -------------------------------------------------------------------
 
 
-def test_chat_gate_thread_endpoints(tmp_path: Path) -> None:
+@contextmanager
+def _chat_server(registry: Path, runtime: Path) -> Iterator[str]:
     from loopx.chat_server import ChatHTTPServer, ChatRequestHandler
 
-    registry, runtime = fixture(tmp_path)
-    gate_id = open_gate(registry)
     server = ChatHTTPServer(("127.0.0.1", 0), ChatRequestHandler)
     server.registry_path = registry
     server.runtime_root_override = str(runtime)
     server.verbose = False
     worker = Thread(target=server.serve_forever, daemon=True)
     worker.start()
-    base = f"http://127.0.0.1:{server.server_port}"
     try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join()
+
+
+def test_chat_gate_thread_endpoints(tmp_path: Path) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry)
+    with _chat_server(registry, runtime) as base:
         def post(body: dict) -> dict:
             request = Request(f"{base}/api/chat/gate-thread/reply", data=json.dumps(body).encode(),
                               headers={"Content-Type": "application/json"}, method="POST")
@@ -513,10 +525,103 @@ def test_chat_gate_thread_endpoints(tmp_path: Path) -> None:
         with pytest.raises(HTTPError) as missing:
             urlopen(f"{base}/api/chat/gate-thread?goal_id={GOAL}&todo_id=todo_missing000")
         assert missing.value.code == 404
-    finally:
-        server.shutdown()
-        server.server_close()
-        worker.join()
+
+
+def test_chat_gate_thread_returns_the_plan_card_for_review(tmp_path: Path) -> None:
+    """A plan_approval gate carries the card's summary and todo contracts, so it is decidable in the drawer."""
+    registry, runtime = fixture(tmp_path)
+    plan = _propose(registry, runtime)
+    decision = open_gate(registry)
+    with _chat_server(registry, runtime) as base:
+        with urlopen(f"{base}/api/chat/gate-thread?goal_id={GOAL}&todo_id={plan['gate_todo_id']}") as response:
+            view = json.load(response)
+        with urlopen(f"{base}/api/chat/gate-thread?goal_id={GOAL}&todo_id={decision}") as response:
+            plain = json.load(response)
+    card = view["plan"]
+    assert (card["plan_id"], card["status"], card["revision"], card["title"], card["summary"]) == (
+        plan["plan_id"], "pending", 1, "Todo app v1", "Contract first, then API and web, then integration.")
+    assert [todo["key"] for todo in card["todos"]] == ["contract", "api", "web", "integrate", "readme"]
+    assert card["todos"][0] == {
+        "key": "contract", "text": "Write the API contract", "required_role": "developer", "depends_on": [],
+        "task_repositories": ["api"], "acceptance": "openapi covers CRUD", "validation_command": "test -f openapi.yaml",
+    }
+    assert (card["todos"][3]["depends_on"], card["todos"][3]["task_repositories"]) == (["api", "web"], ["api", "web"])
+    assert card["todos"][4]["acceptance"] is None and card["todos"][4]["validation_command"] is None
+    # The card is a bounded read model: agent bindings and estimates stay in `loopx plan show`.
+    assert all(set(todo) == set(card["todos"][0]) for todo in card["todos"])
+    assert "plan" not in plain and "plan_id" not in plain
+
+    # A missing card file degrades to the thread alone and says so, instead of failing the drawer.
+    plan_path(runtime, GOAL, plan["plan_id"]).unlink()
+    degraded = gate_view(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=plan["gate_todo_id"])
+    assert degraded["plan_id"] == plan["plan_id"] and "plan" not in degraded and "criteria_changes" not in degraded
+    assert degraded["plan_error"] == "plan_not_found" and degraded["messages"]
+
+
+def _rewrite_card(runtime: Path, plan_id: str, mutate) -> None:
+    path = plan_path(runtime, GOAL, plan_id)
+    record = json.loads(path.read_text(encoding="utf-8"))
+    mutate(record)
+    path.write_text(json.dumps(record), encoding="utf-8")
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda record: record["plan"].update(todos=5),
+    lambda record: record["plan"].update(todos=["contract", "api"]),
+    lambda record: record["plan"]["todos"][1].update(depends_on="contract"),
+    lambda record: record["plan"]["todos"][0].update(text=None),
+    lambda record: record.update(plan="Todo app v1"),
+], ids=["todos-not-iterable", "todos-not-objects", "depends-on-not-a-list", "todo-without-text", "body-not-an-object"])
+def test_a_malformed_plan_card_is_reported_unavailable_not_empty(tmp_path: Path, mutate) -> None:
+    registry, runtime = fixture(tmp_path)
+    plan = _propose(registry, runtime)
+    _rewrite_card(runtime, plan["plan_id"], mutate)
+    view = gate_view(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=plan["gate_todo_id"])
+    assert view["plan_id"] == plan["plan_id"] and "plan" not in view
+    assert view["plan_error"] == "plan_malformed"
+    assert [m["author"] for m in view["messages"]] == ["orchestrator"]  # the thread stays readable
+    assert "plan card unavailable (plan_malformed)" in render_gate_markdown(view)
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda record: record["plan"].update(criteria_changes=7),
+    lambda record: record["plan"].update(criteria_changes=["openapi covers paging"]),
+    lambda record: record.update(criteria_change_results=["applied"]),
+    lambda record: record["plan"].update(criteria_changes=[
+        {"old": "openapi covers CRUD", "new": "openapi covers paging", "reason": "paging"}]),
+    lambda record: record["plan"].update(criteria_changes=[
+        {"todo_id": "todo_0123456789ab", "old": "openapi covers CRUD", "new": 5, "reason": "paging"}]),
+], ids=["changes-not-a-list", "changes-not-objects", "results-not-objects", "change-without-todo-id",
+        "new-not-text"])
+def test_malformed_criteria_changes_are_reported_unavailable_not_empty(tmp_path: Path, mutate) -> None:
+    registry, runtime = fixture(tmp_path)
+    plan = _propose(registry, runtime)
+    _rewrite_card(runtime, plan["plan_id"], mutate)
+    view = gate_view(registry_path=registry, runtime_root=runtime, goal_id=GOAL, todo_id=plan["gate_todo_id"])
+    assert "criteria_changes" not in view and view["criteria_changes_error"] == "criteria_changes_malformed"
+    assert view["plan"]["title"] == "Todo app v1" and "plan_error" not in view  # the rest of the card stays readable
+    assert "Acceptance-criteria changes unavailable (criteria_changes_malformed)" in render_gate_markdown(view)
+    shown = render_plan_markdown({"ok": True, "plan": read_plan(runtime, GOAL, plan["plan_id"])})
+    assert "Acceptance-criteria changes unavailable" in shown
+
+
+def test_cli_gate_show_markdown_renders_the_plan_card(tmp_path: Path, capsys) -> None:
+    """The default (Markdown) `gate show` reviews a plan the same way the dashboard drawer does."""
+    registry, runtime = fixture(tmp_path)
+    plan = _propose(registry, runtime)
+    argv = ["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
+            "--todo-id", plan["gate_todo_id"]]
+    assert main(argv) == 0
+    shown = capsys.readouterr().out
+    assert f"## Plan `{plan['plan_id']}`: Todo app v1 (revision 1, pending)" in shown
+    assert "Contract first, then API and web, then integration." in shown
+    assert "1. `contract` Write the API contract (developer; repos: api)" in shown
+    assert "   - acceptance: openapi covers CRUD" in shown
+    assert "   - validation: `test -f openapi.yaml`" in shown
+    assert "2. `api` Implement the API (developer; repos: api; after: contract)" in shown
+    assert "4. `integrate` Integrate web and API (developer; repos: api, web; after: api, web)" in shown
+    assert "5. `readme` Write the README (developer)" in shown
+    assert shown.index("## Plan") < shown.index("## Thread")
 
 
 def test_dispatcher_orchestrator_prompt_names_gates_awaiting_it(tmp_path: Path) -> None:
