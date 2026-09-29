@@ -154,7 +154,10 @@ After an upgrade, render and load the plist again. Its logs go to
      the last pass's waits (`last_pass.project_directory_waits`). Every run is
      recorded in `state.json` before its child starts and gets its pid right
      after, so a dispatcher that dies in between leaves a known run, which the
-     next reap settles as a crash. Known limits: the slot follows the
+     next reap settles as a crash. `serve` and `serve --once` re-read
+     `state.json` once they hold the lock, before their first reap, so they
+     never reap from a snapshot older than another dispatcher's last write.
+     Known limits: the slot follows the
      recorded `turn run-once` process, not its host, so a killed run-once
      whose host keeps running in its own session, or a death in the instant
      before the pid is recorded, frees it early (a lock held for the host's

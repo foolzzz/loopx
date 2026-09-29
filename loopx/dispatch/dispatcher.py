@@ -1465,10 +1465,21 @@ class Dispatcher:
         finished.extend(self.reap())
         return finished
 
+    def _reload_state(self) -> None:
+        """Re-read the state once the lock is held, before any reap.
+
+        The snapshot taken at construction can predate another dispatcher's
+        last writes, such as the pid of a run it recorded before starting it;
+        reaping from it would release a slot whose Turn is still running.
+        """
+
+        self.state = load_state(self.runtime_root)
+
     def run_once(self, *, wait: bool = True) -> dict[str, Any]:
         """One reconcile pass (for tests and cron). Waits for its own children."""
 
         with DispatchLock(self.runtime_root):
+            self._reload_state()
             report = self.reconcile(trigger="once")
             if wait:
                 run_ids = [item["run_id"] for item in report["launched"]]
@@ -1485,6 +1496,7 @@ class Dispatcher:
         """Resident loop: reconcile on file events, child exits and every tick."""
 
         with DispatchLock(self.runtime_root):
+            self._reload_state()
             self.state["serve_pid"] = os.getpid()
             next_tick = 0.0
             last_pass = 0.0
