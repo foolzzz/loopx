@@ -172,13 +172,19 @@ def plan_card_view(record: Mapping[str, Any] | None) -> dict[str, Any] | None:
 
 
 def _text(value: Any, field: str, *, limit: int, required: bool = True) -> str | None:
+    """A bounded plan field, trimmed at the ends only.
+
+    Internal whitespace is kept: in ``greet('  Ada ')`` or a quoted argument
+    of a validation command the spaces are part of the meaning.
+    """
+
     if value is None and not required:
         return None
     if not isinstance(value, str) or not value.strip():
         if required:
             raise PlanCardError("invalid_plan", f"{field} must be a non-empty string")
         return None
-    text = " ".join(value.split())
+    text = value.strip()
     if len(text) > limit:
         raise PlanCardError("invalid_plan", f"{field} must be at most {limit} characters")
     return text
@@ -236,7 +242,10 @@ def normalize_plan(raw: Any, *, goal: Mapping[str, Any]) -> dict[str, Any]:
             raise PlanCardError("invalid_plan", f"duplicate plan key {key!r}")
         text = _text(item.get("text"), f"{label}.text", limit=600)
         assert text is not None
-        if text in texts:
+        # Todo text is stored on one compacted line, so texts that differ only
+        # in spacing would become one todo.
+        compact = " ".join(text.split())
+        if compact in texts:
             raise PlanCardError("invalid_plan", f"duplicate todo text in plan: {text!r}")
         role = str(item.get("required_role") or "developer").strip().lower()
         if role not in _ROLES:
@@ -291,7 +300,7 @@ def normalize_plan(raw: Any, *, goal: Mapping[str, Any]) -> dict[str, Any]:
             "action_kind": _text(item.get("action_kind"), f"{label}.action_kind", limit=40, required=False),
         })
         keys.append(key)
-        texts.add(text)
+        texts.add(compact)
 
     # successors are the inverse of depends_on; fold them into one relation.
     position = {key: index for index, key in enumerate(keys)}

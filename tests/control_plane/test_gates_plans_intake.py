@@ -412,6 +412,30 @@ def test_plan_validation_and_approve_preflight(tmp_path: Path) -> None:
     assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "pending"
 
 
+def test_plan_text_keeps_its_internal_whitespace(tmp_path: Path, capsys) -> None:
+    """Spaces inside a quoted argument change a criterion's meaning; only the ends are trimmed."""
+
+    registry, runtime = fixture(tmp_path)
+    item = {"key": "greet", "text": "  Make greet('  Ada ')  trim its input ",
+            "acceptance": " greet('  Ada ') returns 'Hello, Ada'\n  and greet('') raises ",
+            "validation_command": " python -c \"print('  Ada ')\" "}
+    plan = _propose(registry, runtime, {"title": "Greeting", "todos": [item]})
+    [stored] = read_plan(runtime, GOAL, plan["plan_id"])["plan"]["todos"]
+    assert stored["text"] == "Make greet('  Ada ')  trim its input"
+    assert stored["acceptance"] == "greet('  Ada ') returns 'Hello, Ada'\n  and greet('') raises"
+    assert stored["validation_command"] == "python -c \"print('  Ada ')\""
+    assert main(["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
+                 "--todo-id", plan["gate_todo_id"]]) == 0
+    shown = capsys.readouterr().out
+    assert "Make greet('  Ada ')  trim its input" in shown and "`python -c \"print('  Ada ')\"`" in shown
+    # The bounds and the duplicate check are unchanged: todos differing only in spacing are one todo.
+    with pytest.raises(PlanCardError, match="duplicate todo text"):
+        _propose(registry, runtime, {"title": "Twice", "todos": [
+            {"key": "a", "text": "Write  the README"}, {"key": "b", "text": "Write the  README"}]})
+    with pytest.raises(PlanCardError, match="at most 1000 characters"):
+        _propose(registry, runtime, {"title": "Long", "todos": [{"key": "a", "text": "A", "acceptance": "x" * 1001}]})
+
+
 # --- agent Turns cannot decide user gates --------------------------------------------
 
 
