@@ -224,6 +224,7 @@ def test_dsh_host_forwards_the_resolved_credential_to_the_runtime(
         "LOOPX_TURN_AGENT_ID": "a",
         "LOOPX_TURN_TODO_ID": "",
         "LOOPX_TURN_WORKSPACE": str(tmp_path.resolve()),
+        "LOOPX_AGENT_TURN": "a",
     }
     assert calls[0]["env"] is not credential
 
@@ -1036,5 +1037,6 @@ def test_dsh_sdk_overrides_follow_each_verified_turn(
         assert env["LOOPX_TURN_GOAL_ID"] == "g"
         assert env["LOOPX_TURN_AGENT_ID"] == "a"
         assert env["LOOPX_TURN_WORKSPACE"] == str(tmp_path.resolve())
+        assert env["LOOPX_AGENT_TURN"] == "a"
         assert env["DSH_PERMISSION_MODE"] == "read-only"
     assert pinned["LOOPX_TURN_TODO_ID"] == "stale-todo"

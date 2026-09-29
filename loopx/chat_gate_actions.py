@@ -26,6 +26,7 @@ from .control_plane.coordination.local_authority import (
     LocalCoordinationAuthorityRejection,
     LocalCoordinationAuthorityUnavailable,
 )
+from .gate_threads import GATE_DECISION_SURFACE_DASHBOARD
 from .todos import complete_goal_todo, list_goal_todos
 
 GATE_DURABLE_DECISIONS = frozenset({"approve", "reject", "cancel"})
@@ -133,6 +134,7 @@ class ChatGateActionMixin:
             no_followup=True,
             agent_id=actor,
             authority_reason=GATE_AUTHORITY_REASON,
+            gate_decision_surface=GATE_DECISION_SURFACE_DASHBOARD,
             dry_run=dry_run,
             **options,
         )
@@ -212,11 +214,19 @@ class ChatGateActionMixin:
         """
 
         from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .gate_threads import record_gate_decision
         from .plan_cards import settle_gate_decision
 
+        goal_id, todo_id = str(parameters["goal_id"]), str(parameters["todo_id"])
+        runtime_root = effective_runtime_root(self.registry_path, None)
+        # Only this proposal's own closure is settled here: record who decided it,
+        # in case the closure was interrupted before its audit (a recorded one is kept).
+        gate = self._gate_row(self._gate_rows(goal_id), goal_id, todo_id)
+        record_gate_decision(runtime_root, goal_id, todo_id, decision=str(parameters["decision"]),
+                             surface=GATE_DECISION_SURFACE_DASHBOARD, actor=self._gate_actor(gate, parameters))
         settled = settle_gate_decision(
             registry_path=self.registry_path,
-            runtime_root=effective_runtime_root(self.registry_path, None),
+            runtime_root=runtime_root,
             goal_id=str(parameters["goal_id"]),
             todo_id=str(parameters["todo_id"]),
             decision=str(parameters["decision"]),

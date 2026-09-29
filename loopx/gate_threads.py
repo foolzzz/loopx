@@ -4,7 +4,9 @@ A user gate (``role=user``, ``task_class=user_gate``) carries an append-only
 thread of messages ``{author: user|orchestrator, text, at}``. The thread is a
 clarification channel only: the gate is still closed through the existing
 decision path (``loopx todo complete --decision-outcome approve|reject|cancel``
-or the dashboard ``gate.resolve`` action).
+or the dashboard ``gate.resolve`` action). The owner decides: an agent Turn
+(``LOOPX_AGENT_TURN``) may reply but never decide, and every decision records
+who made it (``closed_by`` in the index entry).
 
 Durable layout under the runtime root::
 
@@ -68,6 +70,13 @@ GATE_SETTLEMENT_LOCK_TIMEOUT_SECONDS = 120.0
 # The intent a typed settlement records before its effect runs.
 GATE_SETTLEMENT_APPLYING = "applying"
 GATE_SETTLEMENT_INTERRUPTED = "settlement was interrupted before its outcome was recorded; retry to recover"
+# An agent Turn may not record a user-gate decision (see ``require_gate_decision_outside_agent_turn``).
+GATE_DECISION_REFUSED_IN_AGENT_TURN = "gate_decision_refused_in_agent_turn"
+# Where a user-gate decision was recorded: the ``closed_by.surface`` of its index entry.
+GATE_DECISION_SURFACE_CLI = "cli"
+GATE_DECISION_SURFACE_DASHBOARD = "dashboard"
+GATE_DECISION_SURFACE_SYSTEM = "system"
+GATE_DECISION_SURFACES = (GATE_DECISION_SURFACE_CLI, GATE_DECISION_SURFACE_DASHBOARD, GATE_DECISION_SURFACE_SYSTEM)
 
 
 class GateThreadError(ValueError):
@@ -209,8 +218,10 @@ def register_gate_kind(
 
 def mark_gate_closed(
     runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None,
-    extra: Mapping[str, Any] | None = None,
+    extra: Mapping[str, Any] | None = None, closed_by: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Mark a gate's index entry closed (creating the entry). A recorded ``closed_by`` is kept."""
+
     todo_id = _safe_todo_id(todo_id)
     index_path = gate_index_path(runtime_root, goal_id)
     index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -220,8 +231,55 @@ def mark_gate_closed(
         entry = _index_entry(previous, messages, closed=True)
         if decision:
             entry["decision_outcome"] = decision
+        if closed_by is not None and not entry.get("closed_by"):
+            entry["closed_by"] = dict(closed_by)
         entry.update(dict(extra or {}))
         return _write_index_entry(runtime_root, goal_id, todo_id, entry)
+
+
+def record_gate_decision(
+    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str, surface: str, actor: str | None,
+) -> dict[str, Any]:
+    """Mark a decided user gate closed and record who decided it.
+
+    ``closed_by`` is ``{surface, actor, agent_turn, at}``: ``cli``,
+    ``dashboard`` or ``system``; the lifecycle actor, or ``owner`` without
+    one; the agent-Turn marker of the recording process (null outside an
+    agent Turn); and when. A replayed or re-settled decision keeps the first
+    record.
+    """
+
+    from .control_plane.agents.agent_turn import agent_turn_marker
+
+    if surface not in GATE_DECISION_SURFACES:
+        raise GateThreadError(
+            "invalid_gate_decision_surface", f"gate decision surface must be one of: {', '.join(GATE_DECISION_SURFACES)}"
+        )
+    return mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision, closed_by={
+        "surface": surface, "actor": actor or "owner", "agent_turn": agent_turn_marker(), "at": _now(),
+    })
+
+
+def require_gate_decision_outside_agent_turn(*, goal_id: str, todo_id: str) -> None:
+    """Refuse a user-gate decision (approve, reject, cancel or an option) inside an agent Turn.
+
+    The owner decides user gates; an agent asks or answers in the gate thread.
+    Checked before anything is written. A guardrail against accidental
+    self-approval, not a security boundary: see
+    :mod:`loopx.control_plane.agents.agent_turn`.
+    """
+
+    from .control_plane.agents.agent_turn import AGENT_TURN_ENV_VAR, agent_turn_marker
+
+    agent = agent_turn_marker()
+    if agent is None:
+        return
+    raise GateThreadError(
+        GATE_DECISION_REFUSED_IN_AGENT_TURN,
+        f"the owner decides user gates; this agent Turn ({AGENT_TURN_ENV_VAR}={agent}) cannot approve, reject or "
+        f"cancel gate {todo_id!r}. Ask or answer in its thread instead: loopx gate reply --goal-id {goal_id} "
+        f"--todo-id {todo_id} --as orchestrator --agent-id <orchestrator> --text '...', and wait for the owner.",
+    )
 
 
 def run_gate_settlement(
@@ -503,7 +561,8 @@ def resolve_gate(
     the dashboard ``gate.resolve``; the lifecycle actor is the agent the gate
     blocks. ``option`` picks one of an acceptor-blocked (G12),
     budget_exhausted (decision 41) or goal_complete (decision 42) gate's
-    options and implies its decision.
+    options and implies its decision. Refused inside an agent Turn; the
+    decision is recorded as made on the ``cli`` surface.
     """
 
     from .todos import complete_goal_todo
@@ -591,7 +650,7 @@ def gate_view(
                 "push_reason", "push_repos", "previous_errors", "push_outcome",
                 "budget_usd", "spent_usd", "spent_ratio", "estimated_usd", "by_role", "default_raise_usd",
                 "budget_outcome", "completion_key", "completion_repos", "completion_todos", "completion_usage",
-                "follow_ups", "completion_outcome"):
+                "follow_ups", "completion_outcome", "closed_by"):
         if entry.get(key):
             view[key] = entry[key]
     return view
@@ -705,6 +764,13 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
         + (f" ({payload.get('decision_outcome')})" if payload.get("decision_outcome") else ""),
         f"- awaiting: {payload.get('awaiting')}",
     ]
+    closed_by = payload.get("closed_by")
+    if isinstance(closed_by, Mapping):
+        lines.append(
+            f"- closed by: {closed_by.get('surface')} (actor {closed_by.get('actor')}"
+            + (f", agent Turn {closed_by['agent_turn']}" if closed_by.get("agent_turn") else "")
+            + f") at {closed_by.get('at')}"
+        )
     if payload.get("plan_id"):
         lines.append(f"- plan: `{payload['plan_id']}` (see `loopx plan show`)")
     if payload.get("plan_error"):

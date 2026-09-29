@@ -104,6 +104,17 @@ def pytest_addoption(parser) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _outside_agent_turns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run tests as the owner even when the suite itself runs inside an agent Turn.
+
+    A LoopX Turn host marks its model process with ``LOOPX_AGENT_TURN``, and
+    user-gate decisions refuse it. Tests that exercise that guard set it.
+    """
+
+    monkeypatch.delenv("LOOPX_AGENT_TURN", raising=False)
+
+
 _GIT_ENV_OVERRIDES = (
     "GIT_DIR",
     "GIT_WORK_TREE",

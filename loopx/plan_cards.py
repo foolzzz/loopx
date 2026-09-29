@@ -624,12 +624,9 @@ def require_plan_gate_approved(
     recorded approved but whose settlement or apply was interrupted, and
     refuses any other plan with ``plan_not_approved``.
 
-    This checks the recorded decision, not who recorded it. The plan gate is
-    bound to the proposing orchestrator, and ``loopx gate resolve`` (like
-    ``loopx todo complete --role user --decision-outcome``) defaults its actor
-    to that agent and accepts its decision, so this guard does not stop an
-    orchestrator with CLI access from approving its own gate. That authority
-    boundary is a separate follow-up.
+    This checks the recorded decision, not who recorded it. Who records it is
+    guarded on the decision path (``complete_goal_todo``): an agent Turn cannot
+    decide a user gate, and the gate index records ``closed_by``.
     """
 
     from .control_plane.todos.contract import TODO_STATUS_DONE, normalize_todo_decision_outcome

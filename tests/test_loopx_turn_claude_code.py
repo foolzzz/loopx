@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,6 +29,7 @@ if log:
             "argv": args,
             "cwd": os.getcwd(),
             "token_present": bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")),
+            "agent_turn": os.environ.get("LOOPX_AGENT_TURN"),
         }) + "\\n")
 mode = os.environ.get("FAKE_CLAUDE_MODE", "ok")
 match = re.search(r'"turn_key":"([^"]+)"', prompt)
@@ -133,6 +135,8 @@ def test_claude_code_host_success_builds_expected_command(
     assert argv[-1] == "--verbose"
     assert row["cwd"] == str(project.resolve())
     assert row["token_present"] is True
+    assert row["agent_turn"] == "codex-fixture"
+    assert "LOOPX_AGENT_TURN" not in os.environ
 
 
 def test_claude_code_host_accepts_result_text_without_structured_output(
@@ -267,6 +271,10 @@ def test_turn_run_once_cli_commits_claude_code_result(
     assert row["cwd"] == str(workspace.resolve())
     assert row["token_present"] is True
     assert "token-value" not in json.dumps(payload)
+    # The model process is marked as an agent Turn; the run-once process that
+    # settles it is not.
+    assert row["agent_turn"] == "codex-fixture"
+    assert "LOOPX_AGENT_TURN" not in os.environ
 
 
 def test_turn_run_once_cli_records_claude_code_host_failure(

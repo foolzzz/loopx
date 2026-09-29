@@ -12,7 +12,7 @@ from canonical_authority_fixture import initialize_canonical_authority
 from loopx.chat_action_store import ChatActionStore
 from loopx.chat_actions import ChatActionService, ProtectedActionGate
 from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_shadow_projection
-from loopx.gate_threads import resolve_gate
+from loopx.gate_threads import read_gate_index, resolve_gate
 from loopx.todos import add_goal_todo, list_goal_todos
 
 PROVIDERS = [None, "file", "sqlite"]
@@ -71,6 +71,21 @@ def test_gate_resolve_applies_decision_with_note_and_readback(
     state = rows(registry)
     assert (state[gate_id]["status"], state[gate_id]["decision_outcome"], state[gate_id]["note"]) == ("done", decision, "Owner reviewed")
     assert state[target_id]["status"] == target_status
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_gate_resolve_records_the_dashboard_as_the_deciding_surface(
+    tmp_path: Path, provider: str | None,
+) -> None:
+    registry, gate_id, _target_id = fixture(tmp_path, provider)  # no marker: the owner runs the dashboard
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
+    applied = service.apply(preview(service, gate_id, "approve")["proposal_id"])["proposal"]
+    assert applied["status"] == "applied", applied
+    entry = read_gate_index(tmp_path / "runtime", "goal-a")["gates"][gate_id]
+    assert (entry["closed"], entry["decision_outcome"]) == (True, "approve")
+    closed_by = entry["closed_by"]
+    assert (closed_by["surface"], closed_by["actor"], closed_by["agent_turn"]) == ("dashboard", "agent-a", None)
+    assert closed_by["at"]
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
@@ -190,6 +205,8 @@ def test_gate_resolve_preview_is_stale_when_another_surface_recorded_the_same_de
     assert not stale.get("receipt")
     assert rows(registry) == decided
     assert decided[gate_id]["note"] == "Approved from the CLI"
+    # The audit names the surface that decided; the stale proposal wrote nothing.
+    assert read_gate_index(tmp_path / "runtime", "goal-a")["gates"][gate_id]["closed_by"]["surface"] == "cli"
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)

@@ -78,8 +78,8 @@ def action_todo_text(effective_action: str | None, gate_ids: Sequence[str]) -> s
     if gate_ids:
         return (
             f"{ORCHESTRATOR_ACTION_TEXT_PREFIX}{_AWAITING_GATES_MARKER}{', '.join(gate_ids)}. "
-            "Read each thread with `loopx gate show`, then reply, open follow-up todos or a plan, "
-            "or close the gate."
+            "Read each thread with `loopx gate show`, then reply with `loopx gate reply`, open follow-up "
+            "todos or a plan. The user decides the gate; do not close it."
         )
     return (
         f"{ORCHESTRATOR_ACTION_TEXT_PREFIX}{_ACTION_MARKER}{effective_action}. Replan: open typed "
