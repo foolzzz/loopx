@@ -1654,13 +1654,13 @@ def complete_goal_todo(
     decision_outcome: str | None = None,
     dry_run: bool = False,
     gate_option: str | None = None, gate_decision_surface: str = GATE_DECISION_SURFACE_CLI,
-    **options: Any,
+    gate_decision_actor: str | None = None, **options: Any,
 ) -> dict[str, Any]:
     """Complete a todo; closing a user gate also settles its thread and plan card.
 
     A gate decision is refused inside an agent Turn, and an approve while its plan does not
-    validate, so the gate stays open; after it closes, who decided (``closed_by``) and the plan
-    (applied on approve, else closed) are recorded. See ``loopx.plan_cards``.
+    validate, so the gate stays open; after it closes, who decided (``closed_by``: ``gate_decision_actor``,
+    else ``agent_id``) and the plan (applied on approve, else closed) are recorded. See ``loopx.plan_cards``.
     """
 
     from .plan_cards import gate_decision_preflight, settle_gate_decision
@@ -1682,9 +1682,9 @@ def complete_goal_todo(
             payload["plan_card"] = {"plan_id": plan_id, "decision": decision_outcome, "dry_run": True}
         return payload
     settled = settle_gate_decision(  # it settles the recorded decision; the request only has to match it
-        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id,
+        registry_path=registry_path, runtime_root=runtime_root, goal_id=goal_id, todo_id=todo_id, option=gate_option,
         decision=decision_outcome, replayed=payload.get("idempotent_replay") is True, surface=gate_decision_surface,
-        runtime_root_arg=runtime_root_arg, option=gate_option, note=options.get("note"), actor=options.get("agent_id"),
+        runtime_root_arg=runtime_root_arg, note=options.get("note"), actor=gate_decision_actor or options.get("agent_id"),
     )
     if settled is not None:  # a plan card, or an acceptor-blocked gate option (G12)
         payload[settled.pop("payload_key", "plan_card")] = settled

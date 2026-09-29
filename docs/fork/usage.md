@@ -665,12 +665,16 @@ Only you decide gates. LoopX marks the process that runs each agent Turn's
 model with `LOOPX_AGENT_TURN` (except the in-process `--dsh-runner` test hook). An agent that runs `gate resolve` or `todo
 complete --decision-outcome` there, with or without `--option`, is refused with
 `gate_decision_refused_in_agent_turn` and writes nothing; it can still reply
-with `gate reply`. This guards against accidental self-approval. It is not a
+with `gate reply`, but only as its own agent: a reply as you (the default
+`--as user`) or with another `--agent-id` fails with
+`gate_reply_identity_mismatch`, and only the orchestrator replies as an agent.
+This guards against accidental self-approval and impersonation. It is not a
 security boundary: agents run as your OS user, and one that removes the variable
 bypasses it. Every decision records `closed_by` in the gate index: the surface
-(`cli`, `dashboard` or `system`), the lifecycle actor (or `owner`), the agent
-Turn marker if one was set, and the time. A replay that fills in a missing
-record marks it `replayed`. `gate show` prints it. Details:
+(`cli`, `dashboard` or `system`), the agent named with `--agent-id` (else
+`owner`, even when `gate resolve` attributes the todo write to the gate's
+agent), the agent Turn marker if one was set, and the time. A replay that
+fills in a missing record marks it `replayed`. `gate show` prints it. Details:
 [gates-plans-intake-v0](gates-plans-intake-v0.md#only-the-owner-decides-user-gates).
 
 | kind | opened by | holds | resolve with |
@@ -756,8 +760,8 @@ the upstream ones not covered here.
 |---|---|
 | `gate list --goal-id G [--awaiting user\|orchestrator]` | Open user gates, their kind and who they await. |
 | `gate show --goal-id G --todo-id GATE` | Status, kind, thread and kind-specific content: the plan card, criteria changes, push repos, the budget or the completion summary. A part that cannot be read is reported with its error code. Once decided, who decided it (`closed_by`). |
-| `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Replying never closes a gate. |
-| `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). Refused inside an agent Turn. |
+| `gate reply --goal-id G --todo-id GATE --text TEXT [--as user\|orchestrator --agent-id ORCH]` | Append to the thread. The default is you. Inside an agent Turn, only `--as orchestrator` as the Turn's own agent (else `gate_reply_identity_mismatch`). Replying never closes a gate. |
+| `gate resolve --goal-id G --todo-id GATE [--decision approve\|reject\|cancel] [--option OPT] [--note TEXT] [--agent-id A] [--dry-run]` | Close a gate. For options, see [section 5](#5-gates-reference). `--agent-id` is the lifecycle actor (default: the agent the gate blocks); `closed_by` records it only when given, else `owner`. Refused inside an agent Turn. |
 
 ### `loopx plan`
 
@@ -765,7 +769,7 @@ The orchestrator uses these commands. You mostly read them.
 
 | command | purpose |
 |---|---|
-| `plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]` | Propose a plan card, or revise a pending one in place. The card opens a `plan_approval` gate. |
+| `plan propose --goal-id G --agent-id ORCH --plan-file plan.json [--revise PLAN_ID]` | Propose a plan card, or revise a pending one in place. The card opens a `plan_approval` gate. Inside an agent Turn, `--agent-id` defaults to the Turn's agent and must match it (else `gate_reply_identity_mismatch`). |
 | `plan show --goal-id G --plan-id P` | The plan's todos, dependencies, criteria and criteria changes. |
 | `plan list --goal-id G [--require-status pending\|applying\|applied\|rejected\|cancelled]` | The goal's plans. With `--require-status`, exits 1 unless a plan has that status. |
 | `plan apply --goal-id G --plan-id P` | Recovery only. Finishes an interrupted apply of a plan whose gate is recorded done with decision approve. On a pending or applying plan whose gate is not recorded approved, it exits 1 with `plan_not_approved` and creates no todos. On a rejected or cancelled plan it exits 1 with `plan_not_applicable`. It checks the recorded decision, not who made it; an agent Turn cannot record one (see [section 5](#5-gates-reference)). |

@@ -5,8 +5,8 @@ thread of messages ``{author: user|orchestrator, text, at}``. The thread is a
 clarification channel only: the gate is still closed through the existing
 decision path (``loopx todo complete --decision-outcome approve|reject|cancel``
 or the dashboard ``gate.resolve`` action). The owner decides: an agent Turn
-(``LOOPX_AGENT_TURN``) may reply but never decide, and every decision records
-who made it (``closed_by`` in the index entry).
+(``LOOPX_AGENT_TURN``) may reply, only as its own agent, but never decide, and
+every decision records who made it (``closed_by`` in the index entry).
 
 Durable layout under the runtime root::
 
@@ -72,6 +72,10 @@ GATE_SETTLEMENT_APPLYING = "applying"
 GATE_SETTLEMENT_INTERRUPTED = "settlement was interrupted before its outcome was recorded; retry to recover"
 # An agent Turn may not record a user-gate decision (see ``require_gate_decision_outside_agent_turn``).
 GATE_DECISION_REFUSED_IN_AGENT_TURN = "gate_decision_refused_in_agent_turn"
+# An agent Turn replies only as its own agent (see ``require_gate_reply_identity``).
+GATE_REPLY_IDENTITY_MISMATCH = "gate_reply_identity_mismatch"
+# The ``closed_by.actor`` of a decision made without naming an agent.
+GATE_DECISION_ACTOR_OWNER = "owner"
 # A request whose decision differs from the gate's recorded one (see ``plan_cards``).
 GATE_ALREADY_DECIDED = "gate_already_decided"
 # Where a user-gate decision was recorded: the ``closed_by.surface`` of its index entry.
@@ -251,9 +255,10 @@ def record_gate_decision(
     """Mark a decided user gate closed with its recorded decision and record who decided it.
 
     ``closed_by`` is ``{surface, actor, agent_turn, at}``: ``cli``,
-    ``dashboard`` or ``system``; the lifecycle actor, or ``owner`` without
-    one; the agent-Turn marker of the recording process (null outside an
-    agent Turn); and when. The call that wrote the decision records it. A
+    ``dashboard`` or ``system``; the agent the decider named (``--agent-id``),
+    or ``owner`` without one, never a lifecycle actor a surface filled in; the
+    agent-Turn marker of the recording process (null outside an agent Turn);
+    and when. The call that wrote the decision records it. A
     replay records it only when it is missing (the writer stopped before
     settling), marked ``replayed: true``, and never overwrites it.
     """
@@ -265,7 +270,8 @@ def record_gate_decision(
             "invalid_gate_decision_surface", f"gate decision surface must be one of: {', '.join(GATE_DECISION_SURFACES)}"
         )
     return mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision, closed_by={
-        "surface": surface, "actor": actor or "owner", "agent_turn": agent_turn_marker(), "at": _now(),
+        "surface": surface, "actor": actor or GATE_DECISION_ACTOR_OWNER, "agent_turn": agent_turn_marker(),
+        "at": _now(),
         **({"replayed": True} if replayed else {}),
     })
 
@@ -290,6 +296,35 @@ def require_gate_decision_outside_agent_turn(*, goal_id: str, todo_id: str) -> N
         f"cancel gate {todo_id!r}. Ask or answer in its thread instead: loopx gate reply --goal-id {goal_id} "
         f"--todo-id {todo_id} --as orchestrator --agent-id <orchestrator> --text '...', and wait for the owner.",
     )
+
+
+def require_gate_reply_identity(*, author: str, agent_id: str | None, action: str) -> str | None:
+    """Return the agent id of a gate-thread message; inside an agent Turn, only the Turn's own agent writes one.
+
+    A reply (``reply_to_gate``) and a plan propose or revise
+    (``plan_cards.propose_plan``) each write one. Outside an agent Turn
+    nothing changes. Inside one, a ``user`` message (the owner's) or an
+    ``agent_id`` other than the Turn's is refused
+    (``gate_reply_identity_mismatch``), and an omitted ``agent_id`` is the
+    Turn's. The caller then requires the goal orchestrator. Checked before
+    anything is written. A guardrail, not a security boundary: see
+    :mod:`loopx.control_plane.agents.agent_turn`.
+    """
+
+    from .control_plane.agents.agent_turn import AGENT_TURN_ENV_VAR, agent_turn_marker
+
+    turn_agent = agent_turn_marker()
+    if turn_agent is None:
+        return agent_id
+    if author == AUTHOR_USER or (agent_id and agent_id != turn_agent):
+        claimed = "the owner (--as user)" if author == AUTHOR_USER else f"agent {agent_id!r}"
+        raise GateThreadError(
+            GATE_REPLY_IDENTITY_MISMATCH,
+            f"this agent Turn ({AGENT_TURN_ENV_VAR}={turn_agent}) cannot {action} as {claimed}; it writes on gate "
+            f"threads only as its own agent (--as orchestrator --agent-id {turn_agent} for a reply), and only the "
+            "goal orchestrator writes there.",
+        )
+    return turn_agent
 
 
 def run_gate_settlement(
@@ -522,11 +557,13 @@ def reply_to_gate(
     """Append a reply to an open user gate's thread.
 
     User replies are owner actions (no agent id). Orchestrator replies must
-    come from the goal's orchestrator.
+    come from the goal's orchestrator. Inside an agent Turn a reply is the
+    Turn's own agent's (``require_gate_reply_identity``).
     """
 
     goal = _goal(registry_path, goal_id)
     todo_id = _safe_todo_id(todo_id)
+    agent_id = require_gate_reply_identity(author=author, agent_id=agent_id, action=f"reply to gate {todo_id!r}")
     if author == AUTHOR_ORCHESTRATOR:
         require_goal_orchestrator(goal, agent_id)
     elif author == AUTHOR_USER:
@@ -568,8 +605,9 @@ def resolve_gate(
     """Close a user gate with an owner decision (``loopx gate resolve``).
 
     The same path as ``loopx todo complete --role user --decision-outcome`` and
-    the dashboard ``gate.resolve``; the lifecycle actor is the agent the gate
-    blocks. ``option`` picks one of an acceptor-blocked (G12),
+    the dashboard ``gate.resolve``; the lifecycle actor defaults to the agent
+    the gate blocks, while ``closed_by`` records ``agent_id`` as given, else
+    ``owner``. ``option`` picks one of an acceptor-blocked (G12),
     budget_exhausted (decision 41) or goal_complete (decision 42) gate's
     options and implies its decision. Refused inside an agent Turn; the
     decision is recorded as made on the ``cli`` surface.
@@ -597,8 +635,8 @@ def resolve_gate(
     return complete_goal_todo(
         registry_path=Path(registry_path), goal_id=goal_id, todo_id=todo_id, role="user",
         decision_outcome=decision, gate_option=option, note=note, no_followup=True,
-        agent_id=agent_id or bound or None, authority_reason=GATE_RESOLVE_AUTHORITY_REASON,
-        runtime_root_arg=runtime_root_arg, dry_run=dry_run,
+        agent_id=agent_id or bound or None, gate_decision_actor=agent_id or GATE_DECISION_ACTOR_OWNER,
+        authority_reason=GATE_RESOLVE_AUTHORITY_REASON, runtime_root_arg=runtime_root_arg, dry_run=dry_run,
     )
 
 
