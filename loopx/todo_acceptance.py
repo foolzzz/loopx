@@ -534,6 +534,24 @@ def accept_goal_todo(
     )
 
 
+def resume_after_accept(*, registry_path: Path, goal_id: str, runtime_root_arg: str | None) -> list[str]:
+    """The post-accept step: dependents of an accepted todo in an applied plan card become workable.
+
+    Idempotent (only still-waiting dependents are resumed), so an accept whose
+    completion landed but whose resume failed can run it again.
+    """
+
+    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .plan_cards import resume_ready_plan_todos
+
+    # The merge (when the todo has a workspace) has already landed here.
+    return resume_ready_plan_todos(
+        registry_path=registry_path, goal_id=goal_id,
+        runtime_root=effective_runtime_root(registry_path, runtime_root_arg),
+        runtime_root_arg=runtime_root_arg,
+    )
+
+
 def accept_delivered_todo(
     *, registry_path: Path, goal: Mapping[str, Any] | None, goal_id: str, todo: Mapping[str, Any],
     actor: str, actor_source: str, note: str | None = None, evidence: str | None = None,
@@ -621,16 +639,8 @@ def accept_delivered_todo(
     completed = result.get("ok") is not False
     resumed: list[str] = []
     if not dry_run and completed:
-        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
-        from .plan_cards import resume_ready_plan_todos
-
-        # Dependents of this todo in an applied plan card become workable. The
-        # merge (when the todo has a workspace) has already landed here.
-        resumed = resume_ready_plan_todos(
-            registry_path=registry_path, goal_id=goal_id,
-            runtime_root=effective_runtime_root(registry_path, runtime_root_arg),
-            runtime_root_arg=runtime_root_arg,
-        )
+        resumed = resume_after_accept(registry_path=registry_path, goal_id=goal_id,
+                                      runtime_root_arg=runtime_root_arg)
     # A completion refused after a successful merge (the re-run validation
     # failed) leaves the todo ``in_review``: the merged branch is recorded in
     # ``merge`` and a later accept re-merges as a no-op, so the verdict can be

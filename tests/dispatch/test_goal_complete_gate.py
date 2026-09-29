@@ -429,6 +429,95 @@ def test_each_option_applies_via_the_web_resolve_path(tmp_path, monkeypatch, opt
         assert "User follow-up: Add CSV export" in orch_open[0]["text"]
 
 
+def test_a_second_goal_complete_settlement_replays_the_first_option(tmp_path, monkeypatch) -> None:
+    fx = _fixture(tmp_path, monkeypatch, remote=False)
+    dispatcher = _dispatcher(fx)
+    _merged(fx, ["api"], name="only")
+    [opened] = dispatcher.run_once()["gates_opened"]
+    gate_id = opened["todo_id"]
+    _resolve(fx, gate_id, "--option", "leave_open")
+    replayed = settle_goal_complete_gate(
+        registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL_ID, gate_todo_id=gate_id,
+        decision="approve", option="close_goal", note=None,
+    )
+    assert replayed["replayed"] is True and replayed["option"] == "leave_open", replayed
+    assert read_gate_index(fx["runtime"], GOAL_ID)["gates"][gate_id]["decision_option"] == "leave_open"
+    assert not goal_is_stopped(_goal(fx))
+    assert len(_events(fx, "goal_complete_decided")) == 1
+
+
+def test_an_interrupted_add_work_is_retried_with_its_pinned_note(tmp_path, monkeypatch) -> None:
+    import loopx.goal_complete_gate as goal_complete_gate
+
+    fx = _fixture(tmp_path, monkeypatch, remote=False)
+    dispatcher = _dispatcher(fx)
+    _merged(fx, ["api"], name="only")
+    [opened] = dispatcher.run_once()["gates_opened"]
+    gate_id = opened["todo_id"]
+
+    def settle(note: str) -> dict[str, Any]:
+        return settle_goal_complete_gate(registry_path=fx["registry"], runtime_root=fx["runtime"],
+                                         goal_id=GOAL_ID, gate_todo_id=gate_id, decision="reject",
+                                         option="add_work", note=note)
+
+    with monkeypatch.context() as patch:
+        def interrupted(*args, **kwargs):  # the intent is recorded; the process dies before the effect
+            raise RuntimeError("Synthetic interruption before the follow-up is added")
+
+        patch.setattr(goal_complete_gate, "_add_follow_up", interrupted)
+        with pytest.raises(RuntimeError):
+            settle("Add CSV export")
+    retried = settle("Something else entirely")
+    assert (retried["ok"], retried["option"]) == (True, "add_work"), retried
+    texts = [str(row.get("text") or "") for row in list_goal_todos(
+        registry_path=fx["registry"], goal_id=GOAL_ID, role="agent", runtime_root_arg=str(fx["runtime"]))["todos"]
+        if "User follow-up:" in str(row.get("text") or "")]
+    assert len(texts) == 1 and "User follow-up: Add CSV export" in texts[0], texts
+    assert "Something else entirely" not in texts[0]
+
+
+def test_a_failed_goal_complete_effect_is_surfaced_and_a_web_retry_applies_it_once(tmp_path, monkeypatch) -> None:
+    import loopx.goal_complete_gate as goal_complete_gate
+
+    fx = _fixture(tmp_path, monkeypatch, remote=False)
+    dispatcher = _dispatcher(fx)
+    _merged(fx, ["api"], name="only")
+    [opened] = dispatcher.run_once()["gates_opened"]
+    gate_id = opened["todo_id"]
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=fx["registry"])
+    proposal = service.preview({
+        "action_kind": "gate.resolve", "summary": "add work",
+        "normalized_parameters": {"goal_id": GOAL_ID, "todo_id": gate_id, "option": "add_work",
+                                  "note": "Add CSV export"},
+        "context": {}, "idempotency_key": "goal-complete-add-work",
+    })
+
+    def orchestrator_follow_ups() -> list[dict[str, Any]]:
+        rows = list_goal_todos(registry_path=fx["registry"], goal_id=GOAL_ID, role="agent",
+                               runtime_root_arg=str(fx["runtime"]))["todos"]
+        return [row for row in rows if "User follow-up: Add CSV export" in str(row.get("text") or "")]
+
+    with monkeypatch.context() as patch:
+        def unavailable(*args, **kwargs):
+            raise OSError("Synthetic todo store failure")
+
+        patch.setattr(goal_complete_gate, "_add_follow_up", unavailable)
+        failed = service.apply(proposal["proposal_id"])["proposal"]
+    assert failed["status"] == "failed", failed
+    failure = failed["failure"]
+    assert failure["error_code"] == "gate_settlement_retry_required", failure
+    assert (failure["details"]["gate_todo_id"], failure["details"]["settlement"], failure["details"]["option"]) == (
+        gate_id, "goal_complete", "add_work")
+    assert orchestrator_follow_ups() == []
+    assert read_gate_index(fx["runtime"], GOAL_ID)["gates"][gate_id]["completion_outcome"]["ok"] is False
+
+    retried = service.apply(proposal["proposal_id"])["proposal"]
+    assert retried["status"] == "applied", retried
+    assert len(orchestrator_follow_ups()) == 1
+    outcome = read_gate_index(fx["runtime"], GOAL_ID)["gates"][gate_id]["completion_outcome"]
+    assert (outcome["ok"], outcome["option"]) == (True, "add_work")
+
+
 # --- idempotency ------------------------------------------------------------------------------
 
 

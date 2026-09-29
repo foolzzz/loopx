@@ -465,6 +465,39 @@ def test_the_web_resolve_path_pushes_on_approve_only(tmp_path, monkeypatch, deci
         assert [event["status"] for event in _events(fx, "push_declined")] == ["reject"]
 
 
+def test_a_failed_web_push_is_surfaced_with_its_follow_up_gate(tmp_path, monkeypatch) -> None:
+    fx = _fixture(tmp_path, monkeypatch)
+    hook = fx["bare"] / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\necho 'fixture remote refuses pushes' >&2\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+    _merged(fx)
+    opened = request_push(registry_path=fx["registry"], goal_id=GOAL)
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=fx["registry"])
+
+    def approve(gate_id: str, key: str) -> dict:
+        proposal = service.preview({
+            "action_kind": "gate.resolve", "summary": "approve the push",
+            "normalized_parameters": {"goal_id": GOAL, "todo_id": gate_id, "decision": "approve"},
+            "context": {}, "idempotency_key": key,
+        })
+        return service.apply(proposal["proposal_id"])["proposal"]
+
+    failed = approve(opened["gate_todo_id"], "g8-failed")
+    assert failed["status"] == "failed", failed
+    failure = failed["failure"]
+    [follow_up] = _push_gates(fx)
+    assert failure["error_code"] == "gate_push_failed", failure
+    assert failure["details"]["gate_todo_id"] == opened["gate_todo_id"]
+    assert failure["details"]["retry_gate_todo_id"] == follow_up["todo_id"] != opened["gate_todo_id"]
+    assert _remote_head(fx) is None
+
+    # The push is retried through its follow-up gate, not by re-running the failed one.
+    hook.unlink()
+    retried = approve(follow_up["todo_id"], "g8-retry")
+    assert retried["status"] == "applied", retried
+    assert _remote_head(fx) == git(fx["api"], "rev-parse", TASK_BRANCH)
+
+
 # --- peer_v1 ------------------------------------------------------------------------------------
 
 

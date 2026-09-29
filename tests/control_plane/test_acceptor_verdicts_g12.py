@@ -31,6 +31,7 @@ from loopx.todo_acceptance import accept_goal_todo, reject_delivery_from_turn, r
 from loopx.todo_review_blocked import (
     REVIEW_GATE_OPTIONS,
     block_goal_todo_review,
+    settle_review_gate,
     settle_turn_stop_verdict,
 )
 from loopx.todos import add_goal_todo, complete_goal_todo, list_goal_todos
@@ -334,6 +335,228 @@ def test_each_gate_option_applies_via_the_web_resolve_path(tmp_path, monkeypatch
     assert applied["status"] == "applied", applied
     assert applied["receipt"]["decision_option"] == option
     _assert_option_applied(fx, todo_id, sha, gate_id, option)
+
+
+def _web_preview(fx: dict, gate_id: str, parameters: dict) -> tuple[ChatActionService, dict]:
+    service = ChatActionService(store=ChatActionStore(fx["runtime"].parent / "actions"),
+                                registry_path=fx["registry"])
+    proposal = service.preview({
+        "action_kind": "gate.resolve", "summary": "resolve the blocked review",
+        "normalized_parameters": {"goal_id": GOAL, "todo_id": gate_id, **parameters},
+        "context": {}, "idempotency_key": "g12-web",
+    })
+    assert proposal["status"] == "preview_ready", proposal
+    return service, proposal
+
+
+def test_a_stale_web_option_never_runs_or_replaces_the_cli_option(tmp_path, monkeypatch) -> None:
+    # Same decision (approve), different option. The CLI closes the gate after the
+    # web apply's checks and before its write: accept_manually must not run.
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    service, proposal = _web_preview(fx, gate_id, {"option": "accept_manually"})
+    real_open_gate = service._open_gate
+
+    def cli_wins_the_race(goal_id: str, gate_todo_id: str) -> dict:
+        gate = real_open_gate(goal_id, gate_todo_id)
+        code, payload = _cli(fx, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_todo_id,
+                             "--option", "retry_acceptance")
+        assert code == 0, payload
+        return gate
+
+    monkeypatch.setattr(service, "_open_gate", cli_wins_the_race)
+    stale = service.apply(proposal["proposal_id"])["proposal"]
+    assert stale["status"] == "stale", stale
+    assert _todo(fx, todo_id)["status"] == "in_review", "accept_manually never ran"
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["decision_option"] == "retry_acceptance"
+    assert [event["status"] for event in _events(fx, "review_gate_decided")] == ["retry_acceptance"]
+
+
+def test_a_second_review_gate_settlement_replays_the_first_option(tmp_path, monkeypatch) -> None:
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    code, payload = _cli(fx, "gate", "resolve", "--goal-id", GOAL, "--todo-id", gate_id,
+                         "--option", "retry_acceptance")
+    assert code == 0, payload
+    replayed = settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="reject", option="return_to_developer",
+                                  note="install the toolchain first")
+    assert replayed["replayed"] is True and replayed["option"] == "retry_acceptance", replayed
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["decision_option"] == "retry_acceptance"
+    assert _todo(fx, todo_id)["status"] == "in_review", "return_to_developer never ran"
+    assert len(_events(fx, "review_gate_decided")) == 1
+
+
+def test_a_lost_web_receipt_recovers_a_defaulted_review_option(tmp_path, monkeypatch) -> None:
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    service, proposal = _web_preview(fx, gate_id, {"decision": "reject"})  # defaults to return_to_developer
+    with monkeypatch.context() as patch:
+        def lost_response(*args, **kwargs):
+            raise ConnectionError("Synthetic receipt loss after the gate closed")
+        patch.setattr(service.store, "apply", lost_response)
+        with pytest.raises(ConnectionError):
+            service.apply(proposal["proposal_id"])
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["decision_option"] == "return_to_developer"
+    recovered = service.apply(proposal["proposal_id"])["proposal"]
+    assert recovered["status"] == "applied", recovered
+    assert _todo(fx, todo_id)["status"] == "open"
+    assert len(_events(fx, "review_gate_decided")) == 1
+
+
+def test_a_failed_review_gate_effect_is_surfaced_and_a_web_retry_applies_it_once(tmp_path, monkeypatch) -> None:
+    import loopx.todos as todos
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    service, proposal = _web_preview(fx, gate_id, {"option": "return_to_developer",
+                                                   "note": "install the toolchain first"})
+    with monkeypatch.context() as patch:
+        def unavailable(*args, **kwargs):
+            raise OSError("Synthetic todo store failure")
+
+        patch.setattr(todos, "update_goal_todo", unavailable)
+        failed = service.apply(proposal["proposal_id"])["proposal"]
+    assert failed["status"] == "failed", failed
+    failure = failed["failure"]
+    assert failure["error_code"] == "gate_settlement_retry_required", failure
+    assert (failure["details"]["gate_todo_id"], failure["details"]["settlement"], failure["details"]["option"]) == (
+        gate_id, "review_gate", "return_to_developer")
+    assert _todo(fx, todo_id)["status"] == "in_review"
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]["ok"] is False
+
+    retried = service.apply(proposal["proposal_id"])["proposal"]
+    assert retried["status"] == "applied", retried
+    todo = _todo(fx, todo_id)
+    assert todo["status"] == "open" and "install the toolchain first" in todo["review_feedback"]
+    outcome = read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]
+    assert (outcome["ok"], outcome["applied"], outcome["option"]) == (True, True, "return_to_developer")
+    assert [event["details"]["applied"] for event in _events(fx, "review_gate_decided")] == [False, True]
+
+
+def test_an_interrupted_return_to_developer_is_retried_with_its_pinned_note(tmp_path, monkeypatch) -> None:
+    import loopx.todos as todos
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+
+    def settle(note: str) -> dict:
+        return settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="reject", option="return_to_developer", note=note)
+
+    with monkeypatch.context() as patch:
+        def interrupted(*args, **kwargs):  # the intent is recorded; the process dies before the todo write
+            raise RuntimeError("Synthetic interruption before the todo is returned")
+
+        patch.setattr(todos, "update_goal_todo", interrupted)
+        with pytest.raises(RuntimeError):
+            settle("install the toolchain first")
+    retried = settle("a different note")
+    assert (retried["ok"], retried["applied"]) == (True, True), retried
+    todo = _todo(fx, todo_id)
+    assert todo["status"] == "open"
+    assert "install the toolchain first" in todo["review_feedback"]
+    assert "a different note" not in todo["review_feedback"]
+
+
+def test_an_interrupted_return_to_developer_without_a_note_keeps_no_note_on_retry(tmp_path, monkeypatch) -> None:
+    import loopx.todos as todos
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+
+    def settle(note: str | None) -> dict:
+        return settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="reject", option="return_to_developer", note=note)
+
+    with monkeypatch.context() as patch:
+        def interrupted(*args, **kwargs):  # the intent is recorded; the process dies before the todo write
+            raise RuntimeError("Synthetic interruption before the todo is returned")
+
+        patch.setattr(todos, "update_goal_todo", interrupted)
+        with pytest.raises(RuntimeError):
+            settle(None)
+    retried = settle("a different note")
+    assert (retried["ok"], retried["applied"]) == (True, True), retried
+    todo = _todo(fx, todo_id)
+    assert todo["status"] == "open"
+    assert "a different note" not in todo["review_feedback"]
+
+
+def test_an_agent_named_owner_accepting_normally_is_not_this_gates_manual_accept(tmp_path, monkeypatch) -> None:
+    import loopx.todo_review_blocked as review_blocked
+    from loopx.agent_registry import load_goal_from_registry
+    from loopx.todo_acceptance import accept_delivered_todo
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+
+    def settle() -> dict:
+        return settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="approve", option="accept_manually", note=None)
+
+    with monkeypatch.context() as patch:
+        def unavailable(**kwargs):
+            raise OSError("Synthetic failure before the manual accept")
+
+        patch.setattr(review_blocked, "accept_delivered_todo", unavailable)
+        assert settle()["ok"] is False
+    assert _todo(fx, todo_id)["status"] == "in_review"
+    # An acceptor agent whose id is "owner" accepts through the ordinary verdict path.
+    accept_delivered_todo(registry_path=fx["registry"], goal=load_goal_from_registry(fx["registry"], GOAL),
+                          goal_id=GOAL, todo=_todo(fx, todo_id), actor="owner", actor_source="acceptor_verdict",
+                          note="looks good")
+    assert _todo(fx, todo_id)["status"] == "done"
+    resumed: list[str] = []
+    real_resume = review_blocked.resume_after_accept
+
+    def counting(**kwargs):
+        resumed.append(kwargs["goal_id"])
+        return real_resume(**kwargs)
+
+    monkeypatch.setattr(review_blocked, "resume_after_accept", counting)
+    retried = settle()
+    assert resumed == [], "the gate did not accept this todo"
+    assert (retried["ok"], retried["applied"]) == (True, False), retried
+    assert "not in_review; nothing to apply" in retried["reason"]
+
+
+def test_a_manual_accept_whose_post_accept_step_failed_reruns_it_on_retry(tmp_path, monkeypatch) -> None:
+    import loopx.plan_cards as plan_cards
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+    service, proposal = _web_preview(fx, gate_id, {"option": "accept_manually"})
+    real_resume, resumed_goals = plan_cards.resume_ready_plan_todos, []
+    with monkeypatch.context() as patch:
+        def unavailable(**kwargs):
+            raise OSError("Synthetic failure resuming the accepted todo's dependents")
+
+        patch.setattr(plan_cards, "resume_ready_plan_todos", unavailable)
+        failed = service.apply(proposal["proposal_id"])["proposal"]
+    assert failed["status"] == "failed", failed
+    assert failed["failure"]["error_code"] == "gate_settlement_retry_required", failed["failure"]
+    assert _todo(fx, todo_id)["status"] == "done", "the accept itself landed"
+    assert read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]["ok"] is False
+
+    def counting(**kwargs):
+        resumed_goals.append(kwargs["goal_id"])
+        return real_resume(**kwargs)
+
+    monkeypatch.setattr(plan_cards, "resume_ready_plan_todos", counting)
+    retried = service.apply(proposal["proposal_id"])["proposal"]
+    assert retried["status"] == "applied", retried
+    assert resumed_goals == [GOAL], "the retry re-ran the post-accept step"
+    outcome = read_gate_index(fx["runtime"], GOAL)["gates"][gate_id]["review_outcome"]
+    assert (outcome["ok"], outcome["applied"], outcome["option"]) == (True, True, "accept_manually")
 
 
 @pytest.mark.parametrize("option", REVIEW_GATE_OPTIONS)

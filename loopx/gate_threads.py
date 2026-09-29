@@ -24,7 +24,7 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from .file_lock import exclusive_file_lock
 from .history import validate_goal_id_path_segment
@@ -62,6 +62,12 @@ MAX_MESSAGE_CHARS = 4000
 # `plan_error` codes of a plan_approval gate whose card cannot be shown (besides PlanCardError codes).
 PLAN_CARD_UNREADABLE = "plan_unreadable"
 PLAN_CARD_MALFORMED = "plan_malformed"
+# A settlement holds its gate's lock across its effect (a merge, a goal stop), so a
+# concurrent settler of the same gate waits longer than an ordinary mutation.
+GATE_SETTLEMENT_LOCK_TIMEOUT_SECONDS = 120.0
+# The intent a typed settlement records before its effect runs.
+GATE_SETTLEMENT_APPLYING = "applying"
+GATE_SETTLEMENT_INTERRUPTED = "settlement was interrupted before its outcome was recorded; retry to recover"
 
 
 class GateThreadError(ValueError):
@@ -92,6 +98,12 @@ def gate_thread_path(runtime_root: Path, goal_id: str, todo_id: str) -> Path:
 
 def gate_index_path(runtime_root: Path, goal_id: str) -> Path:
     return gates_dir(runtime_root, goal_id) / "index.json"
+
+
+def gate_settlement_lock_path(runtime_root: Path, goal_id: str, todo_id: str) -> Path:
+    """The path whose sibling lock serialises one gate's typed settlement."""
+
+    return gates_dir(runtime_root, goal_id) / f"{_safe_todo_id(todo_id)}.settle"
 
 
 def _now() -> str:
@@ -210,6 +222,60 @@ def mark_gate_closed(
             entry["decision_outcome"] = decision
         entry.update(dict(extra or {}))
         return _write_index_entry(runtime_root, goal_id, todo_id, entry)
+
+
+def run_gate_settlement(
+    runtime_root: Path, goal_id: str, todo_id: str, *, decision: str | None, option: str,
+    outcome_key: str, apply: Callable[[str | None, str, Mapping[str, Any]], Mapping[str, Any]],
+    pin: Callable[[str | None, str], Mapping[str, Any]] | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Claim, apply and record one typed gate settlement in one critical section.
+
+    Under the gate's exclusive settlement lock: an outcome recorded under
+    ``outcome_key`` that did not fail replays, and nothing runs. Otherwise the
+    first attempt writes an intent before the effect: the decision, the option
+    and the inputs ``pin`` computes (``pinned``), recorded as a failed
+    ``applying`` outcome. A crash after the effect therefore leaves a durable
+    winner. Then ``apply(decision, option, prior)`` runs the effect, where
+    ``prior`` is that intent or the failed outcome being retried, and its
+    outcome is recorded before the lock is released. A recorded failed outcome
+    is not final: the next settlement retries it with the recorded decision,
+    option and ``pinned`` inputs, so a retry repeats the first choice with the
+    same inputs. Returns the outcome and whether this call ran the effect.
+
+    Lock order: this per-gate lock is taken first and held across the effect.
+    The effect then takes its own locks (the budget file, the goal lifecycle,
+    todo writes, the git workspace), and the gate index lock is taken last to
+    record. No effect settles a user gate, so settlement locks never nest and
+    no lock the effect holds is ever waited on while taking this one.
+    """
+
+    todo_id = _safe_todo_id(todo_id)
+    lock_path = gate_settlement_lock_path(runtime_root, goal_id, todo_id)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with exclusive_file_lock(lock_path, timeout_seconds=GATE_SETTLEMENT_LOCK_TIMEOUT_SECONDS,
+                             operation="settle_gate"):
+        entry = read_gate_index(runtime_root, goal_id)["gates"].get(todo_id) or {}
+        recorded = entry.get(outcome_key)
+        if isinstance(recorded, Mapping):
+            if recorded.get("ok") is not False:
+                return dict(recorded), False
+            decision = entry.get("decision_outcome") or decision
+            option = str(entry.get("decision_option") or option)
+            prior = dict(recorded)
+        else:
+            prior = {"ok": False, "state": GATE_SETTLEMENT_APPLYING, "error": GATE_SETTLEMENT_INTERRUPTED}
+            pinned = dict(pin(decision, option)) if pin is not None else {}
+            if pinned:
+                prior["pinned"] = pinned
+            mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision,
+                             extra={"decision_option": option, outcome_key: prior})
+        outcome = dict(apply(decision, option, prior))
+        if outcome.get("ok") is False and "pinned" in prior:
+            outcome.setdefault("pinned", prior["pinned"])
+        mark_gate_closed(runtime_root, goal_id, todo_id, decision=decision,
+                         extra={"decision_option": option, outcome_key: outcome})
+        return outcome, True
 
 
 def append_gate_message(

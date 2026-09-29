@@ -283,6 +283,86 @@ def test_plan_approve_through_dashboard_gate_resolve(tmp_path: Path) -> None:
     assert record["status"] == "applied" and len(record["todo_id_map"]) == 5
 
 
+def _dashboard_plan_approve(tmp_path: Path, registry: Path, gate_id: str) -> tuple[ChatActionService, str]:
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
+    proposal = service.preview({"action_kind": "gate.resolve", "summary": "approve plan", "context": {},
+        "idempotency_key": "plan-gate", "normalized_parameters": {
+            "goal_id": GOAL, "todo_id": gate_id, "decision": "approve", "note": "Ship"}})
+    assert proposal["status"] == "preview_ready", proposal
+    return service, str(proposal["proposal_id"])
+
+
+@pytest.mark.parametrize("provider", [None, "file"])
+def test_dashboard_plan_approve_reports_and_recovers_an_interrupted_plan_apply(
+    tmp_path: Path, provider: str | None, monkeypatch,
+) -> None:
+    import loopx.plan_cards as plan_cards
+    import loopx.todos as todos
+
+    registry, runtime = fixture(tmp_path, provider)
+    plan = _propose(registry, runtime)
+    before = set(rows(registry))
+    service, proposal_id = _dashboard_plan_approve(tmp_path, registry, plan["gate_todo_id"])
+    with monkeypatch.context() as patch:
+        if provider:  # canonical: crash at the third plan todo, after two were created
+            real_add, calls = todos.add_goal_todo, []
+
+            def crashing_add(**kwargs):
+                if str(kwargs.get("operation_id") or "").startswith("plan-"):
+                    calls.append(kwargs["operation_id"])
+                    if len(calls) == 3:
+                        raise OSError("Synthetic crash during the plan apply")
+                return real_add(**kwargs)
+
+            patch.setattr(todos, "add_goal_todo", crashing_add)
+        else:  # Markdown: the batch is all or nothing
+            def crashing_batch(*args, **kwargs):
+                raise OSError("Synthetic crash during the plan apply")
+
+            patch.setattr(plan_cards, "_apply_legacy_batch", crashing_batch)
+        failed = service.apply(proposal_id)["proposal"]
+    assert failed["status"] == "failed", failed
+    failure = failed["failure"]
+    assert failure["error_code"] == "plan_apply_recovery_required", failure
+    assert failure["details"]["plan_id"] == plan["plan_id"]
+    assert failure["details"]["recovery"] == f"loopx plan apply --goal-id {GOAL} --plan-id {plan['plan_id']}"
+    assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "applying"
+    assert rows(registry)[plan["gate_todo_id"]]["status"] == "done"
+
+    recovered = service.apply(proposal_id)["proposal"]
+    assert recovered["status"] == "applied", recovered
+    record = read_plan(runtime, GOAL, plan["plan_id"])
+    assert record["status"] == "applied" and len(record["todo_id_map"]) == 5
+    assert set(rows(registry)) == before | set(record["todo_id_map"].values()), "each plan todo exactly once"
+    assert service.apply(proposal_id)["proposal"]["receipt"] == recovered["receipt"]
+
+
+@pytest.mark.parametrize("provider", [None, "file"])
+def test_dashboard_plan_approve_settles_after_a_crash_between_closure_and_settlement(
+    tmp_path: Path, provider: str | None, monkeypatch,
+) -> None:
+    import loopx.plan_cards as plan_cards
+
+    registry, runtime = fixture(tmp_path, provider)
+    plan = _propose(registry, runtime)
+    before = set(rows(registry))
+    service, proposal_id = _dashboard_plan_approve(tmp_path, registry, plan["gate_todo_id"])
+    with monkeypatch.context() as patch:
+        def crash(**kwargs):
+            raise RuntimeError("Synthetic crash after the gate closed, before its settlement")
+
+        patch.setattr(plan_cards, "settle_gate_decision", crash)
+        with pytest.raises(RuntimeError):
+            service.apply(proposal_id)
+    assert rows(registry)[plan["gate_todo_id"]]["status"] == "done"
+    assert read_plan(runtime, GOAL, plan["plan_id"])["status"] == "pending"
+    settled = service.apply(proposal_id)["proposal"]
+    assert settled["status"] == "applied", settled
+    record = read_plan(runtime, GOAL, plan["plan_id"])
+    assert record["status"] == "applied" and len(record["todo_id_map"]) == 5
+    assert set(rows(registry)) == before | set(record["todo_id_map"].values())
+
+
 def test_plan_thread_carries_change_requests_and_revision(tmp_path: Path) -> None:
     registry, runtime = fixture(tmp_path)
     plan = _propose(registry, runtime)
