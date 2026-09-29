@@ -23,8 +23,10 @@ from loopx.gate_threads import (
     gate_view,
     gates_awaiting_orchestrator,
     list_gates,
+    mark_gate_closed,
     read_gate_index,
     read_gate_thread,
+    register_gate_kind,
     render_gate_markdown,
     reply_to_gate,
 )
@@ -530,6 +532,76 @@ def test_markdown_gate_resolve_names_the_gate_and_its_decision(tmp_path: Path, c
     assert capsys.readouterr().out.strip() == f"Would resolve gate `{gate_id}`: approve"
     assert main(argv) == 0
     assert capsys.readouterr().out.strip() == f"Resolved gate `{gate_id}`: approve"
+
+
+def _show_markdown(registry: Path, runtime: Path, capsys, gate_id: str) -> str:
+    assert main(["--registry", str(registry), "--runtime-root", str(runtime), "gate", "show", "--goal-id", GOAL,
+                 "--todo-id", gate_id]) == 0
+    shown = capsys.readouterr().out
+    assert f"# Gate `{gate_id}`" in shown and "## Thread" in shown
+    return shown
+
+
+def test_gate_show_markdown_skips_malformed_push_entries_and_redacts_paths(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry, "Push request: push the merged work?")
+    register_gate_kind(runtime, GOAL, gate_id, kind="push_request", extra={
+        "push_repos": [None, "api", {"name": "web", "status": "error", "error": "repo /srv/checkouts/web is missing"},
+                       {"name": "api", "status": "ready", "branch": "main", "remote": "origin",
+                        "unpushed_commits": 1, "commit_range": "a..b", "log": "not a list"}],
+        "previous_errors": [None, {"name": "api", "error_tail": "fatal: /srv/remotes/api.git refused"}],
+    })
+    shown = _show_markdown(registry, runtime, capsys, gate_id)
+    assert "- `web`: skipped, repo <path> is missing" in shown
+    assert "- `api`: main -> origin, 1 commit(s), a..b\n" in shown
+    assert "- previous push failed: `api`: fatal: <path> refused" in shown
+    assert "/srv/" not in shown
+
+
+def test_gate_show_markdown_survives_malformed_completion_data(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry, "Goal complete: close it?")
+    register_gate_kind(runtime, GOAL, gate_id, kind="goal_complete", extra={
+        "completion_todos": {"accepted": 1, "rejects": 0, "superseded": 0},
+        "completion_repos": [None, {"name": "api", "branch": "main", "push": "local_only",
+                                    "merged_todo_commits": [None, {"sha": "abc1234", "todo_id": "todo_a"}]}],
+        "completion_usage": {"cost_usd": 0, "cost_estimated_usd": None, "turns": 2, "agent_hours": "unknown",
+                             "by_role": [None, {"role": "developer", "cost_usd": "n/a", "turns": 2}]},
+    })
+    shown = _show_markdown(registry, runtime, capsys, gate_id)
+    assert "- todos: 1 accepted, 0 reject(s), 0 superseded" in shown
+    assert "- `api`: 1 merge(s) on main, local only" in shown and "  - merged: abc1234 todo_a" in shown
+    assert "- usage: $0.00 (unavailable estimated), 2 Turn(s), unavailable agent-h" in shown
+    assert "  - developer: unavailable, 2 Turn(s)" in shown
+
+
+def test_an_adopted_completion_gate_shows_its_options_and_outcome(tmp_path: Path, capsys) -> None:
+    """A gate adopted by its text has no completion snapshot; its options and outcome still show."""
+
+    registry, runtime = fixture(tmp_path)
+    gate_id = open_gate(registry, "Goal complete: adopted without a snapshot?")
+    register_gate_kind(runtime, GOAL, gate_id, kind="goal_complete", extra={
+        "options": ["close_goal", "add_work", "leave_open"], "adopted": True})
+    shown = _show_markdown(registry, runtime, capsys, gate_id)
+    assert "## Completion" in shown and "- options: close_goal, add_work, leave_open" in shown
+    assert "- todos:" not in shown
+    mark_gate_closed(runtime, GOAL, gate_id, decision="cancel", extra={
+        "completion_outcome": {"ok": True, "option": "leave_open", "decision": "cancel"}})
+    assert "- outcome: leave_open, the goal stays open" in _show_markdown(registry, runtime, capsys, gate_id)
+
+
+def test_missing_completion_usage_is_unavailable_and_real_zeros_stay_zero(tmp_path: Path, capsys) -> None:
+    registry, runtime = fixture(tmp_path)
+    missing = open_gate(registry, "Goal complete: usage lost?")
+    register_gate_kind(runtime, GOAL, missing, kind="goal_complete", extra={"completion_todos": {"accepted": 1}})
+    shown = _show_markdown(registry, runtime, capsys, missing)
+    assert "- usage: unavailable" in shown and "$0.00" not in shown and "0 Turn(s)" not in shown
+    zero = open_gate(registry, "Goal complete: nothing spent?")
+    register_gate_kind(runtime, GOAL, zero, kind="goal_complete", extra={
+        "completion_todos": {"accepted": 1},
+        "completion_usage": {"cost_usd": 0.0, "cost_estimated_usd": 0.0, "turns": 0, "agent_hours": 0.0}})
+    shown = _show_markdown(registry, runtime, capsys, zero)
+    assert "- usage: $0.00 ($0.00 estimated), 0 Turn(s), 0.00 agent-h" in shown
 
 
 def test_a_plain_gate_decision_records_closed_by_without_a_thread(tmp_path: Path, capsys) -> None:

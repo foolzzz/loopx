@@ -812,11 +812,11 @@ def render_gate_markdown(payload: Mapping[str, Any]) -> str:
         from .plan_criteria_changes import render_criteria_changes_markdown
 
         lines += render_criteria_changes_markdown(payload["criteria_changes"])
-    if payload.get("kind") == GATE_KIND_PUSH_REQUEST and payload.get("push_repos"):
+    if payload.get("kind") == GATE_KIND_PUSH_REQUEST:
         from .push_requests import render_push_gate_markdown
 
         lines += render_push_gate_markdown(payload)
-    elif payload.get("kind") == GATE_KIND_GOAL_COMPLETE and payload.get("completion_todos"):
+    elif payload.get("kind") == GATE_KIND_GOAL_COMPLETE:
         from .goal_complete_gate import render_goal_complete_markdown
 
         lines += render_goal_complete_markdown(payload)
