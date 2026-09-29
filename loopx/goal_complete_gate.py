@@ -64,7 +64,7 @@ from typing import Any
 
 from .control_plane.todos.contract import TODO_UNFINISHED_STATUS_VALUES
 from .file_lock import exclusive_file_lock
-from .gate_threads import GATE_KIND_GOAL_COMPLETE, mark_gate_closed, read_gate_index, register_gate_kind
+from .gate_threads import GATE_KIND_GOAL_COMPLETE, read_gate_index, register_gate_kind, run_gate_settlement
 from .history import validate_goal_id_path_segment
 
 GOAL_COMPLETE_SCHEMA_VERSION = "loopx_goal_complete_gate_v0"
@@ -557,38 +557,48 @@ def settle_goal_complete_gate(
 ) -> dict[str, Any] | None:
     """After a ``goal_complete`` gate closed, apply the chosen option.
 
-    Returns None for other gates. Settling the same gate again replays its
-    recorded outcome.
+    Returns None for other gates. One settlement per gate runs at a time: a
+    recorded outcome replays, and only a failed one is retried (with its
+    recorded option); see ``gate_threads.run_gate_settlement``.
     """
 
     entry = goal_complete_gate_entry(runtime_root, goal_id, gate_todo_id)
     if entry is None:
         return None
-    if isinstance(entry.get("completion_outcome"), Mapping):
-        return {"payload_key": "goal_complete", **dict(entry["completion_outcome"]), "replayed": True}
-    selected = resolve_goal_complete_option(decision, option)
-    outcome: dict[str, Any] = {"ok": True, "gate_todo_id": gate_todo_id, "decision": decision, "option": selected,
-                               "at": _now()}
-    try:
-        if selected == GOAL_COMPLETE_OPTION_CLOSE:
-            outcome["goal_stop"] = _close_goal(Path(registry_path), goal_id, gate_todo_id, runtime_root_arg)
-            if outcome["goal_stop"].get("ok") is False:
-                outcome.update(ok=False, error="the goal could not be closed; stop it with loopx goal-lifecycle")
-            outcome["resume"] = (
-                f"loopx goal-lifecycle --goal-id {goal_id} --operation resume --actor-kind owner --execute"
-            )
-        elif selected == GOAL_COMPLETE_OPTION_ADD_WORK:
-            follow_up = _add_follow_up(Path(registry_path), goal_id, gate_todo_id, str(note or ""),
-                                       runtime_root_arg)
-            outcome["follow_up_todo_id"] = follow_up
-            if not follow_up:
-                outcome.update(ok=False, error="no orchestrator is registered to take the follow-up")
-    except (OSError, ValueError) as error:  # the gate is closed; report, never raise
-        outcome.update(ok=False, error=str(error)[:400])
-    mark_gate_closed(runtime_root, goal_id, gate_todo_id, decision=decision,
-                     extra={"decision_option": selected, "completion_outcome": outcome})
-    _event(runtime_root, goal_id, "goal_complete_decided", todo_id=gate_todo_id, status=selected, details={
-        "gate_id": gate_todo_id, "option": selected, "ok": outcome["ok"],
+
+    def pin(_decided: str | None, _selected: str) -> dict[str, Any]:
+        return {"note": note or ""}  # pinned even when empty, so a retry never takes a new note
+
+    def apply(decided: str | None, selected: str, prior: Mapping[str, Any]) -> dict[str, Any]:
+        pinned_note = (prior.get("pinned") or {}).get("note", note)  # a retry keeps the first note
+        outcome: dict[str, Any] = {"ok": True, "gate_todo_id": gate_todo_id, "decision": decided,
+                                   "option": selected, "at": _now()}
+        try:
+            if selected == GOAL_COMPLETE_OPTION_CLOSE:
+                outcome["goal_stop"] = _close_goal(Path(registry_path), goal_id, gate_todo_id, runtime_root_arg)
+                if outcome["goal_stop"].get("ok") is False:
+                    outcome.update(ok=False, error="the goal could not be closed; stop it with loopx goal-lifecycle")
+                outcome["resume"] = (
+                    f"loopx goal-lifecycle --goal-id {goal_id} --operation resume --actor-kind owner --execute"
+                )
+            elif selected == GOAL_COMPLETE_OPTION_ADD_WORK:
+                follow_up = _add_follow_up(Path(registry_path), goal_id, gate_todo_id, str(pinned_note or ""),
+                                           runtime_root_arg)
+                outcome["follow_up_todo_id"] = follow_up
+                if not follow_up:
+                    outcome.update(ok=False, error="no orchestrator is registered to take the follow-up")
+        except (OSError, ValueError) as error:  # the gate is closed; report, never raise
+            outcome.update(ok=False, error=str(error)[:400])
+        return outcome
+
+    outcome, applied = run_gate_settlement(
+        runtime_root, goal_id, gate_todo_id, decision=decision, option=resolve_goal_complete_option(decision, option),
+        outcome_key="completion_outcome", apply=apply, pin=pin,
+    )
+    if not applied:
+        return {"payload_key": "goal_complete", **outcome, "replayed": True}
+    _event(runtime_root, goal_id, "goal_complete_decided", todo_id=gate_todo_id, status=outcome["option"], details={
+        "gate_id": gate_todo_id, "option": outcome["option"], "ok": outcome["ok"],
         **({"follow_up_todo_id": outcome["follow_up_todo_id"]} if outcome.get("follow_up_todo_id") else {}),
     })
     return {"payload_key": "goal_complete", **outcome}

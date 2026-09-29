@@ -12,12 +12,13 @@ from canonical_authority_fixture import initialize_canonical_authority
 from loopx.chat_action_store import ChatActionStore
 from loopx.chat_actions import ChatActionService, ProtectedActionGate
 from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_shadow_projection
+from loopx.gate_threads import resolve_gate
 from loopx.todos import add_goal_todo, list_goal_todos
 
 PROVIDERS = [None, "file", "sqlite"]
 
 
-def fixture(tmp_path: Path, provider: str | None) -> tuple[Path, str, str]:
+def fixture(tmp_path: Path, provider: str | None, *, gate_note: str | None = None) -> tuple[Path, str, str]:
     project = tmp_path / "project"
     project.mkdir()
     state = project / "ACTIVE_GOAL_STATE.md"
@@ -31,7 +32,7 @@ def fixture(tmp_path: Path, provider: str | None) -> tuple[Path, str, str]:
         status="blocked", claimed_by="agent-a")
     gate = add_goal_todo(registry_path=registry, goal_id="goal-a", role="user",
         text="Approve publishing", task_class="user_gate", blocks_agent="agent-a",
-        unblocks_todo_id=target["todo_id"])
+        unblocks_todo_id=target["todo_id"], **({"note": gate_note} if gate_note else {}))
     if provider:
         todos = list_goal_todos(registry_path=registry, goal_id="goal-a")["todos"]
         projection = build_todo_runtime_shadow_projection(goal_id="goal-a", todos=todos, handoff_mode="soft_claim")
@@ -111,6 +112,28 @@ def test_gate_resolve_recovers_lost_receipt_without_double_write(
     assert rows(registry) == committed
 
 
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_gate_resolve_recovers_lost_receipt_that_kept_the_gate_note(
+    tmp_path: Path, provider: str | None, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No replacement note: the write keeps the gate's own note, and recovery
+    # must still recognise the closure as this proposal's.
+    registry, gate_id, _target_id = fixture(tmp_path, provider, gate_note="Context from the orchestrator")
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
+    proposal = preview(service, gate_id, "approve", note=None)
+    with monkeypatch.context() as patch:
+        def lost_response(*args, **kwargs):
+            raise ConnectionError("Synthetic receipt loss after canonical commit")
+        patch.setattr(service.store, "apply", lost_response)
+        with pytest.raises(ConnectionError):
+            service.apply(proposal["proposal_id"])
+    committed = rows(registry)
+    assert committed[gate_id]["note"] == "Context from the orchestrator"
+    recovered = service.apply(proposal["proposal_id"])["proposal"]
+    assert recovered["status"] == "applied", recovered
+    assert rows(registry) == committed
+
+
 @pytest.mark.parametrize("provider", [None, "file"])
 def test_gate_resolve_defer_is_preview_only(tmp_path: Path, provider: str | None) -> None:
     registry, gate_id, target_id = fixture(tmp_path, provider)
@@ -144,6 +167,52 @@ def test_gate_resolve_stale_preview_does_not_write(tmp_path: Path) -> None:
     stale = service.apply(reject["proposal_id"])["proposal"]
     assert stale["status"] == "stale"
     assert rows(registry)[gate_id]["decision_outcome"] == "approve"
+
+
+def resolve_from_cli(registry: Path, todo_id: str, decision: str, note: str) -> None:
+    assert resolve_gate(registry_path=registry, goal_id="goal-a", todo_id=todo_id,
+        decision=decision, note=note)["ok"] is True
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_gate_resolve_preview_is_stale_when_another_surface_recorded_the_same_decision(
+    tmp_path: Path, provider: str | None,
+) -> None:
+    # The CLI closes the gate first with the same decision but its own note: the
+    # dashboard must not report the recorded outcome as this proposal's decision.
+    registry, gate_id, _target_id = fixture(tmp_path, provider)
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
+    proposal = preview(service, gate_id, "approve")
+    resolve_from_cli(registry, gate_id, "approve", "Approved from the CLI")
+    decided = rows(registry)
+    stale = service.apply(proposal["proposal_id"])["proposal"]
+    assert stale["status"] == "stale", stale
+    assert not stale.get("receipt")
+    assert rows(registry) == decided
+    assert decided[gate_id]["note"] == "Approved from the CLI"
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_gate_resolve_write_that_replays_another_closure_is_stale(
+    tmp_path: Path, provider: str | None, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The CLI closes the gate after the apply-time checks but before the write: a
+    # canonical write is refused by its basis, a legacy write replays that closure.
+    registry, gate_id, _target_id = fixture(tmp_path, provider)
+    service = ChatActionService(store=ChatActionStore(tmp_path / "actions"), registry_path=registry)
+    proposal = preview(service, gate_id, "approve")
+    real_open_gate = service._open_gate
+
+    def cli_wins_the_race(goal_id: str, todo_id: str) -> dict:
+        gate = real_open_gate(goal_id, todo_id)
+        resolve_from_cli(registry, todo_id, "approve", "Approved from the CLI")
+        return gate
+
+    monkeypatch.setattr(service, "_open_gate", cli_wins_the_race)
+    stale = service.apply(proposal["proposal_id"])["proposal"]
+    assert stale["status"] == "stale", stale
+    assert not stale.get("receipt")
+    assert rows(registry)[gate_id]["note"] == "Approved from the CLI"
 
 
 def test_gate_resolve_over_packaged_http(tmp_path: Path) -> None:

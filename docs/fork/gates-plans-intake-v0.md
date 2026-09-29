@@ -41,6 +41,27 @@ loopx gate list  --goal-id G [--awaiting user|orchestrator]
   A `goal_complete` gate (decision 42) takes `--option close_goal|add_work|
   leave_open` (the note carries the follow-up); see
   [below](#goal-complete-gate-decision-42).
+- The dashboard `gate.resolve` records its proposal id as the gate's completion
+  identity. A proposal whose gate another surface closed first is stale (HTTP
+  409) and writes nothing, even when the decision is the same. It reports
+  `applied` only once the settlement that follows the closure finished; otherwise
+  the proposal is `failed` with a typed code, and retrying it re-runs the
+  settlement: `plan_apply_recovery_required` (an interrupted plan apply; the
+  details carry the `loopx plan apply` command), `gate_settlement_retry_required`
+  (a budget, goal-completion or review effect that failed, or a settlement that
+  could not be recorded or waited too long for its gate's settlement lock; the
+  details name the gate and the operation) or `gate_push_failed` (the push failed;
+  approve the follow-up push gate named in `retry_gate_todo_id`).
+- A typed gate (`budget_exhausted`, `goal_complete`, `acceptor_blocked`) settles
+  one settlement at a time, under a per-gate lock held from reading the recorded
+  outcome through the effect to recording it. Before the effect runs, an
+  `applying` intent records the decision, the option and the inputs the effect
+  needs (such as the raised budget), so a crash after the effect is retried with
+  the same choice and inputs. A recorded outcome replays and applies nothing. A
+  failed one (`ok: false`) is retried by the next settlement (a dashboard retry,
+  or a `loopx todo complete --role user --decision-outcome` replay) with the first
+  recorded option, which stays the gate's choice. A manual accept that completed
+  the todo but not its post-accept step re-runs that step on retry.
 - A gate whose thread awaits the orchestrator (the user replied last) does not
   block the orchestrator's lane under role_v1, so the reply can be answered. Once
   the orchestrator replies, the gate awaits the user and blocks it again. The
@@ -64,14 +85,16 @@ The thread state is durable under the runtime root:
 - `goals/<G>/gates/index.json` holds one entry per gate:
   `{kind, plan_id?, awaiting, message_count, last_author, last_at, closed,
   decision_outcome?}`. `kind` is `decision`, `plan_approval`,
-  `acceptor_blocked` (G12), `push_request` (G8, with `push_reason`,
-  `push_repos` and, once decided, `push_outcome`) or `budget_exhausted`
-  (decision 41, with `budget_revision`, the spend fields, `options` and, once
-  decided, `budget_outcome`) or `goal_complete` (decision 42, with
+  `acceptor_blocked` (G12, with `review_todo_id`, `acceptor_agent`, `options`
+  and, once decided, `decision_option` and `review_outcome`), `push_request`
+  (G8, with `push_reason`, `push_repos` and, once decided, `push_outcome`) or
+  `budget_exhausted` (decision 41, with `budget_revision`, the spend fields,
+  `options` and, once decided, `budget_outcome`) or `goal_complete` (decision 42, with
   `completion_key`, `completion_repos`, `completion_todos`,
   `completion_usage`, `follow_ups`, `options` and, once decided,
-  `completion_outcome`). It is updated in the same lock as the append. The
-  dispatcher can watch this file, or call
+  `completion_outcome`). It is updated in the same lock as the append.
+  `goals/<G>/gates/<todo_id>.settle.lock` serialises one typed gate's settlement.
+  The dispatcher can watch this file, or call
   `loopx.gate_threads.gates_awaiting_orchestrator(runtime_root, goal_id)`.
 - Every reply also appends a `gate_thread_reply` event to the goal's
   `rollout-event-log.jsonl`. The event carries the gate id, the author in
@@ -171,7 +194,7 @@ the three options) share the option plumbing of the acceptor-blocked and
 budget gates. `close_goal` is refused when the goal changed after the gate
 opened (new work, a new merge, another open gate): leave that gate open, and a
 new one opens once the work is done. Settling the same gate again replays its
-recorded outcome, so the follow-up todo is created once.
+recorded outcome (a failed one is retried), so the follow-up todo is created once.
 
 One completion is identified by its `completion_key` (the done agent todos
 and the merge target heads): the gate index remembers it, so a replayed or
