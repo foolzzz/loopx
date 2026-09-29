@@ -446,6 +446,36 @@ def test_a_second_goal_complete_settlement_replays_the_first_option(tmp_path, mo
     assert len(_events(fx, "goal_complete_decided")) == 1
 
 
+def test_an_interrupted_add_work_is_retried_with_its_pinned_note(tmp_path, monkeypatch) -> None:
+    import loopx.goal_complete_gate as goal_complete_gate
+
+    fx = _fixture(tmp_path, monkeypatch, remote=False)
+    dispatcher = _dispatcher(fx)
+    _merged(fx, ["api"], name="only")
+    [opened] = dispatcher.run_once()["gates_opened"]
+    gate_id = opened["todo_id"]
+
+    def settle(note: str) -> dict[str, Any]:
+        return settle_goal_complete_gate(registry_path=fx["registry"], runtime_root=fx["runtime"],
+                                         goal_id=GOAL_ID, gate_todo_id=gate_id, decision="reject",
+                                         option="add_work", note=note)
+
+    with monkeypatch.context() as patch:
+        def interrupted(*args, **kwargs):  # the intent is recorded; the process dies before the effect
+            raise RuntimeError("Synthetic interruption before the follow-up is added")
+
+        patch.setattr(goal_complete_gate, "_add_follow_up", interrupted)
+        with pytest.raises(RuntimeError):
+            settle("Add CSV export")
+    retried = settle("Something else entirely")
+    assert (retried["ok"], retried["option"]) == (True, "add_work"), retried
+    texts = [str(row.get("text") or "") for row in list_goal_todos(
+        registry_path=fx["registry"], goal_id=GOAL_ID, role="agent", runtime_root_arg=str(fx["runtime"]))["todos"]
+        if "User follow-up:" in str(row.get("text") or "")]
+    assert len(texts) == 1 and "User follow-up: Add CSV export" in texts[0], texts
+    assert "Something else entirely" not in texts[0]
+
+
 def test_a_failed_goal_complete_effect_is_surfaced_and_a_web_retry_applies_it_once(tmp_path, monkeypatch) -> None:
     import loopx.goal_complete_gate as goal_complete_gate
 

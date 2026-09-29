@@ -438,6 +438,71 @@ def test_a_failed_review_gate_effect_is_surfaced_and_a_web_retry_applies_it_once
     assert [event["details"]["applied"] for event in _events(fx, "review_gate_decided")] == [False, True]
 
 
+def test_an_interrupted_return_to_developer_is_retried_with_its_pinned_note(tmp_path, monkeypatch) -> None:
+    import loopx.todos as todos
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+
+    def settle(note: str) -> dict:
+        return settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="reject", option="return_to_developer", note=note)
+
+    with monkeypatch.context() as patch:
+        def interrupted(*args, **kwargs):  # the intent is recorded; the process dies before the todo write
+            raise RuntimeError("Synthetic interruption before the todo is returned")
+
+        patch.setattr(todos, "update_goal_todo", interrupted)
+        with pytest.raises(RuntimeError):
+            settle("install the toolchain first")
+    retried = settle("a different note")
+    assert (retried["ok"], retried["applied"]) == (True, True), retried
+    todo = _todo(fx, todo_id)
+    assert todo["status"] == "open"
+    assert "install the toolchain first" in todo["review_feedback"]
+    assert "a different note" not in todo["review_feedback"]
+
+
+def test_an_agent_named_owner_accepting_normally_is_not_this_gates_manual_accept(tmp_path, monkeypatch) -> None:
+    import loopx.todo_review_blocked as review_blocked
+    from loopx.agent_registry import load_goal_from_registry
+    from loopx.todo_acceptance import accept_delivered_todo
+
+    fx = _fixture(tmp_path, monkeypatch)
+    todo_id, _sha = _deliver_new_todo(fx)
+    gate_id = _block(fx, todo_id)
+
+    def settle() -> dict:
+        return settle_review_gate(registry_path=fx["registry"], runtime_root=fx["runtime"], goal_id=GOAL,
+                                  gate_todo_id=gate_id, decision="approve", option="accept_manually", note=None)
+
+    with monkeypatch.context() as patch:
+        def unavailable(**kwargs):
+            raise OSError("Synthetic failure before the manual accept")
+
+        patch.setattr(review_blocked, "accept_delivered_todo", unavailable)
+        assert settle()["ok"] is False
+    assert _todo(fx, todo_id)["status"] == "in_review"
+    # An acceptor agent whose id is "owner" accepts through the ordinary verdict path.
+    accept_delivered_todo(registry_path=fx["registry"], goal=load_goal_from_registry(fx["registry"], GOAL),
+                          goal_id=GOAL, todo=_todo(fx, todo_id), actor="owner", actor_source="acceptor_verdict",
+                          note="looks good")
+    assert _todo(fx, todo_id)["status"] == "done"
+    resumed: list[str] = []
+    real_resume = review_blocked.resume_after_accept
+
+    def counting(**kwargs):
+        resumed.append(kwargs["goal_id"])
+        return real_resume(**kwargs)
+
+    monkeypatch.setattr(review_blocked, "resume_after_accept", counting)
+    retried = settle()
+    assert resumed == [], "the gate did not accept this todo"
+    assert (retried["ok"], retried["applied"]) == (True, False), retried
+    assert "not in_review; nothing to apply" in retried["reason"]
+
+
 def test_a_manual_accept_whose_post_accept_step_failed_reruns_it_on_retry(tmp_path, monkeypatch) -> None:
     import loopx.plan_cards as plan_cards
 

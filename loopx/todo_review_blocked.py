@@ -35,6 +35,7 @@ this gate kind here.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -83,6 +84,8 @@ _DEFAULT_OPTION_FOR_DECISION = {
 OWNER_ACTOR = "owner"
 # The gate index key of a settled acceptor_blocked gate's outcome (first settlement wins).
 REVIEW_OUTCOME_KEY = "review_outcome"
+# Marks, in the completion evidence, an accept made through an acceptor-blocked gate.
+GATE_ACCEPT_MARKER_PREFIX = "acceptor_blocked_gate="
 _REVIEW_OUTCOME_FIELDS = ("ok", "gate_todo_id", "review_todo_id", "option", "applied", "reason", "error",
                           "review_feedback")
 _REASON_LIMIT = 300
@@ -346,16 +349,20 @@ def settle_review_gate(
         return None
     ran: dict[str, Any] = {}
 
-    def apply(_decided: str | None, selected: str, _prior: Mapping[str, Any]) -> dict[str, Any]:
+    def pin(_decided: str | None, _selected: str) -> dict[str, Any]:
+        return {"note": note} if note else {}
+
+    def apply(_decided: str | None, selected: str, prior: Mapping[str, Any]) -> dict[str, Any]:
         ran.update(_apply_review_option(
             registry_path=registry_path, goal_id=goal_id, gate_todo_id=gate_todo_id, entry=entry,
-            selected=selected, note=note, runtime_root_arg=runtime_root_arg,
+            selected=selected, note=(prior.get("pinned") or {}).get("note", note),  # a retry keeps the first note
+            runtime_root_arg=runtime_root_arg,
         ))
         return {key: ran[key] for key in _REVIEW_OUTCOME_FIELDS if key in ran}
 
     outcome, applied = run_gate_settlement(
         runtime_root, goal_id, gate_todo_id, decision=decision, option=resolve_review_gate_option(decision, option),
-        outcome_key=REVIEW_OUTCOME_KEY, apply=apply,
+        outcome_key=REVIEW_OUTCOME_KEY, apply=apply, pin=pin,
     )
     if not applied:
         return {"payload_key": "review_gate", **outcome, "replayed": True}
@@ -364,6 +371,25 @@ def settle_review_gate(
                agent_id=str(entry.get("acceptor_agent") or "") or None, status=ran["option"],
                details={"gate_id": gate_todo_id, "option": ran["option"], "applied": ran["applied"]})
     return {"payload_key": "review_gate", **ran}
+
+
+def _gate_accept_marker(gate_todo_id: str) -> str:
+    return f"{GATE_ACCEPT_MARKER_PREFIX}{gate_todo_id}"
+
+
+def _accepted_through_gate(todo: Mapping[str, Any], gate_todo_id: str) -> bool:
+    """Whether the owner's manual accept through this gate completed ``todo``.
+
+    Both the accept verdict (``accepted_by=owner``) and this gate's marker must
+    be in the evidence: an acceptor agent whose id is ``owner`` accepts without it.
+    """
+
+    from .plan_dependencies import accepted_by
+
+    if accepted_by(todo) != OWNER_ACTOR:
+        return False
+    marker = re.escape(_gate_accept_marker(gate_todo_id))
+    return re.search(rf"(?:^|[\s:;]){marker}(?=[\s:;]|$)", str(todo.get("evidence") or "")) is not None
 
 
 def _apply_review_option(
@@ -385,9 +411,7 @@ def _apply_review_option(
     }
     status = normalize_todo_status((todo or {}).get("status"))
     if selected == OPTION_ACCEPT_MANUALLY and todo is not None and status == TODO_STATUS_DONE:
-        from .plan_dependencies import accepted_by
-
-        if accepted_by(todo) == OWNER_ACTOR:
+        if _accepted_through_gate(todo, gate_todo_id):
             # The owner's accept through this gate completed the todo, but the
             # settlement did not finish: re-run the idempotent post-accept step.
             try:
@@ -412,7 +436,10 @@ def _apply_review_option(
             accepted = accept_delivered_todo(
                 registry_path=registry_path, goal=goal, goal_id=goal_id, todo=todo, actor=OWNER_ACTOR,
                 actor_source="owner_via_acceptor_blocked_gate",
-                note=gate_note or f"accepted manually by the owner after {acceptor} could not review",
+                # The gate marker leads the note, right after the verdict prefix, so the
+                # evidence clip never drops it; a retry recognises this gate's accept by it.
+                note=f"{_gate_accept_marker(gate_todo_id)}; "
+                     f"{gate_note or f'accepted manually by the owner after {acceptor} could not review'}",
                 runtime_root_arg=runtime_root_arg, lifecycle_agent_id=owner,
             )
             result.update(applied=accepted.get("ok") is not False, acceptance=accepted.get("acceptance"),

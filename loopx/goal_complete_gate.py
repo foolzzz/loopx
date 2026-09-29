@@ -566,7 +566,11 @@ def settle_goal_complete_gate(
     if entry is None:
         return None
 
-    def apply(decided: str | None, selected: str, _prior: Mapping[str, Any]) -> dict[str, Any]:
+    def pin(_decided: str | None, _selected: str) -> dict[str, Any]:
+        return {"note": note} if note else {}
+
+    def apply(decided: str | None, selected: str, prior: Mapping[str, Any]) -> dict[str, Any]:
+        pinned_note = (prior.get("pinned") or {}).get("note", note)  # a retry keeps the first note
         outcome: dict[str, Any] = {"ok": True, "gate_todo_id": gate_todo_id, "decision": decided,
                                    "option": selected, "at": _now()}
         try:
@@ -578,7 +582,7 @@ def settle_goal_complete_gate(
                     f"loopx goal-lifecycle --goal-id {goal_id} --operation resume --actor-kind owner --execute"
                 )
             elif selected == GOAL_COMPLETE_OPTION_ADD_WORK:
-                follow_up = _add_follow_up(Path(registry_path), goal_id, gate_todo_id, str(note or ""),
+                follow_up = _add_follow_up(Path(registry_path), goal_id, gate_todo_id, str(pinned_note or ""),
                                            runtime_root_arg)
                 outcome["follow_up_todo_id"] = follow_up
                 if not follow_up:
@@ -589,7 +593,7 @@ def settle_goal_complete_gate(
 
     outcome, applied = run_gate_settlement(
         runtime_root, goal_id, gate_todo_id, decision=decision, option=resolve_goal_complete_option(decision, option),
-        outcome_key="completion_outcome", apply=apply,
+        outcome_key="completion_outcome", apply=apply, pin=pin,
     )
     if not applied:
         return {"payload_key": "goal_complete", **outcome, "replayed": True}
