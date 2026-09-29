@@ -121,7 +121,9 @@ class Dispatcher:
     ) -> None:
         self.config = config
         self.runtime_root = Path(config.runtime_root).expanduser()
-        self.registry_path = Path(config.registry_path).expanduser()
+        # Absolute once: Turns and their validators run in todo worktrees, where
+        # the default relative registry (.loopx/registry.json) does not resolve.
+        self.registry_path = Path(config.registry_path).expanduser().resolve()
         self.environ = dict(os.environ if config.environ is None else config.environ)
         self._should_run = should_run or self._loopx_should_run
         self._preflight = preflight or _default_preflight

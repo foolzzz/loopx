@@ -35,6 +35,9 @@ launchctl load ~/Library/LaunchAgents/com.loopx.dispatch.plist   # you install i
 ```
 
 The global `--registry` and `--runtime-root` options select the state home as usual.
+The dispatcher resolves the registry to an absolute path once, so every Turn, its
+validator and the launchd job find it from their own working directory: a todo
+worktree, a review checkout or the runtime root.
 Only one dispatcher can run per runtime root. `serve` and `serve --once` take an
 exclusive `flock` on `<runtime-root>/dispatch/serve.lock`. A second dispatcher on the
 same runtime root exits with code 3 (`dispatcher_locked`).

@@ -410,6 +410,10 @@ off. So give every plan todo a `validation_command`, or pass a fallback.
 - `serve` watches the state files and runs a reconcile pass every
   `--tick-seconds` (default 60). It prints one JSON line per pass that acts,
   and an idle heartbeat line after 15 minutes without output.
+- In the state home, `serve` needs no `--registry`. It hands every Turn the
+  registry as an absolute path, so a developer Turn that runs in its todo's
+  worktree still finds the goal. `launchd-plist` writes the same absolute
+  path into the job.
 - `--once` runs one pass, waits for the Turns it launched, and exits. Use it
   for cron or for debugging.
 - Only one dispatcher runs per runtime root. A second one exits with code 3.
