@@ -126,12 +126,15 @@ def handle_loopx_bootstrap_command_pack_command(
 def handle_codex_cli_bootstrap_message_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_codex_cli_bootstrap_message(
         project=Path(args.project),
         goal_id=args.goal_id,
         agent_id=args.agent_id,
         cli_bin=args.cli_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     if bool(getattr(args, "message_only", False)):
         print(str(payload.get("message") or ""))
@@ -143,12 +146,15 @@ def handle_codex_cli_bootstrap_message_command(
 def handle_codex_cli_tui_bootstrap_smoke_bundle_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_codex_cli_tui_bootstrap_smoke_bundle(
         project=Path(args.project),
         goal_id=args.goal_id,
         agent_id=args.agent_id,
         cli_bin=args.cli_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     print_payload(payload, args.format, render_codex_cli_tui_bootstrap_smoke_bundle_markdown)
     return 0
@@ -157,6 +163,8 @@ def handle_codex_cli_tui_bootstrap_smoke_bundle_command(
 def handle_codex_cli_exec_handoff_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_codex_cli_exec_handoff(
         project=Path(args.project),
@@ -164,6 +172,7 @@ def handle_codex_cli_exec_handoff_command(
         agent_id=args.agent_id,
         cli_bin=args.cli_bin,
         codex_bin=args.codex_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     print_payload(payload, args.format, render_codex_cli_exec_handoff_markdown)
     return 0 if payload.get("ok") else 1
@@ -192,5 +201,11 @@ def handle_starter_bootstrap_command(
     if handler is handle_new_project_prompt_command:
         return handler(args, print_payload, runtime_root_arg=args.runtime_root)
     if handler is handle_agent_onboard_command:
+        return handler(args, print_payload, runtime_root_arg=args.runtime_root)
+    if handler in {
+        handle_codex_cli_bootstrap_message_command,
+        handle_codex_cli_tui_bootstrap_smoke_bundle_command,
+        handle_codex_cli_exec_handoff_command,
+    }:
         return handler(args, print_payload, runtime_root_arg=args.runtime_root)
     return handler(args, print_payload)

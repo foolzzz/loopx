@@ -115,8 +115,16 @@ def render_available_capability_args(values: Any) -> str:
     )
 
 
-def render_cli_preflight(*, cli_bin: str = "loopx") -> str:
+def render_cli_preflight(
+    *,
+    cli_bin: str = "loopx",
+    runtime_root: str | Path | None = None,
+) -> str:
     cli_bin_arg = shell_arg(cli_bin)
+    command_prefix = render_cli_command_prefix(
+        cli_bin=cli_bin,
+        runtime_root=runtime_root,
+    )
     return f"""export PATH="$HOME/.local/bin:$PATH"
 install_script="$HOME/loopx/scripts/install-local.sh"
 if ! command -v {cli_bin_arg} >/dev/null 2>&1; then
@@ -128,7 +136,7 @@ if ! command -v {cli_bin_arg} >/dev/null 2>&1; then
     exit 1
   fi
 fi
-{cli_bin_arg} doctor >/dev/null"""
+{command_prefix} doctor >/dev/null"""
 
 
 def render_codex_cli_install_preflight(
@@ -469,6 +477,8 @@ def build_new_project_prompt(
         resolved_goal_id,
         runtime_root=command_runtime_root,
     )
+    cli_preflight = render_cli_preflight(runtime_root=command_runtime_root)
+    command_prefix = render_cli_command_prefix(runtime_root=command_runtime_root)
     prompt = render_prompt_text(
         project=project_text,
         goal_doc=goal_doc_text,
@@ -478,13 +488,13 @@ def build_new_project_prompt(
         adapter_kind=adapter_kind,
         adapter_status=adapter_status,
         next_probe=resolved_next_probe,
-        cli_preflight=render_cli_preflight(),
+        cli_preflight=cli_preflight,
         connect_command=connect_command,
         quota_guard_command=quota_guard_command,
         quota_spend_command=quota_spend_command,
         refresh_command=refresh_command,
         progress_refresh_command=progress_refresh_command,
-        cli_bin="loopx",
+        cli_bin=command_prefix,
         spawn_allowed=spawn_allowed,
         allowed_domains=allowed_domains,
         write_scope=write_scope,
@@ -508,7 +518,7 @@ def build_new_project_prompt(
         "quota_spend_command": quota_spend_command,
         "refresh_command": refresh_command,
         "progress_refresh_command": progress_refresh_command,
-        "cli_preflight": render_cli_preflight(),
+        "cli_preflight": cli_preflight,
         "prompt": prompt,
     }
 
@@ -518,11 +528,12 @@ def render_codex_cli_bootstrap_connect_command(
     project: str,
     goal_id: str,
     cli_bin: str,
+    runtime_root: str | None = None,
 ) -> str:
     return "\n".join(
         [
             f"cd {shell_arg(project)}",
-            f"{shell_arg(cli_bin)} bootstrap \\",
+            f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=runtime_root)} bootstrap \\",
             "  --project . \\",
             f"  --goal-id {shell_arg(goal_id)} \\",
             f"  --adapter-kind {shell_arg(DEFAULT_HANDOFF_ADAPTER_KIND)} \\",
@@ -537,17 +548,26 @@ def build_codex_cli_bootstrap_message(
     goal_id: str | None,
     agent_id: str | None,
     cli_bin: str,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     resolved_project = str(project.expanduser())
     resolved_goal_id = goal_id or default_goal_id(project)
+    effective_runtime_root = resolve_runtime_root(
+        {},
+        runtime_root_arg,
+        registry_path=project / ".loopx" / "registry.json",
+    )
+    command_runtime_root = str(effective_runtime_root) if runtime_root_arg else None
     connect_command = render_codex_cli_bootstrap_connect_command(
         project=resolved_project,
         goal_id=resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
     )
     quota_guard_command = render_quota_guard_command(
         resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         agent_id=agent_id,
         scheduler_execution_context=CODEX_CLI_VISIBLE_SCHEDULER_CONTEXT,
     )
@@ -555,30 +575,38 @@ def build_codex_cli_bootstrap_message(
         resolved_goal_id,
         source="heartbeat",
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         agent_id=agent_id,
     )
     heartbeat_prompt_command = render_heartbeat_prompt_command(
         resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         agent_id=agent_id,
         scheduler_execution_context=CODEX_CLI_VISIBLE_SCHEDULER_CONTEXT,
     )
     heartbeat_prompt_json_command = render_heartbeat_prompt_json_command(
         resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         agent_id=agent_id,
         scheduler_execution_context=CODEX_CLI_VISIBLE_SCHEDULER_CONTEXT,
     )
-    install_repair_command = render_codex_cli_install_preflight(cli_bin=cli_bin)
+    install_repair_command = render_codex_cli_install_preflight(
+        cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
+    )
     refresh_command = render_refresh_state_command(
         resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         agent_id=agent_id,
         progress_scope="agent_lane" if agent_id else None,
     )
     progress_refresh_command = render_accountable_progress_refresh_command(
         resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         agent_id=agent_id,
         progress_scope="agent_lane" if agent_id else None,
     )
@@ -615,6 +643,7 @@ def build_codex_cli_bootstrap_message(
         "goal_id": resolved_goal_id,
         "agent_id": agent_id,
         "cli_bin": cli_bin,
+        "runtime_root": command_runtime_root,
         "install_repair_command": install_repair_command,
         "existing_goal_probe_command": quota_guard_command,
         "connect_command": connect_command,
@@ -638,23 +667,29 @@ def build_codex_cli_tui_bootstrap_smoke_bundle(
     goal_id: str | None,
     agent_id: str | None,
     cli_bin: str,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     bootstrap = build_codex_cli_bootstrap_message(
         project=project,
         goal_id=goal_id,
         agent_id=agent_id,
         cli_bin=cli_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     resolved_project = str(bootstrap["project"])
     resolved_goal_id = str(bootstrap["goal_id"])
     agent_arg = f" --agent-id {shell_arg(agent_id)}" if agent_id else ""
+    command_prefix = render_cli_command_prefix(
+        cli_bin=cli_bin,
+        runtime_root=str(bootstrap["runtime_root"]) if bootstrap["runtime_root"] else None,
+    )
     message_only_command = (
-        f"{shell_arg(cli_bin)} codex-cli-bootstrap-message "
+        f"{command_prefix} codex-cli-bootstrap-message "
         f"--project {shell_arg(resolved_project)} "
         f"--goal-id {shell_arg(resolved_goal_id)}{agent_arg} --message-only"
     )
     review_packet_command = (
-        f"{shell_arg(cli_bin)} codex-cli-bootstrap-message "
+        f"{command_prefix} codex-cli-bootstrap-message "
         f"--project {shell_arg(resolved_project)} "
         f"--goal-id {shell_arg(resolved_goal_id)}{agent_arg}"
     )
@@ -702,18 +737,24 @@ def build_codex_cli_exec_handoff(
     agent_id: str | None,
     cli_bin: str,
     codex_bin: str,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     bootstrap = build_codex_cli_bootstrap_message(
         project=project,
         goal_id=goal_id,
         agent_id=agent_id,
         cli_bin=cli_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     resolved_project = str(project.expanduser())
     resolved_goal_id = str(bootstrap["goal_id"])
     agent_arg = f" --agent-id {shell_arg(agent_id)}" if agent_id else ""
+    command_prefix = render_cli_command_prefix(
+        cli_bin=cli_bin,
+        runtime_root=str(bootstrap["runtime_root"]) if bootstrap["runtime_root"] else None,
+    )
     message_only_command = (
-        f"{shell_arg(cli_bin)} codex-cli-bootstrap-message "
+        f"{command_prefix} codex-cli-bootstrap-message "
         f"--project {shell_arg(resolved_project)} "
         f"--goal-id {shell_arg(resolved_goal_id)}{agent_arg} --message-only"
     )

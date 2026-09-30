@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from loopx.bootstrap_command_pack import (
 )
 from loopx.control_plane.projects.registry import register_project_goal
 from loopx.control_plane.testing.canary_harness import default_state_file
-from loopx.project_prompt import build_new_project_prompt
+from loopx.project_prompt import build_codex_cli_bootstrap_message, build_new_project_prompt
 from loopx.project_uninstall import uninstall_project
 
 
@@ -421,6 +422,78 @@ def test_new_project_prompt_preserves_explicit_runtime_root(
         "progress_refresh_command",
     ):
         assert packet[key].startswith(runtime_prefix)
+    for command in (
+        "doctor",
+        "todo add",
+        "review-packet",
+        "heartbeat-prompt",
+        "read-only-map",
+        "registry",
+        "status",
+        "check",
+    ):
+        assert f"{runtime_prefix} {command}" in prompt
+        assert f"\nloopx {command}" not in prompt
+
+
+def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    runtime_root = tmp_path / "runtime"
+    runtime_prefix = f"loopx --runtime-root {runtime_root}"
+
+    packet = build_codex_cli_bootstrap_message(
+        project=project,
+        goal_id=GOAL_ID,
+        agent_id="worker-a",
+        cli_bin="loopx",
+        runtime_root_arg=str(runtime_root),
+    )
+    for key in (
+        "connect_command",
+        "existing_goal_probe_command",
+        "heartbeat_prompt_command",
+        "heartbeat_prompt_json_command",
+        "quota_guard_command",
+        "refresh_command",
+        "progress_refresh_command",
+        "quota_spend_command",
+    ):
+        assert runtime_prefix in packet[key]
+    assert runtime_prefix in packet["install_repair_command"]
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "loopx.cli",
+            "--runtime-root",
+            str(runtime_root),
+            "--format",
+            "json",
+            "codex-cli-bootstrap-message",
+            "--project",
+            str(project),
+            "--goal-id",
+            GOAL_ID,
+            "--agent-id",
+            "worker-a",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    cli_packet = json.loads(completed.stdout)
+    for key in (
+        "connect_command",
+        "quota_guard_command",
+        "heartbeat_prompt_command",
+        "refresh_command",
+        "progress_refresh_command",
+        "quota_spend_command",
+    ):
+        assert runtime_prefix in cli_packet[key]
 
 
 def test_uninstall_archives_only_the_state_file_from_legacy_runtime_overlap(
