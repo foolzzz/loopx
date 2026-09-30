@@ -63,6 +63,13 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Fixed
 
+- **HOME-rooted Goal state no longer overlaps machine runtime state.** When a
+  project root and runtime root would both use `<home>/.loopx/goals`, newly
+  bootstrapped Goals store their project-owned state under
+  `<home>/.loopx/project-goals` instead. Uninstalling a Goal created with the
+  old overlapping layout and `--archive-state` now archives only its
+  `ACTIVE_GOAL_STATE.md`; runtime-owned receipts and other files remain in the
+  runtime Goal directory.
 - **Goals without a code repository.** A goal created with `loopx goal
   create` and no `--repo` now runs under the dispatcher. Before, every
   developer and acceptor Turn on a todo without `task_repositories` failed

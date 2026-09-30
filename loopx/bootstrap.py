@@ -328,12 +328,30 @@ def bootstrap_project(
     if not registry_path.is_absolute():
         registry_path = project / registry_path
     goal_id = goal_id or default_goal_id(project)
-    state_file = state_file or project_goal_state_file(project, goal_id)
+    existing_registry = read_json_if_exists(registry_path)
+    runtime_root = resolve_runtime_root(
+        existing_registry,
+        str(runtime_root) if runtime_root else None,
+        registry_path=registry_path,
+    )
+    if state_file is None:
+        existing_goal = find_registry_goal(existing_registry, goal_id)
+        recorded_state_file = (
+            existing_goal.get("state_file") if existing_goal is not None else None
+        )
+        if recorded_state_file:
+            recorded_path = Path(str(recorded_state_file)).expanduser()
+            state_file = recorded_path if recorded_path.is_absolute() else project / recorded_path
+        else:
+            state_file = project_goal_state_file(
+                project,
+                goal_id,
+                runtime_root=runtime_root,
+            )
     state_file = state_file.expanduser()
     if not state_file.is_absolute():
         state_file = project / state_file
     goal_doc = resolve_project_path(project, goal_doc)
-    runtime_root = resolve_runtime_root(read_json_if_exists(registry_path), str(runtime_root) if runtime_root else None, registry_path=registry_path)
     updated_at = now_iso()
     execution_profile = build_execution_profile(
         minimum_scale=execution_minimum_scale,
