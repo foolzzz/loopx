@@ -7,11 +7,13 @@ from typing import Any
 
 import pytest
 
-from loopx.capabilities.reward_memory import codex_app_outcome
-from loopx.capabilities.reward_memory.codex_app_outcome import (
-    codex_app_outcome_candidate_sidecar_path,
-    run_staged_codex_app_turn_outcome_ingest,
-    stage_codex_app_turn_outcome_candidate,
+from loopx.capabilities.reward_memory import refresh_outcome_candidate
+from loopx.capabilities.reward_memory.refresh_outcome_candidate import (
+    REFRESH_OUTCOME_CANDIDATE_SCHEMA_VERSION,
+    REFRESH_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSION,
+    refresh_outcome_candidate_sidecar_path,
+    run_staged_refresh_outcome_candidate_ingest,
+    stage_refresh_outcome_candidate,
 )
 
 
@@ -94,13 +96,13 @@ def _validator(path: Path, *, attest: bool) -> list[str]:
     return [sys.executable, str(path)]
 
 
-def test_app_refresh_stages_private_candidate_and_spend_finalizes_it(
+def test_refresh_outcome_candidate_writes_new_schema_and_reads_legacy_sidecar(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     argv = _validator(tmp_path / "validate.py", attest=True)
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_validation_declaration",
         lambda **_kwargs: {
             "validation_command": None,
@@ -110,12 +112,12 @@ def test_app_refresh_stages_private_candidate_and_spend_finalizes_it(
         },
     )
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_goal_repo",
         lambda *_args, **_kwargs: tmp_path,
     )
 
-    staged = stage_codex_app_turn_outcome_candidate(
+    staged = stage_refresh_outcome_candidate(
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         goal_id="goal",
@@ -130,16 +132,39 @@ def test_app_refresh_stages_private_candidate_and_spend_finalizes_it(
     )
 
     assert staged["status"] == "validation_bound"
+    assert staged["schema_version"] == REFRESH_OUTCOME_CANDIDATE_SCHEMA_VERSION
+    assert staged["candidate_id"].startswith("refresh:")
     assert staged["validation_bound"] is True
     assert staged["raw_content_projected"] is False
     assert staged["external_writes_performed"] is False
-    path = codex_app_outcome_candidate_sidecar_path(
+    path = refresh_outcome_candidate_sidecar_path(
         tmp_path,
         goal_id="goal",
         agent_id="pilot",
         candidate_id=staged["candidate_id"],
     )
     assert path.stat().st_mode & 0o777 == 0o600
+    sidecar = json.loads(path.read_text(encoding="utf-8"))
+    assert sidecar["schema_version"] == REFRESH_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSION
+    assert "codex_app" not in json.dumps(sidecar)
+
+    legacy_root = tmp_path / ".local" / "loopx" / "reward-memory-app-outcomes"
+    current_root = (
+        tmp_path / ".local" / "loopx" / "reward-memory-refresh-outcome-candidates"
+    )
+    legacy_candidate_id = "app:legacy-candidate"
+    legacy_current_path = refresh_outcome_candidate_sidecar_path(
+        tmp_path,
+        goal_id="goal",
+        agent_id="pilot",
+        candidate_id=legacy_candidate_id,
+    )
+    legacy_path = legacy_root / legacy_current_path.relative_to(current_root)
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    sidecar["schema_version"] = "codex_app_reward_memory_outcome_sidecar_v0"
+    sidecar["candidate_id"] = legacy_candidate_id
+    legacy_path.write_text(json.dumps(sidecar), encoding="utf-8")
+    path.unlink()
 
     observed: dict[str, Any] = {}
 
@@ -152,25 +177,25 @@ def test_app_refresh_stages_private_candidate_and_spend_finalizes_it(
         }
 
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "run_configured_turn_outcome_ingest",
         ingest,
     )
-    finalized = run_staged_codex_app_turn_outcome_ingest(
+    finalized = run_staged_refresh_outcome_candidate_ingest(
         registry_path=tmp_path / "registry.json",
         goal_id="goal",
         agent_id="pilot",
         todo_id="todo_app",
         turn_instance_id="turn-app",
         effect_id="effect:app",
-        candidate_id=staged["candidate_id"],
+        candidate_id=legacy_candidate_id,
         writeback_appended=True,
         spend_appended=True,
     )
 
     assert finalized["status"] == "activated"
     assert finalized["host_wiring"] == (
-        "codex_app_refresh_spend_post_settlement"
+        "refresh_outcome_candidate_post_settlement"
     )
     assert observed["turn_key"] == "effect:app"
     evidence = observed["settlement_evidence"]
@@ -179,13 +204,13 @@ def test_app_refresh_stages_private_candidate_and_spend_finalizes_it(
     assert evidence["quota_spend"] == {"ok": True, "appended": True}
 
 
-def test_app_refresh_without_exact_validator_attestation_stays_pending(
+def test_refresh_without_exact_validator_attestation_stays_pending(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     argv = _validator(tmp_path / "validate.py", attest=False)
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_validation_declaration",
         lambda **_kwargs: {
             "validation_command": None,
@@ -195,12 +220,12 @@ def test_app_refresh_without_exact_validator_attestation_stays_pending(
         },
     )
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_goal_repo",
         lambda *_args, **_kwargs: tmp_path,
     )
 
-    staged = stage_codex_app_turn_outcome_candidate(
+    staged = stage_refresh_outcome_candidate(
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         goal_id="goal",
@@ -220,22 +245,22 @@ def test_app_refresh_without_exact_validator_attestation_stays_pending(
     assert staged["external_writes_performed"] is False
 
 
-def test_app_refresh_accepts_large_valid_reflection_without_validator(
+def test_refresh_accepts_large_valid_reflection_without_validator(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_validation_declaration",
         lambda **_kwargs: None,
     )
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_goal_repo",
         lambda *_args, **_kwargs: tmp_path,
     )
 
-    staged = stage_codex_app_turn_outcome_candidate(
+    staged = stage_refresh_outcome_candidate(
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         goal_id="goal",
@@ -258,12 +283,12 @@ def test_app_refresh_accepts_large_valid_reflection_without_validator(
     assert staged["external_writes_performed"] is False
 
 
-def test_app_refresh_rejects_truly_oversized_reflection(
+def test_refresh_rejects_truly_oversized_reflection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        codex_app_outcome,
+        refresh_outcome_candidate,
         "_goal_repo",
         lambda *_args, **_kwargs: tmp_path,
     )
@@ -274,7 +299,7 @@ def test_app_refresh_rejects_truly_oversized_reflection(
         ValueError,
         match="reward memory reflection exceeds its bounded contract",
     ):
-        stage_codex_app_turn_outcome_candidate(
+        stage_refresh_outcome_candidate(
             registry_path=tmp_path / "registry.json",
             runtime_root=tmp_path / "runtime",
             goal_id="goal",

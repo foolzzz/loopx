@@ -29,11 +29,18 @@ from .outcome_lifecycle import (
 )
 
 
-CODEX_APP_OUTCOME_CANDIDATE_SCHEMA_VERSION = (
-    "codex_app_reward_memory_outcome_candidate_v0"
+REFRESH_OUTCOME_CANDIDATE_SCHEMA_VERSION = "reward_memory_refresh_outcome_candidate_v0"
+REFRESH_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSION = (
+    "reward_memory_refresh_outcome_candidate_sidecar_v0"
 )
-CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION = (
+_LEGACY_CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION = (
     "codex_app_reward_memory_outcome_sidecar_v0"
+)
+_READABLE_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSIONS = frozenset(
+    {
+        REFRESH_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSION,
+        _LEGACY_CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION,
+    }
 )
 REFLECTION_VALIDATION_REQUEST_SCHEMA_VERSION = (
     "reward_memory_reflection_validation_request_v0"
@@ -49,13 +56,33 @@ def _load_candidate_sidecar(path: Path) -> dict[str, Any] | None:
     except FileNotFoundError:
         return None
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError("Codex App reward memory candidate sidecar is unreadable") from exc
+        raise ValueError(
+            "Reward memory refresh outcome candidate is unreadable"
+        ) from exc
     if not isinstance(value, dict):
-        raise ValueError("Codex App reward memory candidate sidecar is invalid")
+        raise ValueError("Reward memory refresh outcome candidate is invalid")
     return value
 
 
-def codex_app_outcome_candidate_sidecar_path(
+def refresh_outcome_candidate_sidecar_path(
+    repo: Path,
+    *,
+    goal_id: str,
+    agent_id: str,
+    candidate_id: str,
+) -> Path:
+    return (
+        repo
+        / ".local"
+        / "loopx"
+        / "reward-memory-refresh-outcome-candidates"
+        / _identity_token(goal_id, fallback="goal")
+        / _identity_token(agent_id, fallback="agent")
+        / f"{_identity_token(candidate_id, fallback='candidate')}.json"
+    )
+
+
+def _legacy_codex_app_outcome_candidate_sidecar_path(
     repo: Path,
     *,
     goal_id: str,
@@ -73,6 +100,33 @@ def codex_app_outcome_candidate_sidecar_path(
     )
 
 
+def _load_staged_candidate_sidecar(
+    repo: Path,
+    *,
+    goal_id: str,
+    agent_id: str,
+    candidate_id: str,
+) -> dict[str, Any] | None:
+    current = _load_candidate_sidecar(
+        refresh_outcome_candidate_sidecar_path(
+            repo,
+            goal_id=goal_id,
+            agent_id=agent_id,
+            candidate_id=candidate_id,
+        )
+    )
+    if current is not None:
+        return current
+    return _load_candidate_sidecar(
+        _legacy_codex_app_outcome_candidate_sidecar_path(
+            repo,
+            goal_id=goal_id,
+            agent_id=agent_id,
+            candidate_id=candidate_id,
+        )
+    )
+
+
 def _candidate_base(
     *,
     goal_id: str,
@@ -82,7 +136,7 @@ def _candidate_base(
 ) -> dict[str, Any]:
     return {
         "ok": True,
-        "schema_version": CODEX_APP_OUTCOME_CANDIDATE_SCHEMA_VERSION,
+        "schema_version": REFRESH_OUTCOME_CANDIDATE_SCHEMA_VERSION,
         "goal_id": goal_id,
         "agent_id": agent_id,
         "status": status,
@@ -93,7 +147,7 @@ def _candidate_base(
         "raw_content_projected": False,
         "provider_sync_count": 0,
         "external_writes_performed": False,
-        "host_wiring": "codex_app_refresh_stage",
+        "host_wiring": "refresh_outcome_candidate_stage",
         "fail_open": True,
     }
 
@@ -269,7 +323,7 @@ def _run_reflection_validator(
     }
 
 
-def stage_codex_app_turn_outcome_candidate(
+def stage_refresh_outcome_candidate(
     *,
     registry_path: Path,
     runtime_root: Path,
@@ -283,13 +337,15 @@ def stage_codex_app_turn_outcome_candidate(
     reflection_json: str,
     observed_at: str,
 ) -> dict[str, Any]:
-    """Stage private App reflection only; provider writes wait for spend readback."""
+    """Stage a private refresh reflection; provider writes wait for spend readback."""
 
     if not all(
         str(value or "").strip()
         for value in (goal_id, agent_id, todo_id, turn_instance_id, effect_id)
     ):
-        raise ValueError("Codex App reward memory candidate identity is incomplete")
+        raise ValueError(
+            "Reward memory refresh outcome candidate identity is incomplete"
+        )
     reflection = _reflection(reflection_json)
     if reflection is None or reflection.get("status") in {
         "no_evidence",
@@ -305,11 +361,11 @@ def stage_codex_app_turn_outcome_candidate(
             reason_code=(
                 "legacy_reflection_requires_transferable_experience"
                 if legacy
-                else "app_refresh_declared_no_reward_evidence"
+                else "refresh_declared_no_reward_evidence"
             ),
         )
     digest = _reflection_digest(reflection_json)
-    candidate_id = "app:" + hashlib.sha256(
+    candidate_id = "refresh:" + hashlib.sha256(
         (
             f"{goal_id}\n{agent_id}\n{todo_id}\n{turn_instance_id}\n"
             f"{effect_id}\n{digest}"
@@ -349,19 +405,27 @@ def stage_codex_app_turn_outcome_candidate(
             "exit_code": None,
         }
     )
-    path = codex_app_outcome_candidate_sidecar_path(
-        _goal_repo(registry_path, goal_id),
+    repo = _goal_repo(registry_path, goal_id)
+    path = refresh_outcome_candidate_sidecar_path(
+        repo,
         goal_id=goal_id,
         agent_id=agent_id,
         candidate_id=candidate_id,
     )
-    previous = _load_candidate_sidecar(path)
-    if previous is not None and previous.get("schema_version") != (
-        CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION
+    previous = _load_staged_candidate_sidecar(
+        repo,
+        goal_id=goal_id,
+        agent_id=agent_id,
+        candidate_id=candidate_id,
+    )
+    if (
+        previous is not None
+        and previous.get("schema_version")
+        not in _READABLE_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSIONS
     ):
-        raise ValueError("Codex App reward memory candidate sidecar is invalid")
+        raise ValueError("Reward memory refresh outcome candidate is invalid")
     sidecar = {
-        "schema_version": CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION,
+        "schema_version": REFRESH_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSION,
         "goal_id": goal_id,
         "agent_id": agent_id,
         "todo_id": todo_id,
@@ -386,7 +450,9 @@ def stage_codex_app_turn_outcome_candidate(
             "reflection_digest",
         ):
             if previous.get(field) != sidecar[field]:
-                raise ValueError("Codex App reward memory candidate identity mismatch")
+                raise ValueError(
+                    "Reward memory refresh outcome candidate identity mismatch"
+                )
         previous_validation = previous.get("task_validation")
         if (
             isinstance(previous_validation, Mapping)
@@ -403,7 +469,9 @@ def stage_codex_app_turn_outcome_candidate(
         agent_id=agent_id,
         status=("validation_bound" if validation_bound else "awaiting_evidence_validation"),
         reason_code=(
-            None if validation_bound else "reflection_not_bound_to_independent_validation"
+            None
+            if validation_bound
+            else "reflection_not_bound_to_independent_validation"
         ),
     ) | {
         "candidate_id": candidate_id,
@@ -413,7 +481,7 @@ def stage_codex_app_turn_outcome_candidate(
     }
 
 
-def run_staged_codex_app_turn_outcome_ingest(
+def run_staged_refresh_outcome_candidate_ingest(
     *,
     registry_path: Path,
     goal_id: str,
@@ -425,19 +493,20 @@ def run_staged_codex_app_turn_outcome_ingest(
     writeback_appended: bool,
     spend_appended: bool,
 ) -> dict[str, Any]:
-    """Finalize one staged App reflection after exact writeback+spend readback."""
+    """Finalize one staged refresh reflection after exact settlement readback."""
 
-    path = codex_app_outcome_candidate_sidecar_path(
+    value = _load_staged_candidate_sidecar(
         _goal_repo(registry_path, goal_id),
         goal_id=goal_id,
         agent_id=agent_id,
         candidate_id=candidate_id,
     )
-    value = _load_candidate_sidecar(path)
-    if value is None or value.get("schema_version") != (
-        CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION
+    if (
+        value is None
+        or value.get("schema_version")
+        not in _READABLE_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSIONS
     ):
-        raise ValueError("Codex App reward memory candidate sidecar is unavailable")
+        raise ValueError("Reward memory refresh outcome candidate is unavailable")
     for field, expected in {
         "goal_id": goal_id,
         "agent_id": agent_id,
@@ -447,10 +516,14 @@ def run_staged_codex_app_turn_outcome_ingest(
         "candidate_id": candidate_id,
     }.items():
         if value.get(field) != expected:
-            raise ValueError("Codex App reward memory candidate identity mismatch")
+            raise ValueError(
+                "Reward memory refresh outcome candidate identity mismatch"
+            )
     reflection = value.get("reflection")
     if not isinstance(reflection, Mapping):
-        raise ValueError("Codex App reward memory candidate reflection is invalid")
+        raise ValueError(
+            "Reward memory refresh outcome candidate reflection is invalid"
+        )
     receipt = run_configured_turn_outcome_ingest(
         registry_path=registry_path,
         goal_id=goal_id,
@@ -472,47 +545,47 @@ def run_staged_codex_app_turn_outcome_ingest(
         },
         observed_at=str(value.get("observed_at") or "") or None,
     )
-    return receipt | {"host_wiring": "codex_app_refresh_spend_post_settlement"}
+    return receipt | {"host_wiring": "refresh_outcome_candidate_post_settlement"}
 
 
-def stage_codex_app_turn_outcome_candidate_fail_open(
+def stage_refresh_outcome_candidate_fail_open(
     **kwargs: Any,
 ) -> dict[str, Any]:
     try:
-        return stage_codex_app_turn_outcome_candidate(**kwargs)
+        return stage_refresh_outcome_candidate(**kwargs)
     except (OSError, RuntimeError, TypeError, ValueError):
         return _candidate_base(
             goal_id=str(kwargs.get("goal_id") or ""),
             agent_id=str(kwargs.get("agent_id") or ""),
             status="runtime_unavailable",
-            reason_code="app_outcome_stage_failed",
+            reason_code="refresh_outcome_candidate_stage_failed",
         )
 
 
-def run_staged_codex_app_turn_outcome_ingest_fail_open(
+def run_staged_refresh_outcome_candidate_ingest_fail_open(
     **kwargs: Any,
 ) -> dict[str, Any]:
     try:
-        return run_staged_codex_app_turn_outcome_ingest(**kwargs)
+        return run_staged_refresh_outcome_candidate_ingest(**kwargs)
     except (OSError, RuntimeError, TypeError, ValueError):
         return {
             **_candidate_base(
                 goal_id=str(kwargs.get("goal_id") or ""),
                 agent_id=str(kwargs.get("agent_id") or ""),
                 status="runtime_unavailable",
-                reason_code="app_outcome_finalize_failed",
+                reason_code="refresh_outcome_candidate_finalize_failed",
             ),
-            "host_wiring": "codex_app_refresh_spend_post_settlement",
+            "host_wiring": "refresh_outcome_candidate_post_settlement",
         }
 
 
 __all__ = [
-    "CODEX_APP_OUTCOME_CANDIDATE_SCHEMA_VERSION",
-    "CODEX_APP_OUTCOME_SIDECAR_SCHEMA_VERSION",
+    "REFRESH_OUTCOME_CANDIDATE_SCHEMA_VERSION",
+    "REFRESH_OUTCOME_CANDIDATE_SIDECAR_SCHEMA_VERSION",
     "REFLECTION_VALIDATION_REQUEST_SCHEMA_VERSION",
-    "codex_app_outcome_candidate_sidecar_path",
-    "run_staged_codex_app_turn_outcome_ingest",
-    "run_staged_codex_app_turn_outcome_ingest_fail_open",
-    "stage_codex_app_turn_outcome_candidate",
-    "stage_codex_app_turn_outcome_candidate_fail_open",
+    "refresh_outcome_candidate_sidecar_path",
+    "run_staged_refresh_outcome_candidate_ingest",
+    "run_staged_refresh_outcome_candidate_ingest_fail_open",
+    "stage_refresh_outcome_candidate",
+    "stage_refresh_outcome_candidate_fail_open",
 ]
