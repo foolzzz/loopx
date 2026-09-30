@@ -425,8 +425,7 @@ journal 与配额语义；B 作为上游接口出现时的低成本替代；只�
 
 验证：`tests/capabilities/test_steward_executor_machine_defaults.py`、
 `tests/test_manager_channel_binding.py`、`tests/test_chat_machine_configuration_api.py`、
-`tests/capabilities/test_capability_configuration_ui.py`，以及
-`examples/loopx-steward-channel-binding-smoke.py`。
+以及 `tests/capabilities/test_capability_configuration_ui.py`。
 
 ### 管家回答身份与 Runtime 选择（2026-09-16）
 

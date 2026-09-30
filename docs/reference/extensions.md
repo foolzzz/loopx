@@ -679,7 +679,7 @@ persist secrets or bypass that scan.
 Run the public synthetic lifecycle proof after changing this contract:
 
 ```bash
-uv run --extra test python examples/extension-presentation-surface-smoke.py
+uv run --extra test python -m pytest tests/extensions/test_extension_presentation.py -q
 ```
 
 ## Placement Decision For Agents

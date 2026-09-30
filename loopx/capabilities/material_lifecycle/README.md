@@ -208,7 +208,6 @@ For packet schemas and detailed invariants, read the
 
 ```bash
 python3 examples/material-lifecycle-contract-smoke.py
-python3 examples/decision-material-walkthrough-smoke.py
 python3 -m pytest -q tests/test_decision_context_material.py
 ```
 
