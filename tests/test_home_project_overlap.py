@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
 from loopx.bootstrap import bootstrap_project
-from loopx.bootstrap_command_pack import inspect_bootstrap_connection
+from loopx.bootstrap_command_pack import (
+    build_loopx_bootstrap_command_pack,
+    inspect_bootstrap_connection,
+)
 from loopx.control_plane.projects.registry import register_project_goal
 from loopx.control_plane.testing.canary_harness import default_state_file
 from loopx.project_prompt import build_new_project_prompt
@@ -122,6 +126,121 @@ def test_explicit_collocated_runtime_is_used_by_project_registration_and_preview
     assert not (runtime_root / "goals" / GOAL_ID).exists()
 
 
+def test_project_registration_reuses_and_restores_legacy_recorded_state_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    project = tmp_path / "project"
+    registry_path = project / ".loopx" / "registry.json"
+    legacy_runtime_root = tmp_path / "legacy-runtime"
+    collocated_runtime_root = project / ".loopx"
+    register_args = {
+        "registry_path": registry_path,
+        "project_id": "home-project",
+        "project_kind": "personal",
+        "knowledge_root": project,
+        "goal_id": GOAL_ID,
+        "objective": "Keep project state separate from runtime state.",
+        "non_goals": [],
+        "acceptance": ["Runtime receipts remain runtime-owned."],
+        "unknowns": [],
+        "next_effect": "Inspect the project.",
+        "stop_condition": "Stop after registration.",
+        "repository_bindings": [],
+        "external_locator_bindings": [],
+    }
+    first = register_project_goal(runtime_root=legacy_runtime_root, **register_args)
+    legacy_state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    assert first["state_file"] == str(legacy_state)
+
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["common_runtime_root"] = str(collocated_runtime_root)
+    _write_json(registry_path, registry)
+
+    replay = register_project_goal(runtime_root=collocated_runtime_root, **register_args)
+    assert replay["changed"] is False
+    assert replay["state_file"] == str(legacy_state)
+    legacy_state.unlink()
+
+    restored = register_project_goal(runtime_root=collocated_runtime_root, **register_args)
+    assert restored["changed"] is True
+    assert restored["state_file"] == str(legacy_state)
+    assert legacy_state.is_file()
+    assert not (project / ".loopx" / "project-goals" / GOAL_ID).exists()
+
+
+def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    project = tmp_path / "project"
+    worktree = tmp_path / "worktree"
+    subprocess.run(["git", "init", str(project)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(project), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "config", "user.name", "LoopX Test"],
+        check=True,
+    )
+    (project / "README.md").write_text("# project\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(project), "add", "README.md"], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "commit", "-m", "init"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "worktree", "add", str(worktree)],
+        check=True,
+        capture_output=True,
+    )
+    runtime_root = tmp_path / "explicit-runtime"
+    registry_path = project / ".loopx" / "registry.json"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file.parent.mkdir(parents=True)
+    state_file.write_text("# state\n", encoding="utf-8")
+    goal = _goal(project, registry_path, str(state_file.relative_to(project)))
+    _write_json(
+        registry_path,
+        {
+            "schema_version": "0.1",
+            "registry_role": "project-local",
+            "common_runtime_root": str(runtime_root),
+            "goals": [goal],
+        },
+    )
+    _write_json(
+        runtime_root / "registry.global.json",
+        {
+            "schema_version": "0.1",
+            "registry_role": "global-local",
+            "common_runtime_root": str(runtime_root),
+            "goals": [goal],
+        },
+    )
+
+    packet = build_loopx_bootstrap_command_pack(
+        project=worktree,
+        goal_id=GOAL_ID,
+        agent_id=None,
+        cli_bin="loopx",
+        host_surface="shell",
+        runtime_root_arg=str(runtime_root),
+    )
+
+    assert packet["project"] == str(project.resolve())
+    assert packet["project_connection"]["connection_state"] == "connected"
+    assert packet["project_connection"]["canonical_project_alias"]["applied"] is True
+
+
 def test_relative_state_path_rendering_does_not_depend_on_current_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -150,6 +269,43 @@ def test_relative_state_path_rendering_does_not_depend_on_current_directory(
     expected = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     assert expected in prompt
     assert default_state_file(GOAL_ID) == expected
+
+
+@pytest.mark.parametrize(
+    ("runtime_suffix", "expected_state_root"),
+    [
+        (".loopx", ".loopx/project-goals"),
+        ("runtime", ".loopx/goals"),
+    ],
+)
+def test_new_project_prompt_preserves_explicit_runtime_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_suffix: str,
+    expected_state_root: str,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    runtime_root = home / runtime_suffix
+
+    prompt = build_new_project_prompt(
+        project=home,
+        goal_doc=home / "GOAL.md",
+        goal_id=GOAL_ID,
+        objective="Keep project state separate from runtime state.",
+        domain="project-goal-control-plane",
+        adapter_kind="generic_project_goal_v0",
+        adapter_status="connected",
+        next_probe=None,
+        spawn_allowed=False,
+        allowed_domains=[],
+        write_scope=[],
+        runtime_root_arg=str(runtime_root),
+    )["prompt"]
+
+    assert f"{expected_state_root}/{GOAL_ID}/ACTIVE_GOAL_STATE.md" in prompt
+    assert f"loopx --runtime-root {runtime_root} connect" in prompt
 
 
 def test_uninstall_archives_only_the_state_file_from_legacy_runtime_overlap(
@@ -304,4 +460,4 @@ def test_uninstall_reports_missing_legacy_state_file_without_moving_runtime_file
     assert result["state_actions"][0]["action"] == "state-file-missing"
     assert runtime_receipt.is_file()
     assert state_dir.is_dir()
-    assert not (runtime_root / "archive").exists()
+    assert not (runtime_root / "archived-project-state").exists()

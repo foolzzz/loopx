@@ -178,11 +178,31 @@ def register_project_goal(
         str(runtime_root) if runtime_root else None,
         registry_path=registry_path,
     )
-    state_file = project_goal_state_file(
-        knowledge_root,
-        goal_id,
-        runtime_root=effective_runtime_root,
+    existing_goal_record = next(
+        (
+            item
+            for item in existing_registry.get("goals", [])
+            if isinstance(item, dict) and item.get("id") == goal_id
+        ),
+        None,
     )
+    recorded_state_file = (
+        existing_goal_record.get("state_file")
+        if existing_goal_record is not None
+        else None
+    )
+    if recorded_state_file:
+        recorded_path = Path(str(recorded_state_file)).expanduser()
+        recorded_root = Path(
+            str(existing_goal_record.get("repo") or knowledge_root)
+        ).expanduser()
+        state_file = recorded_path if recorded_path.is_absolute() else recorded_root / recorded_path
+    else:
+        state_file = project_goal_state_file(
+            knowledge_root,
+            goal_id,
+            runtime_root=effective_runtime_root,
+        )
     updated_at = now_local_iso()
     project_record = {
         "project_id": project_id,

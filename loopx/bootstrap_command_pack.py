@@ -52,7 +52,7 @@ from .project_prompt import (
     render_refresh_state_command,
     shell_arg,
 )
-from .paths import project_goal_state_file, resolve_runtime_root
+from .paths import global_registry_path, project_goal_state_file, resolve_runtime_root
 from .registry import registry_goals, resolve_state_file
 from .slash_commands import build_slash_command_catalog
 from .thread_agent_binding import normalize_thread_id, resolve_thread_agent_binding
@@ -550,8 +550,20 @@ def inspect_bootstrap_connection(
     """Inspect either the canonical project route or the caller's exact route."""
 
     input_project = _resolve_project(project)
+    explicit_global_registry = None
+    if runtime_root_arg:
+        explicit_runtime_root = resolve_runtime_root(
+            {},
+            runtime_root_arg,
+            registry_path=input_project / ".loopx" / "registry.json",
+        )
+        explicit_global_registry = global_registry_path(explicit_runtime_root)
     alias = (
-        resolve_canonical_project_alias(input_project, goal_id=goal_id)
+        resolve_canonical_project_alias(
+            input_project,
+            goal_id=goal_id,
+            global_registry=explicit_global_registry,
+        )
         if resolve_linked_worktree_alias
         else {
             "applied": False,

@@ -13,7 +13,11 @@ from .control_plane.scheduler.execution_context import (
 )
 from .control_plane.todos.contract import normalize_required_capabilities
 from .install_contract import NO_CLONE_INSTALL_URL
-from .paths import SHELL_DEFAULT_GLOBAL_REGISTRY, project_goal_state_file
+from .paths import (
+    SHELL_DEFAULT_GLOBAL_REGISTRY,
+    project_goal_state_file,
+    resolve_runtime_root,
+)
 
 DEFAULT_HANDOFF_OBJECTIVE = "<OBJECTIVE_FROM_GOAL_DOC>"
 DEFAULT_HANDOFF_DOMAIN = "<DOMAIN>"
@@ -369,10 +373,11 @@ def render_connect_command(
     allowed_domains: list[str],
     write_scope: list[str],
     cli_bin: str = "loopx",
+    runtime_root: str | Path | None = None,
 ) -> str:
     lines = [
         f"cd {shell_arg(project)}",
-        f"{shell_arg(cli_bin)} connect \\",
+        f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=runtime_root)} connect \\",
         f"  --goal-id {shell_arg(goal_id)} \\",
         f"  --objective {shell_arg(objective)} \\",
         f"  --domain {shell_arg(domain)} \\",
@@ -408,9 +413,16 @@ def build_new_project_prompt(
     spawn_allowed: bool,
     allowed_domains: list[str] | None,
     write_scope: list[str] | None,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
-    project_text = str(project.expanduser())
+    project = project.expanduser()
+    project_text = str(project)
     goal_doc_text = str(goal_doc.expanduser())
+    effective_runtime_root = resolve_runtime_root(
+        {},
+        runtime_root_arg,
+        registry_path=project / ".loopx" / "registry.json",
+    )
     resolved_goal_id = goal_id or default_goal_id(project)
     resolved_objective = objective or DEFAULT_HANDOFF_OBJECTIVE
     resolved_domain = domain or DEFAULT_HANDOFF_DOMAIN
@@ -430,6 +442,7 @@ def build_new_project_prompt(
         allowed_domains=allowed_domains,
         write_scope=write_scope,
         cli_bin="loopx",
+        runtime_root=str(effective_runtime_root) if runtime_root_arg else None,
     )
     quota_guard_command = render_quota_guard_command(
         resolved_goal_id,
@@ -461,6 +474,7 @@ def build_new_project_prompt(
         spawn_allowed=spawn_allowed,
         allowed_domains=allowed_domains,
         write_scope=write_scope,
+        runtime_root=effective_runtime_root,
     )
     return {
         "ok": True,
@@ -914,6 +928,7 @@ def render_prompt_text(
     spawn_allowed: bool,
     allowed_domains: list[str],
     write_scope: list[str],
+    runtime_root: Path | None = None,
 ) -> str:
     spawn_note = "本项目初始不需要主控拆 sub-agent；除非目标文档另有授权，先保持单 controller read-only 接入。"
     if spawn_allowed:
@@ -924,7 +939,11 @@ def render_prompt_text(
     allowed_domains_text = ", ".join(allowed_domains) if allowed_domains else "(none)"
     write_scope_text = ", ".join(write_scope) if write_scope else "(none)"
     project_path = Path(project)
-    state_path = project_goal_state_file(project_path, goal_id)
+    state_path = project_goal_state_file(
+        project_path,
+        goal_id,
+        runtime_root=runtime_root,
+    )
     try:
         state_file = state_path.relative_to(project_path).as_posix()
     except ValueError:

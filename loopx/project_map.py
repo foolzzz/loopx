@@ -104,10 +104,14 @@ def collect_project_inventory(project: Path | None, *, goal_id: str | None = Non
             }
         )
     if goal_id:
-        goal_state_dir = project_goal_state_dir(project, goal_id)
+        goal_state_dir = (
+            state_file.parent
+            if state_file is not None
+            else project_goal_state_dir(project, goal_id)
+        )
         checks.append(
             {
-                "path": project_goal_state_dir(Path(), goal_id).as_posix(),
+                "path": rel_or_abs(goal_state_dir, project),
                 "exists": goal_state_dir.exists(),
                 "kind": file_kind(goal_state_dir),
                 "role": "goal_state_dir",

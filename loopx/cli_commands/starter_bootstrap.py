@@ -40,6 +40,8 @@ PrintPayload = Callable[
 def handle_new_project_prompt_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_new_project_prompt(
         project=Path(args.project),
@@ -53,6 +55,7 @@ def handle_new_project_prompt_command(
         spawn_allowed=bool(args.spawn_allowed),
         allowed_domains=args.allowed_domain,
         write_scope=args.write_scope,
+        runtime_root_arg=runtime_root_arg,
     )
     print_payload(payload, args.format, render_new_project_prompt_markdown)
     return 0
@@ -182,5 +185,7 @@ def handle_starter_bootstrap_command(
     if handler is handle_start_goal_command:
         return handler(args, print_payload, runtime_root_arg=args.runtime_root)
     if handler is handle_loopx_bootstrap_command_pack_command:
+        return handler(args, print_payload, runtime_root_arg=args.runtime_root)
+    if handler is handle_new_project_prompt_command:
         return handler(args, print_payload, runtime_root_arg=args.runtime_root)
     return handler(args, print_payload)
