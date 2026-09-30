@@ -438,7 +438,7 @@ base_identity_keys = [
 
 原生 ACK/failure follow-up、其 TypeScript transaction 与 App scheduler state 已移除。
 `scheduler_hint.py` 直接从当前 profile 的初始 RRULE 构建 App cadence proposal，仅用
-observed Host RRULE 判断 `apply_needed`；它不调用旧 transition kernel，也不产生
+observed Host RRULE 判断 `apply_needed`；已删除旧 transition kernel，该路径也不产生
 ACK/failure follow-up。Local scheduler 的 unchanged-poll progression/reset 仍由其自身状态路径管理。
 
 ### 4. Monitor writeback 用 result hash 区分观察与推进

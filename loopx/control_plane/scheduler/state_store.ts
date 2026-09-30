@@ -6,20 +6,15 @@ import type { JsonObject } from "../effect_program.ts";
 import { EffectRuntimeRequestError } from "../effect_runtime_errors.ts";
 import {
   assertNever,
-  jsonObject,
   requireJsonObject as requiredObject,
   requireStringLiteral,
 } from "../runtime_decode.ts";
 
-export const SCHEDULER_HOST_UPDATE_FAILURE_SCHEMA_VERSION =
-  "scheduler_host_update_failure_v0";
 export const SCHEDULER_STATE_OPERATION_REQUEST_SCHEMA =
   "loopx_scheduler_state_operation_request_v0";
 export const SCHEDULER_STATE_OPERATION_RESULT_SCHEMA =
   "loopx_scheduler_state_operation_result_v0";
 
-const HOST_UPDATE_FAILURE_CACHE_LIMIT = 4;
-const HOST_UPDATE_FAILURE_TTL_MS = 24 * 60 * 60 * 1_000;
 const SCOPE_SEGMENT_LABEL_LIMIT = 47;
 const SCOPE_SEGMENT_HASH_LENGTH = 16;
 
@@ -92,75 +87,6 @@ export function normalizeSchedulerRrule(value: unknown): string {
   return text;
 }
 
-export function schedulerRruleIntervalMinutes(value: unknown): number | null {
-  const parts = new Map<string, string>();
-  for (const part of normalizeSchedulerRrule(value).split(";")) {
-    const separator = part.indexOf("=");
-    if (separator < 0) continue;
-    parts.set(
-      part.slice(0, separator).trim().toUpperCase(),
-      part.slice(separator + 1).trim(),
-    );
-  }
-  if ((parts.get("FREQ") ?? "").toUpperCase() !== "MINUTELY") return null;
-  const interval = pythonInteger(parts.get("INTERVAL") ?? "");
-  return interval !== null && interval > 0 ? interval : null;
-}
-
-export function normalizeSchedulerHostUpdateFailure(
-  value: unknown,
-): JsonObject | null {
-  const input = jsonObject(value);
-  if (
-    !input ||
-    stringOrEmpty(input.schema_version) !==
-      SCHEDULER_HOST_UPDATE_FAILURE_SCHEMA_VERSION
-  ) return null;
-  const targetRrule = normalizeSchedulerRrule(input.target_rrule);
-  const observedHostRrule = normalizeSchedulerRrule(input.observed_host_rrule);
-  const failureKind = trimmed(input.failure_kind);
-  const failedAt = trimmed(input.failed_at);
-  const failureCount = pythonInteger(input.failure_count);
-  if (
-    !targetRrule ||
-    !failureKind ||
-    !failedAt ||
-    failureCount === null ||
-    failureCount < 1
-  ) return null;
-  return {
-    schema_version: SCHEDULER_HOST_UPDATE_FAILURE_SCHEMA_VERSION,
-    target_rrule: targetRrule,
-    observed_host_rrule: observedHostRrule,
-    failure_kind: failureKind,
-    failure_count: failureCount,
-    failed_at: failedAt,
-  };
-}
-
-function failurePair(value: JsonObject): string {
-  return `${normalizeSchedulerRrule(value.target_rrule)}\u0000${
-    normalizeSchedulerRrule(value.observed_host_rrule)
-  }`;
-}
-
-export function normalizeSchedulerHostUpdateFailures(
-  value: unknown,
-  legacyFailure: unknown = null,
-): JsonObject[] {
-  const candidates = Array.isArray(value) ? value : [];
-  const normalized: JsonObject[] = [];
-  for (const candidate of [...candidates, legacyFailure]) {
-    const failure = normalizeSchedulerHostUpdateFailure(candidate);
-    if (!failure) continue;
-    const pair = failurePair(failure);
-    const duplicate = normalized.findIndex((item) => failurePair(item) === pair);
-    if (duplicate >= 0) normalized.splice(duplicate, 1);
-    normalized.push(failure);
-  }
-  return normalized.slice(-HOST_UPDATE_FAILURE_CACHE_LIMIT);
-}
-
 export function schedulerTimestampMilliseconds(value: unknown): number | null {
   const text = trimmed(value);
   if (!text) return null;
@@ -169,23 +95,6 @@ export function schedulerTimestampMilliseconds(value: unknown): number | null {
     : `${text}Z`;
   const parsed = Date.parse(timezoneAware);
   return Number.isNaN(parsed) ? null : parsed;
-}
-
-export function retainedSchedulerHostUpdateFailures(
-  value: unknown,
-  referenceTime: unknown = null,
-  observedHostRrule: unknown = null,
-): JsonObject[] {
-  const failures = normalizeSchedulerHostUpdateFailures(value);
-  const now = schedulerTimestampMilliseconds(referenceTime) ?? Date.now();
-  const cutoff = now - HOST_UPDATE_FAILURE_TTL_MS;
-  const expectedHostRrule = normalizeSchedulerRrule(observedHostRrule);
-  return failures.filter((failure) => {
-    const failedAt = schedulerTimestampMilliseconds(failure.failed_at);
-    if (failedAt === null || failedAt < cutoff) return false;
-    return !expectedHostRrule ||
-      normalizeSchedulerRrule(failure.observed_host_rrule) === expectedHostRrule;
-  });
 }
 
 function safeSegment(value: unknown): string {

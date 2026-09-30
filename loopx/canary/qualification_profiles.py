@@ -193,8 +193,8 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
         "title": "Scheduler cadence projection and local backoff",
         "quality_risk": "high",
         "purpose": (
-            "Qualify stateless App cadence convergence, local backoff, and the typed "
-            "state transition kernel without nested smoke execution."
+            "Qualify stateless App cadence convergence, monitor due-time projection, "
+            "and real local scheduler backoff without nested smoke execution."
         ),
         "catalog_families": [
             "Work Routing",
@@ -209,15 +209,20 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
             "loopx/control_plane/scheduler/monitor_wait.py",
             "loopx/control_plane/scheduler/state.py",
             "loopx/control_plane/scheduler/state_store.ts",
-            "loopx/control_plane/scheduler/state_transition_rules.py",
-            "loopx/control_plane/scheduler/state_transition_rules.ts",
+            "loopx/control_plane/scheduler/monitor_schedule.py",
+            "loopx/control_plane/scheduler/monitor_schedule.ts",
             "monitor-scheduler-contract-smoke.py",
         ),
         "checks": [
             {
                 "command": "python3 examples/control_plane/monitor-scheduler-contract-smoke.py",
                 "tier": "default",
-                "reason": "guards multi-monitor cadence selection and current-agent lane independence",
+                "reason": "guards stateless App cadence and multi-monitor lane selection",
+            },
+            {
+                "command": "python3 examples/codex-cli-local-scheduler-tick-smoke.py",
+                "tier": "deep",
+                "reason": "guards the real local scheduler unchanged-poll backoff path",
             },
         ],
     },

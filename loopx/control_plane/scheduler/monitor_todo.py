@@ -13,7 +13,7 @@ from ..todos.contract import (
     normalize_todo_watch_only,
 )
 from .time import parse_scheduler_timestamp
-from .state_transition_rules import project_monitor_todo_schedule
+from .monitor_schedule import project_monitor_todo_schedule
 
 
 parse_monitor_timestamp = parse_scheduler_timestamp

@@ -139,8 +139,8 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "loopx/control_plane/scheduler/scheduler_hint.py",
             "loopx/control_plane/scheduler/state.py",
             "loopx/control_plane/scheduler/state_store.ts",
-            "loopx/control_plane/scheduler/state_transition_rules.py",
-            "loopx/control_plane/scheduler/state_transition_rules.ts",
+            "loopx/control_plane/scheduler/monitor_schedule.py",
+            "loopx/control_plane/scheduler/monitor_schedule.ts",
         ],
         "semantic_oracle": {
             "source_kind": "specification",
@@ -154,12 +154,13 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
         "layers": {
             "unit_contract": _covered(
                 "tests/control_plane/test_scheduler_backoff_convergence.py",
-                "tests/control_plane/test_scheduler_state_transition_rules.py",
+                "tests/control_plane/test_monitor_schedule.py",
                 "tests/control_plane_ts/scheduler_state_store.test.ts",
-                "tests/control_plane_ts/scheduler_state_transition_rules.test.ts",
+                "tests/control_plane_ts/monitor_schedule.test.ts",
             ),
             "durable_smoke": _covered(
                 "examples/control_plane/monitor-scheduler-contract-smoke.py",
+                "examples/codex-cli-local-scheduler-tick-smoke.py",
             ),
             "catalog_canary": _covered("scheduler-cadence"),
             "host_upgrade": _not_applicable(

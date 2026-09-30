@@ -189,6 +189,8 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   - the native Node fast path for those commands in the `loopx` launchers
     (`scripts/loopx`, `scripts/loopx.ps1`, the console entry point) and its
     TypeScript transaction;
+  - the obsolete App cadence progression/ACK/failure transition runtime,
+    failure-cache helpers, canonical enums, and characterization fixtures;
   - the producer of `user_gate_notification_cooldown_v0`, which only fired
     after a failed App cadence update;
   - the `quota_scheduler_ack` run classification. Run rows with it that an

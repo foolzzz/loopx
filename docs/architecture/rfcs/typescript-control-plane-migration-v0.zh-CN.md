@@ -1059,8 +1059,8 @@ replay、receipt 与 settlement。这个架构选择已经落地，不再是假�
 | 切片 | 已交付的 TypeScript 权威能力 | 剩余迁移债务 |
 | --- | --- | --- |
 | Effect runtime 与 Turn journal（[#3416](https://github.com/huangruiteng/loopx/pull/3416)） | Effect algebra、settlement rule、runtime lifecycle、typed Turn-journal interpretation 与 durable checkpoint effect | Python settlement facade 仍暴露细粒度调用，并重复 DTO/enum shape |
-| Todo、quota 与 scheduler 证明切片（[#3431](https://github.com/huangruiteng/loopx/pull/3431)–[#3434](https://github.com/huangruiteng/loopx/pull/3434)） | Completion fence/state、workspace causality 与 scheduler transition 各有一个 TS rule owner | 切口大多仍是 leaf-shaped；Python 继续组合多个产品 transaction |
-| Scheduler durable state（[#3440](https://github.com/huangruiteng/loopx/pull/3440)） | State normalization、persistence、replay 与一笔粗粒度 transition 由 TS 拥有 | Python compatibility path 仍承担跨 runtime transport 税 |
+| Todo、quota 与 scheduler 证明切片（[#3431](https://github.com/huangruiteng/loopx/pull/3431)–[#3434](https://github.com/huangruiteng/loopx/pull/3434)） | Completion fence/state 与 workspace causality 保留 TS rule owner；App cadence 无状态化后 scheduler proof 已退役 | 剩余切口大多仍是 leaf-shaped；Python 继续组合多个产品 transaction |
+| App scheduler durable state 与 transition proof（[#3440](https://github.com/huangruiteng/loopx/pull/3440)） | 已随 App scheduler ACK/failure follow-up 退役；仅保留 monitor due-time projection 与 owner-policy path helper | 无 |
 | Scheduler heartbeat/state transaction | 已随 App scheduler ACK/failure follow-up 退役 | 无 |
 | Quota spend commit transaction | TypeScript 拥有最终 spend transition 校验、typed event 构造、effect replay/CAS fencing、crash repair，以及 JSON/Markdown/index write set | Python 仍投影 `should-run` 与 settlement readback facts，并在 CLI/index writer 进程内迁移前持有 legacy cross-writer index lock |
 | Quota void commit transaction | TypeScript 拥有 spend-target resolution、before/after reduction、canonical correction 构造、effect replay/index CAS、prepared-receipt repair，以及 JSON/Markdown/index write set | Python 保留 `should-run` facts、clock/effect identity、legacy cross-writer index lock、一次 transport 与 compatibility entrypoint |
@@ -1119,10 +1119,10 @@ decoder 基础都已进入 `main`。Stage 1 的 settlement facade 清理已完�
 
 ### Stage 2A — Bounded rule-owner 证明（已交付；不再复制该模式）
 
-Todo completion、quota workspace causality、scheduler transition 与 scheduler
-durable state 已证明 Python caller 可以安全切换到唯一 TS semantic owner。它们的
-characterization 与 facade layer 是合适的迁移证据，但继续在更多 domain 平铺相同
-leaf pattern 会增加总复杂度。
+Todo completion、quota workspace causality 与现已退役的 scheduler transition/durable-state
+proof 已证明 Python caller 可以安全切换到唯一 TS semantic owner。Scheduler proof 是
+迁移证据，不是永久 App state 契约；App cadence 无状态化后，其 facade、characterization
+与 runtime operation 已删除。继续在更多 domain 平铺相同 leaf pattern 会增加总复杂度。
 
 ### Stage 2B — 完整 transaction cutover（进行中）
 
@@ -1163,8 +1163,9 @@ provider 失败、身份冲突及同 Turn 无扣额恢复的验证。
   位于两次 reduction 之间。取得 mutation lock 后会同时比较 Todo 与 policy-source
   snapshot，确保一份 declaration 或 agent registry 的 receipt 不能授权已经变化的事实。
   Materialized 与 event-projected 写入消费同一 typed result。
-- Scheduler heartbeat/state 已随 App scheduler ACK/failure follow-up 退役；TypeScript
-  只保留无状态的 cadence transition kernel。
+- Scheduler heartbeat/state 已随 App scheduler ACK/failure follow-up 退役。App cadence 直接从
+  当前 profile 与 observed Host RRULE 投影；TypeScript 仅保留独立的 monitor due-time
+  projection 与 owner-policy path helper。
 - Quota spend commit：TypeScript 重新校验 compact before/after transition，构造
   canonical public-safe spend event，以带锁 index CAS fence effect，并把 JSON、
   Markdown、index 与 transaction receipt 作为一笔可修复操作提交。同一 effect retry

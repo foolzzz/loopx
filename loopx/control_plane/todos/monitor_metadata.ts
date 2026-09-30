@@ -4,7 +4,7 @@ import type { JsonObject } from "../effect_program.ts";
 import { EffectRuntimeRequestError } from "../effect_runtime_errors.ts";
 import { requireBoolean, requireJsonObject, requireNonEmptyString } from "../runtime_decode.ts";
 import { stripPythonWhitespace } from "../coordination/todo_agents.ts";
-import { evaluateSchedulerStateTransition, SCHEDULER_STATE_TRANSITION_REQUEST_SCHEMA } from "../scheduler/state_transition_rules.ts";
+import { MONITOR_SCHEDULE_REQUEST_SCHEMA, projectMonitorSchedule } from "../scheduler/monitor_schedule.ts";
 import { parseTodoTimestampMicros } from "../runtime_timestamp.ts";
 
 export const TODO_MONITOR_METADATA_REQUEST_SCHEMA = "loopx_todo_monitor_metadata_request_v0";
@@ -80,12 +80,10 @@ function timestamp(value: unknown, label: string): bigint {
 }
 
 function schedule(generatedAt: string, cadence: unknown, explicit: unknown = null) {
-  const result = evaluateSchedulerStateTransition({
-    schema_version: SCHEDULER_STATE_TRANSITION_REQUEST_SCHEMA, operation: "monitor_schedule",
+  return projectMonitorSchedule({
+    schema_version: MONITOR_SCHEDULE_REQUEST_SCHEMA,
     generated_at: generatedAt, cadence: cadence ?? null, explicit_next_due_at: explicit ?? null,
   });
-  if (result.operation !== "monitor_schedule") throw new Error("monitor schedule result mismatch");
-  return result;
 }
 
 function counter(value: unknown): number {

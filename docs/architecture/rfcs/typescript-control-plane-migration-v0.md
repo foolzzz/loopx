@@ -1411,8 +1411,8 @@ choice is now implemented rather than hypothetical.
 | Slice | Canonical TypeScript ownership now shipped | Remaining migration debt |
 | --- | --- | --- |
 | Effect runtime and Turn journal ([#3416](https://github.com/huangruiteng/loopx/pull/3416)) | Effect algebra, settlement rules, runtime lifecycle, typed Turn-journal interpretation, and durable checkpoint effects | Python settlement facades still expose fine-grained calls and duplicate DTO/enum shapes |
-| Todo, quota, and scheduler proof slices ([#3431](https://github.com/huangruiteng/loopx/pull/3431)–[#3434](https://github.com/huangruiteng/loopx/pull/3434)) | Completion fence/state, workspace causality, and scheduler transitions each have one TS rule owner | The cuts are mostly leaf-shaped; Python still composes several product transactions |
-| Scheduler durable state ([#3440](https://github.com/huangruiteng/loopx/pull/3440)) | State normalization, persistence, replay, and one coarse transition are TS-owned | The Python compatibility path still pays a cross-runtime transport tax |
+| Todo, quota, and scheduler proof slices ([#3431](https://github.com/huangruiteng/loopx/pull/3431)–[#3434](https://github.com/huangruiteng/loopx/pull/3434)) | Completion fence/state and workspace causality retain TS rule owners; the scheduler proof was retired after App cadence became stateless | The remaining cuts are mostly leaf-shaped; Python still composes several product transactions |
+| App scheduler durable state and transition proof ([#3440](https://github.com/huangruiteng/loopx/pull/3440)) | Retired with the App scheduler ACK/failure follow-up; only monitor due-time projection and owner-policy path helpers remain | None |
 | Scheduler heartbeat/state transaction | Retired with the App scheduler ACK/failure follow-up | None |
 | Quota spend commit transaction | TypeScript owns final spend-transition validation, typed event construction, effect replay/CAS fencing, crash repair, and the JSON/Markdown/index write set | Python still projects `should-run` and settlement readback facts, and holds the legacy cross-writer index lock until the CLI/index writers move in-process |
 | Quota void commit transaction | TypeScript owns spend-target resolution, before/after reduction, canonical correction construction, effect replay/index CAS, prepared-receipt repair, and the JSON/Markdown/index write set | Python retains `should-run` facts, clock/effect identity, the legacy cross-writer index lock, one transport call, and compatibility entry points |
@@ -1480,11 +1480,12 @@ are removed, while coarse readback/projection remains bounded Stage 2B work.
 
 ### Stage 2A — Bounded rule-owner proofs (shipped; do not repeat as a pattern)
 
-Todo completion, quota workspace causality, scheduler transitions, and
-scheduler durable state established that a Python caller can safely switch to
-a single TS semantic owner. Their characterization and facade layers were
-appropriate migration evidence, but copying the same leaf pattern across more
-domains would now increase total complexity.
+Todo completion, quota workspace causality, and the now-retired scheduler
+transition/durable-state proof established that a Python caller can safely
+switch to a single TS semantic owner. The scheduler proof was migration
+evidence, not a permanent App state contract; its facade, characterization,
+and runtime operation were removed when App cadence became stateless. Copying
+the same leaf pattern across more domains would now increase total complexity.
 
 ### Stage 2B — Complete transaction cutovers (active)
 
@@ -1537,7 +1538,9 @@ shipped Stage 2B cutovers are in place:
   runtime call inside the writer critical section. Materialized and
   event-projected writes consume the same typed result.
 - Scheduler heartbeat/state: retired with the App scheduler ACK/failure
-  follow-up; TypeScript keeps only the stateless cadence transition kernel.
+  follow-up. App cadence is projected directly from the current profile and
+  observed Host RRULE; TypeScript retains only the independent monitor
+  due-time projection and the owner-policy path helper.
 - Quota spend commit: TypeScript revalidates the compact before/after transition,
   constructs the canonical public-safe spend event, fences the effect with a
   locked index CAS, and commits JSON, Markdown, index, and transaction receipt

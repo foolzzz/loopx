@@ -107,7 +107,7 @@ import {
   normalizeTodoResumeWhen,
   planTodoExternalWaitTransition,
 } from "./todos/resume_condition.ts";
-import { evaluateSchedulerStateTransition } from "./scheduler/state_transition_rules.ts";
+import { projectMonitorSchedule } from "./scheduler/monitor_schedule.ts";
 import { projectTodoResumePlanning } from "./todos/resume_planning.ts";
 import { projectTodoQuotaPlanning } from "./todos/quota_selection.ts";
 import { evaluateSchedulerStateOperation } from "./scheduler/state_store.ts";
@@ -491,7 +491,7 @@ export function createEffectRuntimeHandlers(
     ["todo.frontier_revision.project", projectAdvancementFrontier],
     ["goal.long_todo_chain.evaluate", evaluateLongTodoChain],
     ["todo.external_wait.plan", planTodoExternalWaitTransition],
-    ["scheduler.state_transition.evaluate", evaluateSchedulerStateTransition],
+    ["monitor.schedule.project", projectMonitorSchedule],
     ["quota.automation_cadence.manage", manageAutomationCadence],
     ["quota.automation_cadence.admit", admitAutomationStart],
     ["quota.automation_cadence.confirm_start", confirmAutomationStart],

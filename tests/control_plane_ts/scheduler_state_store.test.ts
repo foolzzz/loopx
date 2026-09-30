@@ -5,10 +5,6 @@ import test from "node:test";
 
 import {
   evaluateSchedulerStateOperation,
-  normalizeSchedulerHostUpdateFailure,
-  normalizeSchedulerHostUpdateFailures,
-  retainedSchedulerHostUpdateFailures,
-  schedulerRruleIntervalMinutes,
   schedulerStatePath,
   SCHEDULER_STATE_OPERATION_REQUEST_SCHEMA,
 } from "../../loopx/control_plane/scheduler/state_store.ts";
@@ -29,29 +25,12 @@ const fixture = JSON.parse(
 
 const scope = {
   goalId: "goal-a",
-  agentId: "agent-a",
-  surface: "codex_app",
-  stateKey: "scheduler_hint.app_automation.stateful_backoff",
-};
-
-// Failure-cache helpers are called directly by the transition kernel; only
-// the RRULE operations cross the Python effect-runtime boundary.
-const helperOperations: Record<string, (params: Record<string, unknown>) => unknown> = {
-  rrule_interval_minutes: (params) => schedulerRruleIntervalMinutes(params.value),
-  normalize_failure: (params) => normalizeSchedulerHostUpdateFailure(params.value),
-  normalize_failures: (params) =>
-    normalizeSchedulerHostUpdateFailures(params.value, params.legacy_failure),
-  retain_failures: (params) =>
-    retainedSchedulerHostUpdateFailures(
-      params.value,
-      params.reference_time,
-      params.observed_host_rrule,
-    ),
+  agentId: "owner-policy",
+  surface: "quota",
+  stateKey: "automation-cadence-v1",
 };
 
 function characterize(operation: unknown, params: Record<string, unknown>): unknown {
-  const helper = helperOperations[String(operation)];
-  if (helper) return helper(params);
   return evaluateSchedulerStateOperation({
     schema_version: SCHEDULER_STATE_OPERATION_REQUEST_SCHEMA,
     operation,
@@ -65,27 +44,13 @@ test("pinned Python scheduler state characterization remains exact", () => {
     "loopx_scheduler_state_store_characterization_v0",
   );
   assert.equal(fixture.source_baseline, "8b255e1d1");
-  assert.equal(fixture.cases.length, 7);
+  assert.equal(fixture.cases.length, 2);
   for (const item of fixture.cases) {
     const result = characterize(
       item.operation,
       item.params as Record<string, unknown>,
     );
     if ("expected" in item) assert.deepEqual(result, item.expected, String(item.name));
-    if ("expected_targets" in item) {
-      assert.deepEqual(
-        (result as Array<Record<string, unknown>>).map((entry) => entry.target_rrule),
-        item.expected_targets,
-        String(item.name),
-      );
-    }
-    if ("expected_last_count" in item) {
-      assert.equal(
-        (result as Array<Record<string, unknown>>).at(-1)?.failure_count,
-        item.expected_last_count,
-        String(item.name),
-      );
-    }
   }
 });
 
@@ -107,23 +72,8 @@ test("typed boundary rejects malformed requests", () => {
   );
 });
 
-test("failure retention accepts the ISO offsets persisted by Python", () => {
-  const result = retainedSchedulerHostUpdateFailures(
-    [{
-      schema_version: "scheduler_host_update_failure_v0",
-      target_rrule: "FREQ=MINUTELY;INTERVAL=3",
-      observed_host_rrule: "FREQ=MINUTELY;INTERVAL=30",
-      failure_kind: "timeout",
-      failure_count: 1,
-      failed_at: "2026-01-01T12:00:00+0000",
-    }],
-    "2026-01-02T12:00:00+00:00",
-  );
-  assert.equal(result.length, 1);
-});
-
 test("pure scheduler state operations do not mutate caller input", () => {
-  const item = fixture.cases[5];
+  const item = fixture.cases[1];
   const params = item.params as Record<string, unknown>;
   const before = structuredClone(params);
   characterize(item.operation, params);
@@ -144,8 +94,8 @@ test("state path is scoped, sanitized, and stable", () => {
       "goal-with-spaces-116e9296329bcdc8",
       "scheduler-state",
       "agent-..-..-other-55571d8866830ec6",
-      "codex_app-b32e6f37f5dad64e",
-      "8a41f410c67e7c0e.json",
+      "quota-b878a6801d9a9e68",
+      "4163ef554dadb952.json",
     ),
   );
 });

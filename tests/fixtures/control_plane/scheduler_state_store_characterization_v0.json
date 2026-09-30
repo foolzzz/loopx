@@ -13,69 +13,6 @@
       "operation": "normalize_rrule",
       "params": {"value": "  RRULE:  FREQ=MINUTELY;  INTERVAL=15  "},
       "expected": "FREQ=MINUTELY; INTERVAL=15"
-    },
-    {
-      "name": "minute interval parses case-insensitively",
-      "operation": "rrule_interval_minutes",
-      "params": {"value": "freq=minutely; interval=30"},
-      "expected": 30
-    },
-    {
-      "name": "non-minute interval is not accepted",
-      "operation": "rrule_interval_minutes",
-      "params": {"value": "FREQ=HOURLY;INTERVAL=1"},
-      "expected": null
-    },
-    {
-      "name": "failure normalizes scalar fields",
-      "operation": "normalize_failure",
-      "params": {
-        "value": {
-          "schema_version": "scheduler_host_update_failure_v0",
-          "target_rrule": "RRULE:FREQ=MINUTELY;INTERVAL=3",
-          "observed_host_rrule": " FREQ=MINUTELY;INTERVAL=30 ",
-          "failure_kind": " timeout ",
-          "failure_count": "2",
-          "failed_at": " 2026-01-01T12:00:00Z "
-        }
-      },
-      "expected": {
-        "schema_version": "scheduler_host_update_failure_v0",
-        "target_rrule": "FREQ=MINUTELY;INTERVAL=3",
-        "observed_host_rrule": "FREQ=MINUTELY;INTERVAL=30",
-        "failure_kind": "timeout",
-        "failure_count": 2,
-        "failed_at": "2026-01-01T12:00:00Z"
-      }
-    },
-    {
-      "name": "failure cache deduplicates pairs and remains bounded",
-      "operation": "normalize_failures",
-      "params": {
-        "value": [
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "T1", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2026-01-01T00:00:00Z"},
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "T2", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2026-01-01T00:00:01Z"},
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "T3", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2026-01-01T00:00:02Z"},
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "T4", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2026-01-01T00:00:03Z"},
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "T1", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 2, "failed_at": "2026-01-01T00:00:04Z"}
-        ]
-      },
-      "expected_targets": ["T2", "T3", "T4", "T1"],
-      "expected_last_count": 2
-    },
-    {
-      "name": "retention uses inclusive ttl and host pair",
-      "operation": "retain_failures",
-      "params": {
-        "value": [
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "STALE", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2025-12-31T23:59:59Z"},
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "BOUNDARY", "observed_host_rrule": "HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2026-01-01T00:00:00Z"},
-          {"schema_version": "scheduler_host_update_failure_v0", "target_rrule": "OTHER", "observed_host_rrule": "OTHER-HOST", "failure_kind": "timeout", "failure_count": 1, "failed_at": "2026-01-01T12:00:00Z"}
-        ],
-        "reference_time": "2026-01-02T00:00:00Z",
-        "observed_host_rrule": "HOST"
-      },
-      "expected_targets": ["BOUNDARY"]
     }
   ]
 }
