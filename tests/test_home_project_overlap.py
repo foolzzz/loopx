@@ -17,7 +17,13 @@ from loopx.bootstrap_command_pack import (
 )
 from loopx.control_plane.projects.registry import register_project_goal
 from loopx.control_plane.testing.canary_harness import default_state_file
-from loopx.project_prompt import build_codex_cli_bootstrap_message, build_new_project_prompt
+from loopx.capabilities.issue_fix.workflow_plan import build_issue_fix_workflow_plan_packet
+from loopx.project_map import collect_project_inventory, derive_residual_risks
+from loopx.project_prompt import (
+    build_codex_cli_bootstrap_message,
+    build_codex_cli_exec_handoff,
+    build_new_project_prompt,
+)
 from loopx.project_uninstall import uninstall_project
 
 
@@ -215,6 +221,13 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         "agent_model": "peer_v1",
         "registered_agents": ["worker-a"],
     }
+    goal["control_plane"] = {
+        "change_quality_qualification": {
+            "enabled": True,
+            "safe_fix": True,
+            "strict_receipt": True,
+        }
+    }
     _write_json(
         registry_path,
         {
@@ -252,6 +265,11 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     assert runtime_prefix in commands["status"]
     assert runtime_prefix in commands["goal_start_agent_onboard_recheck"]
     assert commands["goal_start_refresh_state"] in commands["goal_start_plan_prompt"]
+    assert f"{runtime_prefix} agent-onboard --list-agent-types" in commands[
+        "goal_start_plan_prompt"
+    ]
+    for item in packet["available_slash_commands"]["commands"]:
+        assert item["cli_reference"].startswith(runtime_prefix)
     for key in (
         "issue_fix_workflow_plan_template",
         "issue_fix_feasibility_template",
@@ -279,6 +297,11 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     assert onboard["host_loop_activation"]["activation_input_command"].startswith(
         runtime_prefix
     )
+    assert onboard["commands"]["install_command_facade"].startswith(runtime_prefix)
+    for item in onboard["skill_delivery"]["project_skill_commands"]:
+        assert item["status"].startswith(runtime_prefix)
+        assert item["preview_install"].startswith(runtime_prefix)
+        assert item["apply_install"].startswith(runtime_prefix)
     fresh_onboard = build_agent_onboarding_packet(
         project=worktree,
         agent_type="codex-cli",
@@ -495,6 +518,89 @@ def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
     ):
         assert runtime_prefix in cli_packet[key]
 
+    handoff = build_codex_cli_exec_handoff(
+        project=project,
+        goal_id=GOAL_ID,
+        agent_id="worker-a",
+        cli_bin="loopx",
+        codex_bin="codex",
+        runtime_root_arg=str(runtime_root),
+    )
+    assert handoff["session_probe_command"].startswith(runtime_prefix)
+    assert handoff["message_only_command"].startswith(runtime_prefix)
+
+
+def test_issue_fix_successor_commands_preserve_explicit_runtime_root(
+    tmp_path: Path,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_prefix = f"loopx --runtime-root {runtime_root}"
+
+    packet = build_issue_fix_workflow_plan_packet(runtime_root=str(runtime_root))
+
+    assert packet["feasibility_checkpoint_plan"]["command_preview"].startswith(
+        runtime_prefix
+    )
+    assert packet["post_pr_lifecycle_monitor_plan"]["command_preview"].startswith(
+        runtime_prefix
+    )
+    for todo in packet["ordered_loopx_todo_writeback_preview"]:
+        assert todo["command_preview"].startswith(runtime_prefix)
+        if todo.get("next_command_preview"):
+            assert todo["next_command_preview"].startswith(runtime_prefix)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "loopx.cli",
+            "--runtime-root",
+            str(runtime_root),
+            "--format",
+            "json",
+            "issue-fix",
+            "workflow-plan",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    cli_packet = json.loads(completed.stdout)
+    assert cli_packet["feasibility_checkpoint_plan"][
+        "command_preview"
+    ].startswith(runtime_prefix)
+    assert cli_packet["post_pr_lifecycle_monitor_plan"][
+        "command_preview"
+    ].startswith(runtime_prefix)
+
+
+def test_project_map_accepts_collocated_project_goal_root(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    state_file = (
+        project / ".loopx" / "project-goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    )
+    state_file.parent.mkdir(parents=True)
+    state_file.write_text("# state\n", encoding="utf-8")
+    _write_json(project / ".loopx" / "registry.json", {"goals": []})
+
+    inventory = collect_project_inventory(
+        project,
+        goal_id=GOAL_ID,
+        state_file=state_file,
+    )
+    risks = derive_residual_risks(
+        {
+            "goal_id": GOAL_ID,
+            "registry_goal": {"authority_source_count": 1},
+            "state_map": {"sections": {}},
+            "project_inventory": inventory,
+        },
+        opt_in_required=False,
+    )
+
+    assert "project_goal_root_not_detected" not in risks
+    assert "project_local_goal_state_not_detected" not in risks
+
 
 def test_uninstall_archives_only_the_state_file_from_legacy_runtime_overlap(
     tmp_path: Path,
@@ -635,6 +741,7 @@ def test_uninstall_reports_missing_legacy_state_file_without_moving_runtime_file
         remove_empty_registry=False,
         execute=False,
     )
+
     result = uninstall_project(
         registry_path=registry_path,
         runtime_root_override=None,
@@ -695,3 +802,55 @@ def test_uninstall_override_still_protects_recorded_legacy_runtime_files(
     assert not state_file.exists()
     assert runtime_receipt.is_file()
     assert state_dir.is_dir()
+
+
+def test_uninstall_non_runtime_directory_archives_even_when_active_state_is_missing(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    runtime_root = tmp_path / "runtime"
+    registry_path = project / ".loopx" / "registry.json"
+    state_dir = project / ".loopx" / "goals" / GOAL_ID
+    sibling = state_dir / "project-note.json"
+    state_dir.mkdir(parents=True)
+    sibling.write_text("{}\n", encoding="utf-8")
+    goal = _goal(
+        project,
+        registry_path,
+        f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+    )
+    _write_json(
+        registry_path,
+        {
+            "schema_version": "0.1",
+            "registry_role": "project-local",
+            "common_runtime_root": str(runtime_root),
+            "goals": [goal],
+        },
+    )
+
+    preview = uninstall_project(
+        registry_path=registry_path,
+        runtime_root_override=None,
+        goal_ids=[GOAL_ID],
+        archive_state=True,
+        remove_empty_registry=False,
+        execute=False,
+    )
+
+    assert preview["state_actions"][0]["action"] == "would-move"
+    assert sibling.is_file()
+
+    result = uninstall_project(
+        registry_path=registry_path,
+        runtime_root_override=None,
+        goal_ids=[GOAL_ID],
+        archive_state=True,
+        remove_empty_registry=False,
+        execute=True,
+    )
+
+    action = result["state_actions"][0]
+    assert action["action"] == "moved"
+    assert not state_dir.exists()
+    assert (Path(action["archive_path"]) / sibling.name).is_file()

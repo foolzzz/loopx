@@ -45,32 +45,42 @@ REQUIRED_HOST_SKILL_IDS = ARK_MANAGED_AGENT_REQUIRED_SKILL_IDS
 CHANGE_QUALITY_SKILL_ID = "loopx-change-quality"
 
 
-def _surface_install_command(agent_type: str, cli_bin: str, project: str) -> str | None:
+def _surface_install_command(
+    agent_type: str,
+    cli_bin: str,
+    project: str,
+    *,
+    runtime_root: str | None = None,
+) -> str | None:
+    command_prefix = render_cli_command_prefix(
+        cli_bin=cli_bin,
+        runtime_root=runtime_root,
+    )
     if agent_type in {"codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-cli"}:
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface codex"
+        return f"{command_prefix} slash-commands --install --surface codex"
     if agent_type == "claude-code":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface claude-code"
+        return f"{command_prefix} slash-commands --install --surface claude-code"
     if agent_type == "opencode":
         return (
-            f"{shell_arg(cli_bin)} slash-commands --install --surface opencode "
+            f"{command_prefix} slash-commands --install --surface opencode "
             "--with-goal-bridge"
         )
     if agent_type == "gemini-cli":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface gemini"
+        return f"{command_prefix} slash-commands --install --surface gemini"
     if agent_type == "cursor-agent":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface cursor"
+        return f"{command_prefix} slash-commands --install --surface cursor"
     if agent_type == "zcode":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface zcode"
+        return f"{command_prefix} slash-commands --install --surface zcode"
     if agent_type == "agy":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface agy"
+        return f"{command_prefix} slash-commands --install --surface agy"
     if agent_type == "kiro-cli":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface kiro-cli"
+        return f"{command_prefix} slash-commands --install --surface kiro-cli"
     if agent_type == "pi":
         # The slash-commands installer resolves the Pi extension target through
         # --pi-project; pass the resolved project so the command stays correct
         # when agent-onboard runs from any cwd.
         return (
-            f"{shell_arg(cli_bin)} slash-commands --install --surface pi "
+            f"{command_prefix} slash-commands --install --surface pi "
             f"--pi-project {shell_arg(project)}"
         )
     return None
@@ -100,10 +110,11 @@ def _project_skill_command(
     skill_id: str,
     surface: str,
     cli_bin: str,
+    runtime_root: str | None = None,
     execute: bool = False,
 ) -> str:
     parts = [
-        shell_arg(cli_bin),
+        render_cli_command_prefix(cli_bin=cli_bin, runtime_root=runtime_root),
         "project-skill",
         command,
         "--project",
@@ -123,6 +134,7 @@ def _skill_delivery_contract(
     *,
     project: str = ".",
     cli_bin: str = "loopx",
+    runtime_root: str | None = None,
     active_project_skill_ids: list[str] | None = None,
     host_skills_dir: Path | None = None,
 ) -> dict[str, Any]:
@@ -141,6 +153,7 @@ def _skill_delivery_contract(
                         skill_id=skill_id,
                         surface=project_surface,
                         cli_bin=cli_bin,
+                        runtime_root=runtime_root,
                     ),
                     "preview_install": _project_skill_command(
                         "install",
@@ -148,6 +161,7 @@ def _skill_delivery_contract(
                         skill_id=skill_id,
                         surface=project_surface,
                         cli_bin=cli_bin,
+                        runtime_root=runtime_root,
                     ),
                     "apply_install": _project_skill_command(
                         "install",
@@ -155,6 +169,7 @@ def _skill_delivery_contract(
                         skill_id=skill_id,
                         surface=project_surface,
                         cli_bin=cli_bin,
+                        runtime_root=runtime_root,
                         execute=True,
                     ),
                 }
@@ -474,6 +489,7 @@ def build_agent_onboarding_packet(
         canonical_agent_type,
         project=resolved_project,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         active_project_skill_ids=active_project_skill_ids,
         host_skills_dir=configured_host_skills_dir(os.environ),
     )
@@ -497,7 +513,12 @@ def build_agent_onboarding_packet(
     normalized_available_capabilities = list(
         host_loop_activation.get("available_capabilities") or []
     )
-    install_command = _surface_install_command(canonical_agent_type, cli_bin, resolved_project)
+    install_command = _surface_install_command(
+        canonical_agent_type,
+        cli_bin,
+        resolved_project,
+        runtime_root=command_runtime_root,
+    )
     bootstrap_pack_command = _bootstrap_pack_command(
         project=resolved_project,
         goal_id=resolved_goal_id,

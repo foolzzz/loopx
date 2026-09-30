@@ -1090,6 +1090,7 @@ def handle_issue_fix_command(
                 repository_memory_input=repository_memory_input,
                 candidate_preflight_input=candidate_preflight_input,
                 generated_at=generated_at,
+                runtime_root=runtime_root_arg,
             )
             candidate_preflight = payload.get("candidate_preflight")
             should_write_candidate_preflight = bool(

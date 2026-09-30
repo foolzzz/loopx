@@ -772,7 +772,9 @@ def build_codex_cli_exec_handoff(
             "Default Codex CLI LoopX bootstrap must stay visible in the TUI; "
             "headless codex exec handoff is disabled to avoid accidental hidden execution."
         ),
-        "session_probe_command": f"{shell_arg(cli_bin)} codex-cli-session-probe --codex-bin {shell_arg(codex_bin)}",
+        "session_probe_command": (
+            f"{command_prefix} codex-cli-session-probe --codex-bin {shell_arg(codex_bin)}"
+        ),
         "quota_guard_command": bootstrap["quota_guard_command"],
         "progress_refresh_command": bootstrap["progress_refresh_command"],
         "refresh_command": bootstrap["refresh_command"],

@@ -929,8 +929,9 @@ def build_loopx_bootstrap_command_pack(
         agent_id=str(selected_agent_id) if selected_agent_id else None,
         fine_grained=fine_grained,
         refresh_state_command=goal_start_refresh_state_command,
+        cli_command_prefix=command_prefix,
     )
-    slash_command_catalog = build_slash_command_catalog(cli_bin=cli_bin)
+    slash_command_catalog = build_slash_command_catalog(cli_bin=command_prefix)
 
     identity_selection_gate = host_loop_activation.get("identity_selection_gate")
     if isinstance(identity_selection_gate, dict):
@@ -1029,6 +1030,7 @@ def build_loopx_bootstrap_command_pack(
             agent_type=agent_type,
             issue_fix_commands=issue_fix_hint_commands,
             fine_grained=fine_grained,
+            cli_command_prefix=command_prefix,
         ),
         "commands": {
             "doctor": f"{command_prefix} doctor",
@@ -1236,7 +1238,12 @@ def _build_multi_goal_start_selection_packet(
         "summary": reason,
         "goal_selection_gate": goal_selection_gate,
     }
-    slash_command_catalog = build_slash_command_catalog(cli_bin=cli_bin)
+    slash_command_catalog = build_slash_command_catalog(
+        cli_bin=render_cli_command_prefix(
+            cli_bin=cli_bin,
+            runtime_root=command_runtime_root,
+        )
+    )
     command_pack: dict[str, Any] = {
         "ok": True,
         "schema_version": SCHEMA_VERSION,
@@ -1273,6 +1280,10 @@ def _build_multi_goal_start_selection_packet(
             agent_type=agent_type_for_host_surface(host_surface),
             issue_fix_commands=issue_fix_commands,
             fine_grained=fine_grained,
+            cli_command_prefix=render_cli_command_prefix(
+                cli_bin=cli_bin,
+                runtime_root=command_runtime_root,
+            ),
         ),
         "commands": {
             "doctor": (

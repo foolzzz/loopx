@@ -112,15 +112,6 @@ def _archive_state_directory(
             "action": "state-dir-missing",
             "archived": False,
         }
-    if not state_file.exists():
-        return {
-            "goal_id": goal_id,
-            "state_file": str(state_file),
-            "state_dir": str(state_dir),
-            "action": "state-file-missing",
-            "archived": False,
-            "warning": "recorded active state file is missing; kept its directory in place",
-        }
     destination = _unique_destination(archive_root / timestamp / "goals" / goal_id)
     overlaps_runtime_goals = False
     for runtime_root in protected_runtime_roots:
@@ -131,6 +122,18 @@ def _archive_state_directory(
         except ValueError:
             continue
     if overlaps_runtime_goals:
+        if not state_file.exists():
+            return {
+                "goal_id": goal_id,
+                "state_file": str(state_file),
+                "state_dir": str(state_dir),
+                "action": "state-file-missing",
+                "archived": False,
+                "warning": (
+                    "recorded active state file is missing; kept its runtime-owned "
+                    "directory in place"
+                ),
+            }
         if not dry_run:
             destination.mkdir(parents=True, exist_ok=True)
             shutil.move(str(state_file), str(destination / state_file.name))

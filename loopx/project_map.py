@@ -7,7 +7,13 @@ from typing import Any
 from .authority import compact_authority_registry
 from .feedback import validate_local_control_text, validate_public_safe_text
 from .history import load_registry
-from .paths import PROJECT_GOAL_STATE_ROOT, project_goal_state_dir, rel_or_abs, resolve_runtime_root
+from .paths import (
+    COLLOCATED_PROJECT_GOAL_STATE_ROOT,
+    PROJECT_GOAL_STATE_ROOT,
+    project_goal_state_dir,
+    rel_or_abs,
+    resolve_runtime_root,
+)
 from .state_refresh import (
     derive_recommended_action,
     extract_section_lines,
@@ -39,6 +45,7 @@ PROJECT_INVENTORY_PATHS = (
     "AGENTS.md",
     ".loopx/registry.json",
     PROJECT_GOAL_STATE_ROOT.as_posix(),
+    COLLOCATED_PROJECT_GOAL_STATE_ROOT.as_posix(),
     "docs",
     "tests",
     "package.json",
@@ -272,13 +279,17 @@ def derive_residual_risks(record: dict[str, Any], *, opt_in_required: bool) -> l
     goal_id = str(record.get("goal_id") or "")
     if ".loopx/registry.json" in missing_paths:
         risks.append("project_local_registry_not_detected")
-    if PROJECT_GOAL_STATE_ROOT.as_posix() in missing_paths:
+    goal_state_roots = {
+        PROJECT_GOAL_STATE_ROOT.as_posix(),
+        COLLOCATED_PROJECT_GOAL_STATE_ROOT.as_posix(),
+    }
+    if goal_state_roots.issubset(missing_paths):
         risks.append("project_goal_root_not_detected")
     if "goal_state_dir" in missing_roles:
         risks.append(f"project_goal_state_dir_not_detected:{goal_id}" if goal_id else "project_goal_state_dir_not_detected")
     if (
         ".loopx/registry.json" in missing_paths
-        or PROJECT_GOAL_STATE_ROOT.as_posix() in missing_paths
+        or goal_state_roots.issubset(missing_paths)
         or "goal_state_dir" in missing_roles
     ):
         risks.append("project_local_goal_state_not_detected")
