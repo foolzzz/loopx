@@ -45,7 +45,7 @@ def test_full_budget_roundtrips_without_erasing_replan_or_partial_writes(tmp_pat
     assert result["agent_vision"]["vision_budget"]["total_usage"] == 1800
     assert result["agent_vision"]["vision_budget"]["total_limit"] == 1800
     index = runtime / "goals" / fixture.GOAL_ID / "runs/index.jsonl"
-    state = project / ".codex/goals" / fixture.GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx/goals" / fixture.GOAL_ID / "ACTIVE_GOAL_STATE.md"
     before_index, before_state = index.read_bytes(), state.read_bytes()
     persisted = json.loads(index.read_text().splitlines()[-1])["agent_vision"]
     assert persisted["path_delta"]["observed_reality"] == character * 320
@@ -78,7 +78,7 @@ def test_misplaced_delta_rejects_before_write_and_corrected_packet_roundtrips(tm
     fixture = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fixture)
     registry, runtime, project = fixture.write_fixture(tmp_path)
-    state = project / ".codex/goals" / fixture.GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx/goals" / fixture.GOAL_ID / "ACTIVE_GOAL_STATE.md"
     before = state.read_bytes()
     delta = {"schema_version": "goal_path_delta_v0", "outcome": "replan",
              "prior_assumption": "Keep the route.", "observed_reality": "A dependency changed.",

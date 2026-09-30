@@ -43,7 +43,7 @@ def run_cli(registry: Path, runtime_root: Path, *args: str, check: bool = True) 
 
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
-    state_file = project / ".codex/goals/explore-configure-fixture/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/explore-configure-fixture/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "---\n"

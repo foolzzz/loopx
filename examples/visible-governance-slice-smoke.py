@@ -54,7 +54,7 @@ def _write_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     project = tmp_path / "project"
     runtime = tmp_path / "runtime"
     registry = project / ".loopx" / "registry.json"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(
         "---\nstatus: active\n---\n\n"

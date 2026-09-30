@@ -169,7 +169,7 @@ def test_actor_rejects_bounded_json_registry_preview_after_quota(
             "turn-capability-preview-001",
         ),
         (
-            "cat $HOME/.codex/loopx/registry.global.json | "
+            "cat $HOME/.loopx/registry.global.json | "
             "python3 -m json.tool 2>/dev/null | head -200"
         ),
     ]
@@ -204,7 +204,7 @@ def test_actor_allows_bounded_fixture_layout_preview_before_repair(
     fixture = _build_capability_repair_fixture(fixture_root)
     state_path = (
         fixture.project_root
-        / ".codex/goals/portfolio-goal/ACTIVE_GOAL_STATE.md"
+        / ".loopx/goals/portfolio-goal/ACTIVE_GOAL_STATE.md"
     )
     commands = [
         (

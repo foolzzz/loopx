@@ -11,7 +11,7 @@ import tarfile
 from typing import Any
 
 from . import __version__
-from .paths import DEFAULT_RUNTIME_ROOT
+from .paths import default_runtime_root, global_registry_path
 
 
 STATE_BACKUP_SCHEMA_VERSION = "loopx_state_backup_v0"
@@ -152,11 +152,10 @@ def _discover_targets(
 
     add("runtime_root", runtime_root, "runtime-root")
     add("project_loopx", project / ".loopx", "project/.loopx")
-    add("project_codex_goals", project / ".codex" / "goals", "project/.codex/goals")
     add("project_claude_goals", project / ".claude" / "goals", "project/.claude/goals")
     add("project_local_goals", project / ".local" / "goals", "project/.local/goals")
 
-    global_registry = runtime_root / "registry.global.json"
+    global_registry = global_registry_path(runtime_root)
     registry_goal_count = 0
     registry_project_roots: set[str] = set()
     reachable_project_roots: set[str] = set()
@@ -201,11 +200,6 @@ def _discover_targets(
                     f"registry_project_loopx:{goal_id}",
                     repo / ".loopx",
                     f"registry-projects/{project_segment}/.loopx",
-                )
-                add(
-                    f"registry_project_codex_goals:{goal_id}",
-                    repo / ".codex" / "goals",
-                    f"registry-projects/{project_segment}/.codex/goals",
                 )
                 add(
                     f"registry_project_claude_goals:{goal_id}",
@@ -369,7 +363,7 @@ def build_state_backup_plan(
     include_registry_projects: bool = True,
 ) -> dict[str, Any]:
     resolved_project = _resolved(Path(project))
-    resolved_runtime_root = _resolved(Path(runtime_root).expanduser() if runtime_root else DEFAULT_RUNTIME_ROOT)
+    resolved_runtime_root = _resolved(Path(runtime_root).expanduser() if runtime_root else default_runtime_root())
     resolved_output_dir = _resolved(Path(output_dir).expanduser() if output_dir else resolved_runtime_root / "backups")
     resolved_backup_id = backup_id or _utc_timestamp()
     archive_path = resolved_output_dir / f"loopx-state-{resolved_backup_id}.tar.gz"

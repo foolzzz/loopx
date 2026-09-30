@@ -35,7 +35,7 @@ def _missing(root: Path):
 
 def test_missing_replaced_stale_context_requires_reread_and_preserves_delivery(tmp_path):
     project, runtime, registry, binding, delivery, original = _missing(tmp_path)
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     index = runtime / f"goals/{GOAL_ID}/runs/index.jsonl"
     before = index.read_bytes()
     original_bytes = Path(original["json_path"]).read_bytes()
@@ -91,7 +91,7 @@ def test_context_reads_real_canonical_todo_and_owner_acceptance(tmp_path, monkey
         import tempfile
         monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     project, runtime, registry = _write_fixture(tmp_path)
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     todo = {"schema_version": "todo_item_v0", "todo_id": TODO_ID, "index": 1,
             "role": "agent", "status": "done", "done": True, "text": "Canonical delivered result",
             "task_class": "advancement_task", "archive_state": "active", "source_section": "Agent Todo"}
@@ -117,7 +117,7 @@ def test_source_writers_remain_excluded_until_checkpoint_append(tmp_path, monkey
     from loopx.control_plane.goals.checkpoint_context_io import read_checkpoint_context
 
     project, runtime, registry, _, _, original = _missing(tmp_path)
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     context = read_checkpoint_context(registry_path=registry, runtime_root_override=str(runtime),
         goal_id=GOAL_ID, agent_id=AGENT_ID, todo_id=TODO_ID, turn_instance_id=TURN_ID)
     # Two independent processes exercise the same mutexes used by the actual

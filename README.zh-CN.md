@@ -310,7 +310,7 @@ loopx status
 loopx start-goal --guided --project . --goal-text "你的长程目标"
 ```
 
-已有 LoopX state 应复用，不要覆盖。确保 `.loopx/`、`.codex/goals/`、`.local/`
+已有 LoopX state 应复用，不要覆盖。确保 `.loopx/`、`.local/`
 不会被提交。
 
 ### 从你已经在用的 Agent 启动
@@ -705,7 +705,7 @@ benchmark 证据边界。
 [Project History](docs/project/history.md)，名称与标识使用见
 [Name and Marks](docs/project/trademarks.md)。
 
-不要提交 `.loopx/`、`.codex/goals/`、live `ACTIVE_GOAL_STATE.md`、内部链接、
+不要提交 `.loopx/`、live `ACTIVE_GOAL_STATE.md`、内部链接、
 raw benchmark task/log/trajectory/verifier output、credentials、token、私有路径或
 未脱敏的用户与团队信息。
 

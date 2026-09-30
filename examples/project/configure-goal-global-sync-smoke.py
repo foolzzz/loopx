@@ -29,7 +29,7 @@ def source_goal(project: Path) -> dict:
         "status": "active",
         "domain": "configure-goal-global-sync",
         "repo": str(project),
-        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
         "quota": {"compute": 1, "window_hours": 24},
         "waiting_on": "codex",
@@ -39,7 +39,7 @@ def source_goal(project: Path) -> dict:
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     source_registry = project / ".loopx" / "registry.json"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
     goal = source_goal(project)

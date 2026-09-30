@@ -31,7 +31,7 @@ def test_original_turn_can_resume_and_settle_without_mutating_todo(tmp_path: Pat
     assert interrupted["unsettled_host_turn_recovery"]["repair"] == "resume_prior_turn"
     actions = interrupted["interaction_contract"]["cli_channel"]["next_cli_actions"]
     assert not any("--resume-when" in action for action in actions)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_before = state_path.read_bytes()
     rc, resumed = _run_generated_cli(actions[1], registry_path=registry)
     assert rc == 0, resumed

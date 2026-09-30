@@ -341,7 +341,7 @@ def check_cli_gate_states() -> None:
         project = Path(tmp) / "project"
         goal_entries = []
         for goal_id, spawn_policy in goals.items():
-            state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+            state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
             (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
             todo_slug = goal_id.replace("-", "_")
             (project / state_file).write_text(

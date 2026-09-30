@@ -27,7 +27,7 @@ Keep working.
 def _registry(tmp_path: Path) -> tuple[Path, Path, Path]:
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(SOURCE, encoding="utf-8")
     registry = tmp_path / "registry.json"
@@ -36,7 +36,7 @@ def _registry(tmp_path: Path) -> tuple[Path, Path, Path]:
         "common_runtime_root": str(runtime_root),
         "goals": [{
             "id": "goal-a", "status": "active", "repo": str(project),
-            "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+            "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
         }],
     }), encoding="utf-8")
     return registry, runtime_root, state_file

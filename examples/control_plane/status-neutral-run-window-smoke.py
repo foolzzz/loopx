@@ -46,7 +46,7 @@ AGENT_LANE_TODO = "[P2-repair] Align quota/status recommended-action projection.
 def write_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
 
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
@@ -102,7 +102,7 @@ def write_registry(root: Path) -> Path:
 def write_agent_lane_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{AGENT_LANE_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{AGENT_LANE_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
 
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)

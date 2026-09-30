@@ -18,7 +18,7 @@ AGENT_ID = "research-curator"
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -38,7 +38,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         "target_key=fixture-monitor cadence=1h next_due_at=2099-01-01T00:00:00Z -->\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -506,7 +506,7 @@ def main() -> int:
         assert unchanged["vision_checkpoint"]["decision"] == "unchanged_with_reason", unchanged
 
         state_path = (
-            project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+            project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         )
         state_before_rejected_refresh = state_path.read_text(encoding="utf-8")
         oversized_unchanged_reason_result = run_cli(

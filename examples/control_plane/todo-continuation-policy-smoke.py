@@ -28,7 +28,7 @@ PEER_BETA = "codex-beta"
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(

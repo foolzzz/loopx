@@ -52,7 +52,7 @@ def _registry(tmp_path: Path) -> tuple[dict[str, Any], Path]:
 def _relative_registry(tmp_path: Path) -> tuple[dict[str, Any], Path]:
     registry_path = tmp_path / ".loopx" / "registry.json"
     registry_path.parent.mkdir(parents=True)
-    state_path = tmp_path / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = tmp_path / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_path.parent.mkdir(parents=True)
     state_path.write_text("# Active Goal\n\n- next: relative state\n", encoding="utf-8")
     registry = {

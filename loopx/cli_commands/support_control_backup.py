@@ -34,8 +34,8 @@ def register_backup_state_command(
         "--project",
         default=".",
         help=(
-            "Current project root whose .loopx, .codex/goals, .claude/goals, and "
-            ".local/goals state is included alongside every project discovered from "
+            "Current project root whose .loopx, .claude/goals, and .local/goals "
+            "state is included alongside every project discovered from "
             "the global registry."
         ),
     )

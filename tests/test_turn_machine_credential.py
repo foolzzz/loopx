@@ -22,7 +22,7 @@ GOAL_KEY = "goal-must-not-select-this-credential"
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
     root = tmp_path / "machine-owner"
-    monkeypatch.setattr(provider, "DEFAULT_RUNTIME_ROOT", root)
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(root))
     for name in ("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "LOOPX_TURN_HOST"):
         monkeypatch.delenv(name, raising=False)
     # SDK availability is independent of credential ownership; no model is called.

@@ -30,6 +30,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from loopx.paths import global_registry_path
 from loopx.turn_identity import normalize_turn_instance_id
 
 
@@ -462,7 +463,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--registry",
         type=Path,
-        default=Path.home() / ".codex/loopx/registry.global.json",
+        default=global_registry_path(),
     )
     parser.add_argument("--automation-id", default="loopx")
     parser.add_argument(

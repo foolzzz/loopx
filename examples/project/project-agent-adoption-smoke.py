@@ -37,7 +37,7 @@ QUOTA_EXECUTION_CONTEXT = (
 def write_planned_fixture(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
@@ -54,7 +54,7 @@ def write_planned_fixture(root: Path) -> Path:
         f"- [ ] {AGENT_TODO}\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -67,7 +67,7 @@ def write_planned_fixture(root: Path) -> Path:
                         "domain": "adoption-fixture",
                         "status": "planned-high-complexity",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {
                             "kind": "complex_project_read_only_map_v0",
                             "status": "planned",

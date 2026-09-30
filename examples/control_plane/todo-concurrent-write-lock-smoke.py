@@ -29,7 +29,7 @@ PARENT_UPDATE_TODO = "Parent todo written while child update waits on the lock."
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
@@ -44,7 +44,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
         "- [ ] Initial visible work item.\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -57,7 +57,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
                         "domain": "todo-concurrency-fixture",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
                         "authority_sources": [],
                         "coordination": {

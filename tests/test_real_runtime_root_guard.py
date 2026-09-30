@@ -1,8 +1,8 @@
 """The test session refuses access to the real user LoopX roots.
 
 These tests exercise the guard against temporary stand-ins for the real
-``~/.codex/loopx`` and ``~/.loopx``, so a broken guard can never touch the
-owner's live state.
+``~/.loopx`` and the retired ``~/.codex/loopx``, so a broken guard can never
+touch the owner's live state.
 """
 
 from __future__ import annotations
@@ -18,14 +18,14 @@ import pytest
 import real_runtime_root_guard as guard
 
 from loopx.file_lock import try_exclusive_file_lock
-from loopx.paths import DEFAULT_RUNTIME_ROOT
+from loopx.paths import RUNTIME_ROOT_ENV, default_runtime_root, home_runtime_root
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GUARD_DIR = Path(guard.__file__).resolve().parent
 
 
 def _stand_in(tmp_path: Path) -> Path:
-    return tmp_path / "real-home" / ".codex" / "loopx"
+    return tmp_path / "real-home" / ".loopx"
 
 
 def test_session_protects_the_real_loopx_roots_whatever_home_a_test_sets(
@@ -36,10 +36,11 @@ def test_session_protects_the_real_loopx_roots_whatever_home_a_test_sets(
         import pwd
 
         homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
-    real_roots = {os.path.normpath(DEFAULT_RUNTIME_ROOT)}
+    real_roots = {os.path.normpath(default_runtime_root())}
     for home in homes:
-        real_roots.add(os.path.normpath(home / ".codex" / "loopx"))
+        assert home_runtime_root(home) == home / ".loopx"
         real_roots.add(os.path.normpath(home / ".loopx"))
+        real_roots.add(os.path.normpath(home / ".codex" / "loopx"))
     assert real_roots <= set(guard.protected_roots())
 
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -52,7 +53,8 @@ def test_a_test_owned_home_keeps_a_usable_runtime_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    goal_dir = Path.home() / ".codex" / "loopx" / "goals" / "guard-probe"
+    monkeypatch.delenv(RUNTIME_ROOT_ENV, raising=False)
+    goal_dir = default_runtime_root() / "goals" / "guard-probe"
 
     with guard.protecting(_stand_in(tmp_path), tmp_path / "report.jsonl"):
         goal_dir.mkdir(parents=True)
@@ -115,12 +117,12 @@ def test_a_protected_root_is_also_pinned_in_its_real_form(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:
     real_home = tmp_path / "real-home"
-    (real_home / ".codex" / "loopx").mkdir(parents=True)
+    (real_home / ".loopx").mkdir(parents=True)
     link_home = tmp_path / "link-home"
     link_home.symlink_to(real_home, target_is_directory=True)
-    physical = real_home / ".codex" / "loopx" / "probe"
+    physical = real_home / ".loopx" / "probe"
 
-    with guard.protecting(link_home / ".codex" / "loopx", tmp_path / "report.jsonl"):
+    with guard.protecting(link_home / ".loopx", tmp_path / "report.jsonl"):
         with pytest.raises(PermissionError):
             physical.mkdir()
         own, _others = guard.take_violations(request.node.nodeid)
@@ -178,17 +180,18 @@ def test_a_cli_subprocess_resolving_the_default_root_is_refused_and_reported(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:
     real_home = tmp_path / "real-home"
-    stand_in = real_home / ".codex" / "loopx"
+    stand_in = real_home / ".loopx"
     probe = (
-        "from loopx.paths import DEFAULT_RUNTIME_ROOT; "
-        "(DEFAULT_RUNTIME_ROOT / 'goals' / 'guard-probe').mkdir(parents=True)"
+        "from loopx.paths import default_runtime_root; "
+        "(default_runtime_root() / 'goals' / 'guard-probe').mkdir(parents=True)"
     )
 
     with guard.protecting(stand_in, tmp_path / "report.jsonl"):
+        env = {key: value for key, value in os.environ.items() if key != RUNTIME_ROOT_ENV}
         completed = subprocess.run(
             [sys.executable, "-c", probe],
             cwd=REPO_ROOT,
-            env={**os.environ, "HOME": str(real_home)},
+            env={**env, "HOME": str(real_home)},
             capture_output=True,
             text=True,
             check=False,

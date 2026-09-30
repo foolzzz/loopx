@@ -41,6 +41,7 @@ from loopx.extensions.process_runtime import (  # noqa: E402
     CappedProcessResult,
     run_capped_process,
 )
+from loopx.paths import global_registry_path  # noqa: E402
 
 SCHEDULER_DETAIL_KEY = "local_scheduler"
 LOCAL_SCHEDULER_STOP_DIRECTIVE = "stop"
@@ -510,7 +511,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cli-bin", default="loopx", help="LoopX CLI binary.")
     parser.add_argument(
         "--registry",
-        default=str(Path.home() / ".codex" / "loopx" / "registry.global.json"),
+        default=str(global_registry_path()),
         help="Path to the LoopX registry.",
     )
     parser.add_argument("--runtime-root", help="Override registry common_runtime_root.")

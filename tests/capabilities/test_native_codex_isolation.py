@@ -179,7 +179,7 @@ def test_native_codex_loopx_state_rebase_round_trips_generated_control_state(
     run_json.write_text(
         json.dumps(
             {
-                "state": {"path": str(visible / ".codex/goals/goal-1/state.md")},
+                "state": {"path": str(visible / ".loopx/goals/goal-1/state.md")},
                 "unrelated": f"prefix-{visible}-must-not-change",
             },
             ensure_ascii=False,
@@ -189,7 +189,7 @@ def test_native_codex_loopx_state_rebase_round_trips_generated_control_state(
         encoding="utf-8",
     )
     run_markdown.write_text(
-        f"- state_file: `{visible}/.codex/goals/goal-1/state.md`\n"
+        f"- state_file: `{visible}/.loopx/goals/goal-1/state.md`\n"
         f"- unrelated: `prefix-{visible}-must-not-change`\n",
         encoding="utf-8",
     )

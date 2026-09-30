@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from . import __version__
-from .paths import DEFAULT_RUNTIME_ROOT, default_registry_path, global_registry_path
+from .paths import default_runtime_root, default_registry_path, global_registry_path
 
 
 GLOBAL_OPTIONS_WITH_VALUE = frozenset({"--registry", "--runtime-root", "--format"})
@@ -126,7 +126,13 @@ def build_cli_parser(
 		default=str(default_registry_path()),
 		help="Path to a project-local registry.",
 	)
-	parser.add_argument("--runtime-root", help="Override registry common_runtime_root.")
+	parser.add_argument(
+		"--runtime-root",
+		help=(
+			"Runtime state root. Overrides the registry's common_runtime_root; "
+			"without either, LOOPX_RUNTIME_ROOT, else ~/.loopx."
+		),
+	)
 	parser.add_argument("--format", choices=["markdown", "json"])
 	return parser, parser.add_subparsers(dest="command", required=True)
 
@@ -161,7 +167,7 @@ def resolve_cli_registry(
 		runtime_root = (
 			Path(args.runtime_root).expanduser()
 			if args.runtime_root
-			else DEFAULT_RUNTIME_ROOT
+			else default_runtime_root()
 		)
 		fallback_registry = global_registry_path(runtime_root)
 		if fallback_registry.exists():

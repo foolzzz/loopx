@@ -275,14 +275,14 @@ def agent_todo_by_id(fields: dict, todo_id: str) -> dict:
 def test_event_projection_feeds_quota_and_review_packet() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-downstream-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         write_active_state(state_path)
         append_event_todos(state_path.with_name("events.jsonl"))
 
         goal = {
             "id": GOAL_ID,
             "repo": str(project),
-            "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+            "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         }
         fields = active_state_todo_fields(goal)
         assert fields["state_event_projection"]["source"] == "event_log", fields
@@ -313,14 +313,14 @@ def test_event_projection_feeds_quota_and_review_packet() -> None:
 def test_event_projected_due_monitor_is_read_only_for_writeback() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-readonly-monitor-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         write_active_state(state_path)
         append_event_todo_and_due_monitor(state_path.with_name("events.jsonl"))
 
         goal = {
             "id": GOAL_ID,
             "repo": str(project),
-            "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+            "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         }
         fields = active_state_todo_fields(goal)
         assert agent_todo_ids(fields) == [EVENT_TODO_ID, EVENT_MONITOR_ID], fields
@@ -361,14 +361,14 @@ def test_event_projected_due_monitor_is_read_only_for_writeback() -> None:
 def test_corrupted_event_log_falls_back_to_markdown() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-downstream-fallback-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         write_active_state(state_path)
         state_path.with_name("events.jsonl").write_text("{not json\n", encoding="utf-8")
 
         goal = {
             "id": GOAL_ID,
             "repo": str(project),
-            "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+            "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         }
         fields = active_state_todo_fields(goal)
         assert fields["state_event_projection_warning"]["fallback"] == "markdown_active_state", fields
@@ -385,14 +385,14 @@ def test_legacy_event_review_handoffs_fail_closed_until_explicit_repair() -> Non
     for policy in ("review_handoff", "primary_review"):
         with tempfile.TemporaryDirectory(prefix=f"loopx-event-legacy-{policy}-") as tmp:
             project = Path(tmp)
-            state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+            state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
             write_active_state(state_path)
             event_log = state_path.with_name("events.jsonl")
             append_legacy_review_events(event_log, policy=policy)
             goal = {
                 "id": GOAL_ID,
                 "repo": str(project),
-                "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
             }
 
             fields = active_state_todo_fields(goal)

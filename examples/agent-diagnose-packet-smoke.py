@@ -169,7 +169,7 @@ def bootstrap_project(project: Path, runtime: Path, goal_id: str) -> dict:
 
 def write_agent_scoped_registry(root: Path, runtime: Path) -> Path:
     project = write_project(root, "agent-scoped-project")
-    state_file = f".codex/goals/{SCOPED_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{SCOPED_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
@@ -244,7 +244,7 @@ def write_agent_scoped_registry(root: Path, runtime: Path) -> Path:
 
 def write_capability_scoped_registry(root: Path, runtime: Path) -> Path:
     project = write_project(root, "capability-scoped-project")
-    state_file = f".codex/goals/{CAPABILITY_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{CAPABILITY_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(

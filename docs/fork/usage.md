@@ -73,7 +73,7 @@ quickstart below.
 |---|---|
 | state home | The directory that holds a goal's LoopX state: the registry, the goal state file and the stored requirements doc. It can be a project directory or a separate "progress" repo. |
 | registry | `<state-home>/.loopx/registry.json`. It holds the goal config: agents, roles, repos and authority sources. |
-| runtime root | Durable runtime state: todos' event logs, gate threads, plan cards, workspaces, usage ledgers and the dispatcher state. The default is `~/.codex/loopx`. You can override it with the global `--runtime-root`. |
+| runtime root | Durable runtime state: todos' event logs, gate threads, plan cards, workspaces, usage ledgers and the dispatcher state. The default is `~/.loopx` (or `LOOPX_RUNTIME_ROOT` when set). The global `--runtime-root` and the registry's `common_runtime_root` take precedence. |
 | Turn | One headless agent run (`loopx turn run-once`). It has a typed result, independent validation of material results, and an idempotent writeback. |
 | merge target | Where accepted work lands in each repo. It is the task branch `loopx-task/<goal>` with `merge_target=task_branch`, or the default branch with `merge_target=main`. |
 
@@ -263,7 +263,7 @@ A provider says how to reach a model and where its credential lives. Secrets
 never go into the file: a provider names an env var, a keychain entry or a
 CLI login.
 
-`~/.codex/loopx/providers.yaml`:
+`~/.loopx/providers.yaml`:
 
 ```yaml
 providers:
@@ -289,10 +289,10 @@ providers:
 ### Step 2: define your agents
 
 Each agent has one file. The file name is the agent id. Global files live in
-`~/.codex/loopx/agents/<id>.yaml`. A project can override them field by field
+`~/.loopx/agents/<id>.yaml`. A project can override them field by field
 in `<project>/.loopx/agents/<id>.yaml`.
 
-`~/.codex/loopx/agents/orch.yaml`:
+`~/.loopx/agents/orch.yaml`:
 
 ```yaml
 role: orchestrator
@@ -303,7 +303,7 @@ reasoning_effort: medium
 extra_args: ["--allowedTools=Bash,Read,Write,Edit,Glob,Grep"]
 ```
 
-`~/.codex/loopx/agents/dev.yaml`:
+`~/.loopx/agents/dev.yaml`:
 
 ```yaml
 role: developer
@@ -314,7 +314,7 @@ permission_mode: acceptEdits         # let the developer edit files
 max_concurrency: 2                   # up to 2 todos of a goal in parallel
 ```
 
-`~/.codex/loopx/agents/acc.yaml`:
+`~/.loopx/agents/acc.yaml`:
 
 ```yaml
 role: acceptor
@@ -776,7 +776,7 @@ Global options go before the command:
 | option | meaning |
 |---|---|
 | `--registry PATH` | The registry to use. Inside a state home, the project registry is found by itself. |
-| `--runtime-root PATH` | The runtime state root. The default is the registry's `common_runtime_root`, else `~/.codex/loopx`. |
+| `--runtime-root PATH` | The runtime state root. The default is the registry's `common_runtime_root`, else `LOOPX_RUNTIME_ROOT` when set, else `~/.loopx`. |
 | `--format markdown\|json` | The output format. Most subcommands also accept `--format` after the subcommand. |
 
 Every command has `--help`. `loopx commands` lists all commands, including
@@ -978,11 +978,11 @@ In the state home:
 <state-home>/
   .loopx/registry.json                   goal config: agents, roles, repos, authority sources
   .loopx/agents/<id>.yaml                optional project overrides of agent files
-  .codex/goals/<goal>/ACTIVE_GOAL_STATE.md   the goal state file (todos)
+  .loopx/goals/<goal>/ACTIVE_GOAL_STATE.md   the goal state file (todos)
   docs/goals/<goal>/<requirements>.md    the stored requirements doc
 ```
 
-In the runtime root (default `~/.codex/loopx`):
+In the runtime root (default `~/.loopx`, or `LOOPX_RUNTIME_ROOT` when set):
 
 ```text
 <runtime-root>/

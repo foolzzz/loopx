@@ -21,7 +21,7 @@ def _goal(project: Path, source_registry: Path, agents: list[str]) -> dict[str, 
         "domain": "fresh-agent-race",
         "status": "active",
         "repo": str(project),
-        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         "adapter": {"kind": "fixture", "status": "connected-read-only"},
         "coordination": {
             "write_scope": [],
@@ -38,7 +38,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
     source_registry = project / ".loopx" / "registry.json"
-    state_file = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text("# Active Goal State\n\n## Agent Todo\n\n", encoding="utf-8")
     project_payload = {

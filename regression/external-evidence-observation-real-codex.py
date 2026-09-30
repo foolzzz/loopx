@@ -74,7 +74,7 @@ def run_loopx(root: Path, *args: str, registry: Path, runtime: Path) -> dict[str
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -150,7 +150,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
 def write_launched_poll_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID_LAUNCHED_POLL}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID_LAUNCHED_POLL}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 

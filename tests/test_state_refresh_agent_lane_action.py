@@ -206,7 +206,7 @@ def _write_turn_receipt(
 def test_refresh_state_run_reuses_exact_turn_selection(tmp_path: Path) -> None:
     goal_id = "goal-shared-refresh"
     project = tmp_path / "project"
-    state_path = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     state_path.parent.mkdir(parents=True)
     state_path.write_text(TWO_AGENT_STATE, encoding="utf-8")
     registry_path = tmp_path / "registry.json"

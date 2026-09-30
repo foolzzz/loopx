@@ -97,7 +97,7 @@ async function fixture(): Promise<Fixture> {
   const project = join(root, 'project')
   const runtime = join(root, 'runtime')
   const registry = join(project, '.loopx', 'registry.json')
-  const stateRelative = `.codex/goals/${goalId}/ACTIVE_GOAL_STATE.md`
+  const stateRelative = `.loopx/goals/${goalId}/ACTIVE_GOAL_STATE.md`
   const state = join(project, stateRelative)
   await mkdir(dirname(registry), { recursive: true })
   await mkdir(dirname(state), { recursive: true })

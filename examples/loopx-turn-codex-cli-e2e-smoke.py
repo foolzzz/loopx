@@ -49,7 +49,7 @@ def _write_fixture(root: Path, *, turn_count: int) -> tuple[Path, Path, Path, Pa
     runtime.mkdir(parents=True)
     workspace.mkdir(parents=True)
     (workspace / "docs").mkdir()
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(
         "\n".join(
@@ -81,7 +81,7 @@ def _write_fixture(root: Path, *, turn_count: int) -> tuple[Path, Path, Path, Pa
         encoding="utf-8",
     )
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {

@@ -24,7 +24,7 @@ def free_port() -> int:
 
 
 def write_state(project: Path, goal_id: str, title: str) -> str:
-    state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
     path = project / state_file
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

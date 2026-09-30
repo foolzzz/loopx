@@ -22,7 +22,7 @@ DOC = REPO_ROOT / "docs" / "operations" / "authority-source-registration.md"
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = ".codex/goals/authority-source-registration-goal/ACTIVE_GOAL_STATE.md"
+    state_file = ".loopx/goals/authority-source-registration-goal/ACTIVE_GOAL_STATE.md"
     registry = project / ".loopx" / "registry.json"
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
     (project / state_file).write_text(

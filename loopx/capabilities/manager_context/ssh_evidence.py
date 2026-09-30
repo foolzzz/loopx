@@ -14,6 +14,7 @@ from typing import Any
 
 from . import POLICY_SCHEMA, _root, _read, _write
 from ...file_lock import exclusive_file_lock
+from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY, SHELL_DEFAULT_RUNTIME_ROOT
 from ...control_plane.status.ssh_host_catalog import configured_ssh_host_aliases
 
 # --- The bounded turn-time source read ---------------------------------------
@@ -209,7 +210,7 @@ def read_remote(
     if args.get("include_stopped"):
         argv += ["--include-stopped"]
     command = (
-        'exec "$HOME/.local/bin/loopx" --registry "$HOME/.codex/loopx/registry.global.json" --runtime-root "$HOME/.codex/loopx" --format json '
+        f'exec "$HOME/.local/bin/loopx" --registry "{SHELL_DEFAULT_GLOBAL_REGISTRY}" --runtime-root "{SHELL_DEFAULT_RUNTIME_ROOT}" --format json '
         + shlex.join(argv)
     )
     ssh = [

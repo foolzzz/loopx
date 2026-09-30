@@ -7,7 +7,7 @@ description: Use when connecting a repository or project goal document to LoopX,
 
 Use this skill when the task mentions LoopX, loopx, a project goal
 document, multi-project dashboard/status, stale latest run,
-`.loopx/registry.json`, `.codex/goals`, `refresh-state`,
+`.loopx/registry.json`, `.loopx/goals`, `refresh-state`,
 `sync-global`, or connecting a new repo. If the task is mainly about reading,
 remembering, recording, indexing, or registering a durable project material,
 load `loopx-doc-registry` and use that narrower workflow first.
@@ -15,9 +15,9 @@ load `loopx-doc-registry` and use that narrower workflow first.
 LoopX has two layers:
 
 - **Project-local state**: each repo owns `.loopx/registry.json` and
-  `.codex/goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
-- **Shared local control plane**: `~/.codex/loopx` stores run history and
-  `registry.global.json` for multi-project status.
+  `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
+- **Shared local control plane**: `~/.loopx` (or `LOOPX_RUNTIME_ROOT` when
+  set) stores run history and `registry.global.json` for multi-project status.
 
 Do not manually copy one project's registry entry into another project. Local
 `connect` and `refresh-state` should sync into the shared global registry
@@ -319,13 +319,13 @@ agent spends another delivery turn, ask LoopX whether this goal is
 eligible:
 
 ```bash
-loopx --format json --registry "$HOME/.codex/loopx/registry.global.json" quota should-run --goal-id <STABLE_GOAL_ID>
+loopx --format json --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota should-run --goal-id <STABLE_GOAL_ID>
 ```
 
 For a registered multi-agent goal, include this agent's identity:
 
 ```bash
-loopx --format json --registry "$HOME/.codex/loopx/registry.global.json" quota should-run --goal-id <STABLE_GOAL_ID> --agent-id <REGISTERED_AGENT_ID>
+loopx --format json --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota should-run --goal-id <STABLE_GOAL_ID> --agent-id <REGISTERED_AGENT_ID>
 ```
 
 If a registered goal returns `automation_prompt_upgrade.required=true`, treat
@@ -556,7 +556,7 @@ the blocker. The loaded contract owns quota settlement and runtime turn identity
 never freeze a turn id in the saved bootstrap.
 
 Keep project-specific behavior out of the automation prompt. Encode local
-differences in the project registry, `.codex/goals/<goal-id>/ACTIVE_GOAL_STATE.md`,
+differences in the project registry, `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`,
 adapter output, or narrow public/private boundary rules. If a lifecycle rule is
 useful across projects, update `loopx heartbeat-prompt` and its smoke
 contract rather than hand-editing one heartbeat automation.
@@ -761,24 +761,24 @@ loopx connect \
 ```
 
 `connect` should create or update the local registry/state and auto-sync the
-public-safe entry into `~/.codex/loopx/registry.global.json`.
+public-safe entry into `~/.loopx/registry.global.json`.
 
 One repository can host multiple peer-owned goals, such as delivery and a
 low-conflict validation lane. Run `connect` once per stable `goal_id`; keep one
 shared `.loopx/registry.json`, but use one active state per goal:
 
 ```text
-.codex/goals/<delivery-goal-id>/ACTIVE_GOAL_STATE.md
-.codex/goals/<validation-goal-id>/ACTIVE_GOAL_STATE.md
+.loopx/goals/<delivery-goal-id>/ACTIVE_GOAL_STATE.md
+.loopx/goals/<validation-goal-id>/ACTIVE_GOAL_STATE.md
 ```
 
 Do not reuse one `state_file` for two goal ids. `loopx registry` treats
 that as a health error, and `read-only-map` checks the selected goal's own
-`.codex/goals/<goal-id>/` directory so one healthy lane does not hide another
+`.loopx/goals/<goal-id>/` directory so one healthy lane does not hide another
 lane's missing state.
 
 If the goal state or registry contains private evidence, add `.loopx/`
-and `.codex/goals/` to that project's `.gitignore`.
+to that project's `.gitignore`.
 
 For a generic read-only connection, create the first non-generic map run:
 
@@ -1023,7 +1023,7 @@ loopx --format json status --goal-id <STABLE_GOAL_ID>
 Outside a project, `loopx status` should fall back to:
 
 ```text
-~/.codex/loopx/registry.global.json
+~/.loopx/registry.global.json
 ```
 
 Use explicit sync only for diagnosis or recovery:
@@ -1054,7 +1054,7 @@ For multi-project UI updates, refresh the dashboard status JSON from the global
 registry:
 
 ```bash
-loopx --registry "$HOME/.codex/loopx/registry.global.json" \
+loopx --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" \
   --format json status > <dashboard>/public/status.local.json
 ```
 

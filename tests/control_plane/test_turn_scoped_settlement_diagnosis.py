@@ -101,7 +101,7 @@ def test_gap_diagnosis_names_the_ambiguous_settlement_identity():
 
 def _settlement_fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     project = tmp_path / "project"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text("# Active Goal State\n\n## Agent Todo\n", encoding="utf-8")
     registry_path = tmp_path / "registry.json"

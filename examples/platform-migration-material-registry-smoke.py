@@ -25,7 +25,7 @@ EXPECTED_MATERIAL_CONTEXT = (
 def write_platform_migration_fixture(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
 
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
@@ -345,7 +345,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="loopx-platform-migration-") as tmp:
         root = Path(tmp)
         registry_path = write_platform_migration_fixture(root)
-        state_text = (registry_path.parent.parent / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
+        state_text = (registry_path.parent.parent / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
             encoding="utf-8"
         )
         assert_no_evidence_boundary_scaffold(state_text)

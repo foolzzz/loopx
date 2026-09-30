@@ -22,7 +22,7 @@ import type {
 
 export const GOALBAR_HOST_SURFACE = 'deepseek-harness-native' as const
 export const GOALBAR_PROJECT_REGISTRY = '.loopx/registry.json' as const
-export const GOALBAR_ACTIVE_STATE_ROOT = '.codex/goals' as const
+export const GOALBAR_ACTIVE_STATE_ROOT = '.loopx/goals' as const
 export const GOALBAR_ACTIVE_STATE_FILE = 'ACTIVE_GOAL_STATE.md' as const
 
 const SOURCE_REVISION_FAILURE = `sha256:${createHash('sha256')

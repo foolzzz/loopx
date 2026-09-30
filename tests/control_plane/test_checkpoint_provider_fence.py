@@ -21,7 +21,7 @@ from tests.control_plane.checkpoint_process import REPO, start_probe, wait_for, 
 def fixture(tmp_path, monkeypatch, provider):
     isolate_sqlite_runtime(tmp_path, monkeypatch)
     project, runtime, registry, binding, delivery, original = _missing(tmp_path)
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     todos = [{"schema_version": "todo_item_v0", "todo_id": name, "index": index,
         "role": "agent", "status": "open", "done": False, "text": f"Synthetic page work {name}",
         "task_class": "advancement_task", "archive_state": "active", "source_section": "Agent Todo",

@@ -13,7 +13,7 @@ personal memory.
 
 1. Resolve the target project and stable `goal_id` from the current repo or the
    user's named project. Prefer `.loopx/registry.json` and
-   `.codex/goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
+   `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
 2. If the material belongs to that project, register it in that project's own
    authority surface. Do not register it into `loopx-meta` just because
    the current worker discovered it.

@@ -36,7 +36,7 @@ def registry_payload(project: Path, runtime: Path, *, registry_role: str | None 
                 "domain": "registry-boundary",
                 "status": "active",
                 "repo": str(project),
-                "state_file": ".codex/goals/registry-boundary-goal/ACTIVE_GOAL_STATE.md",
+                "state_file": ".loopx/goals/registry-boundary-goal/ACTIVE_GOAL_STATE.md",
                 "adapter": {
                     "kind": "fixture_connected_readonly_v0",
                     "status": "connected-read-only",

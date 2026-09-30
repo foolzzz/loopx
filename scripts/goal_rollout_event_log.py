@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from loopx.paths import DEFAULT_RUNTIME_ROOT  # noqa: E402
+from loopx.paths import default_runtime_root  # noqa: E402
 from loopx.rollout_event_log import (  # noqa: E402
     build_rollout_event,
     append_rollout_event,
@@ -111,7 +111,7 @@ def handle_observe_codex_sessions(args: argparse.Namespace) -> int:
 
 def _add_common_path_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--goal-id", required=True)
-    parser.add_argument("--runtime-root", default=str(DEFAULT_RUNTIME_ROOT))
+    parser.add_argument("--runtime-root", default=str(default_runtime_root()))
     parser.add_argument("--log-path")
     parser.add_argument("--pretty", action="store_true")
 

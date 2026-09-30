@@ -20,7 +20,7 @@ GOAL_B = "status-filter-b"
 
 
 def write_state(project: Path, goal_id: str, todo_text: str) -> str:
-    state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
     path = project / state_file
     path.parent.mkdir(parents=True, exist_ok=True)
     unrelated_malformed_user_todo = ""

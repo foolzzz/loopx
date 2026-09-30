@@ -85,7 +85,7 @@ def base_goal(project: Path, state_file: str, runs: list[dict[str, Any]] | None 
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="loopx-runtime-stale-latest-run-") as tmp:
         project = Path(tmp) / "project"
-        state_file = ".codex/goals/runtime-freshness/ACTIVE_GOAL_STATE.md"
+        state_file = ".loopx/goals/runtime-freshness/ACTIVE_GOAL_STATE.md"
         state_path = project / state_file
         state_path.parent.mkdir(parents=True, exist_ok=True)
 

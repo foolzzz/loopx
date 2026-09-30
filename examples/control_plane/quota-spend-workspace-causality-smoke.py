@@ -95,7 +95,7 @@ def write_goal_fixture(
     *,
     peer_independent_worktree_required: bool | None = None,
 ) -> Path:
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True)
     state_path.write_text(
@@ -110,7 +110,7 @@ def write_goal_fixture(
         encoding="utf-8",
     )
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     goal = {
         "id": GOAL_ID,
         "domain": "quota-workspace-fixture",

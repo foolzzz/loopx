@@ -13,13 +13,14 @@ from .control_plane.scheduler.execution_context import (
 )
 from .control_plane.todos.contract import normalize_required_capabilities
 from .install_contract import NO_CLONE_INSTALL_URL
+from .paths import SHELL_DEFAULT_GLOBAL_REGISTRY, project_goal_state_file
 
 DEFAULT_HANDOFF_OBJECTIVE = "<OBJECTIVE_FROM_GOAL_DOC>"
 DEFAULT_HANDOFF_DOMAIN = "<DOMAIN>"
 DEFAULT_HANDOFF_ADAPTER_KIND = "read_only_project_map_v0"
 DEFAULT_HANDOFF_ADAPTER_STATUS = "connected-read-only"
 DEFAULT_HANDOFF_NEXT_PROBE = "(omit --next-probe until a read-only pre-tick command exists)"
-SHARED_GLOBAL_REGISTRY = '"$HOME/.codex/loopx/registry.global.json"'
+SHARED_GLOBAL_REGISTRY = f'"{SHELL_DEFAULT_GLOBAL_REGISTRY}"'
 CODEX_CLI_VISIBLE_SCHEDULER_CONTEXT = {
     "host_surface": "codex_cli",
     "scheduler_owner": "agent_cli_loop",
@@ -922,6 +923,7 @@ def render_prompt_text(
         )
     allowed_domains_text = ", ".join(allowed_domains) if allowed_domains else "(none)"
     write_scope_text = ", ".join(write_scope) if write_scope else "(none)"
+    state_file = project_goal_state_file(Path(), goal_id).as_posix()
     return f"""我有一个新项目要接入 LoopX。
 
 项目文件夹：
@@ -966,13 +968,13 @@ def render_prompt_text(
 {connect_command}
 ```
 
-4. 确认 `.loopx/registry.json` 和 `.codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md` 已创建或更新。
+4. 确认 `.loopx/registry.json` 和 `{state_file}` 已创建或更新。
    接入输出里不再有 onboarding 扫描、候选 todo 或自主推进选择项；首连之后状态里
    没有可执行的 agent todo。请只读核对目标文档和 registry 的 `execution_profile`，
    用中文给出 1-3 个第一个交付 todo 的候选，问用户确认后，用
    `{cli_bin} todo add ...` 写入被接受的条目，再运行 `{refresh_command}` 并汇报。
    在用户确认前不要开始 delivery。
-   如果目标状态包含私有证据，把 `.loopx/` 和 `.codex/goals/` 加入该项目 `.gitignore`。
+   如果目标状态包含私有证据，把 `.loopx/` 加入该项目 `.gitignore`。
    `{cli_bin} connect` 默认会同步到共享全局 registry；不要手动编辑其他项目的 registry。
    接入后检查 registry 里的 `execution_profile`：它是本项目后续 heartbeat / adapter 的执行画像。
    默认 cadence 是 `bounded_progress_segment`，连续小步达到阈值后，下一轮必须扩展到
@@ -1038,7 +1040,7 @@ def render_prompt_text(
 7. 如果要给这个项目设置 recurring Codex App heartbeat，默认每 3 分钟一次，后续跟随 `quota should-run.scheduler_hint` 降频；不要手抄 guard 和 spend 协议；先生成 task body，再把输出复制进 automation：
 
 ```bash
-{cli_bin} heartbeat-prompt --goal-id {goal_id} --active-state .codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md
+{cli_bin} heartbeat-prompt --goal-id {goal_id} --active-state {state_file}
 ```
 
 8. 生成一个 read-only project map 或 first pre-tick run。不要启动线上任务、不同步外部系统、不要写生产状态，除非目标文档明确授权。通用接入优先跑：

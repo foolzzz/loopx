@@ -26,11 +26,11 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-thread-agent-") as raw:
         root = Path(raw)
         project = root / "project"
-        state = project / ".codex" / "goals" / "goal" / "ACTIVE_GOAL_STATE.md"
+        state = project / ".loopx" / "goals" / "goal" / "ACTIVE_GOAL_STATE.md"
         state.parent.mkdir(parents=True)
         state.write_text("# Active Goal State\n", encoding="utf-8")
         registry = project / ".loopx" / "registry.json"
-        registry.parent.mkdir(parents=True)
+        registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_text(
             json.dumps(
                 {

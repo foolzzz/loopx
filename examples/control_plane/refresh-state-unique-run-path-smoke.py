@@ -20,7 +20,7 @@ GENERATED_AT = "2026-01-01T00:00:00+00:00"
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     runs_dir = runtime / "goals" / GOAL_ID / "runs"
@@ -40,7 +40,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         "- Fixture initialized.\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

@@ -20,6 +20,7 @@ from loopx.control_plane.agents.management_projection import (  # noqa: E402
     TODO_ROW_SCHEMA_VERSION,
     build_agent_management_projection,
 )
+from loopx.paths import global_registry_path  # noqa: E402
 
 
 FORBIDDEN_ACTION_KEYS = {
@@ -51,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--agent-id", help="Expected agent row in the live status projection.")
     parser.add_argument(
         "--registry",
-        default=str(Path.home() / ".codex" / "loopx" / "registry.global.json"),
+        default=str(global_registry_path()),
         help="LoopX registry path. Defaults to the shared global registry.",
     )
     parser.add_argument("--runtime-root", help="Optional LoopX runtime root.")

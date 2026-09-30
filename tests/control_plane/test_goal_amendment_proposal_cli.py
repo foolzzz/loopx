@@ -99,7 +99,7 @@ def _write_dual_registry_fixture(root: Path) -> dict[str, Path]:
     project = root / "project-b"
     runtime_a = root / "runtime-a"
     runtime_b = root / "runtime-b"
-    state_relative = Path(".codex") / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_relative = Path(".loopx") / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file = project / state_relative
     state_file.parent.mkdir(parents=True)
     state_file.write_text(_goal_state_text(_default_todo_specs()), encoding="utf-8")
@@ -148,7 +148,7 @@ def _write_dual_registry_fixture(root: Path) -> dict[str, Path]:
     registry_a.parent.mkdir(parents=True)
     registry_a.write_text(_registry(runtime_a), encoding="utf-8")
     registry_b = project / ".loopx" / "registry.json"
-    registry_b.parent.mkdir(parents=True)
+    registry_b.parent.mkdir(parents=True, exist_ok=True)
     registry_b.write_text(_registry(runtime_b), encoding="utf-8")
 
     paths = {

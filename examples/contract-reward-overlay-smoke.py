@@ -96,21 +96,21 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     project.mkdir(parents=True)
     reward_state_file = (
-        project / ".codex" / "goals" / "reward-overlay-goal" / "ACTIVE_GOAL_STATE.md"
+        project / ".loopx" / "goals" / "reward-overlay-goal" / "ACTIVE_GOAL_STATE.md"
     )
     projected_reward_state_file = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "projected-reward-overlay-goal"
         / "ACTIVE_GOAL_STATE.md"
     )
     duplicate_state_file = (
-        project / ".codex" / "goals" / "plain-duplicate-goal" / "ACTIVE_GOAL_STATE.md"
+        project / ".loopx" / "goals" / "plain-duplicate-goal" / "ACTIVE_GOAL_STATE.md"
     )
     artifact_collision_state_file = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "artifact-collision-goal"
         / "ACTIVE_GOAL_STATE.md"
@@ -169,7 +169,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": "reward-overlay-goal",
                         "repo": str(project),
-                        "state_file": ".codex/goals/reward-overlay-goal/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/reward-overlay-goal/ACTIVE_GOAL_STATE.md",
                         "domain": "smoke",
                         "status": "connected-read-only",
                         "adapter": {"kind": "smoke", "status": "connected-read-only"},
@@ -177,7 +177,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": "projected-reward-overlay-goal",
                         "repo": str(project),
-                        "state_file": ".codex/goals/projected-reward-overlay-goal/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/projected-reward-overlay-goal/ACTIVE_GOAL_STATE.md",
                         "domain": "smoke",
                         "status": "connected-read-only",
                         "adapter": {"kind": "smoke", "status": "connected-read-only"},
@@ -185,7 +185,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": "plain-duplicate-goal",
                         "repo": str(project),
-                        "state_file": ".codex/goals/plain-duplicate-goal/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/plain-duplicate-goal/ACTIVE_GOAL_STATE.md",
                         "domain": "smoke",
                         "status": "connected-read-only",
                         "adapter": {"kind": "smoke", "status": "connected-read-only"},
@@ -193,7 +193,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": "artifact-collision-goal",
                         "repo": str(project),
-                        "state_file": ".codex/goals/artifact-collision-goal/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/artifact-collision-goal/ACTIVE_GOAL_STATE.md",
                         "domain": "smoke",
                         "status": "connected-read-only",
                         "adapter": {"kind": "smoke", "status": "connected-read-only"},

@@ -212,7 +212,7 @@ def test_same_turn_checkpoint_supplement_with_read_context_is_idempotent(tmp_pat
     assert first["settlement_identity"]["turn_instance_id"] == TURN_ID
     assert first["vision_checkpoint"]["decision"] == "missing_required"
     original_bytes = Path(first["json_path"]).read_bytes()
-    state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     original_state = state_path.read_bytes()
     if mutation:
         assert mutation[1] in original_state.decode("utf-8")
@@ -306,7 +306,7 @@ def test_checkpoint_only_recovery_bypasses_open_todo_completion_validation(
     project, runtime, registry = _write_fixture(tmp_path)
     _configure_selected_todo_replan_fixture(project, registry)
     _initialize_git_checkout(project)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     selected_marker = (
         f"todo_id={SELECTED_REPLAN_TODO_ID} status=open "

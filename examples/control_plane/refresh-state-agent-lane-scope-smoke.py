@@ -35,7 +35,7 @@ AUTO_RESEARCH_ACTION = (
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -62,7 +62,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         f"- {PRIMARY_ACTION}\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -131,7 +131,7 @@ def main() -> None:
         state_refresh.capture_delivery_workspace = fixture_delivery_workspace
         with tempfile.TemporaryDirectory(prefix="loopx-agent-lane-refresh-") as raw_tmp:
             registry_path, runtime, project = write_fixture(Path(raw_tmp))
-            state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+            state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
 
             cli_preview = subprocess.run(
                 [

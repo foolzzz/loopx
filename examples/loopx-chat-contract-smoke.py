@@ -28,7 +28,7 @@ TODO_TEXT = "[P0] Add a reviewable Goal Studio interaction."
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "---\n"
@@ -43,7 +43,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -53,7 +53,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": GOAL_ID,
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "domain": "product-engineering",
                         "status": "active",
                         "adapter": {

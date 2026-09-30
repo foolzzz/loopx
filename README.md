@@ -350,8 +350,8 @@ missing, use the guided path:
 loopx start-goal --guided --project . --goal-text "Your long-running objective"
 ```
 
-LoopX should reuse existing state rather than overwrite it. Keep `.loopx/`,
-`.codex/goals/`, and `.local/` ignored.
+LoopX should reuse existing state rather than overwrite it. Keep `.loopx/`
+and `.local/` ignored.
 
 ### Start From Your Agent
 
@@ -788,7 +788,7 @@ Project roles and public history are recorded in
 [Project History](docs/project/history.md).
 
 LoopX keeps local active state separate from the public repository. Do not
-commit `.loopx/`, `.codex/goals/`, live `ACTIVE_GOAL_STATE.md`, raw benchmark
+commit `.loopx/`, live `ACTIVE_GOAL_STATE.md`, raw benchmark
 traces, credentials, private logs, or operator artifacts.
 
 ## Current Status

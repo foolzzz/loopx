@@ -27,8 +27,8 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 
 ### Agent definitions and access
 14. **Agent roles are state.** The registry records `agent_id → role`. **Agent configuration lives in files**: runtime, model, reasoning effort, prompt file, permissions, `max_concurrency` and extra args.
-15. **Where config files live.** They default to global `~/.codex/loopx/agents/*.yaml`, can also sit in the project at `.loopx/agents/*.yaml`, and project files override global ones. System prompts can be personalised per project.
-16. **Provider config is separate** (`~/.codex/loopx/providers.yaml`). Secrets are never written to files: a provider names an env var or keychain entry, and agents reference a provider by name.
+15. **Where config files live.** They default to global `~/.loopx/agents/*.yaml`, can also sit in the project at `.loopx/agents/*.yaml`, and project files override global ones. System prompts can be personalised per project.
+16. **Provider config is separate** (`~/.loopx/providers.yaml`). Secrets are never written to files: a provider names an env var or keychain entry, and agents reference a provider by name.
 17. **Provider auth types**: `api_key`, `oauth_cli` (the CLI's own login), and `oauth_token` (for example a Claude `setup-token`). Before each launch the dispatcher runs an auth preflight. If it fails, the agent is marked unavailable and a user gate "re-login needed" is opened.
 
 ### Workspaces, concurrency and resources

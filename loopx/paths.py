@@ -4,9 +4,62 @@ import os
 from pathlib import Path
 
 
-DEFAULT_RUNTIME_ROOT = Path.home() / ".codex" / "loopx"
-DEFAULT_PROJECT_REGISTRY = Path(".loopx") / "registry.json"
+RUNTIME_ROOT_ENV = "LOOPX_RUNTIME_ROOT"
+LOOPX_STATE_DIRNAME = ".loopx"
+DEFAULT_PROJECT_REGISTRY = Path(LOOPX_STATE_DIRNAME) / "registry.json"
+PROJECT_GOAL_STATE_ROOT = Path(LOOPX_STATE_DIRNAME) / "goals"
+ACTIVE_GOAL_STATE_FILENAME = "ACTIVE_GOAL_STATE.md"
 GLOBAL_REGISTRY_FILENAME = "registry.global.json"
+# default_runtime_root() spelled for a POSIX shell, for commands LoopX renders
+# for another shell to run (agent prompts, SSH commands); the shell that runs
+# the command applies the same rule.
+SHELL_DEFAULT_RUNTIME_ROOT = f"${{{RUNTIME_ROOT_ENV}:-$HOME/{LOOPX_STATE_DIRNAME}}}"
+SHELL_DEFAULT_GLOBAL_REGISTRY = f"{SHELL_DEFAULT_RUNTIME_ROOT}/{GLOBAL_REGISTRY_FILENAME}"
+
+
+def home_runtime_root(home: Path | None = None) -> Path:
+    """Return the runtime root LoopX uses under ``home`` when none is configured."""
+
+    return (Path.home() if home is None else Path(home)) / LOOPX_STATE_DIRNAME
+
+
+def configured_runtime_root() -> Path | None:
+    """Return the runtime root named by ``LOOPX_RUNTIME_ROOT``, made absolute.
+
+    An unset or blank value configures nothing. A relative value is resolved
+    against the current directory at the moment it is read, lexically, so the
+    same value names the same directory for every consumer in the process.
+    """
+
+    value = os.environ.get(RUNTIME_ROOT_ENV, "").strip()
+    if not value:
+        return None
+    return Path(os.path.abspath(os.path.expanduser(value)))
+
+
+def default_runtime_root() -> Path:
+    """Return the runtime root used when no explicit root is given.
+
+    ``LOOPX_RUNTIME_ROOT`` when it is set, otherwise ``~/.loopx``. It is read at
+    call time, never cached at import, so HOME and the environment in effect
+    when the root is needed decide it. An explicit ``--runtime-root`` and a
+    registry's ``common_runtime_root`` take precedence over this default; see
+    :func:`resolve_runtime_root`.
+    """
+
+    return configured_runtime_root() or home_runtime_root()
+
+
+def project_goal_state_dir(project: Path, goal_id: str) -> Path:
+    """Return a project's goal state directory: ``<project>/.loopx/goals/<goal_id>``."""
+
+    return Path(project) / PROJECT_GOAL_STATE_ROOT / goal_id
+
+
+def project_goal_state_file(project: Path, goal_id: str) -> Path:
+    """Return a project's default active goal state file for ``goal_id``."""
+
+    return project_goal_state_dir(project, goal_id) / ACTIVE_GOAL_STATE_FILENAME
 
 
 def default_public_scan_root() -> str:
@@ -22,8 +75,8 @@ def default_registry_path() -> Path:
     return DEFAULT_PROJECT_REGISTRY
 
 
-def global_registry_path(runtime_root: Path = DEFAULT_RUNTIME_ROOT) -> Path:
-    return runtime_root / GLOBAL_REGISTRY_FILENAME
+def global_registry_path(runtime_root: Path | None = None) -> Path:
+    return (default_runtime_root() if runtime_root is None else runtime_root) / GLOBAL_REGISTRY_FILENAME
 
 
 def registry_project_root(registry_path: Path) -> Path:
@@ -46,11 +99,17 @@ def resolve_runtime_root(
     *,
     registry_path: Path | None = None,
 ) -> Path:
+    """Return the runtime root for ``registry``.
+
+    Precedence: an explicit ``override`` (``--runtime-root``), then the
+    registry's ``common_runtime_root``, then :func:`default_runtime_root`.
+    """
+
     value = override
     if not value:
         value = registry.get("common_runtime_root") if isinstance(registry, dict) else None
     if not value:
-        return DEFAULT_RUNTIME_ROOT
+        return default_runtime_root()
 
     runtime_root = Path(str(value)).expanduser()
     if runtime_root.is_absolute() or registry_path is None:

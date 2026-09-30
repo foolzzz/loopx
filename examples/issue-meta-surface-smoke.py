@@ -67,7 +67,7 @@ def run_cli(*args: str, registry_path: Path, runtime: Path) -> dict:
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 

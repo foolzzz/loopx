@@ -1,13 +1,19 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import {
+  defaultLedgerDir,
+  defaultRuntimeRoot,
   ENV_GOAL_ID,
+  ENV_LEDGER_DIR,
   ENV_RUN_IDENTITY,
+  ENV_RUNTIME_ROOT,
   ENV_SESSION_ID,
+  LEDGER_DIRNAME,
   OBSERVER_ENVELOPE_SCHEMA_VERSION,
   OBSERVER_STATS_SCHEMA_VERSION,
   registerShadowObserver,
@@ -103,6 +109,20 @@ function parsed(lines: string[][]): Array<ObserverEnvelope | ObserverStats> {
 }
 
 describe('shadow observer configuration', () => {
+  it('writes the ledger under the LoopX default runtime root', () => {
+    expect(defaultRuntimeRoot({})).toBe(join(homedir(), '.loopx'))
+    expect(defaultRuntimeRoot({ [ENV_RUNTIME_ROOT]: '   ' })).toBe(join(homedir(), '.loopx'))
+    expect(defaultRuntimeRoot({ [ENV_RUNTIME_ROOT]: '/srv/loopx' })).toBe('/srv/loopx')
+    expect(defaultRuntimeRoot({ [ENV_RUNTIME_ROOT]: 'relative/root' }))
+      .toBe(resolve(process.cwd(), 'relative/root'))
+    expect(defaultRuntimeRoot({ [ENV_RUNTIME_ROOT]: '~/state' })).toBe(join(homedir(), 'state'))
+    expect(defaultLedgerDir({})).toBe(join(homedir(), '.loopx', LEDGER_DIRNAME))
+    expect(defaultLedgerDir({ [ENV_RUNTIME_ROOT]: '/srv/loopx' }))
+      .toBe(join('/srv/loopx', LEDGER_DIRNAME))
+    expect(defaultLedgerDir({ [ENV_RUNTIME_ROOT]: '/srv/loopx', [ENV_LEDGER_DIR]: '/tmp/ledger' }))
+      .toBe('/tmp/ledger')
+  })
+
   it('is off unless one exact goal, session, and run identity are declared', () => {
     expect(resolveShadowObserverConfig({})).toBeUndefined()
     expect(resolveShadowObserverConfig({ [ENV_GOAL_ID]: '   ' })).toBeUndefined()

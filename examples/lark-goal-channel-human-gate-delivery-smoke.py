@@ -171,11 +171,11 @@ def update_gate(
 def write_project(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     binding_path = project / ".loopx" / "goal-channel.json"
     state_path.parent.mkdir(parents=True)
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
         "---\n"
         "status: active\n"

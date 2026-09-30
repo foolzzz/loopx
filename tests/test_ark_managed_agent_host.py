@@ -202,7 +202,7 @@ def test_doctor_checks_host_installation_readback_instead_of_codex_skill_root(
     skills_dir = tmp_path / "workspace" / ".agents" / "skills"
     _materialize_workflow_skills(skills_dir)
     monkeypatch.setenv("LOOPX_SKILLS_DIR", str(skills_dir))
-    monkeypatch.setattr("loopx.doctor.DEFAULT_RUNTIME_ROOT", tmp_path / "runtime")
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "runtime"))
 
     payload = collect_doctor(agent_type="ark-managed-agent")
 
@@ -369,7 +369,7 @@ def _write_continuity_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     runtime = tmp_path / "runtime"
     state = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / CONTINUITY_GOAL_ID
         / "ACTIVE_GOAL_STATE.md"

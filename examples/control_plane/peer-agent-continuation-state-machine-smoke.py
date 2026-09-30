@@ -39,7 +39,7 @@ def write_fixture(root: Path, *, include_review: bool = False) -> tuple[Path, Pa
     project = root / "project"
     runtime = root / "runtime"
     registry_path = project / ".loopx" / "registry.json"
-    state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_path.parent.mkdir(parents=True)
     review = (
         f"- [ ] [P1] Review the completed peer delivery.\n"

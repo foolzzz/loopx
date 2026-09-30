@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory(prefix="loopx-closed-vision-successor-") as raw
     root = Path(raw_temp)
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True)
@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory(prefix="loopx-closed-vision-successor-") as raw
         f"claimed_by={AGENT_ID} -->\n",
         encoding="utf-8",
     )
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {

@@ -21,7 +21,7 @@ FIXED_TIME = "2026-01-01T00:00:00+00:00"
 def write_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
@@ -35,7 +35,7 @@ def write_registry(root: Path) -> Path:
         encoding="utf-8",
     )
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

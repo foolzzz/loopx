@@ -131,7 +131,7 @@ def test_todo_list_anchors_promoted_authority_to_registry_project(
         project=project,
     )
     state_path = (
-        project / ".codex" / "goals" / "half-speed" / "ACTIVE_GOAL_STATE.md"
+        project / ".loopx" / "goals" / "half-speed" / "ACTIVE_GOAL_STATE.md"
     )
     state_path.write_text(
         "# half-speed\n\n"

@@ -19,7 +19,7 @@ AGENT_ID = "codex-benchmark-agent"
 def write_fixture(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
@@ -33,7 +33,7 @@ def write_fixture(root: Path) -> Path:
         "- Pick the seeded todo.\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -46,7 +46,7 @@ def write_fixture(root: Path) -> Path:
                         "domain": "no-git-quota",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
                         "coordination": {
                             "registered_agents": [AGENT_ID],

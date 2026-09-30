@@ -144,7 +144,7 @@ def todo_statuses(fields: dict, role: str) -> dict[str, str]:
 def test_replay_regenerates_equivalent_projection() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-replay-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         event_log = state_path.with_name("events.jsonl")
         store = append_fixture_events(event_log)
 
@@ -169,7 +169,7 @@ def test_replay_regenerates_equivalent_projection() -> None:
 def test_compact_markdown_cannot_override_canonical_events() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-compact-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         event_log = state_path.with_name("events.jsonl")
         store = append_fixture_events(event_log)
         projection = build_state_projection(store.load(), generated_at="2026-06-27T01:02:00Z")
@@ -203,7 +203,7 @@ def test_compact_markdown_cannot_override_canonical_events() -> None:
         goal = {
             "id": GOAL_ID,
             "repo": str(project),
-            "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+            "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         }
         fields = active_state_todo_fields(goal)
         assert fields["state_event_projection"]["source"] == "event_log", fields

@@ -49,7 +49,7 @@ STATUS_BACKED_COMMANDS = {"quota", "review-packet", "status"}
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     event_log = state_file.with_name("events.jsonl")
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
@@ -74,7 +74,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         goal_id=GOAL_ID,
         domain="control-plane-canary",
         adapter_kind="generic_project_goal_v0",
-        state_event_log=f".codex/goals/{GOAL_ID}/events.jsonl",
+        state_event_log=f".loopx/goals/{GOAL_ID}/events.jsonl",
         registered_agents=[PRIMARY_AGENT_ID, AGENT_ID],
         quota_allowed_slots=10,
         peer_independent_worktree_required=False,
@@ -85,7 +85,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
 def write_monitor_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "monitor-project"
     runtime = root / "monitor-runtime"
-    state_file = project / ".codex" / "goals" / MONITOR_GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / MONITOR_GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
@@ -118,7 +118,7 @@ def write_monitor_fixture(root: Path) -> tuple[Path, Path]:
 def write_markdown_continuation_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "markdown-project"
     runtime = root / "markdown-runtime"
-    state_file = project / ".codex" / "goals" / MARKDOWN_GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / MARKDOWN_GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(

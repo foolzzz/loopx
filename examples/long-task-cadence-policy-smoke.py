@@ -168,9 +168,9 @@ def assert_status_and_quota_projection() -> None:
         runtime = root / "runtime"
         project = root / "project"
         registry = project / ".loopx" / "registry.json"
-        state = project / ".codex" / "goals" / "cadence" / "ACTIVE_GOAL_STATE.md"
+        state = project / ".loopx" / "goals" / "cadence" / "ACTIVE_GOAL_STATE.md"
         state.parent.mkdir(parents=True)
-        registry.parent.mkdir(parents=True)
+        registry.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(
             "\n".join(
                 [
@@ -213,7 +213,7 @@ def assert_status_and_quota_projection() -> None:
                             "domain": "cadence-smoke",
                             "status": "active",
                             "repo": str(project),
-                            "state_file": ".codex/goals/cadence/ACTIVE_GOAL_STATE.md",
+                            "state_file": ".loopx/goals/cadence/ACTIVE_GOAL_STATE.md",
                             "agent_id": "codex-cadence",
                             "coordination": {
                                 "agent_model": "peer_v1",

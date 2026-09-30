@@ -23,7 +23,7 @@ def _fixture(
 ) -> tuple[Path, Path]:
     project = tmp_path / "project"
     runtime = tmp_path / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
@@ -113,7 +113,7 @@ def _settle(registry_path: Path, proposal: dict) -> list[dict]:
 
 
 def _todos(project: Path) -> str:
-    return (project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
+    return (project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
         encoding="utf-8"
     )
 

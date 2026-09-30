@@ -234,7 +234,7 @@ def main():
     else:
         goal_id = slug(proj.name)
         registry = str(proj / ".loopx" / "registry.json")
-        # Claude projects keep goal state under .claude/ (not the Codex-default .codex/)
+        # Claude projects keep goal state under .claude/ (not the default .loopx/goals/)
         state_file = f".claude/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
         r = gh(["bootstrap", "--project", str(proj), "--goal-id", goal_id,
                 "--objective", task, "--state-file", state_file])

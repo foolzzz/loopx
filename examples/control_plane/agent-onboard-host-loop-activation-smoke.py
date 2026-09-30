@@ -295,11 +295,11 @@ def main() -> int:
         root = Path(tmp)
         project = root / "project"
         home = root / "home"
-        state_file = project / ".codex" / "goals" / "multi-agent-goal" / "ACTIVE_GOAL_STATE.md"
+        state_file = project / ".loopx" / "goals" / "multi-agent-goal" / "ACTIVE_GOAL_STATE.md"
         project_registry = project / ".loopx" / "registry.json"
-        global_registry = home / ".codex" / "loopx" / "registry.global.json"
+        global_registry = home / ".loopx" / "registry.global.json"
         state_file.parent.mkdir(parents=True)
-        project_registry.parent.mkdir(parents=True)
+        project_registry.parent.mkdir(parents=True, exist_ok=True)
         global_registry.parent.mkdir(parents=True)
         state_file.write_text("# Active State\n", encoding="utf-8")
         registry = {
@@ -309,7 +309,7 @@ def main() -> int:
                     "domain": "smoke",
                     "status": "active",
                     "repo": str(project),
-                    "state_file": ".codex/goals/multi-agent-goal/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/multi-agent-goal/ACTIVE_GOAL_STATE.md",
                     "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
                     "coordination": {
                         "agent_model": "peer_v1",

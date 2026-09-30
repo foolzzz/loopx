@@ -16,8 +16,11 @@ It can move:
 
 - a selected goal entry into `.loopx/registry.json`;
 - the selected active-state file into the rewritten project path;
-- selected runtime history under `~/.codex/loopx/goals/<new-goal-id>/`;
-- the migrated project registry into `~/.codex/loopx/registry.global.json`.
+- selected runtime history under `~/.loopx/goals/<new-goal-id>/`;
+- the migrated project registry into `~/.loopx/registry.global.json`.
+
+`~/.loopx` is the default target runtime root (or `LOOPX_RUNTIME_ROOT` when
+set); `--target-runtime-root` or `--runtime-root` overrides it.
 
 It intentionally requires an explicit goal selection: either repeat
 `--goal-id` for known goals or pass `--all-goals` after previewing the legacy
@@ -50,12 +53,12 @@ backup of the legacy registry, legacy runtime root, and any target LoopX state
 that may already exist.
 
 ```bash
-backup_dir="$HOME/.codex/loopx-migration-backup-$(date +%Y%m%d-%H%M%S)"
+backup_dir="$HOME/.loopx-migration-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$backup_dir"
 
 cp -a "$HOME/.codex/goal-harness" "$backup_dir/goal-harness-runtime"
-if [ -d "$HOME/.codex/loopx" ]; then
-  cp -a "$HOME/.codex/loopx" "$backup_dir/loopx-runtime-before-migration"
+if [ -d "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}" ]; then
+  cp -a "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}" "$backup_dir/loopx-runtime-before-migration"
 fi
 ```
 
@@ -106,10 +109,10 @@ enough.
    registry before doing a batch migration.
 
 ```bash
-loopx --registry ~/.codex/loopx/registry.global.json migrate-state \
+loopx --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" migrate-state \
   --legacy-registry ~/.codex/goal-harness/registry.global.json \
   --legacy-runtime-root ~/.codex/goal-harness \
-  --target-runtime-root ~/.codex/loopx \
+  --target-runtime-root "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}" \
   --all-goals \
   --copy-active-state \
   --copy-runtime \
@@ -119,10 +122,10 @@ loopx --registry ~/.codex/loopx/registry.global.json migrate-state \
 Only execute after the preview lists exactly the expected goals:
 
 ```bash
-loopx --registry ~/.codex/loopx/registry.global.json migrate-state \
+loopx --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" migrate-state \
   --legacy-registry ~/.codex/goal-harness/registry.global.json \
   --legacy-runtime-root ~/.codex/goal-harness \
-  --target-runtime-root ~/.codex/loopx \
+  --target-runtime-root "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}" \
   --all-goals \
   --copy-active-state \
   --copy-runtime \
@@ -167,9 +170,9 @@ backup, rerun a dry-run with narrower `--goal-id` / `--goal-id-map` /
 
 ```bash
 # Global rollback.
-rm -rf "$HOME/.codex/loopx"
+rm -rf "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}"
 if [ -d "$backup_dir/loopx-runtime-before-migration" ]; then
-  cp -a "$backup_dir/loopx-runtime-before-migration" "$HOME/.codex/loopx"
+  cp -a "$backup_dir/loopx-runtime-before-migration" "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}"
 fi
 
 # Project-local rollback from the project root.
@@ -185,7 +188,7 @@ if [ -d "$backup_dir/project-state/.local" ]; then
 fi
 ```
 
-If the machine did not have a previous `~/.codex/loopx`, the global rollback
+If the machine did not have a previous `~/.loopx`, the global rollback
 leaves that target runtime absent. The next migration attempt will recreate it.
 
 ## Safety Rules

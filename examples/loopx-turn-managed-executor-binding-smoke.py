@@ -26,7 +26,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from loopx.cli import main as cli_main  # noqa: E402
-from loopx.control_plane import operator_provider  # noqa: E402
 from loopx.control_plane.turn_driver import executor as turn_executor  # noqa: E402
 from loopx.control_plane.turn_driver.host_binding import (  # noqa: E402
     DSH_RUNTIME_MODULE,
@@ -57,7 +56,7 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
     runtime.mkdir(parents=True)
     workspace.mkdir(parents=True)
 
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(
         "\n".join(
@@ -87,7 +86,7 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
         encoding="utf-8",
     )
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {
@@ -271,8 +270,8 @@ def _expect_probe(binding: dict[str, Any], *, available: bool) -> None:
 def main() -> int:
     with tempfile.TemporaryDirectory(
         prefix="loopx-turn-managed-executor-"
-    ) as directory, mock.patch.object(
-        operator_provider, "DEFAULT_RUNTIME_ROOT", Path(directory) / "machine"
+    ) as directory, mock.patch.dict(
+        os.environ, {"LOOPX_RUNTIME_ROOT": str(Path(directory) / "machine")}
     ):
         root = Path(directory)
         project, runtime, workspace, registry = _write_fixture(root)

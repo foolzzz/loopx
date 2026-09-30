@@ -109,7 +109,7 @@ def assert_status_data_contract_documents_handoff_budget() -> None:
 def write_planned_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
     (project / state_file).write_text(
@@ -235,7 +235,7 @@ def append_operator_gate_approval_fixture(root: Path, *, command: str | None = N
 
 
 def mark_owner_review_todo_done(root: Path) -> None:
-    state_path = root / "project" / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = root / "project" / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         text.replace(

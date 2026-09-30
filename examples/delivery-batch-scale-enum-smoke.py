@@ -42,7 +42,7 @@ def write_json(path: Path, payload: dict) -> None:
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = Path(".codex/goals") / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = Path(".loopx/goals") / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     (project / state_file).parent.mkdir(parents=True, exist_ok=True)
     (project / state_file).write_text(
         "---\n"

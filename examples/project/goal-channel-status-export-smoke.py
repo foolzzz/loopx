@@ -21,7 +21,7 @@ PRIVATE_LOG_PATH = "/" + "Users/example/private-run.log"
 
 
 def write_state(project: Path) -> str:
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     path = project / state_file
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

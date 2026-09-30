@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
+
+from ...paths import default_runtime_root
 
 
 CONNECTOR_REGISTRY_SCHEMA_VERSION = "connector_registry_v1"
@@ -86,8 +87,7 @@ BUILTIN_CONNECTOR_CATALOG: list[dict[str, Any]] = [
 
 
 def default_registry_path() -> Path:
-    runtime_root = Path(os.environ.get("LOOPX_RUNTIME_ROOT") or (Path.home() / ".codex" / "loopx"))
-    return runtime_root / "connector-registry.json"
+    return default_runtime_root() / "connector-registry.json"
 
 
 def _catalog_index() -> dict[str, dict[str, Any]]:

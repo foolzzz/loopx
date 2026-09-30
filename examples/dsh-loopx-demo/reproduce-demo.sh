@@ -37,7 +37,7 @@ printf '%s\n' \
   'status and fail semantics, and add behavior tests.' \
   > "$demo_dir/README.md"
 
-printf '%s\n' 'node_modules/' '.loopx/' '.codex/goals/' > "$demo_dir/.gitignore"
+printf '%s\n' 'node_modules/' '.loopx/' > "$demo_dir/.gitignore"
 
 git -C "$demo_dir" init -q
 git -C "$demo_dir" add README.md package.json src/cli.js .gitignore

@@ -87,7 +87,7 @@ def main() -> None:
         source_registry = root / "source" / ".loopx" / "registry.json"
         source_registry.parent.mkdir(parents=True)
         source_registry.write_text("{}\n", encoding="utf-8")
-        state_file = root / "source" / ".codex" / "goals" / "fresh" / "ACTIVE_GOAL_STATE.md"
+        state_file = root / "source" / ".loopx" / "goals" / "fresh" / "ACTIVE_GOAL_STATE.md"
         state_file.parent.mkdir(parents=True)
         state_file.write_text("---\nupdated_at: 2026-07-04T00:00:00+00:00\n---\n", encoding="utf-8")
 
@@ -96,7 +96,7 @@ def main() -> None:
                 {
                     "id": "fresh",
                     "repo": str(root / "source"),
-                    "state_file": ".codex/goals/fresh/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/fresh/ACTIVE_GOAL_STATE.md",
                 }
             ]
         }
@@ -106,13 +106,13 @@ def main() -> None:
                     "id": "fresh",
                     "repo": str(root / "source"),
                     "source_registry": ".loopx/registry.json",
-                    "state_file": ".codex/goals/fresh/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/fresh/ACTIVE_GOAL_STATE.md",
                     "synced_at": "2026-07-04T00:00:00+00:00",
                 },
                 {
                     "id": "duplicate",
                     "repo": str(root / "missing-a"),
-                    "state_file": ".codex/goals/duplicate/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/duplicate/ACTIVE_GOAL_STATE.md",
                 },
                 {
                     "id": "duplicate",
@@ -123,7 +123,7 @@ def main() -> None:
                     "id": "global-only",
                     "repo": str(root / "missing-c"),
                     "source_registry": ".loopx/registry.json",
-                    "state_file": ".codex/goals/global-only/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/global-only/ACTIVE_GOAL_STATE.md",
                 },
             ]
         }

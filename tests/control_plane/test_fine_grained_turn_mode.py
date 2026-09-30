@@ -279,7 +279,7 @@ def test_fine_heartbeat_rule_is_opt_in_only() -> None:
 
 def test_heartbeat_cli_reads_sticky_fine_mode_from_registry(tmp_path: Path) -> None:
     project = tmp_path / "project"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text("# Active Goal State\n", encoding="utf-8")
     registry = tmp_path / "registry.json"

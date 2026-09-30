@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from loopx.control_plane.runtime.public_safety import public_safe_compact_text  # noqa: E402
+from loopx.paths import default_runtime_root, global_registry_path  # noqa: E402
 
 
 DEFAULT_GOAL_ID = "loopx-meta"
@@ -31,8 +32,8 @@ DEFAULT_AGENT_IDS = (
     "codex-product-capability",
     "codex-value-explorer",
 )
-PUBLIC_REGISTRY = "$HOME/.codex/loopx/registry.global.json"
-PUBLIC_RUNTIME_ROOT = "$HOME/.codex/loopx"
+PUBLIC_REGISTRY = "$HOME/.loopx/registry.global.json"
+PUBLIC_RUNTIME_ROOT = "$HOME/.loopx"
 REDACTED_TEXT = "Public-safe redacted live LoopX text; inspect local status for the full row."
 HOME_TEXT = str(Path.home())
 HOME_NAME = Path.home().name
@@ -71,9 +72,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--registry",
-        default=str(Path.home() / ".codex" / "loopx" / "registry.global.json"),
+        default=str(global_registry_path()),
     )
-    parser.add_argument("--runtime-root", default=str(Path.home() / ".codex" / "loopx"))
+    parser.add_argument("--runtime-root", default=str(default_runtime_root()))
     parser.add_argument("--write", action="store_true")
     return parser.parse_args()
 

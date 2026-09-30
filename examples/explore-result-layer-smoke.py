@@ -1133,7 +1133,7 @@ def check_cli_surface() -> None:
         registry = Path(tmp) / ".loopx" / "registry.json"
         runtime_root = Path(tmp) / "runtime"
         project = Path(tmp) / "project"
-        state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+        state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
         (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
         (project / state_file).write_text(
             "---\n"

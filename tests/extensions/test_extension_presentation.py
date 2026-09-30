@@ -11,6 +11,7 @@ import venv
 import pytest
 
 from loopx.cli import main
+from loopx.extensions import presentation as presentation_module
 from loopx.extensions.presentation import (
     collect_active_extension_presentation_surfaces,
     default_extension_projection_root,
@@ -174,6 +175,19 @@ def _verify_installed_extension(state_file: Path) -> None:
         execute=True,
     )
     assert doctor["verified"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Source: .loopx/goals/demo/ACTIVE_GOAL_STATE.md",
+        "Source: project/.loopx/registry.json",
+        "Source: .codex/goals/demo/ACTIVE_GOAL_STATE.md",
+    ],
+)
+def test_presentation_text_rejects_private_state_paths(text: str) -> None:
+    with pytest.raises(ValueError, match="must not contain a local path"):
+        presentation_module._plain_text(text, context="view.subtitle")
 
 
 def test_projection_publication_dry_run_does_not_invoke_or_write(

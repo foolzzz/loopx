@@ -22,7 +22,7 @@ GENERATED_AT = "2026-01-02T00:00:00+00:00"
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -39,7 +39,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         "- Keep the current route stable.\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -107,7 +107,7 @@ def main() -> None:
             assert intent["target_refs"]["run_history_ref"] == "runtime.goal.runs", packet
             assert intent["target_refs"]["global_registry_ref"] is None, packet
             expected_revision = "sha256:" + hashlib.sha256(
-                (project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
+                (project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
                     encoding="utf-8"
                 ).encode("utf-8")
             ).hexdigest()

@@ -187,7 +187,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as raw_tmp:
         root = Path(raw_tmp)
-        assert_no_local_paths({"relative": ".codex/goals/example.md", "url": "https://example.test/docs/page"})
+        assert_no_local_paths({"relative": ".loopx/goals/example.md", "url": "https://example.test/docs/page"})
         assert_rejects_local_path({"absolute": str(root / "project" / "docs" / "review.md")})
         registry, runtime_root, review_doc = write_fixture(root)
         payload = collect_status(

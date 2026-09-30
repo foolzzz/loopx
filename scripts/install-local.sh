@@ -217,20 +217,18 @@ acquire_install_lock() {
 
 warn_stale_promotion_readiness() {
   local python_bin="${LOOPX_PYTHON:-python3}"
-  local runtime_root="${LOOPX_RUNTIME_ROOT:-$codex_home/loopx}"
-  # Reuse the same collector and registry resolution without importing every CLI.
-  LOOPX_PROMOTION_WARNING_RUNTIME_ROOT="$runtime_root" \
-    PYTHONSAFEPATH=1 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
+  # Reuse the same collector, registry and runtime-root resolution without
+  # importing every CLI.
+  PYTHONSAFEPATH=1 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
     "$python_bin" - <<'PY_WARNING' || true
 import argparse
-import os
 import sys
 
 from loopx.cli_runtime import resolve_cli_registry
-from loopx.paths import default_registry_path
+from loopx.paths import default_registry_path, default_runtime_root
 from loopx.promotion_gate import build_promotion_gate
 
-runtime_root = os.environ["LOOPX_PROMOTION_WARNING_RUNTIME_ROOT"]
+runtime_root = str(default_runtime_root())
 args = argparse.Namespace(command="promotion-gate", registry=str(default_registry_path()), runtime_root=runtime_root)
 registry_path, _ = resolve_cli_registry(args, [])
 try:

@@ -53,7 +53,7 @@ def run_cli(
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime_root = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     run_index = runtime_root / "goals" / GOAL_ID / "runs" / "index.jsonl"
@@ -111,7 +111,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
 
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

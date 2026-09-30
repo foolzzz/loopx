@@ -18,11 +18,15 @@ if str(REPO_ROOT) not in sys.path:
 from loopx import dreaming  # noqa: E402
 from loopx import operator_gate as operator_gate_module  # noqa: E402
 from loopx import project_map  # noqa: E402
-from loopx.control_plane.runtime import runtime_projection_route as route_module  # noqa: E402
+from loopx.control_plane.runtime.runtime_projection_route import (  # noqa: E402
+    resolve_runtime_projection_route,
+)
 from loopx.control_plane.runtime.shared_runtime_material_projection import (  # noqa: E402
     build_shared_runtime_material_projection,
+    finalize_material_projection,
     write_shared_runtime_material_projection,
 )
+from loopx.paths import home_runtime_root  # noqa: E402
 
 
 GOAL_ID = "shared-material-projection-smoke"
@@ -42,7 +46,7 @@ def write_source(
         if registry_is_global
         else project / ".loopx" / "registry.json"
     )
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(
         "---\nstatus: active\nupdated_at: 2026-01-01T00:00:00+00:00\n---\n\n"
@@ -335,38 +339,68 @@ def exercise_route_edges(root: Path) -> None:
 
     ambiguous_source = root / "ambiguous-source-runtime"
     target_a = root / "ambiguous-target-a"
-    target_b = root / "ambiguous-target-b"
+    home_default = home_runtime_root()
     _, ambiguous_registry, ambiguous_goal = write_source(
         root,
         name="ambiguous-project",
         runtime=ambiguous_source,
     )
     write_target(target_a, source_registry=ambiguous_registry, goal=ambiguous_goal)
-    write_target(target_b, source_registry=ambiguous_registry, goal=ambiguous_goal)
+    write_target(home_default, source_registry=ambiguous_registry, goal=ambiguous_goal)
+
+    # Two shared runtimes that both claim the goal are ambiguous; the material
+    # projection refuses to pick one.
+    ambiguous_route = resolve_runtime_projection_route(
+        registry_path=ambiguous_registry,
+        goal_id=GOAL_ID,
+        source_runtime_root=ambiguous_source,
+        candidate_roots=[target_a, home_default],
+    )
+    assert ambiguous_route["status"] == "ambiguous", ambiguous_route
+    assert ambiguous_route["match_count"] == 2, ambiguous_route
+    ambiguous = finalize_material_projection(
+        registry_path=ambiguous_registry,
+        source_runtime_root=ambiguous_source,
+        goal_id=GOAL_ID,
+        source_row={"generated_at": "2026-01-01T00:04:00+00:00", "goal_id": GOAL_ID},
+        projection_kind="operator_gate_decision",
+        route=ambiguous_route,
+        sync_global=True,
+        dry_run=False,
+    )
+    assert ambiguous["ok"] is False and ambiguous["partial_write"] is True, ambiguous
+    assert ambiguous["shared_runtime_material_projection"]["status"] == "route_ambiguous"
+    assert read_rows(target_a) == [] and read_rows(home_default) == []
+
+    # With LOOPX_RUNTIME_ROOT set, that root is the only shared candidate: the
+    # home default is not consulted, so the same pair is no longer ambiguous and
+    # nothing is written under the home default.
     os.environ["LOOPX_RUNTIME_ROOT"] = str(target_a)
-    original_default = route_module.DEFAULT_RUNTIME_ROOT
-    route_module.DEFAULT_RUNTIME_ROOT = target_b
     try:
-        ambiguous = record_operator_gate(
+        configured = record_operator_gate(
             ambiguous_registry,
             ambiguous_source,
             sync_global=True,
         )
     finally:
-        route_module.DEFAULT_RUNTIME_ROOT = original_default
         if original_runtime is None:
             os.environ.pop("LOOPX_RUNTIME_ROOT", None)
         else:
             os.environ["LOOPX_RUNTIME_ROOT"] = original_runtime
-    assert ambiguous["ok"] is False and ambiguous["partial_write"] is True, ambiguous
-    assert ambiguous["shared_runtime_material_projection"]["status"] == "route_ambiguous"
+    assert configured["runtime_projection_route"]["status"] == "resolved", configured
+    assert configured["shared_runtime_material_projection"]["status"] == "projected", configured
     assert len(read_rows(ambiguous_source)) == 1
-    assert read_rows(target_a) == [] and read_rows(target_b) == []
+    assert len(read_rows(target_a)) == 1
+    assert read_rows(home_default) == []
 
 
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-shared-material-projection-") as tmp:
         root = Path(tmp)
+        # The default runtime root follows HOME and LOOPX_RUNTIME_ROOT when it is
+        # used, so pin both to this fixture instead of the operator's machine.
+        os.environ["HOME"] = str(root / "home")
+        os.environ.pop("LOOPX_RUNTIME_ROOT", None)
         exercise_split_runtime(root)
         exercise_route_edges(root)
     print("shared-runtime-material-projection-smoke passed")

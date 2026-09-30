@@ -61,7 +61,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path, Path, Path, Path]:
     task_project = root / "task-project"
     task_independent = root / "task-peer-worktree"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -278,7 +278,7 @@ def main() -> None:
             json.dumps(registry, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         state_path.write_text(
             "---\nstatus: active\nowner_mode: goal\n"
             'objective: "Exercise selected-todo workspace routing."\n'

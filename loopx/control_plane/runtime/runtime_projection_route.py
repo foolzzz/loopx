@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import queue
 import threading
@@ -14,7 +13,12 @@ from ..goals.activation import (
     normalize_goal_activation_state,
 )
 from ...history import load_index, load_registry
-from ...paths import DEFAULT_RUNTIME_ROOT, global_registry_path, resolve_runtime_root
+from ...paths import (
+    configured_runtime_root,
+    default_runtime_root,
+    global_registry_path,
+    resolve_runtime_root,
+)
 from ...registry import registry_goals
 
 
@@ -237,10 +241,7 @@ def runtime_projection_candidate_roots(
 ) -> list[Path]:
     roots: list[Path] = []
     if candidate_roots is None:
-        configured = str(os.environ.get("LOOPX_RUNTIME_ROOT") or "").strip()
-        if configured:
-            roots.append(Path(configured).expanduser())
-        roots.append(DEFAULT_RUNTIME_ROOT)
+        roots.append(default_runtime_root())
     else:
         roots.extend(Path(root).expanduser() for root in candidate_roots)
     roots.append(source_runtime_root.expanduser())
@@ -292,11 +293,11 @@ def resolve_runtime_projection_route(
         source_runtime_root=source_runtime,
         candidate_roots=provided_roots,
     )
-    configured_root_text = str(os.environ.get("LOOPX_RUNTIME_ROOT") or "").strip()
+    configured_root = configured_runtime_root()
     explicit_roots = (
         provided_roots
         if provided_roots is not None
-        else ([Path(configured_root_text).expanduser()] if configured_root_text else [])
+        else ([configured_root] if configured_root is not None else [])
     )
     matches: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []

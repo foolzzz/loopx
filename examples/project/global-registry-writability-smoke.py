@@ -32,7 +32,7 @@ def write_project_registry(path: Path, *, runtime: Path, repo: Path, agents: lis
         "domain": "registry-write-denied-smoke",
         "status": "active",
         "repo": str(repo),
-        "state_file": ".codex/goals/registry-write-denied-fixture/ACTIVE_GOAL_STATE.md",
+        "state_file": ".loopx/goals/registry-write-denied-fixture/ACTIVE_GOAL_STATE.md",
         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
         "coordination": {"registered_agents": agents or []},
     }
@@ -131,7 +131,7 @@ def assert_connect_fails_without_partial_local_state(root: Path) -> None:
     assert data["ok"] is False, data
     assert data["global_sync"]["write_denied"] is True, data
     assert not (project / ".loopx" / "registry.json").exists(), data
-    assert not (project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md").exists(), data
+    assert not (project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md").exists(), data
 
 
 def assert_register_agent_fails_before_source_write(root: Path) -> None:

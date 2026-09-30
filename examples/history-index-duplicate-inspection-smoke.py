@@ -137,7 +137,7 @@ def write_registry(root: Path) -> Path:
         ("plain-duplicate-goal", "plain_duplicate"),
         ("artifact-collision-goal", "artifact_identity_collision"),
     ):
-        state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+        state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(
             "---\nupdated_at: 2026-01-01T00:00:00+00:00\n---\n", encoding="utf-8"

@@ -35,7 +35,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="loopx-bootstrap-preserve-") as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
-        state_file = project / ".codex/goals/bootstrap-preserve-fixture/ACTIVE_GOAL_STATE.md"
+        state_file = project / ".loopx/goals/bootstrap-preserve-fixture/ACTIVE_GOAL_STATE.md"
 
         initial = run_cli(
             "bootstrap",

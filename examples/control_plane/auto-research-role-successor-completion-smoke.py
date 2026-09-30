@@ -31,7 +31,7 @@ def write_fixture(root: Path, *, auto_research: bool) -> tuple[Path, Path, Path]
     project = root / "project"
     runtime = root / "runtime"
     registry_path = project / ".loopx" / "registry.json"
-    state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_path.parent.mkdir(parents=True)
     state_path.write_text(
         "---\n"
@@ -113,7 +113,7 @@ def complete_proposer(
 def assert_actor_attribution_fails_closed() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-role-successor-actor-") as tmp:
         project, runtime, registry_path = write_fixture(Path(tmp), auto_research=True)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         before = state_path.read_text(encoding="utf-8")
 
         missing_code, missing = complete_proposer(

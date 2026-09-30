@@ -14,7 +14,7 @@ missed migration work.
 - Legacy CLI command: none. `goal-harness` is not installed as an alias.
 - Python package/import: `loopx`.
 - Local project state: `.loopx/registry.json`.
-- Global runtime state: `~/.codex/loopx`.
+- Global runtime state: `~/.loopx` (or `LOOPX_RUNTIME_ROOT` when set).
 - Skill names: `loopx-project`, `loopx-pr-review`, `loopx-doc-registry`, and
   `loopx-self-repair`.
 
@@ -29,7 +29,7 @@ missed migration work.
 4. P0 state migration SOP: ship the explicit one-shot
    [`migrate-state`](loopx-state-migration-sop.md) path for existing local
    users. This is not a legacy CLI compatibility alias; it is an auditable
-   dry-run-first import into `.loopx` and `~/.codex/loopx`.
+   dry-run-first import into `.loopx` and `~/.loopx`.
 5. P1 external surface release gate: update package publish metadata, hosted
    Pages URLs, external docs, and any release notes that cannot be validated
    until the canonical code rename has landed.
@@ -77,4 +77,4 @@ Required before the rename PR is considered ready:
 
 Self-use validation should install from the working tree into an isolated home,
 run `loopx doctor`, bootstrap a temporary project, and confirm quota/status
-work through `.loopx` and `~/.codex/loopx`.
+work through `.loopx` and `~/.loopx`.

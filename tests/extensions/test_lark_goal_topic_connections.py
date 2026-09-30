@@ -47,10 +47,7 @@ CHAT_ID = "oc_public_fixture"
 @pytest.fixture(autouse=True)
 def isolated_default_runtime_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Global projection also locks the default runtime; keep it under tmp_path."""
-    monkeypatch.setattr(
-        "loopx.control_plane.runtime.runtime_projection_route.DEFAULT_RUNTIME_ROOT",
-        tmp_path / "default-runtime",
-    )
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(tmp_path / "default-runtime"))
 
 
 def _registry(tmp_path: Path) -> dict[str, Any]:

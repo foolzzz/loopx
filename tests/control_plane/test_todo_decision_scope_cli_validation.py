@@ -23,7 +23,7 @@ OTHER_AGENT = "codex-review"
 def _write_fixture(tmp_path: Path) -> tuple[Path, Path]:
     project = tmp_path / "project"
     runtime = tmp_path / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(

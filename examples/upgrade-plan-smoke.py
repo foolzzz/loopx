@@ -32,7 +32,7 @@ REGISTERED_AGENT_ID = "codex-current"
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "---\n"
@@ -44,7 +44,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
         encoding="utf-8",
     )
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -57,7 +57,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
                         "domain": "fixture",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
                         "quota": {"compute": 1.0, "window_hours": 24},
                     },
@@ -68,7 +68,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
                         "attention_status": "stage_deferred_not_installed",
                         "recommended_action": "Do not install this heartbeat until the operator authorizes the stage.",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {"kind": "planned_read_only_map_v0", "status": "planned"},
                         "quota": {"compute": 1.0, "window_hours": 24},
                     }
@@ -272,7 +272,7 @@ def write_codex_app_automation(codex_home: Path, *, prompt: str) -> Path:
 def write_registered_fixture(root: Path) -> Path:
     project = root / "registered-project"
     runtime = root / "registered-runtime"
-    state_file = project / ".codex" / "goals" / REGISTERED_GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / REGISTERED_GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "---\n"
@@ -284,7 +284,7 @@ def write_registered_fixture(root: Path) -> Path:
         encoding="utf-8",
     )
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -297,7 +297,7 @@ def write_registered_fixture(root: Path) -> Path:
                         "domain": "fixture",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{REGISTERED_GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{REGISTERED_GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
                         "coordination": {
                             "registered_agents": [REGISTERED_AGENT_ID],

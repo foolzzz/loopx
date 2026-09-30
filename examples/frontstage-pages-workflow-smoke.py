@@ -121,6 +121,7 @@ def main() -> int:
     for forbidden in [
         "serve-status",
         "status.local.json",
+        ".loopx/goals",
         ".codex/goals",
         ".goal-" + "harness/",
         "registry.global.json",

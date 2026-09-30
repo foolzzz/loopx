@@ -146,7 +146,7 @@ def _seed_visible_demo_control_plane(
         dry_run=False,
         sync_global=False,
     )
-    state_file = control_project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_file = control_project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     if state_file.exists():
         updated_state, state_changed = replace_next_action_section(
             state_file.read_text(encoding="utf-8"),

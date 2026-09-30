@@ -83,7 +83,7 @@ def user_role_state_text() -> str:
 def write_fixture(root: Path, *, text: str | None = None) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = ".codex/goals/todo-archive-completed-goal/ACTIVE_GOAL_STATE.md"
+    state_file = ".loopx/goals/todo-archive-completed-goal/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)

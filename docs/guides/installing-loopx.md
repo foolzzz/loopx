@@ -121,7 +121,7 @@ If installation used `-AddToUserPath`, remove the chosen `BinDir` from the
 Windows user PATH through Windows Environment Variables after uninstalling.
 Installation and PATH opt-in only expose local command and skill files. They do
 not grant repository, network, credential, external-system, or merge authority,
-and uninstall does not delete project-local `.loopx/`, `.codex/goals/`, or
+and uninstall does not delete project-local `.loopx/` or
 evidence state.
 
 ## Host Command Surfaces
@@ -371,7 +371,7 @@ python3 -m pip uninstall loopx
 ```
 
 Both host uninstallers preserve same-name files whose content changed after
-LoopX installed them. Project-local `.loopx/`, `.codex/goals/`, evidence, and
+LoopX installed them. Project-local `.loopx/`, evidence, and
 runtime state are not deleted by package uninstall.
 
 Contributors who need a live canary should use a real checkout and

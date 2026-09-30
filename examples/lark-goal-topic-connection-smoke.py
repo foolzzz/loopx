@@ -82,7 +82,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": "goal-alpha",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-alpha/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-alpha/ACTIVE_GOAL_STATE.md",
                         "domain": "product-engineering",
                         "status": "active",
                         "objective": "Alpha delivery",
@@ -92,7 +92,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
                     {
                         "id": "goal-beta",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-beta/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-beta/ACTIVE_GOAL_STATE.md",
                         "domain": "product-engineering",
                         "status": "active",
                         "objective": "Beta delivery",

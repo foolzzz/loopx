@@ -16,7 +16,7 @@ from loopx.todos import list_goal_todos, update_goal_todo
 
 def fixture(tmp_path: Path, promoted: bool, provider: str = "file") -> tuple[Path, Path]:
     project = tmp_path / "project"
-    state = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     rows = "\n".join(
         "- [ ] " + text + "\n" + format_todo_metadata_line(
@@ -33,7 +33,7 @@ def fixture(tmp_path: Path, promoted: bool, provider: str = "file") -> tuple[Pat
     runtime = tmp_path / "runtime"
     registry.write_text(json.dumps({"schema_version": 1, "common_runtime_root": str(runtime), "goals": [{
         "id": "goal-a", "status": "active", "repo": str(project),
-        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
         "coordination": {"registered_agents": ["agent-a", "agent-b"]},
     }]}), encoding="utf-8")
     if promoted:

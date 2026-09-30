@@ -34,7 +34,7 @@ def goal_entry(project: Path, registry_path: Path, *, agents: list[str] | None =
         "domain": "collision-smoke",
         "status": "active",
         "repo": str(project),
-        "state_file": ".codex/goals/loopx-meta-fixture/ACTIVE_GOAL_STATE.md",
+        "state_file": ".loopx/goals/loopx-meta-fixture/ACTIVE_GOAL_STATE.md",
         "adapter": {"kind": "fixture", "status": "connected-read-only"},
         "coordination": coordination,
         "source_registry": str(registry_path),
@@ -49,7 +49,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
     intruder_registry = intruder_project / ".loopx" / "registry.json"
 
     for project in (source_project, intruder_project):
-        state = project / ".codex/goals/loopx-meta-fixture/ACTIVE_GOAL_STATE.md"
+        state = project / ".loopx/goals/loopx-meta-fixture/ACTIVE_GOAL_STATE.md"
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text("# Active Goal State\n\n## Agent Todo\n\n", encoding="utf-8")
 
@@ -283,11 +283,11 @@ def assert_register_agent_uses_source_registry(root: Path) -> None:
 
 def assert_register_agent_preserves_default_global_route(root: Path) -> None:
     home = root / "home"
-    shared_runtime = home / ".codex" / "loopx"
+    shared_runtime = home / ".loopx"
     project = root / "source"
     source_registry = project / ".loopx" / "registry.json"
     project_runtime = project / ".loopx" / "runtime"
-    state_file = project / ".codex/goals/loopx-meta-fixture/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/loopx-meta-fixture/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
 
