@@ -86,7 +86,7 @@ loopx-jev sentinel compare \
   --output /tmp/sentinel-comparison.json
 ```
 
-它对每个录制序列报告：类型化重复保险丝首次触发的轮次（对自报 advanced 的序列在序列内永不触发）、每种回执信号首次标记漂移的轮次，以及 gold 标注为 on-goal 的序列上的误报。不加 `--live` 时回放已提交的 provider 响应，因此 CI 无需 key 即可复现数字。`python3 examples/progress-review-sentinel-smoke.py` 运行同一回放。
+它对每个录制序列报告：类型化重复保险丝首次触发的轮次（对自报 advanced 的序列在序列内永不触发）、每种回执信号首次标记漂移的轮次，以及 gold 标注为 on-goal 的序列上的误报。不加 `--live` 时回放已提交的 provider 响应，因此 CI 无需 key 即可复现数字。`python -m pytest packages/loopx-jev/tests/test_sentinel.py -q` 运行同一回放。
 
 ## 录制对照结果
 

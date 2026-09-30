@@ -189,8 +189,5 @@ A valid packet or implementation must prove:
 - validation commands are public-safe labels, not raw logs;
 - boundary flags are present and false.
 
-The durable smoke is:
-
-```bash
-python3 examples/protocol/rollback-packet-protocol-smoke.py
-```
+No LoopX code produces or consumes `rollback_packet_v0` yet. The fixture-only
+protocol smoke was retired, so an implementation must add its own checks.

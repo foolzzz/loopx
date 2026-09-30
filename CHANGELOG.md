@@ -127,6 +127,22 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   `control_plane/run-compaction-readmodel-smoke.py`. The planner smoke now
   checks a selection table and whole-catalog invariants instead of pinning
   individual smoke paths.
+- **Example smokes duplicated by pytest or wired only to documents
+  (developer-facing).** 37 more example files are removed:
+  - 14 smokes whose assertions already live in named pytest tests, with
+    their fixtures;
+  - the catalog-wired documentation and duplicate smokes, with their fixtures:
+    event-store migration bridge, interaction-scheduler authority, local
+    state-write correctness contract, review packet, todo-detail cold path,
+    global-manager command and rollback-packet protocols, canary promotion
+    no-write contract, frontstage rollout projections, host integration
+    surface, issue-fix capability guide, the periodic-report set, the
+    progress-review sentinel, and the extension placement doc.
+
+  The canary planner, qualification and release profiles, the quality-surface
+  catalog, and the `periodic_report` and `progress_review` capability catalog
+  entries drop those commands. Where a capability needs a check, it now names
+  the equivalent pytest command.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

@@ -460,5 +460,4 @@ A first implementation is acceptable when:
 - actions declare approval and ownership requirements;
 - risks carry public-safe evidence refs;
 - no raw logs, transcripts, credentials, local paths, or private source bodies
-  are recorded;
-- `python3 examples/project/global-manager-command-protocol-smoke.py` passes.
+  are recorded.
