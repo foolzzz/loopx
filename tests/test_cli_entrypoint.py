@@ -274,6 +274,20 @@ def test_selected_parser_matches_full_help_and_diagnostics() -> None:
 	assert selected == full
 
 
+def test_retired_app_scheduler_commands_are_rejected() -> None:
+	commands = ("scheduler-ack", "scheduler-ack-current", "scheduler-fail-current")
+	argv_cases = [["quota", command] for command in commands]
+	selected = run_cli_batch("loopx.entrypoint", argv_cases)
+	full = run_cli_batch("loopx.cli", argv_cases)
+
+	assert selected == full
+	for command, result in zip(commands, selected, strict=True):
+		assert result["returncode"] == 2
+		assert result["stdout"] == ""
+		assert "invalid choice" in str(result["stderr"])
+		assert command in str(result["stderr"])
+
+
 def test_selected_todo_execution_matches_full_cli(tmp_path: Path) -> None:
 	registry, runtime_root = write_command_fixture(tmp_path)
 	argv = [
