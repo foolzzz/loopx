@@ -127,6 +127,7 @@ def run_cli(*extra_args: str) -> str:
 def assert_docs_surface_codex_cli_quickstart() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     getting_started = (REPO_ROOT / "docs/guides/getting-started.md").read_text(encoding="utf-8")
+    newcomer = (REPO_ROOT / "docs/guides/newcomer-command-path.md").read_text(encoding="utf-8")
     product_contract = (REPO_ROOT / "docs/product/runtimes/codex-cli/codex-cli-tui-loop.md").read_text(encoding="utf-8")
 
     assert "Codex CLI" in readme, readme[:500]
@@ -178,6 +179,34 @@ def assert_docs_surface_codex_cli_quickstart() -> None:
     assert "loopx codex-cli-exec-handoff --project . --goal-id <goal-id>" in getting_started, getting_started
     assert "headless-disabled boundary" in normalized_getting_started, getting_started
     assert "This command no longer prints a runnable `codex exec` handoff script" in product_contract, product_contract
+
+    default_host_docs = (getting_started, newcomer)
+    for text in default_host_docs:
+        assert "defaults to `codex-cli-tui`" in " ".join(text.split()), text
+        assert "returned read-only selection gate" not in " ".join(text.split()), text
+        assert "returns a read-only selection gate" not in " ".join(text.split()), text
+
+    retired_entry_paths = (
+        "docs/book/chapters/05-connect-existing-project.md",
+        "docs/book/en/chapters/05-connect-existing-project.md",
+        "docs/book/chapters/appendix-reference.md",
+        "docs/book/en/chapters/appendix-reference.md",
+        "docs/book/chapters/06-codex-app.md",
+        "docs/book/en/chapters/06-codex-app.md",
+        "docs/development/control-plane-course/03-first-real-loop.md",
+    )
+    for relative_path in retired_entry_paths:
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert all(
+            line.strip() != "--host-surface codex-app"
+            for line in text.splitlines()
+        ), relative_path
+
+    identity_plan = (
+        REPO_ROOT / "docs/plans/issue-2785-thread-agent-identity.md"
+    ).read_text(encoding="utf-8")
+    assert "Codex CLI Thread Agent Identity Reuse" in identity_plan, identity_plan
+    assert "Codex App Thread Agent Identity Reuse" not in identity_plan, identity_plan
 
 
 def main() -> int:
