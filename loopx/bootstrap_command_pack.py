@@ -792,10 +792,6 @@ def build_loopx_bootstrap_command_pack(
     normalized_goal_text = " ".join(goal_text.split()) if goal_text else None
     normalized_thread_id = normalize_thread_id(thread_id)
     explicit_goal_start = bool(normalized_goal_text)
-    issue_fix_hint_commands = build_issue_fix_goal_command_templates(
-        cli_bin=cli_bin,
-        goal_id="<goal-id>",
-    )
     agent_type = agent_type_for_host_surface(host_surface)
     registry_path = Path(str(inspection["registry"]))
     registry_payload, _registry_error = _read_registry(registry_path)
@@ -812,6 +808,11 @@ def build_loopx_bootstrap_command_pack(
         registry_payload,
         registry_path=registry_path,
         runtime_root_arg=runtime_root_arg,
+    )
+    issue_fix_hint_commands = build_issue_fix_goal_command_templates(
+        cli_bin=cli_bin,
+        goal_id="<goal-id>",
+        runtime_root=command_runtime_root,
     )
     thread_binding = resolve_thread_agent_binding(
         registry_goal,
@@ -871,6 +872,7 @@ def build_loopx_bootstrap_command_pack(
         cli_bin=cli_bin,
         goal_id=resolved_goal_id,
         agent_id=str(selected_agent_id) if selected_agent_id else "<agent-id>",
+        runtime_root=command_runtime_root,
     )
     activation_allowed = bool(host_loop_activation.get("activation_allowed"))
     activation_commands = host_loop_activation.get("commands")
@@ -1163,6 +1165,7 @@ def _build_multi_goal_start_selection_packet(
     issue_fix_commands = build_issue_fix_goal_command_templates(
         cli_bin=cli_bin,
         goal_id="<selected-goal-id>",
+        runtime_root=command_runtime_root,
     )
     choices: list[dict[str, Any]] = []
     for goal in goals:
@@ -1270,8 +1273,15 @@ def _build_multi_goal_start_selection_packet(
             fine_grained=fine_grained,
         ),
         "commands": {
-            "doctor": f"{shell_arg(cli_bin)} doctor",
-            "status": _project_command(resolved_project, f"{shell_arg(cli_bin)} status"),
+            "doctor": (
+                f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+                "doctor"
+            ),
+            "status": _project_command(
+                resolved_project,
+                f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+                "status",
+            ),
             "goal_selection_choices": choices,
         },
         "safety_contract": {
@@ -1340,6 +1350,7 @@ def _build_multi_goal_start_selection_packet(
         thread_id=thread_id,
         new_peer=new_peer,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         host_surface=host_surface,
         goal_text=normalized_goal_text,
         available_capabilities=available_capabilities,

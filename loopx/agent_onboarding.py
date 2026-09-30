@@ -423,9 +423,14 @@ def build_agent_onboarding_packet(
     cli_bin: str = "loopx",
     task_text: str | None = None,
     available_capabilities: list[str] | None = None,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     canonical_agent_type = normalize_agent_type(agent_type)
-    inspection = inspect_bootstrap_connection(project, goal_id=goal_id)
+    inspection = inspect_bootstrap_connection(
+        project,
+        goal_id=goal_id,
+        runtime_root_arg=runtime_root_arg,
+    )
     resolved_project = str(inspection["project"])
     resolved_goal_id = str(inspection["goal_id"])
     registry_path = Path(str(inspection["registry"]))
@@ -447,6 +452,7 @@ def build_agent_onboarding_packet(
 
     runtime_root = resolve_runtime_root(
         registry,
+        runtime_root_arg,
         registry_path=registry_path,
     )
     goal = project_goal_with_builtin_machine_configuration(

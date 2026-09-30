@@ -444,16 +444,25 @@ def build_new_project_prompt(
         cli_bin="loopx",
         runtime_root=str(effective_runtime_root) if runtime_root_arg else None,
     )
+    command_runtime_root = str(effective_runtime_root) if runtime_root_arg else None
     quota_guard_command = render_quota_guard_command(
         resolved_goal_id,
+        runtime_root=command_runtime_root,
         scheduler_execution_context=(
             GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT
         ),
     )
-    quota_spend_command = render_quota_spend_command(resolved_goal_id)
-    refresh_command = render_refresh_state_command(resolved_goal_id)
+    quota_spend_command = render_quota_spend_command(
+        resolved_goal_id,
+        runtime_root=command_runtime_root,
+    )
+    refresh_command = render_refresh_state_command(
+        resolved_goal_id,
+        runtime_root=command_runtime_root,
+    )
     progress_refresh_command = render_accountable_progress_refresh_command(
-        resolved_goal_id
+        resolved_goal_id,
+        runtime_root=command_runtime_root,
     )
     prompt = render_prompt_text(
         project=project_text,

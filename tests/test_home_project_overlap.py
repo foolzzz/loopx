@@ -7,9 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from loopx.agent_onboarding import build_agent_onboarding_packet
 from loopx.bootstrap import bootstrap_project
 from loopx.bootstrap_command_pack import (
     build_loopx_bootstrap_command_pack,
+    build_start_goal_guided_packet,
     inspect_bootstrap_connection,
 )
 from loopx.control_plane.projects.registry import register_project_goal
@@ -239,6 +241,82 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     assert packet["project"] == str(project.resolve())
     assert packet["project_connection"]["connection_state"] == "connected"
     assert packet["project_connection"]["canonical_project_alias"]["applied"] is True
+    runtime_prefix = f"loopx --runtime-root {runtime_root}"
+    commands = packet["commands"]
+    assert commands["doctor"].startswith(runtime_prefix)
+    assert runtime_prefix in commands["status"]
+    assert runtime_prefix in commands["goal_start_agent_onboard_recheck"]
+    for key in (
+        "issue_fix_workflow_plan_template",
+        "issue_fix_feasibility_template",
+        "issue_fix_pr_lifecycle_template",
+        "issue_fix_reviewer_request_template",
+    ):
+        assert commands[key].startswith(runtime_prefix)
+
+    onboard = build_agent_onboarding_packet(
+        project=worktree,
+        agent_type="codex-cli",
+        goal_id=GOAL_ID,
+        runtime_root_arg=str(runtime_root),
+    )
+    assert onboard["project"] == str(project.resolve())
+
+
+def test_multi_goal_start_commands_preserve_explicit_runtime_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    home.mkdir()
+    project.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    runtime_root = tmp_path / "explicit-runtime"
+    registry_path = project / ".loopx" / "registry.json"
+    goals = []
+    for goal_id in ("goal-a", "goal-b"):
+        state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+        state_file.parent.mkdir(parents=True)
+        state_file.write_text("# state\n", encoding="utf-8")
+        goal = _goal(project, registry_path, str(state_file.relative_to(project)))
+        goal["id"] = goal_id
+        goals.append(goal)
+    _write_json(
+        registry_path,
+        {
+            "schema_version": "0.1",
+            "registry_role": "project-local",
+            "common_runtime_root": str(runtime_root),
+            "goals": goals,
+        },
+    )
+
+    packet = build_start_goal_guided_packet(
+        project=project,
+        goal_id=None,
+        agent_id=None,
+        cli_bin="loopx",
+        host_surface="shell",
+        goal_text="Continue one registered goal.",
+        runtime_root_arg=str(runtime_root),
+    )
+
+    runtime_prefix = f"loopx --runtime-root {runtime_root}"
+    command_pack = packet["command_pack"]
+    assert command_pack["commands"]["doctor"].startswith(runtime_prefix)
+    assert runtime_prefix in command_pack["commands"]["status"]
+    assert command_pack["detail_command"].startswith(runtime_prefix)
+    route_hints = command_pack["goal_start_contract"]["domain_route_hints"][
+        "issue_fix_workflow"
+    ]
+    for key in (
+        "preview_command",
+        "decision_command",
+        "post_pr_reviewer_request_command",
+        "post_pr_monitor_command",
+    ):
+        assert route_hints[key].startswith(runtime_prefix)
 
 
 def test_relative_state_path_rendering_does_not_depend_on_current_directory(
@@ -289,7 +367,7 @@ def test_new_project_prompt_preserves_explicit_runtime_root(
     monkeypatch.setenv("HOME", str(home))
     runtime_root = home / runtime_suffix
 
-    prompt = build_new_project_prompt(
+    packet = build_new_project_prompt(
         project=home,
         goal_doc=home / "GOAL.md",
         goal_id=GOAL_ID,
@@ -302,10 +380,19 @@ def test_new_project_prompt_preserves_explicit_runtime_root(
         allowed_domains=[],
         write_scope=[],
         runtime_root_arg=str(runtime_root),
-    )["prompt"]
+    )
+    prompt = packet["prompt"]
 
     assert f"{expected_state_root}/{GOAL_ID}/ACTIVE_GOAL_STATE.md" in prompt
-    assert f"loopx --runtime-root {runtime_root} connect" in prompt
+    runtime_prefix = f"loopx --runtime-root {runtime_root}"
+    assert f"{runtime_prefix} connect" in packet["connect_command"]
+    for key in (
+        "quota_guard_command",
+        "quota_spend_command",
+        "refresh_command",
+        "progress_refresh_command",
+    ):
+        assert packet[key].startswith(runtime_prefix)
 
 
 def test_uninstall_archives_only_the_state_file_from_legacy_runtime_overlap(

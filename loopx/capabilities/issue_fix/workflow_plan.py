@@ -31,16 +31,21 @@ def build_issue_fix_pr_lifecycle_command(
     goal_id: str,
     agent_id: str,
     project: str | None = None,
+    runtime_root: str | None = None,
 ) -> str:
     """Build the canonical executable PR lifecycle reconciliation command."""
 
-    parts = [
-        shlex.quote(cli_bin),
-        "issue-fix",
-        "pr-lifecycle",
-        "--url",
-        "<github-pr-url>",
-    ]
+    parts = [shlex.quote(cli_bin)]
+    if runtime_root is not None:
+        parts.extend(["--runtime-root", _command_arg(runtime_root)])
+    parts.extend(
+        [
+            "issue-fix",
+            "pr-lifecycle",
+            "--url",
+            "<github-pr-url>",
+        ]
+    )
     if project:
         parts.extend(["--project", _command_arg(project)])
     parts.extend(
@@ -58,11 +63,17 @@ def build_issue_fix_pr_lifecycle_command(
 
 
 def build_issue_fix_goal_command_templates(
-    *, cli_bin: str, goal_id: str, agent_id: str = "<agent-id>"
+    *,
+    cli_bin: str,
+    goal_id: str,
+    agent_id: str = "<agent-id>",
+    runtime_root: str | None = None,
 ) -> dict[str, str]:
     """Return the capability-owned commands projected into goal-start packets."""
 
     cli = shlex.quote(cli_bin)
+    if runtime_root is not None:
+        cli += f" --runtime-root {_command_arg(runtime_root)}"
     goal = (
         goal_id
         if goal_id.startswith("<") and goal_id.endswith(">")
@@ -92,6 +103,7 @@ def build_issue_fix_goal_command_templates(
             cli_bin=cli_bin,
             goal_id=goal_id,
             agent_id=agent_id,
+            runtime_root=runtime_root,
         ),
         "issue_fix_reviewer_request_template": (
             f"{cli} issue-fix reviewer-request "

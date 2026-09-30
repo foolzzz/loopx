@@ -23,7 +23,7 @@
   "sites": [
     {
       "site": "loopx/agent_onboarding.py::<module>.build_agent_onboarding_packet::codec_read:load_registry#1",
-      "line": 432,
+      "line": 437,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
