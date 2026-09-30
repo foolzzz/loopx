@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from ...heartbeat_prompt import build_heartbeat_prompt
+from ...paths import (
+    ACTIVE_GOAL_STATE_FILENAME,
+    GLOBAL_REGISTRY_FILENAME,
+    PROJECT_GOAL_STATE_ROOT,
+    home_runtime_root,
+)
 from ..quota.effective_action import EffectiveAction
 from ..quota.turn_envelope import quota_action_signature_document
 from ..work_items.progress_observation import (
@@ -124,15 +130,14 @@ def _build_fixture(
     runtime_root = root / "runtime"
     fixture_home = root / "home"
     state_relative = (
-        Path(".codex")
-        / "goals"
+        PROJECT_GOAL_STATE_ROOT
         / _FIXTURE_GOAL_ID
-        / "ACTIVE_GOAL_STATE.md"
+        / ACTIVE_GOAL_STATE_FILENAME
     )
     state_path = project_root / state_relative
     local_registry_path = project_root / ".loopx" / "registry.json"
     global_registry_path = (
-        fixture_home / ".codex" / "loopx" / "registry.global.json"
+        home_runtime_root(fixture_home) / GLOBAL_REGISTRY_FILENAME
     )
     state_path.parent.mkdir(parents=True, exist_ok=True)
     frontier_target = project_root / _FIXTURE_FRONTIER_FILE

@@ -18,7 +18,7 @@ from .control_plane.runtime.promotion_readiness import (
 )
 from .control_plane.runtime.time import chronology_key
 from .install_contract import NO_CLONE_INSTALL_URL
-from .paths import DEFAULT_RUNTIME_ROOT, global_registry_path
+from .paths import default_runtime_root, global_registry_path
 from .python_install_owner import PythonInstallOwner, python_distribution_upgrade_command, resolve_python_install_owner
 from .capabilities.project_skill_delivery import discover_project_scoped_skill_ids
 from .registry_writability import probe_registry_write_path
@@ -809,7 +809,7 @@ def collect_doctor(
         )
     default_release["promotion_mode"] = release_manifest_source.get("promotion_mode")
     release_provenance = {
-        "runtime_root": str(DEFAULT_RUNTIME_ROOT),
+        "runtime_root": str(default_runtime_root()),
         "default_release": default_release,
         "live_canary": {
             **command_root_summary(canary_path, canary_realpath),
@@ -827,7 +827,7 @@ def collect_doctor(
             ),
         },
         "promotion_readiness": add_promotion_readiness_freshness(
-            latest_promotion_readiness_event(DEFAULT_RUNTIME_ROOT)
+            latest_promotion_readiness_event(default_runtime_root())
         ),
     }
     install_freshness = build_install_freshness(
@@ -888,18 +888,19 @@ def collect_doctor(
             else {}
         ),
     }
-    default_global_registry = global_registry_path(DEFAULT_RUNTIME_ROOT)
+    default_runtime = default_runtime_root()
+    default_global_registry = global_registry_path(default_runtime)
     global_registry_writability = probe_registry_write_path(default_global_registry, create_parent=True)
     runtime_projection_routes = (
         collect_runtime_projection_route_diagnostics(
             registry_path=default_global_registry,
-            runtime_root=DEFAULT_RUNTIME_ROOT,
+            runtime_root=default_runtime,
         )
         if default_global_registry.exists()
         else {
             "schema_version": "runtime_projection_route_diagnostics_v0",
             "registry": str(default_global_registry.resolve()),
-            "runtime_root": str(DEFAULT_RUNTIME_ROOT.resolve()),
+            "runtime_root": str(default_runtime.resolve()),
             "goal_filter": None,
             "activation_state_filter": None,
             "available": False,

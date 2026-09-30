@@ -39,7 +39,7 @@ from .orchestration import (
     DEFAULT_ORCHESTRATION_MODE,
     MULTI_SUBAGENT_ORCHESTRATION_MODE,
 )
-from .paths import rel_or_abs, resolve_runtime_root
+from .paths import project_goal_state_file, rel_or_abs, resolve_runtime_root
 from .control_plane.goals.active_state_metadata import markdown_blockquote, markdown_frontmatter_string
 from .registry_writability import probe_registry_write_path
 
@@ -328,7 +328,7 @@ def bootstrap_project(
     if not registry_path.is_absolute():
         registry_path = project / registry_path
     goal_id = goal_id or default_goal_id(project)
-    state_file = state_file or (project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md")
+    state_file = state_file or project_goal_state_file(project, goal_id)
     state_file = state_file.expanduser()
     if not state_file.is_absolute():
         state_file = project / state_file
@@ -493,7 +493,7 @@ def bootstrap_project(
                     "If this local LoopX install is missing or stale, repair the PyPI distribution "
                     "and packaged workflow skills, then confirm with loopx doctor before continuing."
                 ),
-                "private_boundary_note": "Add .loopx/ and .codex/goals/ to the project .gitignore if the goal state contains private evidence.",
+                "private_boundary_note": "Add .loopx/ to the project .gitignore if the goal state contains private evidence.",
                 "error": str(global_writability.get("error") or "global registry is not writable"),
             }
     shadow_capture = None
@@ -603,7 +603,7 @@ def bootstrap_project(
             "If this local LoopX install is missing or stale, repair the PyPI distribution "
             "and packaged workflow skills, then confirm with loopx doctor before continuing."
         ),
-        "private_boundary_note": "Add .loopx/ and .codex/goals/ to the project .gitignore if the goal state contains private evidence.",
+        "private_boundary_note": "Add .loopx/ to the project .gitignore if the goal state contains private evidence.",
     }
 
 

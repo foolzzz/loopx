@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY
 from ...skill_install_readback import (
     PACKAGED_HOST_SKILL_IDS,
     SKILL_INSTALL_READBACK_FILENAME,
@@ -32,7 +33,7 @@ NATIVE_CODEX_PROFILE_REQUIRED_SKILL_IDS = (
     "loopx",
     *PACKAGED_HOST_SKILL_IDS,
 )
-_DEFAULT_GLOBAL_REGISTRY_TOKEN = "$HOME/.codex/loopx/registry.global.json"
+_DEFAULT_GLOBAL_REGISTRY_TOKEN = SHELL_DEFAULT_GLOBAL_REGISTRY
 _SAFE_RELEASE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _SAFE_ENV_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _INSTALL_ENV_PASSTHROUGH = (

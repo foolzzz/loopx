@@ -22,7 +22,7 @@ _LOCAL_PATH_RE = re.compile(
     r"[A-Za-z]:[\\/])"
 )
 _PRIVATE_RELATIVE_PATH_RE = re.compile(
-    r"(?:^|[\s:=('/\\])\.(?:codex|git|local)(?:[/\\]|$)",
+    r"(?:^|[\s:=('/\\])\.(?:codex|git|local|loopx)(?:[/\\]|$)",
     re.IGNORECASE,
 )
 _CREDENTIAL_RE = re.compile(

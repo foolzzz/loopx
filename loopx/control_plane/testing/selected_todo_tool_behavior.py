@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from ...heartbeat_prompt import build_heartbeat_prompt
+from ...paths import (
+    ACTIVE_GOAL_STATE_FILENAME,
+    GLOBAL_REGISTRY_FILENAME,
+    LOOPX_STATE_DIRNAME,
+    PROJECT_GOAL_STATE_ROOT,
+    home_runtime_root,
+    project_goal_state_file,
+)
 from ..quota.turn_envelope import quota_action_signature_document
 from .doubao_model_behavior_actor import (
     ARK_API_KEY_ENV,
@@ -90,15 +98,14 @@ def _build_fixture(
     runtime_root = root / "runtime"
     fixture_home = root / "home"
     state_relative = (
-        Path(".codex")
-        / "goals"
+        PROJECT_GOAL_STATE_ROOT
         / SELECTED_TODO_TOOL_FIXTURE_GOAL_ID
-        / "ACTIVE_GOAL_STATE.md"
+        / ACTIVE_GOAL_STATE_FILENAME
     )
     state_path = project_root / state_relative
     local_registry_path = project_root / ".loopx" / "registry.json"
     global_registry_path = (
-        fixture_home / ".codex" / "loopx" / "registry.global.json"
+        home_runtime_root(fixture_home) / GLOBAL_REGISTRY_FILENAME
     )
     selected_target = project_root / _SELECTED_TARGET
     decoy_target = project_root / _DECOY_TARGET
@@ -358,7 +365,7 @@ def _resolve_metadata_path(
         fixture_roots = (
             fixture.project_root.resolve(),
             fixture.runtime_root.resolve(),
-            fixture.global_registry_path.parents[2].resolve(),
+            fixture.global_registry_path.parents[1].resolve(),
         )
         if any(
             resolved == root or root in resolved.parents for root in fixture_roots
@@ -369,9 +376,9 @@ def _resolve_metadata_path(
         (
             marker
             for marker in (
-                "~/.codex/loopx",
-                "$HOME/.codex/loopx",
-                "${HOME}/.codex/loopx",
+                f"~/{LOOPX_STATE_DIRNAME}",
+                f"$HOME/{LOOPX_STATE_DIRNAME}",
+                f"${{HOME}}/{LOOPX_STATE_DIRNAME}",
             )
             if normalized == marker or normalized.startswith(marker + "/")
         ),
@@ -398,12 +405,8 @@ def _is_fixture_metadata_target(
         return False
     allowed = {
         (fixture.project_root / ".loopx" / "registry.json").resolve(),
-        (
-            fixture.project_root
-            / ".codex"
-            / "goals"
-            / SELECTED_TODO_TOOL_FIXTURE_GOAL_ID
-            / "ACTIVE_GOAL_STATE.md"
+        project_goal_state_file(
+            fixture.project_root, SELECTED_TODO_TOOL_FIXTURE_GOAL_ID
         ).resolve(),
     }
     return target.resolve() in allowed

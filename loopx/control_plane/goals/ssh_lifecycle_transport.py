@@ -7,11 +7,12 @@ from pathlib import Path
 import shlex
 import subprocess
 
+from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY
 from ..status.ssh_host_catalog import configured_ssh_host_aliases
 
 
 REMOTE_GOAL_LIFECYCLE_SCHEMA_VERSION = "loopx_remote_goal_lifecycle_v1"
-_REMOTE_REGISTRY = "$HOME/.codex/loopx/registry.global.json"
+_REMOTE_REGISTRY = SHELL_DEFAULT_GLOBAL_REGISTRY
 _REMOTE_LOOPX_PREFIX = (
     'bin="$HOME/.local/bin/loopx"; '
     '[ -x "$bin" ] || bin="$(command -v loopx || true)"; '

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ...bootstrap_command_pack import build_start_goal_guided_packet
+from ...paths import project_goal_state_file
 from ..quota.cli_projection import compact_quota_should_run_cli_payload
 from ..quota.turn_envelope import quota_action_signature_document
 from ..work_items.interaction_contract import build_interaction_contract
@@ -402,17 +403,13 @@ def actual_default_model_behavior_scenario_catalog() -> dict[str, Any]:
 
 def _write_scenario_project(root: Path) -> tuple[Path, Path]:
     project = root / "project"
-    state_file = (
-        project
-        / ".codex"
-        / "goals"
-        / ACTUAL_DEFAULT_MODEL_BEHAVIOR_FIXTURE_GOAL_ID
-        / "ACTIVE_GOAL_STATE.md"
+    state_file = project_goal_state_file(
+        project, ACTUAL_DEFAULT_MODEL_BEHAVIOR_FIXTURE_GOAL_ID
     )
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -478,7 +475,7 @@ def _entry_scenario_packets(root: Path) -> dict[str, dict[str, Any]]:
     )
 
     second_goal = "portfolio-second-goal"
-    second_state = project / ".codex" / "goals" / second_goal / "ACTIVE_GOAL_STATE.md"
+    second_state = project_goal_state_file(project, second_goal)
     second_state.parent.mkdir(parents=True)
     second_state.write_text("# Second Active Goal State\n", encoding="utf-8")
     registry["goals"].append(

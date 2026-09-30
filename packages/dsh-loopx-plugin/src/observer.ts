@@ -35,6 +35,7 @@ export const ENV_SESSION_ID = 'LOOPX_DSH_SHADOW_OBSERVER_SESSION_ID'
 export const ENV_RUN_IDENTITY = 'LOOPX_DSH_SHADOW_OBSERVER_RUN_IDENTITY_JSON'
 export const ENV_LEDGER_DIR = 'LOOPX_DSH_SHADOW_OBSERVER_LEDGER_DIR'
 export const ENV_BUFFER_BOUND = 'LOOPX_DSH_SHADOW_OBSERVER_BUFFER_BOUND'
+export const ENV_RUNTIME_ROOT = 'LOOPX_RUNTIME_ROOT'
 
 export const EVENT_SOURCES = [
   'session/created',
@@ -217,11 +218,24 @@ function isPublicSafeValue(value: unknown): boolean {
   })
 }
 
+/**
+ * The LoopX default runtime root, by the same rule as Python's
+ * `loopx.paths.default_runtime_root`: `LOOPX_RUNTIME_ROOT` made absolute when
+ * it is set, otherwise `~/.loopx`. The Python reader finds the ledger there.
+ */
+export function defaultRuntimeRoot(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env[ENV_RUNTIME_ROOT]?.trim()
+  if (!configured) return join(homedir(), '.loopx')
+  return resolve(configured === '~' || configured.startsWith('~/')
+    ? join(homedir(), configured.slice(1))
+    : configured)
+}
+
 export function defaultLedgerDir(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env[ENV_LEDGER_DIR]
   return resolve(configured?.trim()
     ? configured
-    : join(homedir(), '.codex', 'loopx', LEDGER_DIRNAME))
+    : join(defaultRuntimeRoot(env), LEDGER_DIRNAME))
 }
 
 /**

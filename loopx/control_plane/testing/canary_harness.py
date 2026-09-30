@@ -6,12 +6,14 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+from ...paths import project_goal_state_file
+
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def default_state_file(goal_id: str) -> str:
-    return f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    return project_goal_state_file(Path(), goal_id).as_posix()
 
 
 def project_state_path(project: Path, goal_id: str, *, state_file: str | None = None) -> Path:

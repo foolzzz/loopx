@@ -12,6 +12,7 @@ from typing import Any
 
 from ...chat_manager import MANAGER_AGENT_OBJECTIVE
 from ...file_lock import try_exclusive_file_lock
+from ...paths import default_runtime_root
 from .goal_channel_contracts import bindings_for_goal
 from .manager_context import session_turn_effect
 from .team_plan_confirmation import (
@@ -231,10 +232,12 @@ class LarkGoalTopicRuntimeService:
                     )
                     # A bot App can have several local profile aliases and Chat
                     # servers can use different runtime roots or ports. The
-                    # consumer lease must therefore be machine/App scoped.
+                    # consumer lease must therefore be machine/App scoped: it
+                    # lives under the machine's default runtime root, not under
+                    # this server's --runtime-root.
                     app_id = str(profile_config.get("bot_app_id") or profile)
                     digest = hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:32]
-                    lease = Path.home() / ".loopx" / "lark-consumers" / digest
+                    lease = default_runtime_root() / "lark-consumers" / digest
                     with try_exclusive_file_lock(
                         lease, operation="lark_event_consumer"
                     ) as acquired:

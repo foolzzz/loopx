@@ -11,7 +11,7 @@ from ..global_registry import (
     sync_project_registry_to_global,
 )
 from ..history import load_registry
-from ..paths import DEFAULT_RUNTIME_ROOT, global_registry_path, resolve_runtime_root
+from ..paths import default_runtime_root, global_registry_path, resolve_runtime_root
 from ..project_uninstall import render_project_uninstall_markdown, uninstall_project
 from ..runtime import archive_runtime_goal, render_archive_runtime_markdown
 from ..state_migration import (
@@ -93,7 +93,7 @@ def register_registry_lifecycle_commands(
     uninstall_project_parser.add_argument(
         "--archive-state",
         action="store_true",
-        help="Move each selected project-local .codex/goals/<goal-id> state directory into .loopx/archived-project-state/.",
+        help="Move each selected goal's project-local state directory (by default .loopx/goals/<goal-id>) into .loopx/archived-project-state/.",
     )
     uninstall_project_parser.add_argument(
         "--remove-empty-registry",
@@ -134,7 +134,7 @@ def register_registry_lifecycle_commands(
     )
     migrate_state_parser.add_argument(
         "--target-runtime-root",
-        help="LoopX runtime root. Defaults to --runtime-root or ~/.codex/loopx.",
+        help="LoopX runtime root. Defaults to --runtime-root, else LOOPX_RUNTIME_ROOT, else ~/.loopx.",
     )
     migrate_goal_selector = migrate_state_parser.add_mutually_exclusive_group(required=True)
     migrate_goal_selector.add_argument(
@@ -294,7 +294,7 @@ def handle_registry_lifecycle_command(
             target_runtime_root = (
                 Path(args.target_runtime_root).expanduser()
                 if args.target_runtime_root
-                else (Path(args.runtime_root).expanduser() if args.runtime_root else DEFAULT_RUNTIME_ROOT)
+                else (Path(args.runtime_root).expanduser() if args.runtime_root else default_runtime_root())
             )
             selected_goal_ids = (
                 legacy_registry_goal_ids(Path(args.legacy_registry))
@@ -344,7 +344,7 @@ def handle_registry_lifecycle_command(
                 "legacy_registry": args.legacy_registry,
                 "target_registry": str(registry_path),
                 "legacy_runtime_root": args.legacy_runtime_root,
-                "target_runtime_root": args.target_runtime_root or args.runtime_root or str(DEFAULT_RUNTIME_ROOT),
+                "target_runtime_root": args.target_runtime_root or args.runtime_root or str(default_runtime_root()),
                 "selected_goal_ids": args.goal_id or ([] if not getattr(args, "all_goals", False) else ["<all-goals>"]),
                 "error": str(exc),
                 **({"error_code": exc.code, **getattr(exc, "payload", {})} if isinstance(getattr(exc, "code", None), str) else {}),

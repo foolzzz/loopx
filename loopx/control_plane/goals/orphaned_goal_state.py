@@ -18,20 +18,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ...project_prompt import shell_arg
+from ...paths import ACTIVE_GOAL_STATE_FILENAME, PROJECT_GOAL_STATE_ROOT
 
-ACTIVE_GOAL_STATE_FILENAME = "ACTIVE_GOAL_STATE.md"
+from ...project_prompt import shell_arg
 
 ORPHANED_GOAL_STATE_CONNECTION = "orphaned_goal_state"
 
 ORPHANED_GOAL_STATE_GATE_SCHEMA_VERSION = "loopx_orphaned_goal_state_gate_v0"
 
-# Project-local goal state has been written under each of these roots, so a goal
+# Project-local goal state is written under each of these roots, so a goal
 # absent from the registry can still own durable state in any of them. Ordered
-# current route first; every match is reported, never merged or copied.
+# default route first; every match is reported, never merged or copied.
 GOAL_STATE_ROOTS: tuple[tuple[str, ...], ...] = (
-    (".loopx", "goals"),
-    (".codex", "goals"),
+    PROJECT_GOAL_STATE_ROOT.parts,
     (".claude", "goals"),
     (".local", "goals"),
 )

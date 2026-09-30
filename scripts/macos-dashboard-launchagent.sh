@@ -4,7 +4,15 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${LOOPX_REPO_ROOT:-$(cd "$script_dir/.." && pwd)}"
 bin_dir="${LOOPX_BIN_DIR:-$HOME/.local/bin}"
-registry="${LOOPX_GLOBAL_REGISTRY:-$HOME/.codex/loopx/registry.global.json}"
+# The LoopX default runtime root rule (loopx.paths.default_runtime_root):
+# LOOPX_RUNTIME_ROOT made absolute when it is set, otherwise ~/.loopx. A set
+# value is also exported to both services so they resolve the same root.
+runtime_root="${LOOPX_RUNTIME_ROOT:-}"
+if [[ -n "$runtime_root" ]]; then
+  runtime_root="${runtime_root/#\~/$HOME}"
+  [[ "$runtime_root" == /* ]] || runtime_root="$PWD/$runtime_root"
+fi
+registry="${LOOPX_GLOBAL_REGISTRY:-${runtime_root:-$HOME/.loopx}/registry.global.json}"
 status_port="${LOOPX_STATUS_PORT:-8766}"
 status_limit="${LOOPX_STATUS_LIMIT:-80}"
 status_contract_min_version="${LOOPX_STATUS_CONTRACT_MIN_VERSION:-2}"
@@ -193,7 +201,7 @@ PY
 
 write_plists() {
   local status_command python_command codex_command claude_command lark_cli_command
-  local path_prefix command_path command_dir status_shell chat_shell control_plane_write_arg lark_cli_arg codex_home_export chat_codex_home
+  local path_prefix command_path command_dir status_shell chat_shell control_plane_write_arg lark_cli_arg codex_home_export chat_codex_home runtime_root_export
   status_command="$(resolve_status_command)"
   python_command="$(resolve_loopx_python)"
   codex_command="$(resolve_optional_command codex)"
@@ -213,6 +221,10 @@ write_plists() {
   control_plane_write_arg=""
   lark_cli_arg=""
   codex_home_export=""
+  runtime_root_export=""
+  if [[ -n "$runtime_root" ]]; then
+    runtime_root_export=" export LOOPX_RUNTIME_ROOT=$(shell_quote "$runtime_root");"
+  fi
   if [[ "$control_plane_write_api_enabled" == "true" ]]; then
     control_plane_write_arg=" --enable-control-plane-write-api"
   fi
@@ -221,8 +233,8 @@ write_plists() {
   fi
   chat_codex_home="$(resolve_chat_codex_home "$python_command")"
   codex_home_export=" export CODEX_HOME=$(shell_quote "$chat_codex_home"); export LOOPX_CHAT_CODEX_HOME=$(shell_quote "$chat_codex_home");"
-  status_shell="export LOOPX_PYTHON=$(shell_quote "$python_command"); export PATH=$(shell_quote "$path_prefix"):\$PATH; exec $(shell_quote "$status_command") --registry $(shell_quote "$registry") serve-status --global-registry --host $(shell_quote "$host") --port $(shell_quote "$status_port") --limit $(shell_quote "$status_limit")$control_plane_write_arg"
-  chat_shell="export LOOPX_PYTHON=$(shell_quote "$python_command");$codex_home_export export PATH=$(shell_quote "$path_prefix"):\$PATH; exec $(shell_quote "$status_command") --registry $(shell_quote "$registry") chat --global-registry --host $(shell_quote "$host") --port $(shell_quote "$chat_port") --codex-bin $(shell_quote "$codex_command") --claude-bin $(shell_quote "$claude_command")$lark_cli_arg --replace-existing-loopx-chat --no-open"
+  status_shell="export LOOPX_PYTHON=$(shell_quote "$python_command");$runtime_root_export export PATH=$(shell_quote "$path_prefix"):\$PATH; exec $(shell_quote "$status_command") --registry $(shell_quote "$registry") serve-status --global-registry --host $(shell_quote "$host") --port $(shell_quote "$status_port") --limit $(shell_quote "$status_limit")$control_plane_write_arg"
+  chat_shell="export LOOPX_PYTHON=$(shell_quote "$python_command");$runtime_root_export$codex_home_export export PATH=$(shell_quote "$path_prefix"):\$PATH; exec $(shell_quote "$status_command") --registry $(shell_quote "$registry") chat --global-registry --host $(shell_quote "$host") --port $(shell_quote "$chat_port") --codex-bin $(shell_quote "$codex_command") --claude-bin $(shell_quote "$claude_command")$lark_cli_arg --replace-existing-loopx-chat --no-open"
 
   mkdir -p "$launch_agents_dir" "$logs_dir"
 
