@@ -28,7 +28,7 @@ def goal(project: Path, registry_path: Path, goal_id: str) -> dict[str, object]:
         "objective": f"Fixture {goal_id}.",
         "domain": "project-uninstall-smoke",
         "repo": str(project),
-        "state_file": f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md",
+        "state_file": f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md",
         "status": "connected-read-only",
         "adapter": {"kind": "fixture", "status": "connected-read-only"},
         "source_registry": str(registry_path),
@@ -36,7 +36,7 @@ def goal(project: Path, registry_path: Path, goal_id: str) -> dict[str, object]:
 
 
 def write_state(project: Path, goal_id: str) -> None:
-    state = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True, exist_ok=True)
     state.write_text(f"# {goal_id}\n", encoding="utf-8")
 
@@ -164,10 +164,10 @@ def main() -> int:
         assert Path(str(applied["global_registry_backup_path"])).exists(), applied
         assert goal_ids(registry_path) == [KEEP_GOAL_ID]
         assert goal_ids(global_registry) == [KEEP_GOAL_ID, OTHER_GOAL_ID]
-        assert not (project / ".codex" / "goals" / TARGET_GOAL_ID).exists()
+        assert not (project / ".loopx" / "goals" / TARGET_GOAL_ID).exists()
         archived = applied["state_actions"][0]["archive_path"]
         assert Path(str(archived)).exists(), applied
-        assert (project / ".codex" / "goals" / KEEP_GOAL_ID / "ACTIVE_GOAL_STATE.md").exists()
+        assert (project / ".loopx" / "goals" / KEEP_GOAL_ID / "ACTIVE_GOAL_STATE.md").exists()
 
         blocked = payload(
             run_cli(

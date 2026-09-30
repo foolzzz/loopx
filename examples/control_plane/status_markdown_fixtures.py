@@ -281,7 +281,7 @@ def write_planned_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
     goal_id = "planned-main-control"
-    state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
 
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
@@ -331,7 +331,7 @@ def write_planned_registry(root: Path) -> Path:
 
 def mark_planned_todos_done(root: Path) -> None:
     goal_id = "planned-main-control"
-    state_path = root / "project" / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_path = root / "project" / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_text = state_text.replace(f"- [ ] {USER_TODO_TEXT}", f"- [x] {USER_TODO_TEXT}")
     state_text = state_text.replace(f"- [ ] {AGENT_TODO_TEXT}", f"- [x] {AGENT_TODO_TEXT}")
@@ -341,7 +341,7 @@ def mark_planned_todos_done(root: Path) -> None:
 def write_connected_delivery_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{DELIVERY_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{DELIVERY_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
 
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
@@ -470,7 +470,7 @@ def write_global_source_registry_shadow(root: Path, registry_path: Path, *, goal
 def write_connected_readonly_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{CONNECTED_READONLY_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{CONNECTED_READONLY_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
 
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
@@ -518,8 +518,8 @@ def write_dependency_blocker_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
     registry_path = project / ".loopx" / "registry.json"
-    current_state_file = f".codex/goals/{DEPENDENCY_CURRENT_GOAL_ID}/ACTIVE_GOAL_STATE.md"
-    blocker_state_file = f".codex/goals/{DEPENDENCY_BLOCKER_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    current_state_file = f".loopx/goals/{DEPENDENCY_CURRENT_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    blocker_state_file = f".loopx/goals/{DEPENDENCY_BLOCKER_GOAL_ID}/ACTIVE_GOAL_STATE.md"
 
     (project / Path(current_state_file).parent).mkdir(parents=True, exist_ok=True)
     (project / current_state_file).write_text(

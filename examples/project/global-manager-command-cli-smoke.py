@@ -89,7 +89,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path, Path, list[Path]]:
         DEFERRED_GOAL_ID: root / "project-deferred",
     }
     states = {
-        goal_id: project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+        goal_id: project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
         for goal_id, project in projects.items()
     }
     states[GOAL_ID].parent.mkdir(parents=True)

@@ -59,7 +59,7 @@ def require_json_success(result: subprocess.CompletedProcess[str]) -> dict[str, 
 def write_fixture(project: Path) -> tuple[Path, Path, Path]:
     runtime_root = project / "runtime"
     registry_path = project / ".loopx" / "registry.json"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     runs_dir = runtime_root / "goals" / GOAL_ID / "runs"
     run_json = runs_dir / "2026-06-22T00-00-00-smoke.json"
     run_md = runs_dir / "2026-06-22T00-00-00-smoke.md"
@@ -126,7 +126,7 @@ def write_fixture(project: Path) -> tuple[Path, Path, Path]:
                         "objective": "Validate project lifecycle CLI command modularization.",
                         "domain": "smoke",
                         "repo": str(project),
-                        "state_file": ".codex/goals/project-lifecycle-smoke/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/project-lifecycle-smoke/ACTIVE_GOAL_STATE.md",
                         "status": "connected-read-only",
                         "adapter": {
                             "kind": "read_only_project_map_v0",

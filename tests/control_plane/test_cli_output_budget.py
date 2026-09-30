@@ -61,7 +61,7 @@ def _write_fixture(
 ) -> tuple[Path, Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_relative = Path(".codex") / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_relative = Path(".loopx") / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file = project / state_relative
     state_file.parent.mkdir(parents=True)
     agents = AGENT_IDS[: scenario.agent_count]
@@ -94,7 +94,7 @@ def _write_fixture(
     state_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

@@ -25,7 +25,7 @@ OTHER_GOAL_ID = "ordinary-control"
 
 
 def write_state(project: Path, goal_id: str) -> str:
-    state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(

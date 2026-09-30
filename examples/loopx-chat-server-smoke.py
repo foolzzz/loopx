@@ -106,7 +106,7 @@ def free_port() -> int:
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "---\n"
@@ -125,7 +125,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
         "task_class=advancement_task action_kind=repair_loopx_chat_status_projection -->\n",
         encoding="utf-8",
     )
-    second_state_file = project / ".codex" / "goals" / SECOND_GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    second_state_file = project / ".loopx" / "goals" / SECOND_GOAL_ID / "ACTIVE_GOAL_STATE.md"
     second_state_file.parent.mkdir(parents=True)
     second_state_file.write_text(
         "---\n"
@@ -138,7 +138,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
         encoding="utf-8",
     )
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {
@@ -148,7 +148,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
                     {
                         "id": GOAL_ID,
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "domain": "product-engineering",
                         "status": "active",
                         "adapter": {"kind": "read_only_project_map_v0", "status": "connected"},
@@ -156,7 +156,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
                     {
                         "id": SECOND_GOAL_ID,
                         "repo": str(project),
-                        "state_file": f".codex/goals/{SECOND_GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{SECOND_GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "domain": "product-engineering",
                         "status": "active",
                         "adapter": {"kind": "read_only_project_map_v0", "status": "connected"},

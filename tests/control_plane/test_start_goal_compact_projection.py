@@ -36,11 +36,11 @@ GOAL_TEXT = "Ship a bounded public issue triage workflow."
 
 def _write_connected_project(root: Path) -> Path:
     project = root / "project"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {
@@ -1613,7 +1613,7 @@ def test_projection_preserves_multi_goal_selection_actions(tmp_path: Path) -> No
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
     second_goal_id = "guided-projection-second-goal"
     second_state = (
-        project / ".codex" / "goals" / second_goal_id / "ACTIVE_GOAL_STATE.md"
+        project / ".loopx" / "goals" / second_goal_id / "ACTIVE_GOAL_STATE.md"
     )
     second_state.parent.mkdir(parents=True)
     second_state.write_text("# Second Active Goal State\n", encoding="utf-8")
@@ -1708,7 +1708,7 @@ def test_start_goal_keeps_the_requested_linked_worktree(
         "id": old_goal_id,
         "status": "active",
         "repo": str(primary),
-        "state_file": f".codex/goals/{old_goal_id}/ACTIVE_GOAL_STATE.md",
+        "state_file": f".loopx/goals/{old_goal_id}/ACTIVE_GOAL_STATE.md",
     }
     primary_registry.write_text(
         json.dumps({"schema_version": "0.1", "goals": [old_goal]}, indent=2) + "\n",
@@ -2035,7 +2035,7 @@ def _write_connected_project_with_todos(
     todos_body: str,
 ) -> Path:
     project = _write_connected_project(root)
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.write_text(
         "# Active Goal State\n"
         "## Objective\n"

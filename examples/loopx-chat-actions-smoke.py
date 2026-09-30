@@ -158,7 +158,7 @@ class FailingRuntimeController(FakeRuntimeController):
 def write_registry_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state = project / ".codex" / "goals" / "goal-one" / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / "goal-one" / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(
         "---\nstatus: active\nupdated_at: 2026-01-01T00:00:00Z\n---\n\n"
@@ -167,7 +167,7 @@ def write_registry_fixture(root: Path) -> tuple[Path, Path]:
         encoding="utf-8",
     )
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {
@@ -177,7 +177,7 @@ def write_registry_fixture(root: Path) -> tuple[Path, Path]:
                     {
                         "id": "goal-one",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-one/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-one/ACTIVE_GOAL_STATE.md",
                         "domain": "product-engineering",
                         "status": "active",
                         "adapter": {"kind": "read_only_project_map_v0", "status": "connected"},

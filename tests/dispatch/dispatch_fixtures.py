@@ -211,7 +211,7 @@ def write_fixture(
     project = tmp_path / "project"
     runtime = tmp_path / "runtime"
     runtime.mkdir(parents=True)
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(
         "\n".join(
@@ -252,7 +252,7 @@ def write_fixture(
             for name, path in repos.items()
         ]
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps({"schema_version": 1, "common_runtime_root": str(runtime), "goals": [goal]}, indent=2)
         + "\n",

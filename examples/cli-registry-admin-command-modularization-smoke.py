@@ -72,7 +72,7 @@ def write_fixture(project: Path) -> tuple[Path, Path, Path, Path]:
     doc_registry_path = project / "DOC_REGISTRY.yaml"
     obsolete_runtime = runtime_root / "goals" / "obsolete-runtime-goal" / "runs"
     obsolete_runtime.mkdir(parents=True, exist_ok=True)
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text("# Registry Admin Smoke State\n", encoding="utf-8")
     (project / "README.md").write_text("# Registry Admin Smoke\n", encoding="utf-8")
@@ -82,7 +82,7 @@ def write_fixture(project: Path) -> tuple[Path, Path, Path, Path]:
         "objective": "Validate registry admin command modularization.",
         "domain": "smoke",
         "repo": str(project),
-        "state_file": ".codex/goals/registry-admin-smoke/ACTIVE_GOAL_STATE.md",
+        "state_file": ".loopx/goals/registry-admin-smoke/ACTIVE_GOAL_STATE.md",
         "status": "connected-read-only",
         "adapter": {"kind": "read_only_project_map_v0", "status": "connected-read-only"},
         "coordination": {
@@ -117,7 +117,7 @@ def write_fixture(project: Path) -> tuple[Path, Path, Path, Path]:
                     "id": "legacy-smoke-goal",
                     "objective": "Legacy smoke goal.",
                     "repo": str(project / "legacy-repo"),
-                    "state_file": ".codex/goals/legacy-smoke-goal/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/legacy-smoke-goal/ACTIVE_GOAL_STATE.md",
                     "status": "legacy",
                 }
             ],

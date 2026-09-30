@@ -87,7 +87,7 @@ def _write_fixture(
 ) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,7 +264,7 @@ def _heartbeat_receipt_count(runtime: Path, turn_instance_id: str) -> int:
 
 
 def _configure_read_only_todo(project: Path) -> Path:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -279,7 +279,7 @@ def _configure_read_only_todo(project: Path) -> Path:
 
 
 def _configure_repository_write_todo(project: Path) -> Path:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -294,7 +294,7 @@ def _configure_repository_write_todo(project: Path) -> Path:
 
 
 def _configure_boundary_blocked_primary(project: Path) -> Path:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -307,7 +307,7 @@ def _configure_boundary_blocked_primary(project: Path) -> Path:
 
 
 def _configure_completion_validation_todo(project: Path) -> Path:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -325,7 +325,7 @@ def _configure_selectable_alternative(
     *,
     required_capability: str | None = None,
 ) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     capability_metadata = (
         f" required_capabilities={required_capability}"
@@ -357,7 +357,7 @@ def _configure_selectable_alternative(
 
 
 def _configure_ready_deferred_priority_preemption(project: Path) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_text = state_text.replace(
         "[P1] Validate and settle the selected delivery.",
@@ -377,7 +377,7 @@ def _configure_ready_deferred_priority_preemption(project: Path) -> None:
 
 
 def _configure_runtime_capability_reentry_fixture(project: Path) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -398,7 +398,7 @@ def _append_newly_due_monitor(
     priority: str = "P0-monitor",
     watch_only: bool = False,
 ) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     watch_only_field = "watch_only=true " if watch_only else ""
     state_path.write_text(
@@ -421,7 +421,7 @@ def _append_due_monitors(
     project: Path,
     monitors: list[tuple[str, str]],
 ) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     rows = "".join(
         "- [ ] [P2-monitor] Observe an independent due target.\n"
@@ -439,7 +439,7 @@ def _append_due_monitors(
 
 
 def _append_blocking_user_gate(project: Path) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.rstrip()
@@ -475,7 +475,7 @@ def _configure_autonomous_replan_fixture(
     runtime: Path,
     registry_path: Path,
 ) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path.write_text(
         "---\n"
         "status: active\n"
@@ -545,7 +545,7 @@ def _configure_selected_todo_replan_fixture(
     project: Path,
     registry_path: Path,
 ) -> None:
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     todo_rows = "\n".join(
         (
             f"- [ ] [P1] Validate bounded slice {index}.\n"
@@ -746,7 +746,7 @@ def test_codex_app_refresh_stages_validated_memory_and_spend_finalizes_hook(
         "  }))\n",
         encoding="utf-8",
     )
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     validation_argv = quote(
         json.dumps([sys.executable, str(validator)], separators=(",", ":")),
@@ -1515,7 +1515,7 @@ def test_in_flight_progress_settles_while_completion_validation_todo_is_open(
     )
     assert spend_rc == 0, spend
     assert spend["settlement_progress"]["state"] == "settled", spend
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     current_todo = next(
         item for item in parse_active_state_todos(
             state_path.read_text(encoding="utf-8"), item_limit=None
@@ -1530,7 +1530,7 @@ def test_open_completion_todo_accepts_only_matching_in_flight_writeback(
 ) -> None:
     project, _runtime, _registry_path = _write_fixture(tmp_path)
     _configure_completion_validation_todo(project)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     selected = next(
         item for item in parse_active_state_todos(
             state_path.read_text(encoding="utf-8"), item_limit=None
@@ -1623,7 +1623,7 @@ def test_recovery_does_not_bind_current_replan_and_reenters_same_turn(
     assert prior_rc == 0, prior
     assert prior["heartbeat_receipt"]["closeout_required"] is True
 
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_before_replan = state_path.read_text(encoding="utf-8")
     replan_backlog = "\n".join(
         f"- [ ] [P1] Review recovery breadth {index}.\n"
@@ -1931,7 +1931,7 @@ def test_prior_host_closeout_survives_hidden_todo_lifecycle(
     rc, recovery = _run_cli(registry_path, runtime, *guard, "--begin-turn")
     assert rc == 0, recovery
     assert recovery["effective_action"] == "unsettled_host_turn_recovery"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     with state.open("a") as stream:
         for index in range(hidden_count):
             stream.write(
@@ -2035,7 +2035,7 @@ def test_prior_host_closeout_reads_archived_exact_todo(
     assert rc == 0, prior
     assert prior["heartbeat_receipt"]["closeout_required"] is True
 
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     if provider != "legacy":
         rc, listed = _run_cli(
             registry_path, runtime, "todo", "list", "--goal-id", GOAL_ID
@@ -2506,7 +2506,7 @@ def test_same_turn_identityless_guard_upgrades_and_settles_full_chain(
         tmp_path,
         required_capability="network",
     )
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path.write_text(
         state_path.read_text(encoding="utf-8").replace(
             "action_kind=validate ",
@@ -2797,7 +2797,7 @@ def test_visible_goal_continuation_begins_turn_and_executes_returned_selection(
         thin=True,
     )
     guard_command = prompt["quota_guard_command"].replace(
-        "$HOME/.codex/loopx/registry.global.json",
+        "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json",
         str(registry_path),
     )
 
@@ -2860,7 +2860,7 @@ def test_visible_goal_capability_reentry_preserves_turn_through_selection(
         thin=True,
     )
     guard_command = prompt["quota_guard_command"].replace(
-        "$HOME/.codex/loopx/registry.global.json",
+        "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json",
         str(registry_path),
     )
 
@@ -3416,7 +3416,7 @@ def test_agent_can_select_eligible_todo_outside_bounded_suggestions(
 def _configure_deep_alternative(project: Path, *, fillers: int = 9) -> None:
     """Add one owned advancement Todo beyond every bounded suggestion lane."""
 
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     filler_rows = "".join(
         f"- [ ] [P1] Advance filler delivery {index}.\n"
         f"  <!-- loopx:todo todo_id=todo_fixture_filler_{index} status=open "
@@ -3517,7 +3517,7 @@ def test_same_turn_can_select_eligible_todo_created_after_unbound_receipt(
     assert first_rc == 0, first
     assert "settlement_identity" not in first["heartbeat_receipt"]
 
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -3607,7 +3607,7 @@ def test_unsuggested_selection_revalidates_current_capability_readiness(
 ) -> None:
     project, runtime, registry_path = _write_fixture(tmp_path)
     _configure_selectable_alternative(project)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_text = state_path.read_text(encoding="utf-8")
     state_path.write_text(
         state_text.replace(
@@ -3774,7 +3774,7 @@ def test_pending_deferred_p0_allows_independent_p1_selection(
 ) -> None:
     project, runtime, registry_path = _write_fixture(tmp_path)
     _configure_selectable_alternative(project)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path.write_text(
         state_path.read_text(encoding="utf-8").rstrip()
         + "\n- [ ] [P0] Wait for the future resume condition.\n"
@@ -3814,7 +3814,7 @@ def test_same_turn_bound_p0_does_not_project_p1_after_p0_becomes_deferred(
         isolate_sqlite_runtime(tmp_path, monkeypatch)
     project, runtime, registry_path = _write_fixture(tmp_path)
     _configure_selectable_alternative(project)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path.write_text(
         state_path.read_text(encoding="utf-8").replace(
             "[P1] Validate and settle the selected delivery.",
@@ -4075,7 +4075,7 @@ def test_selection_added_after_pending_guard_reports_final_boundary(
 
     project, runtime, registry_path = _write_fixture(tmp_path)
     _configure_selectable_alternative(project)
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     items = list_goal_todos(
         registry_path=registry_path,
         goal_id=GOAL_ID,
@@ -5567,7 +5567,7 @@ def test_peer_refresh_rejects_implicit_canonical_workspace_before_writeback(
         json.dumps(registry, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path.write_text(
         state_path.read_text(encoding="utf-8").replace(
             "action_kind=validate -->",

@@ -242,7 +242,7 @@ def test_project_register_serializes_one_state_across_distinct_registries(
         results = list(executor.map(register, registry_paths))
 
     state_file = (
-        knowledge_root / ".codex" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
+        knowledge_root / ".loopx" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
     )
     assert all(result["ok"] is True for result in results)
     assert all(path.exists() for path in registry_paths)
@@ -335,7 +335,7 @@ def test_project_register_repeated_identical_request_is_a_noop(
     registry_before = registry_path.read_bytes()
     state_file = (
         knowledge_root
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "atlas-import"
         / "ACTIVE_GOAL_STATE.md"
@@ -545,7 +545,7 @@ def test_project_register_changed_goal_brief_fails_without_writing(
     registry_before = registry_path.read_bytes()
     state_file = (
         knowledge_root
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "atlas-import"
         / "ACTIVE_GOAL_STATE.md"
@@ -571,7 +571,7 @@ def test_project_register_removes_new_state_when_registry_write_fails(
     knowledge_root = tmp_path / "atlas"
     registry_path = knowledge_root / ".loopx" / "registry.json"
     state_file = (
-        knowledge_root / ".codex" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
+        knowledge_root / ".loopx" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
     )
     arguments = [
         "--format",
@@ -639,7 +639,7 @@ def test_project_register_removes_partial_state_when_state_write_fails(
     knowledge_root = tmp_path / "atlas"
     registry_path = knowledge_root / ".loopx" / "registry.json"
     state_file = (
-        knowledge_root / ".codex" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
+        knowledge_root / ".loopx" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
     )
     arguments = [
         "--format",
@@ -697,7 +697,7 @@ def test_project_register_recovers_exact_state_after_interruption(
     knowledge_root = tmp_path / "atlas"
     registry_path = knowledge_root / ".loopx" / "registry.json"
     state_file = (
-        knowledge_root / ".codex" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
+        knowledge_root / ".loopx" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
     )
     arguments = [
         "--format",
@@ -781,7 +781,7 @@ def test_project_register_repairs_missing_state_for_matching_records(
     knowledge_root = tmp_path / "atlas"
     registry_path = knowledge_root / ".loopx" / "registry.json"
     state_file = (
-        knowledge_root / ".codex" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
+        knowledge_root / ".loopx" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
     )
     arguments = [
         "--format",
@@ -827,7 +827,7 @@ def test_project_register_rejects_tampered_matching_state(
     knowledge_root = tmp_path / "atlas"
     registry_path = knowledge_root / ".loopx" / "registry.json"
     state_file = (
-        knowledge_root / ".codex" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
+        knowledge_root / ".loopx" / "goals" / "atlas-import" / "ACTIVE_GOAL_STATE.md"
     )
     arguments = [
         "--format",
@@ -914,7 +914,7 @@ def test_project_register_rejects_second_goal_for_existing_project(
     assert registry_path.read_bytes() == registry_before
     assert not (
         knowledge_root
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "atlas-export"
         / "ACTIVE_GOAL_STATE.md"

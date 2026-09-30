@@ -21,7 +21,7 @@ DOC = REPO_ROOT / "docs" / "operations" / "authority-source-registration.md"
 def write_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = ".codex/goals/doc-registry-authority-import-goal/ACTIVE_GOAL_STATE.md"
+    state_file = ".loopx/goals/doc-registry-authority-import-goal/ACTIVE_GOAL_STATE.md"
     registry = project / ".loopx" / "registry.json"
     doc_registry = project / "external" / "DOC_REGISTRY.yaml"
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)

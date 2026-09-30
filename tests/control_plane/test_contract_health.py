@@ -46,7 +46,7 @@ def _registry(tmp_path: Path) -> tuple[Path, Path, Path]:
     public_file.write_text("# Public\n", encoding="utf-8")
     goals = []
     for goal_id, malformed in ((GOAL_A, False), (GOAL_A_LONG, True)):
-        state_file = tmp_path / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+        state_file = tmp_path / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
         _write_state(state_file, malformed_user_todo=malformed)
         goals.append(
             {
@@ -60,7 +60,7 @@ def _registry(tmp_path: Path) -> tuple[Path, Path, Path]:
             }
         )
     registry_path = tmp_path / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

@@ -38,7 +38,7 @@ def write_registry(root: Path) -> Path:
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     goals = []
     for goal_id in ("project-a", "project-b"):
-        state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+        state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
         (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
         (project / state_file).write_text(
             "---\nstatus: active\nupdated_at: 2026-01-01T00:00:00+00:00\n---\n"

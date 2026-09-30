@@ -279,7 +279,7 @@ def assert_attention_item_parity() -> None:
         "lifecycle_flags": ["connected", "active_state"],
         "user_todos": {"open_count": 0, "items": []},
         "agent_todos": fixture_todos(),
-        "todo_state_file": ".codex/goals/loopx-meta/ACTIVE_GOAL_STATE.md",
+        "todo_state_file": ".loopx/goals/loopx-meta/ACTIVE_GOAL_STATE.md",
         "dreaming_proposal": {
             "kind": "dreaming_refactor_warning",
             "recommended_action": "split the projection builder",
@@ -299,7 +299,7 @@ def assert_active_state_todo_fields_redacts_review_material_paths() -> None:
         material = project / "docs" / "notes.md"
         material.parent.mkdir(parents=True, exist_ok=True)
         material.write_text("# Notes\n", encoding="utf-8")
-        state_path = project / ".codex" / "goals" / "loopx-meta" / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / "loopx-meta" / "ACTIVE_GOAL_STATE.md"
         state_path.parent.mkdir(parents=True, exist_ok=True)
         state_text = "\n".join(
             [
@@ -313,7 +313,7 @@ def assert_active_state_todo_fields_redacts_review_material_paths() -> None:
         goal = {
             "id": "loopx-meta",
             "repo": str(project),
-            "state_file": ".codex/goals/loopx-meta/ACTIVE_GOAL_STATE.md",
+            "state_file": ".loopx/goals/loopx-meta/ACTIVE_GOAL_STATE.md",
         }
 
         raw_fields = status_module.parse_active_state_todos(

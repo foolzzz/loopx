@@ -78,7 +78,7 @@ def run_promotion_gate(env: dict[str, str], runtime: Path) -> dict:
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     home = root / "home"
     project = root / "project"
-    runtime = home / ".codex" / "loopx"
+    runtime = home / ".loopx"
     registry_path = project / ".loopx" / "registry.json"
 
     home.mkdir(parents=True, exist_ok=True)

@@ -86,7 +86,7 @@ def write_command_fixture(tmp_path: Path) -> tuple[Path, Path]:
 	project = tmp_path / "project"
 	runtime_root = tmp_path / "runtime"
 	registry = project / ".loopx" / "registry.json"
-	state_file = project / ".codex" / "goals" / "perf-goal" / "ACTIVE_GOAL_STATE.md"
+	state_file = project / ".loopx" / "goals" / "perf-goal" / "ACTIVE_GOAL_STATE.md"
 	state_file.parent.mkdir(parents=True)
 	state_file.write_text(
 		"""---
@@ -105,7 +105,7 @@ updated_at: 2026-08-28T00:00:00+00:00
 """,
 		encoding="utf-8",
 	)
-	registry.parent.mkdir(parents=True)
+	registry.parent.mkdir(parents=True, exist_ok=True)
 	registry.write_text(
 		json.dumps(
 			{
@@ -118,7 +118,7 @@ updated_at: 2026-08-28T00:00:00+00:00
 						"domain": "cli-dispatch-test",
 						"status": "active-read-only",
 						"repo": str(project),
-						"state_file": ".codex/goals/perf-goal/ACTIVE_GOAL_STATE.md",
+						"state_file": ".loopx/goals/perf-goal/ACTIVE_GOAL_STATE.md",
 						"adapter": {
 							"kind": "read_only_project_map_v0",
 							"status": "connected-read-only",

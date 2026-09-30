@@ -23,7 +23,7 @@ describe('GoalBar source revision', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'loopx-goalbar-revision-'))
     try {
       const registryDir = join(cwd, '.loopx')
-      const stateDir = join(cwd, '.codex', 'goals', goalId)
+      const stateDir = join(cwd, '.loopx', 'goals', goalId)
       await mkdir(registryDir, { recursive: true })
       await mkdir(stateDir, { recursive: true })
       const registry = join(registryDir, 'registry.json')

@@ -55,7 +55,7 @@ def _bare_remote(tmp_path: Path, repo: Path) -> Path:
 def _fixture(tmp_path: Path, monkeypatch, *, model: str = "role_v1", on_push_command: Any = None) -> dict:
     for key, value in git_env(tmp_path).items():
         monkeypatch.setenv(key, value)
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # never the real ~/.codex/loopx
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # never the real ~/.loopx
     home = tmp_path / "progress"
     home.mkdir()
     state = home / "ACTIVE_GOAL_STATE.md"

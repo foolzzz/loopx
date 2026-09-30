@@ -34,17 +34,17 @@ def write_json(path: Path, payload: dict[str, object]) -> None:
 def seed_fixture(root: Path) -> tuple[Path, Path, Path]:
     home = root / "home"
     codex_home = home / ".codex"
-    runtime = codex_home / "loopx"
+    runtime = home / ".loopx"
     project = root / "project"
 
     write_json(project / ".loopx" / "registry.json", {"schema_version": "0.1", "goals": [{"id": "fixture"}]})
-    write_text(project / ".codex" / "goals" / "fixture" / "ACTIVE_GOAL_STATE.md", "# fixture\n")
+    write_text(project / ".loopx" / "goals" / "fixture" / "ACTIVE_GOAL_STATE.md", "# fixture\n")
     write_text(project / ".claude" / "goals" / "fixture" / "ACTIVE_GOAL_STATE.md", "# claude fixture\n")
     write_text(project / ".local" / "goals" / "fixture" / "ACTIVE_GOAL_STATE.md", "# local fixture\n")
 
     remote_project = root / "remote-project"
     remote_registry = remote_project / ".loopx" / "registry.json"
-    remote_state = remote_project / ".codex" / "goals" / "remote" / "ACTIVE_GOAL_STATE.md"
+    remote_state = remote_project / ".loopx" / "goals" / "remote" / "ACTIVE_GOAL_STATE.md"
     write_json(remote_registry, {"schema_version": "0.1", "goals": [{"id": "remote"}]})
     write_text(remote_state, "# remote fixture\n")
     write_json(
@@ -55,13 +55,13 @@ def seed_fixture(root: Path) -> tuple[Path, Path, Path]:
                 {
                     "id": "fixture",
                     "repo": str(project),
-                    "state_file": ".codex/goals/fixture/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/fixture/ACTIVE_GOAL_STATE.md",
                     "source_registry": str(project / ".loopx" / "registry.json"),
                 },
                 {
                     "id": "remote",
                     "repo": str(remote_project),
-                    "state_file": ".codex/goals/remote/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/remote/ACTIVE_GOAL_STATE.md",
                     "source_registry": str(remote_registry),
                 },
                 {
@@ -130,15 +130,15 @@ def assert_archive(payload: dict[str, object]) -> None:
     }
     assert "runtime-root/registry.global.json" in names, names
     assert "project/.loopx/registry.json" in names, names
-    assert "project/.codex/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
+    assert "project/.loopx/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
     assert "project/.claude/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
     assert "project/.local/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
     assert "codex/automations/fixture.json" in names, names
     assert "codex/skills/loopx-fixture/SKILL.md" in names, names
-    remote_goals = included["registry_project_codex_goals:remote"]
+    remote_loopx = included["registry_project_loopx:remote"]
     remote_state = included["registry_active_state:remote"]
     remote_registry = included["registry_source_registry:remote"]
-    assert f"{remote_goals['archive_path']}/remote/ACTIVE_GOAL_STATE.md" in names, names
+    assert f"{remote_loopx['archive_path']}/goals/remote/ACTIVE_GOAL_STATE.md" in names, names
     assert str(remote_state["archive_path"]) in names, names
     assert str(remote_registry["archive_path"]) in names, names
     assert "manifest.json" in names, names

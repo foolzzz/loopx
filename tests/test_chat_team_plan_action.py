@@ -19,7 +19,7 @@ _PREVIEWS = itertools.count(1)
 
 def _fixture(tmp_path: Path, *, agents: tuple[str, ...] = (AGENT_ID,)):
     project = tmp_path / "project"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
@@ -104,7 +104,7 @@ def _preview(service: ChatActionService, plan: dict | None = None) -> dict:
 
 
 def _todos(project: Path) -> str:
-    return (project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
+    return (project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md").read_text(
         encoding="utf-8"
     )
 
@@ -134,7 +134,7 @@ def _card_delivery(*, message_id: str, chat_id: str) -> dict:
 def _rewrite_objective(project: Path, objective: str) -> None:
     """Change only the intent the plan was reviewed against, not the registry."""
 
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     text = state_path.read_text(encoding="utf-8")
     head, _, tail = text.partition("\n---")
     updated = "\n".join(
@@ -444,7 +444,7 @@ def test_lost_response_recovers_original_commit_after_work_changes(tmp_path: Pat
     assert service.apply(preview["proposal_id"])["proposal"]["status"] == "failed"
     assert _todos(project).count("loopx:todo ") == (1 if has_gap else 2)
     monkeypatch.undo()
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     # A receiver's later edit must survive historical commit recovery.
     state.write_text(state.read_text().replace("Advance the intake contract", "Receiver revised the work"))
     before = state.read_bytes()

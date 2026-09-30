@@ -25,7 +25,7 @@ PRIVATE_DOC_MARKER = "https://" + "la" + "rk" + "office.example/doc"
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_rel = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_rel = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_file = project / state_rel
     registry_path = project / ".loopx" / "registry.json"
     public_doc = project / "README.md"
@@ -55,7 +55,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
             encoding="utf-8",
         )
 
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -226,7 +226,7 @@ def main() -> int:
             encoding="utf-8",
         )
         state_file = (
-            project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+            project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         )
         state_text = state_file.read_text(encoding="utf-8")
         assert " status=open " in state_text, state_text

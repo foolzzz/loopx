@@ -25,7 +25,7 @@ def package_version() -> str:
 def write_fixture(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(
         "---\n"
@@ -52,7 +52,7 @@ def write_fixture(root: Path) -> Path:
                         "domain": "fixture",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {
                             "kind": "harness_self_improvement",
                             "status": "connected-read-only",

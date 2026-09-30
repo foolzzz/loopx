@@ -48,7 +48,7 @@ def goal(goal_id: str, repo: Path, source_registry: Path) -> dict[str, object]:
         "id": goal_id,
         "repo": str(repo),
         "source_registry": str(source_registry),
-        "state_file": f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md",
+        "state_file": f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md",
         "status": "active",
     }
 
@@ -62,7 +62,7 @@ def main() -> None:
         live_source_repo = root / "live-source-repo"
         live_source = live_source_repo / ".loopx" / "registry.json"
         live_state_repo = root / "live-state-repo"
-        live_state = live_state_repo / ".codex" / "goals" / "live-state" / "ACTIVE_GOAL_STATE.md"
+        live_state = live_state_repo / ".loopx" / "goals" / "live-state" / "ACTIVE_GOAL_STATE.md"
         write_json(live_source, {"schema_version": "0.1", "goals": []})
         live_state.parent.mkdir(parents=True, exist_ok=True)
         live_state.write_text("# Live State\n", encoding="utf-8")

@@ -104,7 +104,7 @@ def test_generate_filters_real_registry(
     goals = []
     for goal_id in ("sample-a", "sample-b"):
         project = tmp_path / goal_id
-        state = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+        state = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
         state.parent.mkdir(parents=True)
         state.write_text(
             "---\nstatus: active-read-only\nowner_mode: goal\n"

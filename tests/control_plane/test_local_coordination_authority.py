@@ -759,7 +759,7 @@ def test_promoted_native_create_recovers_markdown_after_delivery_crash(
 ) -> None:
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     source = """# Goal
 
@@ -783,7 +783,7 @@ Continue.
                         "id": "goal-a",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
                         "coordination": {
                             "registered_agents": ["agent-a", "agent-b"]
                         },
@@ -1081,7 +1081,7 @@ def test_todo_list_uses_provider_after_cutover_even_when_markdown_disagrees(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "# Goal\n\n## Agent Todos\n\n- [ ] stale Markdown Todo <!-- loopx:todo todo_id=todo_stale status=open -->\n",
@@ -1099,7 +1099,7 @@ def test_todo_list_uses_provider_after_cutover_even_when_markdown_disagrees(
                         "id": "goal-a",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
                         "coordination": {"registered_agents": ["agent-a", "agent-b"]},
                     }
                 ],
@@ -1142,7 +1142,7 @@ def test_canonical_hard_lease_claim_cli_atomically_acquires_ownership(
 ) -> None:
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# Goal\n", encoding="utf-8")
     registry_path = tmp_path / "registry.json"
@@ -1156,7 +1156,7 @@ def test_canonical_hard_lease_claim_cli_atomically_acquires_ownership(
                         "id": "goal-a",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
                         "coordination": {
                             "registered_agents": ["agent-a", "agent-b"]
                         },
@@ -1311,7 +1311,7 @@ def test_promoted_terminal_lifecycle_commits_successors_and_archive_natively(
 ) -> None:
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     validation_argv = ["python3", "-c", "raise SystemExit(0)"]
     complete_metadata = format_todo_metadata_line(
@@ -1362,7 +1362,7 @@ Continue provider-first delivery.
                         "id": "goal-a",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
                         "coordination": {
                             "agent_model": "peer_v1",
                             "registered_agents": ["agent-a", "agent-b"],
@@ -2064,7 +2064,7 @@ def test_real_canonical_provider_preserves_complete_complex_todo_semantics(
 
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# Goal\n", encoding="utf-8")
     registry_path = tmp_path / "registry.json"
@@ -2078,7 +2078,7 @@ def test_real_canonical_provider_preserves_complete_complex_todo_semantics(
                         "id": "goal-a",
                         "status": "active",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
                         "coordination": {"registered_agents": ["agent-a", "agent-b"]},
                     }
                 ],

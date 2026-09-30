@@ -20,7 +20,7 @@ def _project(root: Path, *, orphaned_state: bool) -> tuple[Path, Path]:
     readme = project / "README.md"
     readme.write_text("# Diagnose orphan fixture\n", encoding="utf-8")
     if orphaned_state:
-        state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         state.parent.mkdir(parents=True)
         state.write_text("# State left by a retired Goal\n", encoding="utf-8")
     return registry, readme
@@ -71,7 +71,7 @@ def test_diagnose_blocks_an_explicit_goal_with_orphaned_state(
     assert selected["waiting_on"] == "operator"
     assert selected["severity"] == "high"
     gate = selected["orphaned_goal_state"]
-    assert gate["state_file_routes"] == [f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"]
+    assert gate["state_file_routes"] == [f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"]
     assert gate["forbidden_until_resolved"] == [
         "bootstrap",
         "agent_registration",
@@ -137,7 +137,7 @@ def test_diagnose_markdown_exposes_the_orphan_without_mutation_commands(
     assert exit_code == 1
     output = capsys.readouterr().out
     assert "## Orphaned Goal State" in output
-    assert f"`.codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md`" in output
+    assert f"`.loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md`" in output
     assert "`quota_spend`" in output
     assert " quota should-run " not in output
     assert "--execute" not in output

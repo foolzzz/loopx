@@ -27,7 +27,7 @@ def test_refuses_existing_work_and_symlink(tmp_path):
 
 def test_real_state_replay_is_local_and_repeatable(tmp_path, monkeypatch):
     home = tmp_path / "personal-home"
-    registry = home / ".codex" / "loopx" / "registry.global.json"
+    registry = home / ".loopx" / "registry.global.json"
     registry.parent.mkdir(parents=True)
     registry.write_text('{"sentinel": "personal registry"}')
     monkeypatch.setenv("HOME", str(home))

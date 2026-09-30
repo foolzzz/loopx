@@ -230,7 +230,7 @@ def append_orphan_runtime_fixture(root: Path, *, goal_id: str, generated_at: str
 
 def append_stale_state_projection_fixture(root: Path) -> None:
     goal_id = "planned-main-control"
-    state_path = root / "project" / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_path = root / "project" / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     old_state_text = state_path.read_text(encoding="utf-8")
     old_state_text = old_state_text.replace(
         "updated_at: 2026-01-01T00:00:00+00:00",

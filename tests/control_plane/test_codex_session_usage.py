@@ -445,7 +445,7 @@ def test_book_codex_session_usage_fails_closed_on_invalid_baseline_without_appen
 
 def _goal_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     project = tmp_path / "project"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text("# Active Goal State\n", encoding="utf-8")
     registry_path = tmp_path / "registry.json"

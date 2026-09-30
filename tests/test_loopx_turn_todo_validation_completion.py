@@ -109,7 +109,7 @@ def _run_once(project: Path, runtime: Path, registry: Path, executable: Path, wo
 
 
 def _state(project: Path) -> str:
-    return (project / ".codex" / "goals" / GOAL / "ACTIVE_GOAL_STATE.md").read_text(encoding="utf-8")
+    return (project / ".loopx" / "goals" / GOAL / "ACTIVE_GOAL_STATE.md").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(

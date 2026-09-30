@@ -1367,7 +1367,7 @@ def test_legacy_watch_ack_cannot_close_current_agent_frontier(tmp_path) -> None:
         tmp_path / "fixture",
         scoped_agents=True,
     )
-    state_path = project / ".codex" / "goals" / "half-speed" / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / "half-speed" / "ACTIVE_GOAL_STATE.md"
     _append_bounded_watch_todo(state_path, claimed_by=SCOPED_AGENT_ID)
     peer_agent_id = "codex-main-control"
     current_frontier = "current-agent-frontier"
@@ -1471,7 +1471,7 @@ def test_legacy_watch_ack_cannot_cross_material_run_with_todo_evidence(
         tmp_path / "fixture",
         scoped_agents=True,
     )
-    state_path = project / ".codex" / "goals" / "half-speed" / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / "half-speed" / "ACTIVE_GOAL_STATE.md"
     _append_bounded_watch_todo(state_path, claimed_by=SCOPED_AGENT_ID)
     target_id = "postdelivery-watch-target"
     poll = {

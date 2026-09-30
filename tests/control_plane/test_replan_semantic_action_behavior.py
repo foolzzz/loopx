@@ -659,7 +659,7 @@ def test_successor_dry_run_shares_quota_agent_scope_for_user_gates(
         registry_path.write_text(registry_text, encoding="utf-8")
     state_path = (
         fixture.project_root
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "replan-semantic-action-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -712,7 +712,7 @@ def test_stale_successor_obligation_is_rejected_before_todo_mutation(
     fixture = _build_fixture(tmp_path / "fixture")
     state_path = (
         fixture.project_root
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "replan-semantic-action-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -741,7 +741,7 @@ def test_untyped_successor_is_rejected_before_todo_mutation(
     fixture = _build_fixture(tmp_path / "fixture")
     state_path = (
         fixture.project_root
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "replan-semantic-action-fixture"
         / "ACTIVE_GOAL_STATE.md"

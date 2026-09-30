@@ -313,7 +313,7 @@ def main() -> int:
                             "id": "example-goal",
                             "status": "active",
                             "repo": str(project),
-                            "state_file": ".codex/goals/example-goal/ACTIVE_GOAL_STATE.md",
+                            "state_file": ".loopx/goals/example-goal/ACTIVE_GOAL_STATE.md",
                             "adapter": {
                                 "kind": "read_only_project_map_v0",
                                 "status": "connected-read-only",
@@ -331,7 +331,7 @@ def main() -> int:
         )
         state_file = (
             project
-            / ".codex"
+            / ".loopx"
             / "goals"
             / "example-goal"
             / "ACTIVE_GOAL_STATE.md"

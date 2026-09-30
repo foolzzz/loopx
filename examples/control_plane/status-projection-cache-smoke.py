@@ -26,7 +26,7 @@ PRIVATE_DOC_MARKER = "https://" + "la" + "rk" + "office.example/doc"
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_rel = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_rel = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_file = project / state_rel
     registry_path = project / ".loopx" / "registry.json"
     public_doc = project / "README.md"
@@ -46,7 +46,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     )
     public_doc.write_text("Public smoke fixture for status projection cache.\n", encoding="utf-8")
 
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

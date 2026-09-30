@@ -98,7 +98,7 @@ def test_existing_state_migration_preserves_recognized_legacy_source_heading() -
 
 
 def test_bootstrap_repairs_existing_state_todo_sources_in_place(tmp_path) -> None:
-    state_file = tmp_path / ".codex/goals/goal-terminal-test/ACTIVE_GOAL_STATE.md"
+    state_file = tmp_path / ".loopx/goals/goal-terminal-test/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         """\

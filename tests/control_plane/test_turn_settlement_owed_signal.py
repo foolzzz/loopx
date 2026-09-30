@@ -48,7 +48,7 @@ def _append_guard_receipt(runtime_root: Path, identity: SettlementIdentity) -> N
 
 def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     project = tmp_path / "project"
-    state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_path.parent.mkdir(parents=True)
     state_path.write_text(STATE_TEXT, encoding="utf-8")
     registry_path = tmp_path / "registry.json"

@@ -555,9 +555,9 @@ def test_tool_loop_allows_bounded_state_and_fallback_discovery(
     commands = [
         fixture.quota_guard_command.replace('"${LOOPX_TURN:?}"', "turn-001"),
         (
-            'ls -la ~/.codex/loopx/ 2>/dev/null; echo "---"; '
-            'find ~/.codex/loopx -maxdepth 3 -name "fixture" -type d '
-            '2>/dev/null; echo "---"; find ~/.codex/loopx '
+            'ls -la ~/.loopx/ 2>/dev/null; echo "---"; '
+            'find ~/.loopx -maxdepth 3 -name "fixture" -type d '
+            '2>/dev/null; echo "---"; find ~/.loopx '
             '-name "selected-lane.json" 2>/dev/null'
         ),
         (
@@ -595,7 +595,7 @@ def test_tool_loop_treats_fixture_state_read_as_metadata(
     tmp_path: Path,
 ) -> None:
     fixture = _build_fixture(tmp_path / "oracle")
-    state_path = ".codex/goals/portfolio-goal/ACTIVE_GOAL_STATE.md"
+    state_path = ".loopx/goals/portfolio-goal/ACTIVE_GOAL_STATE.md"
     commands = [
         fixture.quota_guard_command.replace('"${LOOPX_TURN:?}"', "turn-001"),
         f"sed -n 1,120p {state_path}",
@@ -632,9 +632,9 @@ def test_tool_loop_allows_bounded_hermetic_registry_preview(
     commands = [
         fixture.quota_guard_command.replace('"${LOOPX_TURN:?}"', "turn-001"),
         (
-            'ls -la ~/.codex/loopx/ 2>/dev/null; echo "---"; '
-            'ls -la ~/.codex/loopx/projects/ 2>/dev/null; echo "---"; '
-            "cat ~/.codex/loopx/registry.global.json 2>/dev/null | head -200"
+            'ls -la ~/.loopx/ 2>/dev/null; echo "---"; '
+            'ls -la ~/.loopx/projects/ 2>/dev/null; echo "---"; '
+            "cat ~/.loopx/registry.global.json 2>/dev/null | head -200"
         ),
         "cat fixture/selected-lane.json",
     ]

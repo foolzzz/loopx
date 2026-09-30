@@ -655,7 +655,7 @@ describe('GoalBar Host read/watch', () => {
 
   it('retries a read when the active state is atomically replaced during CLI reads', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'loopx-goalbar-stable-read-'))
-    const stateDir = join(cwd, '.codex', 'goals', goalId)
+    const stateDir = join(cwd, '.loopx', 'goals', goalId)
     await mkdir(join(cwd, '.loopx'), { recursive: true })
     await mkdir(stateDir, { recursive: true })
     await writeFile(join(cwd, '.loopx', 'registry.json'), '{"goals":[]}', 'utf8')

@@ -33,7 +33,7 @@ AGENT_ID = "codex-quality-qualification"
 def _write_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     project = tmp_path / "project"
     runtime = tmp_path / "runtime"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     registry = project / ".loopx" / "registry.json"
     state.parent.mkdir(parents=True)
     state.write_text(

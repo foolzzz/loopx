@@ -15,11 +15,11 @@ AGENT_ID = "codex-guided-program"
 
 def _write_connected_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {

@@ -98,7 +98,7 @@ def run_cli_result(root: Path, *args: str, registry_path: Path, runtime: Path) -
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -186,7 +186,7 @@ def count_events(runtime: Path, classification: str, *, goal_id: str = GOAL_ID) 
 def write_monitor_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "monitor-project"
     runtime = root / "monitor-runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -281,7 +281,7 @@ def write_external_evidence_fixture(
 ) -> tuple[Path, Path, Path]:
     project = root / "external-evidence-project"
     runtime = root / "external-evidence-runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -355,7 +355,7 @@ def write_external_evidence_fixture(
 def write_external_monitor_advancement_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "external-monitor-advancement-project"
     runtime = root / "external-monitor-advancement-runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -439,7 +439,7 @@ def write_external_monitor_advancement_fixture(root: Path) -> tuple[Path, Path, 
 def write_scoped_future_external_monitor_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "scoped-future-external-monitor-project"
     runtime = root / "scoped-future-external-monitor-runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -528,7 +528,7 @@ def write_scoped_future_external_monitor_fixture(root: Path) -> tuple[Path, Path
 def write_operator_gate_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "operator-gate-project"
     runtime = root / "operator-gate-runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)

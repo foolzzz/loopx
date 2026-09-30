@@ -122,14 +122,14 @@ def direct_active_state_event_projection_fields(goal: dict, *, state_path: Path)
 def test_event_projection_preferred() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-status-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         write_active_state(state_path)
         append_event_todos(state_path.with_name("events.jsonl"))
 
         goal = {
             "id": GOAL_ID,
             "repo": str(project),
-            "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+            "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         }
         projection_fields = status_module.active_state_event_projection_fields(goal, state_path=state_path)
         assert projection_fields == direct_active_state_event_projection_fields(goal, state_path=state_path), (
@@ -147,12 +147,12 @@ def test_event_projection_preferred() -> None:
 def test_markdown_fallback_without_valid_event_log() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-event-status-fallback-") as tmp:
         project = Path(tmp)
-        state_path = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+        state_path = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
         write_active_state(state_path)
         goal = {
             "id": GOAL_ID,
             "repo": str(project),
-            "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+            "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
         }
 
         projection_fields = status_module.active_state_event_projection_fields(goal, state_path=state_path)

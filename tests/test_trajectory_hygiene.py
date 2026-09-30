@@ -93,12 +93,12 @@ def test_history_trajectory_hygiene_cli_reads_compact_index_only(tmp_path: Path)
     project = tmp_path / "project"
     runtime = tmp_path / "runtime"
     goal_id = "trajectory-hygiene-fixture"
-    state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text("---\nupdated_at: 2026-01-01T00:00:00+00:00\n---\n", encoding="utf-8")
 
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

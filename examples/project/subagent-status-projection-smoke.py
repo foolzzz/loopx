@@ -27,7 +27,7 @@ PRIVATE_LOCAL_PATH = "/" + "Users/example/private.txt"
 def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     run_dir = runtime / "goals" / GOAL_ID / "runs"
 

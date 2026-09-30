@@ -1,10 +1,12 @@
 """Refuse test access to the real user LoopX roots.
 
 Tests must keep LoopX state under temporary directories. The owner's live
-roots may be in use while the suite runs: the runtime root (``~/.codex/loopx``)
-by a running dispatcher, and ``~/.loopx`` (the home registry and machine-scoped
-leases such as the Lark event consumer locks under ``lark-consumers/``) by a
-running chat server. This guard never inspects either directory. It installs a
+roots may be in use while the suite runs: the runtime root (``~/.loopx``, which
+also holds the home registry and machine-scoped leases such as the Lark event
+consumer locks under ``lark-consumers/``) by a running dispatcher or chat
+server. The pre-``~/.loopx`` runtime root ``~/.codex/loopx`` stays protected so
+that code still writing there fails here instead of on the owner's machine.
+This guard never inspects any of these directories. It installs a
 Python audit hook that checks the path arguments of the audited filesystem
 events listed in ``_PATH_ARGUMENTS`` (``open``, ``os.mkdir``, ``os.remove``,
 ``os.rename``, ``os.listdir``, ``os.scandir``, ``shutil.rmtree`` and similar),
@@ -113,11 +115,13 @@ _installed = False
 _reporting = False
 
 
-def home_roots(home: str | os.PathLike[str]) -> tuple[str, str]:
-    """Return the LoopX roots under ``home``: the default runtime root and ``.loopx``."""
+def legacy_home_roots(home: str | os.PathLike[str]) -> tuple[str, ...]:
+    """Return the retired LoopX runtime roots under ``home``: ``~/.codex/loopx``.
 
-    home = os.path.abspath(os.fspath(home))
-    return os.path.join(home, ".codex", "loopx"), os.path.join(home, ".loopx")
+    The current roots come from ``loopx.paths``; this module must not import it.
+    """
+
+    return (os.path.join(os.path.abspath(os.fspath(home)), ".codex", "loopx"),)
 
 
 def configure(protected_roots: list[str], report_path: str) -> None:

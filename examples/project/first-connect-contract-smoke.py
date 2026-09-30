@@ -59,12 +59,12 @@ def initialize_project(root: Path, name: str) -> tuple[Path, Path]:
     subprocess.run(["git", "init", "-q"], cwd=project, check=True)
     readme = project / "README.md"
     readme.write_text("# Synthetic first-connect fixture\n", encoding="utf-8")
-    (project / ".gitignore").write_text(".loopx/\n.codex/\n.local/\n", encoding="utf-8")
+    (project / ".gitignore").write_text(".loopx/\n.local/\n", encoding="utf-8")
     return project, readme
 
 
 def state_path(project: Path, goal_id: str) -> Path:
-    return project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    return project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
 
 
 def assert_no_first_connect_projection(state_text: str, *, label: str) -> None:

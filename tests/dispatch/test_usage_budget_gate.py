@@ -71,7 +71,7 @@ def _fixture(tmp_path: Path, *, other_goal: bool = False) -> dict[str, Any]:
     if other_goal:
         registry = json.loads(fixture["registry"].read_text(encoding="utf-8"))
         goal = json.loads(json.dumps(registry["goals"][0]))
-        state = fixture["project"] / ".codex" / "goals" / OTHER_GOAL / "ACTIVE_GOAL_STATE.md"
+        state = fixture["project"] / ".loopx" / "goals" / OTHER_GOAL / "ACTIVE_GOAL_STATE.md"
         state.parent.mkdir(parents=True)
         state.write_text(fixture["state"].read_text(encoding="utf-8"), encoding="utf-8")
         goal.update(id=OTHER_GOAL, state_file=str(state.relative_to(fixture["project"])))

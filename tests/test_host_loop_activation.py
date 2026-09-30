@@ -41,11 +41,11 @@ def _write_onboarding_goal(
 ) -> tuple[Path, Path]:
     project = tmp_path / "project"
     home = tmp_path / "home"
-    state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     project_registry = project / ".loopx" / "registry.json"
-    global_registry = home / ".codex" / "loopx" / "registry.global.json"
+    global_registry = home / ".loopx" / "registry.global.json"
     state_file.parent.mkdir(parents=True)
-    project_registry.parent.mkdir(parents=True)
+    project_registry.parent.mkdir(parents=True, exist_ok=True)
     global_registry.parent.mkdir(parents=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
     registry = {
@@ -378,7 +378,7 @@ def test_heartbeat_prompt_commands_keep_explicit_runtime_root() -> None:
     assert payload["thin_prompt_command"].startswith(
         f"{command_prefix} heartbeat-prompt "
     )
-    assert '"$HOME/.codex/loopx/registry.global.json"' not in payload["task_body"]
+    assert '"${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json"' not in payload["task_body"]
     assert f"--runtime-root {runtime_root}" in payload["task_body"]
 
 
@@ -776,8 +776,8 @@ def test_traex_cli_is_an_exact_visible_goal_host_on_the_generic_cli_loop() -> No
 def test_traex_activation_command_renders_visible_goal_task_body(tmp_path: Path) -> None:
     goal_id = "traex-visible-goal-fixture"
     project = tmp_path / "project"
-    state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
-    registry = tmp_path / ".codex" / "loopx" / "registry.global.json"
+    state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    registry = tmp_path / ".loopx" / "registry.global.json"
     state_file.parent.mkdir(parents=True)
     registry.parent.mkdir(parents=True)
     state_file.write_text("# Active Goal State\n", encoding="utf-8")
@@ -842,7 +842,7 @@ def test_connected_traex_commands_all_render_the_canonical_visible_goal(
         goal_id=goal_id,
         registered_agents=["traex-connected-agent"],
     )
-    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".codex" / "loopx"))
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".loopx"))
     packet = build_loopx_bootstrap_command_pack(
         project=project,
         goal_id=goal_id,
@@ -896,7 +896,7 @@ def test_traex_multi_agent_onboarding_choice_executes_visible_goal_command(
         goal_id=goal_id,
         registered_agents=["traex-main", "traex-reviewer"],
     )
-    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".codex" / "loopx"))
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".loopx"))
     packet = build_agent_onboarding_packet(
         project=project,
         agent_type="traex-cli",
@@ -1237,7 +1237,7 @@ def test_codex_app_startup_saves_v2_and_loads_the_current_contract(
     goal_id = "app-bootstrap-fixture"
     project, home = _write_onboarding_goal(
         tmp_path, goal_id=goal_id, registered_agents=["worker-a"])
-    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".codex" / "loopx"))
+    monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".loopx"))
     packet = build_agent_onboarding_packet(
         project=project, agent_type="codex-app", goal_id=goal_id,
         agent_id="worker-a", cli_bin=str(REPO_ROOT / "scripts" / "loopx"))

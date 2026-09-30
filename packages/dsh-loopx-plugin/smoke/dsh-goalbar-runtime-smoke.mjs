@@ -539,9 +539,9 @@ async function exercisePackedService(installed) {
     expected: { goalId, loopxAgentId },
     agentStatus: 'running',
   })
-  await mkdir(join(installed, '.codex', 'goals', goalId), { recursive: true })
+  await mkdir(join(installed, '.loopx', 'goals', goalId), { recursive: true })
   await writeFile(
-    join(installed, '.codex', 'goals', goalId, 'ACTIVE_GOAL_STATE.md'),
+    join(installed, '.loopx', 'goals', goalId, 'ACTIVE_GOAL_STATE.md'),
     'runtime smoke state revision\n',
   )
   assert.deepEqual((await externalWatch).value.result, {

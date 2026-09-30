@@ -45,7 +45,7 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
 
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
@@ -499,7 +499,7 @@ def test_markdown_proposal_reconciles_after_the_goal_gains_an_event_log(
 
     # The real producer moves the Goal to a typed event log: its first
     # state event lands through the actual AppendOnlyStateEventStore.
-    state_file = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     AppendOnlyStateEventStore(state_file.with_name("events.jsonl")).append(
         make_state_event(
             event_id="evt_lifecycle_first",

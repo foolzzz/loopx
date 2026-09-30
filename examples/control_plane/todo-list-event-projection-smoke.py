@@ -40,7 +40,7 @@ SUCCESSOR_CAPABILITIES = ["network", "external_evidence_poll"]
 def write_fixture(root: Path) -> tuple[Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     event_log = state_file.with_name("events.jsonl")
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True)
@@ -68,7 +68,7 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
         goal_id=GOAL_ID,
         domain="todo-list-fixture",
         adapter_kind="generic_project_goal_v0",
-        state_event_log=f".codex/goals/{GOAL_ID}/events.jsonl",
+        state_event_log=f".loopx/goals/{GOAL_ID}/events.jsonl",
         registered_agents=(PRIMARY_AGENT, SIDE_AGENT),
         quota_allowed_slots=None,
         extra_goal_fields={

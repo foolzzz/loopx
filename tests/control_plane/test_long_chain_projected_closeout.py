@@ -21,7 +21,7 @@ def test_managed_turn_counts_advancement_without_monitor_backlog(
 ) -> None:
     project, runtime, registry = _write_fixture(tmp_path)
     _configure_selected_todo_replan_fixture(project, registry)
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     header = state.read_text(encoding="utf-8").split("## Agent Todo\n\n")[0]
     rows = [
         f"- [ ] [P1] Validate bounded slice {index}.\n"
@@ -69,7 +69,7 @@ def test_managed_turn_counts_advancement_without_monitor_backlog(
 def test_projected_vision_replan_settles_without_a_meta_successor(tmp_path: Path) -> None:
     project, runtime, registry = _write_fixture(tmp_path)
     _configure_selected_todo_replan_fixture(project, registry)
-    state = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     # Complete material source, independently authored before admission.
     source = state.read_text().replace(" -->", " updated_at=2026-08-01T00%3A00%3A00Z -->")
     # Fourteen commitments plus a shared candidate is not this lane's long chain.

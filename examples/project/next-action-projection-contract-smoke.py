@@ -38,7 +38,7 @@ SIDE_AGENT_RUN_RECOMMENDATION = "Continue the hosted frontstage public case card
 def write_fixture(root: Path, *, include_next_action: bool = True) -> tuple[Path, Path, Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_file = f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path = project / state_file
     registry_path = project / ".loopx" / "registry.json"
 
@@ -69,7 +69,7 @@ def write_fixture(root: Path, *, include_next_action: bool = True) -> tuple[Path
         "- Fixture initialized.\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

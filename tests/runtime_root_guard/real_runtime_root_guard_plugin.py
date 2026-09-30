@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import atexit
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -36,31 +37,43 @@ _WORKER_OUTPUT_KEY = "loopx_runtime_root_unattributed"
 _unattributed: list[dict[str, object]] = []
 
 
+def session_roots() -> list[str]:
+    """Return the real LoopX roots this session protects.
+
+    They are computed with the resolver of the tree under test, before any test
+    can monkeypatch HOME: the default runtime root of the starting HOME and of
+    the account's home directory, the retired ``~/.codex/loopx`` of both, and an
+    ambient LOOPX_RUNTIME_ROOT.
+    """
+
+    if str(SOURCE_ROOT) not in sys.path:
+        sys.path.insert(0, str(SOURCE_ROOT))
+    from loopx.paths import configured_runtime_root, home_runtime_root
+
+    homes = [Path.home()]
+    try:
+        import pwd
+
+        homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
+    except (ImportError, KeyError):
+        pass
+    roots = [str(home_runtime_root(home)) for home in homes]
+    roots += [root for home in homes for root in guard.legacy_home_roots(home)]
+    ambient = configured_runtime_root()
+    if ambient is not None:
+        roots.append(str(ambient))
+    return roots
+
+
 def _start() -> None:
     """Protect the real LoopX roots for this process and its Python children.
 
-    The roots are captured here, before any test can monkeypatch HOME: the
-    default runtime root and the ``.loopx`` directory of the starting HOME and
-    of the account's home directory, plus an ambient LOOPX_RUNTIME_ROOT. A
-    nested pytest session inherits its parent's roots instead of protecting the
-    temporary HOME it may run under.
+    A nested pytest session inherits its parent's roots instead of protecting
+    the temporary HOME it may run under.
     """
 
     inherited = os.environ.get(guard.PROTECTED_ROOTS_ENV)
-    if inherited:
-        roots = inherited.split(os.pathsep)
-    else:
-        homes = [Path.home()]
-        try:
-            import pwd
-
-            homes.append(Path(pwd.getpwuid(os.getuid()).pw_dir))
-        except (ImportError, KeyError):
-            pass
-        roots = [root for home in homes for root in guard.home_roots(home)]
-        ambient = os.environ.get("LOOPX_RUNTIME_ROOT")
-        if ambient:
-            roots.append(os.path.abspath(os.path.expanduser(ambient)))
+    roots = inherited.split(os.pathsep) if inherited else session_roots()
     handle, report_path = tempfile.mkstemp(prefix="loopx-runtime-root-guard-", suffix=".jsonl")
     os.close(handle)
     atexit.register(Path(report_path).unlink, missing_ok=True)

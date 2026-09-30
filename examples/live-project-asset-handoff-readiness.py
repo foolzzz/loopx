@@ -13,6 +13,10 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from loopx.paths import global_registry_path  # noqa: E402
+
 LOCAL_PATH_PATTERN = re.compile(r"(?<!<)/(?:Users|Volumes|var/folders|tmp|private/tmp)/[^\s`'\"<>]+")
 SECRET_PATTERN = re.compile(
     r"(?i)(?:\bbearer\s+[a-z0-9._~+/=-]{16,}|(?<![a-z0-9_])(?:ak|sk)[-_=:][a-z0-9_=-]{10,}|\btoken\s*[=:]\s*[^\s`'\"<>]{12,})"
@@ -36,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--registry",
-        default=str(Path.home() / ".codex" / "loopx" / "registry.global.json"),
+        default=str(global_registry_path()),
         help="LoopX registry path. Defaults to the shared global registry.",
     )
     parser.add_argument("--runtime-root", help="Optional LoopX runtime root.")

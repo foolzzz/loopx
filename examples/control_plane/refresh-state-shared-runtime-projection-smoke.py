@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -19,13 +21,12 @@ from loopx.control_plane.runtime.shared_runtime_refresh_projection import (  # n
     build_shared_runtime_projection,
     write_shared_runtime_projection,
 )
-from loopx.control_plane.runtime import runtime_projection_route as route_module  # noqa: E402
 from loopx.control_plane.runtime.runtime_projection_route import (  # noqa: E402
     compact_runtime_projection_route,
     resolve_runtime_projection_route,
 )
 from loopx import doctor as doctor_module  # noqa: E402
-from loopx.paths import global_registry_path  # noqa: E402
+from loopx.paths import global_registry_path, home_runtime_root  # noqa: E402
 from loopx.presentation.renderers.status_markdown import (  # noqa: E402
     render_status_markdown,
 )
@@ -34,6 +35,29 @@ from loopx.presentation.renderers.status_markdown import (  # noqa: E402
 AGENT_ID = "codex-shared-runtime-smoke"
 GOAL_ID = "refresh-state-shared-runtime-smoke"
 VISION_ACCEPTANCE = "Shared quota reads the newest project-local agent vision."
+
+
+@contextmanager
+def default_runtime_environment(
+    *, runtime_root: Path | None = None, home: Path | None = None
+) -> Iterator[None]:
+    """Point the default runtime root at a fixture for one in-process call."""
+
+    saved = {key: os.environ.get(key) for key in ("LOOPX_RUNTIME_ROOT", "HOME")}
+    if runtime_root is None:
+        os.environ.pop("LOOPX_RUNTIME_ROOT", None)
+    else:
+        os.environ["LOOPX_RUNTIME_ROOT"] = str(runtime_root)
+    if home is not None:
+        os.environ["HOME"] = str(home)
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def run_cli(*args: str, cwd: Path, shared_runtime: Path) -> dict:
@@ -215,6 +239,9 @@ def write_route_target(
 
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="loopx-refresh-shared-runtime-") as tmp:
+        # The default runtime root follows HOME when it is used; keep it here.
+        os.environ["HOME"] = str(Path(tmp) / "home")
+        os.environ.pop("LOOPX_RUNTIME_ROOT", None)
         project, project_runtime, source_registry, shared_registry = write_fixture(
             Path(tmp)
         )
@@ -428,12 +455,9 @@ def main() -> None:
         lagging_markdown = render_status_markdown(lagging_status)
         assert "runtime_projection_routes: healthy=False" in lagging_markdown
         assert "details=loopx doctor" in lagging_markdown
-        default_runtime_root = doctor_module.DEFAULT_RUNTIME_ROOT
-        doctor_module.DEFAULT_RUNTIME_ROOT = shared_runtime
-        try:
+        # doctor reads the machine default runtime root, which LOOPX_RUNTIME_ROOT sets.
+        with default_runtime_environment(runtime_root=shared_runtime):
             doctor = doctor_module.collect_doctor()
-        finally:
-            doctor_module.DEFAULT_RUNTIME_ROOT = default_runtime_root
         doctor_routes = doctor["runtime_projection_routes"]
         assert doctor_routes["healthy"] is False, doctor_routes
         assert doctor_routes["counts"]["lagging"] == 1, doctor_routes
@@ -519,22 +543,21 @@ def main() -> None:
             name="standalone",
             source_runtime=standalone_runtime,
         )
-        unrelated_runtime = Path(tmp) / "unrelated-default-runtime"
+        # An unrelated registry at the home default runtime root (no
+        # LOOPX_RUNTIME_ROOT) does not capture a standalone project.
+        unrelated_home = Path(tmp) / "unrelated-home"
+        unrelated_runtime = home_runtime_root(unrelated_home)
         write_route_target(
             unrelated_runtime,
             source_registry=standalone_registry,
             goal_id="unrelated-goal",
         )
-        original_default_runtime = route_module.DEFAULT_RUNTIME_ROOT
-        route_module.DEFAULT_RUNTIME_ROOT = unrelated_runtime
-        try:
+        with default_runtime_environment(home=unrelated_home):
             standalone_route = resolve_runtime_projection_route(
                 registry_path=standalone_registry,
                 goal_id=standalone_goal,
                 source_runtime_root=standalone_runtime,
             )
-        finally:
-            route_module.DEFAULT_RUNTIME_ROOT = original_default_runtime
         assert standalone_route["status"] == "single_runtime", standalone_route
         assert standalone_route["declaration_source"] == "source_runtime_fallback"
 

@@ -19,7 +19,7 @@ from loopx.control_plane.quota.goal_boundary import goal_boundary  # noqa: E402
 
 
 def write_registry(root: Path) -> Path:
-    state_file = root / "project" / ".codex/goals/configure-goal-fixture/STATE.md"
+    state_file = root / "project" / ".loopx/goals/configure-goal-fixture/STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(
         "# Active Goal State\n\n## Agent Todo\n\n- [ ] Keep this todo during scope migration.\n",
@@ -115,7 +115,7 @@ def write_registry(root: Path) -> Path:
                         "domain": "configure-goal-smoke",
                         "status": "active",
                         "repo": str(root / "project"),
-                        "state_file": ".codex/goals/configure-goal-fixture/STATE.md",
+                        "state_file": ".loopx/goals/configure-goal-fixture/STATE.md",
                         "adapter": {"kind": "generic_project_goal_v0", "status": "connected"},
                         "quota": {"compute": 1, "window_hours": 24},
                         "spawn_policy": {"mode": "default", "allowed": False, "max_children": 0},
@@ -610,7 +610,7 @@ def main() -> int:
         assert peer_coordination_restored["written"] is True, (
             peer_coordination_restored
         )
-        state_file = root / "project" / ".codex/goals/configure-goal-fixture/STATE.md"
+        state_file = root / "project" / ".loopx/goals/configure-goal-fixture/STATE.md"
         state_before_scope_migration = state_file.read_text(encoding="utf-8")
 
         scope_migrated = payload(run_cli(

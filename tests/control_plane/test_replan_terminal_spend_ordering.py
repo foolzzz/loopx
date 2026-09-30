@@ -32,7 +32,7 @@ TERMINAL_STATE = "terminal_no_followup"
 def _write_terminal_frontier_state(project: Path) -> None:
     """Close every Todo source so a coverage-backed replan resolves terminal."""
 
-    state_path = project / f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
+    state_path = project / f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md"
     state_path.write_text(
         "---\n"
         "status: active\n"

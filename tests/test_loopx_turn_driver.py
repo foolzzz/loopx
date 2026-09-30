@@ -1173,7 +1173,7 @@ def _write_live_fixture(
     project = root / "project"
     runtime = root / "runtime"
     runtime.mkdir(parents=True)
-    state = project / ".codex" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     agent_todo_lines = [
         "- [ ] [P0] Advance one public fixture.",
@@ -1205,7 +1205,7 @@ def _write_live_fixture(
         encoding="utf-8",
     )
     registry = project / ".loopx" / "registry.json"
-    registry.parent.mkdir(parents=True)
+    registry.parent.mkdir(parents=True, exist_ok=True)
     registry.write_text(
         json.dumps(
             {
@@ -1249,7 +1249,7 @@ def _write_live_fixture(
 def _promote_turn_fixture(project: Path, runtime: Path) -> None:
     state = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -1883,7 +1883,7 @@ raise SystemExit(0 if artifact.read_text(encoding="utf-8") == "validated" else 7
     }
     state_path = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -1997,7 +1997,7 @@ def run_dsh_turn(**kwargs):
     )
     state_path = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -2139,7 +2139,7 @@ raise SystemExit(0 if artifact.read_text(encoding="utf-8") == "completed" else 7
     }
     state_path = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -2455,7 +2455,7 @@ json.dump({
     assert journal["writeback"]["completion"]["todo_id"] == "todo_fixture0001"
     assert journal["writeback"]["completion"]["continuation"] == "active_goal"
     state = (
-        project / ".codex" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
+        project / ".loopx" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
     ).read_text(encoding="utf-8")
     assert "todo_id=todo_fixture0001 status=in_review" in state
     assert "delivered_by=codex-fixture" in state
@@ -2472,7 +2472,7 @@ json.dump({
     assert exit_code == 0, json.dumps(accepted)[:4000]
     assert accepted["status"] == "committed"
     state = (
-        project / ".codex" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
+        project / ".loopx" / "goals" / "loopx-turn-fixture" / "ACTIVE_GOAL_STATE.md"
     ).read_text(encoding="utf-8")
     assert "todo_id=todo_fixture0001 status=done" in state
     assert "accepted_by%3Dcodex-acceptor" in state or "accepted_by=codex-acceptor" in state
@@ -2678,7 +2678,7 @@ def test_turn_run_once_cli_terminal_recovery_rejects_unowned_completion(
     turn_key = payload["resume_turn_key"]
     state_path = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -3073,7 +3073,7 @@ raise SystemExit(0 if pathlib.Path("claimed-artifact.txt").is_file() else 9)
 """
     state_path = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -3148,7 +3148,7 @@ def test_turn_run_once_cli_uses_built_in_codex_host_and_typed_writeback(
     project, runtime, registry = _write_live_fixture(tmp_path)
     state_path = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"
@@ -3289,7 +3289,7 @@ def test_turn_run_once_cli_uses_built_in_codex_host_and_typed_writeback(
     )
     state = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / "loopx-turn-fixture"
         / "ACTIVE_GOAL_STATE.md"

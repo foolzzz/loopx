@@ -472,6 +472,12 @@ def test_decision_research_view_defaults_missing_artifacts_to_empty() -> None:
         ),
         (
             lambda view: view["identity"].update(
+                {"subtitle": "Research source: .loopx/goals/private-research.md"}
+            ),
+            "local path",
+        ),
+        (
+            lambda view: view["identity"].update(
                 {"subtitle": "Research source: project/.local/private-research.md"}
             ),
             "local path",

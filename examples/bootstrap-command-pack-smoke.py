@@ -94,7 +94,7 @@ def write_connected_goal_fixture(
     goal_id: str,
     agent_id: str,
 ) -> dict[Path, str]:
-    state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_text = "# Active Goal State\n"
     state_file.write_text(state_text, encoding="utf-8")
@@ -169,7 +169,7 @@ def test_missing_project_stops_before_mutation() -> None:
         assert connection["connection_state"] == "not_connected"
         assert connection["mutation_confirmation_required"] is True
         assert not (project / ".loopx").exists()
-        assert not (project / ".codex").exists()
+        assert not any(project.iterdir())
 
         safety = payload["safety_contract"]
         assert isinstance(safety, dict)
@@ -436,7 +436,7 @@ def test_start_goal_guided_blocks_orphaned_goal_state() -> None:
         snapshot = write_connected_goal_fixture(
             project, goal_id=goal_id, agent_id="codex-retired"
         )
-        state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+        state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
         registry = project / ".loopx" / "registry.json"
         registry.write_text(
             json.dumps({"schema_version": "0.1", "goals": []}, indent=2) + "\n",
@@ -461,7 +461,7 @@ def test_start_goal_guided_blocks_orphaned_goal_state() -> None:
         assert connection["goal_found"] is False, connection
         assert connection["bootstrap_continuation_allowed"] is False, connection
         assert connection["orphaned_goal_state"]["state_file_routes"] == [
-            f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+            f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
         ], connection
 
         transaction = payload["guided_transaction"]
@@ -520,13 +520,13 @@ def test_start_goal_guided_fences_orphaned_state_for_every_absence_route() -> No
     ):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "reset-project"
-            state_file = project / ".codex" / "goals" / "reset-goal" / "ACTIVE_GOAL_STATE.md"
+            state_file = project / ".loopx" / "goals" / "reset-goal" / "ACTIVE_GOAL_STATE.md"
             state_file.parent.mkdir(parents=True)
             state_text = "# Orphaned goal state written by a retired lane\n"
             state_file.write_text(state_text, encoding="utf-8")
             if registry_text is not None:
                 registry = project / ".loopx" / "registry.json"
-                registry.parent.mkdir(parents=True)
+                registry.parent.mkdir(parents=True, exist_ok=True)
                 registry.write_text(registry_text, encoding="utf-8")
 
             payload = run_json(
@@ -602,7 +602,7 @@ def test_fenced_project_surfaces_offer_no_continuation() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "reset-project"
-        state_file = project / ".codex" / "goals" / "reset-goal" / "ACTIVE_GOAL_STATE.md"
+        state_file = project / ".loopx" / "goals" / "reset-goal" / "ACTIVE_GOAL_STATE.md"
         state_file.parent.mkdir(parents=True)
         state_file.write_text(
             "# Orphaned goal state written by a retired lane\n", encoding="utf-8"
@@ -649,7 +649,7 @@ def test_start_goal_guided_requires_explicit_goal_for_multi_goal_project() -> No
             ("completed-goal", "complete", "codex-completed"),
             ("active-goal", "active", "codex-active"),
         ):
-            state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+            state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text("# Active Goal State\n", encoding="utf-8")
             goals.append(
@@ -657,7 +657,7 @@ def test_start_goal_guided_requires_explicit_goal_for_multi_goal_project() -> No
                     "id": goal_id,
                     "status": status,
                     "repo": str(project),
-                    "state_file": f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md",
+                    "state_file": f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md",
                     "coordination": {
                         "agent_model": "peer_v1",
                         "registered_agents": [agent_id],
@@ -665,7 +665,7 @@ def test_start_goal_guided_requires_explicit_goal_for_multi_goal_project() -> No
                 }
             )
         registry = project / ".loopx" / "registry.json"
-        registry.parent.mkdir(parents=True)
+        registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_text(
             json.dumps({"schema_version": "0.1", "goals": goals}, indent=2) + "\n",
             encoding="utf-8",
@@ -722,11 +722,11 @@ def test_start_goal_guided_requires_explicit_goal_for_multi_goal_project() -> No
 def test_connected_project_reuses_existing_state() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "connected-project"
-        state_file = project / ".codex" / "goals" / "connected-goal" / "ACTIVE_GOAL_STATE.md"
+        state_file = project / ".loopx" / "goals" / "connected-goal" / "ACTIVE_GOAL_STATE.md"
         state_file.parent.mkdir(parents=True)
         state_file.write_text("# Active Goal State\n", encoding="utf-8")
         registry = project / ".loopx" / "registry.json"
-        registry.parent.mkdir(parents=True)
+        registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_text(
             json.dumps(
                 {
@@ -736,7 +736,7 @@ def test_connected_project_reuses_existing_state() -> None:
                             "id": "connected-goal",
                             "status": "active",
                             "repo": str(project),
-                            "state_file": ".codex/goals/connected-goal/ACTIVE_GOAL_STATE.md",
+                            "state_file": ".loopx/goals/connected-goal/ACTIVE_GOAL_STATE.md",
                         }
                     ],
                 },
@@ -806,11 +806,11 @@ def test_linked_git_worktree_reuses_canonical_source_registry() -> None:
         )
 
         canonical_goal = "canonical-goal"
-        state_file = primary / ".codex" / "goals" / canonical_goal / "ACTIVE_GOAL_STATE.md"
+        state_file = primary / ".loopx" / "goals" / canonical_goal / "ACTIVE_GOAL_STATE.md"
         state_file.parent.mkdir(parents=True)
         state_file.write_text("# Active Goal State\n", encoding="utf-8")
         primary_registry = primary / ".loopx" / "registry.json"
-        primary_registry.parent.mkdir(parents=True)
+        primary_registry.parent.mkdir(parents=True, exist_ok=True)
         primary_payload = {
             "schema_version": "0.1",
             "goals": [
@@ -818,18 +818,18 @@ def test_linked_git_worktree_reuses_canonical_source_registry() -> None:
                     "id": canonical_goal,
                     "status": "active",
                     "repo": str(primary),
-                    "state_file": ".codex/goals/canonical-goal/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/canonical-goal/ACTIVE_GOAL_STATE.md",
                 }
             ],
         }
         primary_registry.write_text(json.dumps(primary_payload, indent=2) + "\n", encoding="utf-8")
 
         shadow_goal = "linked-worktree-goal"
-        shadow_state = worktree / ".codex" / "goals" / shadow_goal / "ACTIVE_GOAL_STATE.md"
+        shadow_state = worktree / ".loopx" / "goals" / shadow_goal / "ACTIVE_GOAL_STATE.md"
         shadow_state.parent.mkdir(parents=True)
         shadow_state.write_text("# Shadow State\n", encoding="utf-8")
         shadow_registry = worktree / ".loopx" / "registry.json"
-        shadow_registry.parent.mkdir(parents=True)
+        shadow_registry.parent.mkdir(parents=True, exist_ok=True)
         shadow_registry.write_text(
             json.dumps(
                 {
@@ -839,7 +839,7 @@ def test_linked_git_worktree_reuses_canonical_source_registry() -> None:
                             "id": shadow_goal,
                             "status": "active",
                             "repo": str(worktree),
-                            "state_file": ".codex/goals/linked-worktree-goal/ACTIVE_GOAL_STATE.md",
+                            "state_file": ".loopx/goals/linked-worktree-goal/ACTIVE_GOAL_STATE.md",
                         }
                     ],
                 },
@@ -865,7 +865,7 @@ def test_linked_git_worktree_reuses_canonical_source_registry() -> None:
                     "id": shadow_goal,
                     "status": "active",
                     "repo": str(worktree),
-                    "state_file": ".codex/goals/linked-worktree-goal/ACTIVE_GOAL_STATE.md",
+                    "state_file": ".loopx/goals/linked-worktree-goal/ACTIVE_GOAL_STATE.md",
                     "source_registry": str(shadow_registry),
                     "synced_at": "2026-06-28T00:00:00+00:00",
                 },

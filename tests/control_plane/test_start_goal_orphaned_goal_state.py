@@ -67,7 +67,7 @@ def _project(
                 "id": REGISTERED_GOAL_ID,
                 "status": "active",
                 "repo": str(project),
-                "state_file": f".codex/goals/{REGISTERED_GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                "state_file": f".loopx/goals/{REGISTERED_GOAL_ID}/ACTIVE_GOAL_STATE.md",
                 "coordination": {
                     "agent_model": "peer_v1",
                     "registered_agents": ["codex-live"],
@@ -84,7 +84,7 @@ def _project(
             json.dumps({"schema_version": "0.1", "goals": entries}, indent=2) + "\n",
             encoding="utf-8",
         )
-    registered_state = project / ".codex" / "goals" / REGISTERED_GOAL_ID
+    registered_state = project / ".loopx" / "goals" / REGISTERED_GOAL_ID
     registered_state.mkdir(parents=True)
     (registered_state / "ACTIVE_GOAL_STATE.md").write_text(
         "# Live goal state\n", encoding="utf-8"
@@ -125,7 +125,7 @@ def _command_pack(project: Path, goal_id: str = ORPHANED_GOAL_ID) -> dict[str, A
 # ---- the detected fact -------------------------------------------------------
 
 
-def test_orphan_detection_covers_current_and_legacy_routes(tmp_path: Path) -> None:
+def test_orphan_detection_covers_every_goal_state_route(tmp_path: Path) -> None:
     roots = tuple("/".join(root) for root in GOAL_STATE_ROOTS)
     project = _project(tmp_path, orphaned_state_dirs=roots)
 
@@ -138,14 +138,14 @@ def test_inspection_separates_orphaned_state_from_plain_absence(
     tmp_path: Path,
 ) -> None:
     orphaned = inspect_bootstrap_connection(
-        _project(tmp_path / "orphaned", orphaned_state_dirs=(".codex/goals",)),
+        _project(tmp_path / "orphaned", orphaned_state_dirs=(".loopx/goals",)),
         goal_id=ORPHANED_GOAL_ID,
     )
     assert orphaned["connection_state"] == ORPHANED_GOAL_STATE_CONNECTION
     assert orphaned["goal_found"] is False
     assert orphaned["bootstrap_continuation_allowed"] is False
     assert orphaned["orphaned_goal_state"]["state_file_routes"] == [
-        f".codex/goals/{ORPHANED_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+        f".loopx/goals/{ORPHANED_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     ]
 
     absent = inspect_bootstrap_connection(
@@ -181,7 +181,7 @@ def test_candidate_matching_is_scoped_to_the_requested_goal(tmp_path: Path) -> N
 def test_guided_packet_offers_only_previews_over_orphaned_state(
     tmp_path: Path,
 ) -> None:
-    payload = _guided(_project(tmp_path, orphaned_state_dirs=(".codex/goals",)))
+    payload = _guided(_project(tmp_path, orphaned_state_dirs=(".loopx/goals",)))
     transaction = payload["guided_transaction"]
 
     assert transaction["blocked_by"] == ORPHANED_GOAL_STATE_CONNECTION
@@ -218,7 +218,7 @@ def test_guided_packet_offers_only_previews_over_orphaned_state(
 def test_guided_packet_carries_no_bootstrap_or_todo_authoring_continuation(
     tmp_path: Path,
 ) -> None:
-    project = _project(tmp_path, orphaned_state_dirs=(".codex/goals",))
+    project = _project(tmp_path, orphaned_state_dirs=(".loopx/goals",))
     payload = _guided(project)
     commands = payload["command_pack"]["commands"]
 
@@ -274,7 +274,7 @@ def test_plain_absence_keeps_the_connect_continuation(tmp_path: Path) -> None:
 
 def test_connected_goal_packet_is_unchanged(tmp_path: Path) -> None:
     payload = _guided(
-        _project(tmp_path, orphaned_state_dirs=(".codex/goals",)),
+        _project(tmp_path, orphaned_state_dirs=(".loopx/goals",)),
         goal_id=REGISTERED_GOAL_ID,
     )
 
@@ -289,7 +289,7 @@ def test_connected_goal_packet_is_unchanged(tmp_path: Path) -> None:
 
 
 def test_obeying_agent_has_no_actionable_command_at_the_fence(tmp_path: Path) -> None:
-    payload = _guided(_project(tmp_path / "fence", orphaned_state_dirs=(".codex/goals",)))
+    payload = _guided(_project(tmp_path / "fence", orphaned_state_dirs=(".loopx/goals",)))
     contract = onboarding_entry_semantic_contract(payload)
 
     assert contract["route"] == "stop"
@@ -309,7 +309,7 @@ def test_obeying_agent_has_no_actionable_command_at_the_fence(tmp_path: Path) ->
 
 
 def test_every_fenced_consumption_surface_is_read_only(tmp_path: Path) -> None:
-    project = _project(tmp_path, orphaned_state_dirs=(".codex/goals",))
+    project = _project(tmp_path, orphaned_state_dirs=(".loopx/goals",))
 
     guided = _guided(project)
     command_pack = _command_pack(project)
@@ -365,14 +365,14 @@ def test_reset_without_a_registry_still_fences_surviving_state(
 ) -> None:
     project = _project(
         tmp_path / registry,
-        orphaned_state_dirs=(".codex/goals",),
+        orphaned_state_dirs=(".loopx/goals",),
         registry=registry,
     )
 
     connection = inspect_bootstrap_connection(project, goal_id=ORPHANED_GOAL_ID)
     assert connection["connection_state"] == ORPHANED_GOAL_STATE_CONNECTION, connection
     assert connection["orphaned_goal_state"]["state_file_routes"] == [
-        f".codex/goals/{ORPHANED_GOAL_ID}/ACTIVE_GOAL_STATE.md"
+        f".loopx/goals/{ORPHANED_GOAL_ID}/ACTIVE_GOAL_STATE.md"
     ], connection
     # The fence must not erase which absence it was reached through: a registry
     # that cannot be parsed is a different operator action from a deleted entry.

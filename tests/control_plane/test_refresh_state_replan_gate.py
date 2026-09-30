@@ -325,7 +325,7 @@ def _replan_gate_tmp_fixture(
     tmp_path: Path,
 ) -> tuple[Path, Path, Path, Path]:
     project = tmp_path / "project"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(_state_with_scoped_blocker_todo(), encoding="utf-8")
     registry_path = tmp_path / "registry.json"
@@ -411,7 +411,7 @@ def test_refresh_state_run_rejects_maintenance_writeback(tmp_path: Path) -> None
     project = tmp_path / "project"
     state = (
         project
-        / ".codex"
+        / ".loopx"
         / "goals"
         / GOAL_ID
         / "ACTIVE_GOAL_STATE.md"
@@ -659,7 +659,7 @@ def test_refresh_state_run_rejects_maintenance_after_vision_obligation_rotation(
     """#3155 end to end: quota/frontier truth also governs physical writes."""
 
     project = tmp_path / "project"
-    state = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state.parent.mkdir(parents=True)
     state.write_text(_completed_advancement_chain_state(), encoding="utf-8")
     registry_path = tmp_path / "registry.json"

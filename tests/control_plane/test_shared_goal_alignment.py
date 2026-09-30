@@ -121,7 +121,7 @@ def _write_fixture(
 ) -> dict[str, Path]:
     project = root / "project"
     runtime = root / "runtime"
-    state_relative = Path(".codex") / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_relative = Path(".loopx") / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     state_file = project / state_relative
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
@@ -130,7 +130,7 @@ def _write_fixture(
     )
 
     registry_path = project / ".loopx" / "registry.json"
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {

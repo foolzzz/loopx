@@ -22,7 +22,7 @@ TODO_TEXT = "[P1] Add status/quota/review-packet parity fixture."
 
 
 def write_state(project: Path, goal_id: str, *, claimed_by: str) -> str:
-    state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
     path = project / state_file
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -107,7 +107,7 @@ def run_checked(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess
 
 
 def create_agent_worktree(project: Path, root: Path) -> Path:
-    (project / ".gitignore").write_text(".loopx/\n.codex/\n", encoding="utf-8")
+    (project / ".gitignore").write_text(".loopx/\n", encoding="utf-8")
     run_checked(["git", "init", "--initial-branch", "main"], cwd=project)
     run_checked(["git", "config", "user.email", "loopx-smoke@example.invalid"], cwd=project)
     run_checked(["git", "config", "user.name", "LoopX Smoke"], cwd=project)

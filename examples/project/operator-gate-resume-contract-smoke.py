@@ -17,7 +17,7 @@ def write_registry(root: Path) -> Path:
     project = root / "project"
     runtime = root / "runtime"
     goal_id = "checkpointed-gate-goal"
-    state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+    state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
     (project / Path(state_file).parent).mkdir(parents=True, exist_ok=True)
     (project / state_file).write_text(
         "---\n"

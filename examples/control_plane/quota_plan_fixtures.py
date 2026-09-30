@@ -324,7 +324,7 @@ def write_cli_fixture(root: Path, *, scoped_agents: bool = False) -> tuple[Path,
     ]
     registry_goals = []
     for goal_id, compute, classification, spent_slots, allowed_slots in goal_specs:
-        state_file = f".codex/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
+        state_file = f".loopx/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
         state_path = project / state_file
         state_path.parent.mkdir(parents=True, exist_ok=True)
         state_path.write_text(

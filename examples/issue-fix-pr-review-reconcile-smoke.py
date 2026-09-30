@@ -97,7 +97,7 @@ def main() -> int:
         runtime_root = project / "runtime"
         registry_path = project / ".loopx" / "registry.json"
         state_file = (
-            project / ".codex" / "goals" / "example-goal" / "ACTIVE_GOAL_STATE.md"
+            project / ".loopx" / "goals" / "example-goal" / "ACTIVE_GOAL_STATE.md"
         )
         registry_path.parent.mkdir(parents=True)
         state_file.parent.mkdir(parents=True)
@@ -112,7 +112,7 @@ def main() -> int:
                             "status": "active",
                             "repo": str(project),
                             "state_file": (
-                                ".codex/goals/example-goal/ACTIVE_GOAL_STATE.md"
+                                ".loopx/goals/example-goal/ACTIVE_GOAL_STATE.md"
                             ),
                             "adapter": {
                                 "kind": "read_only_project_map_v0",
@@ -295,7 +295,7 @@ def main() -> int:
         assert prequota["degraded"] is False, prequota
 
         home = project / "home"
-        global_registry = home / ".codex" / "loopx" / "registry.global.json"
+        global_registry = home / ".loopx" / "registry.global.json"
         global_registry.parent.mkdir(parents=True)
         global_registry.write_text(
             registry_path.read_text(encoding="utf-8"),

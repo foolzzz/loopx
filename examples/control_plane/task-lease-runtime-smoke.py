@@ -25,7 +25,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
     project = root / "project"
     runtime = root / "runtime"
     registry_path = project / ".loopx" / "registry.json"
-    state_file = project / ".codex" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "---\n"
@@ -42,7 +42,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
         f"  <!-- loopx: todo_id={TODO_C} status=open -->\n",
         encoding="utf-8",
     )
-    registry_path.parent.mkdir(parents=True)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(
             {
@@ -54,7 +54,7 @@ def write_fixture(root: Path) -> tuple[Path, Path]:
                         "id": GOAL_ID,
                         "status": "active",
                         "repo": str(project),
-                        "state_file": f".codex/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+                        "state_file": f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
                         "adapter": {
                             "kind": "generic_project_goal_v0",
                             "status": "connected",

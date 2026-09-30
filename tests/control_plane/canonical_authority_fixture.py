@@ -77,7 +77,7 @@ def promoted_create_fixture(tmp_path: Path, *, provider: str = "file") -> tuple[
 
     runtime_root = tmp_path / "runtime"
     project = tmp_path / "project"
-    state_file = project / ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
     state_file.write_text(
         "# Goal\n\n## User Todo / Owner Review Reading Queue\n\n"
@@ -94,7 +94,7 @@ def promoted_create_fixture(tmp_path: Path, *, provider: str = "file") -> tuple[
                     {
                         "id": "goal-a",
                         "repo": str(project),
-                        "state_file": ".codex/goals/goal-a/ACTIVE_GOAL_STATE.md",
+                        "state_file": ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md",
                         "coordination": {"registered_agents": ["agent-a"]},
                     }
                 ],

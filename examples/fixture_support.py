@@ -59,7 +59,7 @@ def create_minimal_goal_registry(
     atexit.register(shutil.rmtree, root, ignore_errors=True)
     project = root / "project"
     runtime_root = root / "runtime"
-    state_file = project / ".codex" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
+    state_file = project / ".loopx" / "goals" / goal_id / "ACTIVE_GOAL_STATE.md"
     registry_path = project / ".loopx" / "registry.json"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(

@@ -148,7 +148,7 @@ def main() -> int:
         init = run_git(git_project, "init")
         if init.returncode != 0:
             raise AssertionError(init.stderr or init.stdout)
-        state_file = git_project / ".codex" / "goals" / "demo" / "ACTIVE_GOAL_STATE.md"
+        state_file = git_project / ".loopx" / "goals" / "demo" / "ACTIVE_GOAL_STATE.md"
         state_file.parent.mkdir(parents=True)
         state_file.write_text(f"private_doc_url: {PRIVATE_DOC_MARKER}\n", encoding="utf-8")
 
@@ -206,7 +206,7 @@ def main() -> int:
             raise AssertionError(tracked_root_payload)
 
         registry_path = git_project / ".loopx" / "registry.json"
-        registry_path.parent.mkdir(parents=True)
+        registry_path.parent.mkdir(parents=True, exist_ok=True)
         registry_path.write_text(
             json.dumps(
                 {
