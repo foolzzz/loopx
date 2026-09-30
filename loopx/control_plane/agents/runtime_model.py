@@ -108,7 +108,7 @@ def legacy_agent_hierarchy_fields(
     else:
         profile_items = ()
     effective_model = configured_model or goal.get("agent_model")
-    role_v1 = effective_model in {None, "", AgentRuntimeModel.ROLE_V1.value}
+    role_v1 = effective_model == AgentRuntimeModel.ROLE_V1.value
     for prefix, profile in profile_items:
         if not isinstance(profile, Mapping):
             continue

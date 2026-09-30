@@ -277,7 +277,7 @@ def test_root_role_v1_keeps_current_profile_roles() -> None:
     assert identity["agent_model"] == "role_v1"
 
 
-def test_default_role_v1_keeps_current_profile_roles() -> None:
+def test_default_role_v1_rejects_profile_roles_without_explicit_model() -> None:
     goal = {
         "coordination": {
             "registered_agents": [AGENT_ID],
@@ -285,10 +285,10 @@ def test_default_role_v1_keeps_current_profile_roles() -> None:
         },
     }
 
-    identity = build_quota_agent_identity(goal, agent_id=AGENT_ID)
+    with pytest.raises(RetiredAgentHierarchyError) as exc_info:
+        build_quota_agent_identity(goal, agent_id=AGENT_ID)
 
-    assert identity is not None
-    assert identity["agent_model"] == "role_v1"
+    assert f'coordination.agent_profiles["{AGENT_ID}"].role' in exc_info.value.fields
 
 
 def test_coordination_model_overrides_root_model_for_legacy_role_detection() -> None:

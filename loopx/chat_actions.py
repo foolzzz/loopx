@@ -19,6 +19,7 @@ from .chat_monitor_actions import ChatMonitorActionMixin
 from .chat_store import ChatSessionStore
 from .chat_todo_actions import ChatTodoActionMixin
 from .configure_goal import configure_goal
+from .control_plane.agents.runtime_model import reject_legacy_agent_hierarchy
 from .control_plane.goals.configure_goal_service import (
     bind_goal_agent_with_global_sync,
     read_goal_agent_binding_with_source_route,
@@ -257,6 +258,7 @@ class ChatActionService(
         )
         if goal is None:
             raise ValueError("goal_id was not found in the active LoopX registry")
+        reject_legacy_agent_hierarchy(goal)
         return goal
 
     def _registry_fingerprint(self) -> str:

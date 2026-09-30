@@ -15,6 +15,7 @@ from ..chat_server import (
     DEFAULT_CHAT_PORT,
     serve_chat,
 )
+from ..control_plane.agents.runtime_model import reject_legacy_agent_hierarchy
 from ..control_plane.reward_memory import reward_memory_goal_policy
 from ..control_plane.scheduler.execution_context import SchedulerRuntimeProfile
 from ..dashboard_launcher import launch_dashboard, replace_existing_loopx_chat
@@ -259,12 +260,13 @@ def handle_support_control_command(
                 agent_registry_path = Path(
                     active_state_source.removeprefix("registry:")
                 )
-            registered_agents = registered_agent_ids_from_registry(
-                agent_registry_path, args.goal_id
-            )
             registry_goal = load_goal_from_registry(
                 agent_registry_path,
                 args.goal_id,
+            )
+            reject_legacy_agent_hierarchy(registry_goal)
+            registered_agents = registered_agent_ids_from_registry(
+                agent_registry_path, args.goal_id
             )
             turn_granularity = execution_profile_turn_granularity(
                 registry_goal.get("execution_profile")
