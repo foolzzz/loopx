@@ -454,8 +454,8 @@ def test_goal_start_packet_is_parity_complete_behavior_authority(
 
     invariants = contract["execution_invariants"]
     for marker in (
-        "fresh public-safe agent",
-        "explicit takeover",
+        "existing lanes require exact selection",
+        "fresh public-safe agent only with no registered lane or explicit --new-peer",
         "bind/readback before Todo",
         "loopx agent-onboard --list-agent-types",
         "selected_capability_route",
@@ -475,7 +475,8 @@ def test_goal_start_packet_is_parity_complete_behavior_authority(
 
     prompt = payload["command_pack"]["commands"]["goal_start_plan_prompt"]
     for required_text in (
-        "stable unbound host gets a fresh public-safe agent",
+        "unbound host with existing lanes requires exact lane selection",
+        "fresh public-safe agent registration is allowed only with no registered lane or explicit `--new-peer`",
         "selected_capability_route",
         "no `--priority`",
         "current Todo evidence + next executable Todo",
@@ -485,6 +486,7 @@ def test_goal_start_packet_is_parity_complete_behavior_authority(
         "surface the exact pasteable gate",
     ):
         assert required_text in prompt
+    assert "stable unbound host gets a fresh public-safe agent" not in prompt
 
 
 def test_issue_fix_goal_projects_capability_guard_without_todo_fields(
