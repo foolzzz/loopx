@@ -12,6 +12,7 @@ from ..control_plane.turn_driver.host_stderr import redact_host_stderr_line
 import json
 import re
 from collections.abc import Iterable, Mapping
+from enum import Enum
 from typing import Any
 
 ROLE_ORCHESTRATOR = "orchestrator"
@@ -44,6 +45,55 @@ _ABSOLUTE_PATH = re.compile(
     rf"|(?<![\w.:/\\~>-])(?:~(?:/{_PATH_SEGMENT})+|/{_PATH_SEGMENT}(?:/{_PATH_SEGMENT})+)/?"
     rf"|(?<![\w\\])(?:[A-Za-z]:|\\\\{_PATH_SEGMENT})(?:[/\\]{_PATH_SEGMENT})+[/\\]?"
 )
+
+
+class TurnWorkspace(str, Enum):
+    """Where a developer or acceptor Turn on a todo works (recorded on its run)."""
+
+    # Per-todo worktrees, or the acceptor's detached review checkout.
+    TODO_WORKSPACE = "todo_workspace"
+    # The goal's project directory itself: the todo names no repository.
+    PROJECT_DIRECTORY = "project_directory"
+
+
+# Nothing isolates two Turns in one project directory (no worktree, delivery
+# snapshot, merge or rollback), so a goal runs at most one at a time.
+PROJECT_DIRECTORY_TURN_RUNNING_REASON = "project_directory_turn_running"
+
+
+def todo_repo_names(todo: Mapping[str, Any]) -> list[str]:
+    """The goal repos a todo names; the dispatcher prepares a workspace for each."""
+
+    return [str(item) for item in (todo.get("task_repositories") or []) if item]
+
+
+def turn_workspace(role: str | None, todo: Mapping[str, Any] | None) -> TurnWorkspace | None:
+    """Where a Turn of ``role`` on ``todo`` works; ``None`` for other roles or no todo."""
+
+    if role not in {ROLE_DEVELOPER, ROLE_ACCEPTOR} or not isinstance(todo, Mapping) or not todo:
+        return None
+    return TurnWorkspace.TODO_WORKSPACE if todo_repo_names(todo) else TurnWorkspace.PROJECT_DIRECTORY
+
+
+def project_directory_run(runs: Iterable[Mapping[str, Any]], goal_id: str) -> Mapping[str, Any] | None:
+    """The goal's running project-directory Turn, if any (at most one runs per goal)."""
+
+    return next(
+        (
+            run for run in runs
+            if run.get("goal_id") == goal_id and run.get("workspace") == TurnWorkspace.PROJECT_DIRECTORY.value
+        ),
+        None,
+    )
+
+
+def project_directory_todo_ids(todos: Iterable[Mapping[str, Any]]) -> set[str]:
+    """The todos (records, not should-run's compacted items) that name no repository."""
+
+    return {
+        str(todo["todo_id"]) for todo in todos
+        if isinstance(todo, Mapping) and todo.get("todo_id") and not todo_repo_names(todo)
+    }
 
 
 def slot_limit(role: str | None, max_concurrency: int) -> int:

@@ -21,7 +21,7 @@ from loopx.control_plane.turn_driver.codex_cli import (
 )
 from loopx.dispatch import DispatchConfig, Dispatcher, DispatchLock, DispatchLockError, dispatch_status
 from loopx.dispatch import policy
-from loopx.dispatch.state import load_state
+from loopx.dispatch.state import load_state, save_state
 from loopx.todos import add_goal_todo, list_goal_todos
 from tests.dispatch.dispatch_fixtures import (
     GOAL_ID,
@@ -518,6 +518,7 @@ def test_end_to_end_real_run_once_in_a_prepared_workspace_replays_idempotently(
         "turn_instance_id": committed["turn_instance_id"],
         "todo_id": todo_id,
     }
+    save_state(fixture["runtime"], dispatcher.state)  # a locked pass reads the state on disk
     replay = dispatcher.run_once()
     assert replay["launched"][0]["turn_instance_reused"] is True
     payload = json.loads(Path(load_state(fixture["runtime"])["history"][-1]["stdout_path"]).read_text())
