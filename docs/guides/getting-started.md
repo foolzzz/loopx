@@ -999,8 +999,7 @@ surface an upgrade error instead of silently running without identity or
 scope. Old goal registries without `coordination.registered_agents` also fail
 closed when a scoped heartbeat or todo claim names an agent; register the agent
 identity first instead of letting workers invent claim ids.
-For a hierarchy-era registry, the next `quota should-run` and `upgrade-plan`
-return a stable peer-runtime migration id, one heartbeat command per registered
+For a hierarchy-era registry, the next `quota should-run` returns a stable peer-runtime migration id, one heartbeat command per registered
 peer, and a completion command. Update installed automations idempotently with
 that migration id, then run the completion command once. Repeating the same
 completion acknowledgement is a no-op, and later quota checks do not project
@@ -1133,7 +1132,6 @@ For release-promotion readiness:
 ```bash
 python3 examples/canary/canary-promotion-readiness-smoke.py
 loopx promotion-gate --format json
-loopx upgrade-plan --format json
 ```
 
 When the dashboard source is present, the readiness smoke requires its npm
@@ -1186,7 +1184,6 @@ reward                  append run-bound human reward
 todo                    add, claim, complete, update, supersede, or archive todos
 quota                   inspect or account for automatic agent turns
 heartbeat-prompt        generate Codex App heartbeat task bodies
-upgrade-plan            plan local default-upgrade heartbeat propagation
 review-packet           package a CLI-visible handoff packet
 serve-status            serve local status JSON for the dashboard
 archive-runtime         archive obsolete runtime-only goal history

@@ -863,7 +863,6 @@ the evidence needed to decide whether the goal is working.
 
 - `docs/archive/incidents/outcome-floor-safe-bypass-incident-20260606.md`
 - `examples/control_plane/quota-plan-smoke.py`
-- `examples/upgrade-plan-smoke.py`
 
 #### IP-008 Monitor Quiet Skip
 

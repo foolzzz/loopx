@@ -540,13 +540,11 @@ An unregistered or missing identity must fail closed before task execution or
 accounting. A successful load is not permission to create another goal or take
 over another scheduler.
 
-For an existing automation, inspect `loopx automation-prompts plan --codex-home
-<ACTIVE_CODEX_HOME>` and apply its reviewed `desired_prompt` through the App
-`automation_update` tool. Read back the same automation, including its preserved
-binding and scheduling fields. Direct SQLite/TOML migration requires the App to
-be closed: a running host can overwrite disk edits from cached state. Do not
-claim completion from a changed file or a replaced CLI alone. Never copy
-sessions or rebind another Codex home's tasks to make its API reachable.
+For an existing automation, save the new bootstrap with the App
+`automation_update` tool and read back the same automation, including its
+preserved binding and scheduling fields. Do not claim completion from a replaced
+CLI alone. Never copy sessions or rebind another Codex home's tasks to make its
+API reachable.
 
 Each wake reads the full fresh result and follows only its current `task_body`
 when `ok=true`. Separate notification from execution, follow the current waiting

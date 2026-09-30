@@ -143,6 +143,24 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   catalog, and the `periodic_report` and `progress_review` capability catalog
   entries drop those commands. Where a capability needs a check, it now names
   the equivalent pytest command.
+- **Codex App automation tooling (first step of the Codex App and Trae App
+  removal).** LoopX no longer reads or edits the Codex App automation store.
+  Removed:
+  - the `automation-prompts` command;
+  - the installed-prompt upgrade that `update --apply` ran after installing.
+    `update --apply` now only installs and checks the runtime; its payload no
+    longer has `automation_prompt_upgrade` or `upgrade_complete`;
+  - the turn-start prompt-upgrade hint;
+  - the `loopx-apply-rrule` fallback executable (`scripts/codex_app_apply_rrule.py`),
+    the `fallback_hint` it was projected through, and the installer steps
+    that installed it. An existing `~/.local/bin/loopx-apply-rrule` link is
+    left in place; remove it by hand;
+  - reading the installed heartbeat RRULE from `$CODEX_HOME/automations` during
+    `quota should-run` and `scheduler-fail-current`;
+  - `upgrade-plan`, which only planned Codex App heartbeat prompt upgrades;
+  - `backup-state --no-automations` and the `$CODEX_HOME/automations`
+    backup target;
+  - the Codex App guides and runtime pages outside the pinned dev book.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

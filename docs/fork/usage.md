@@ -205,7 +205,7 @@ id.
 1. If you installed the default skills and command entries, first run
    `loopx slash-commands --uninstall` and `loopx workflow-skills --uninstall`.
 2. Remove `~/.local/bin/loopx`, `~/.local/bin/loopx-canary`,
-   `~/.local/bin/loopx-apply-rrule`, `~/.local/share/loopx` and
+   `~/.local/share/loopx` and
    `~/.local/share/man/man1/loopx.1.gz`.
 3. Delete the whole `# LoopX local CLI` and `# LoopX local manual` blocks from
    your shell profile. Each block is a comment line plus the `export` line
