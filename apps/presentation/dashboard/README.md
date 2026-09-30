@@ -435,8 +435,6 @@ surface:
 npm run smoke:home-browser
 npm run smoke:personal-workspace
 npm run smoke:frontstage-share-bundle
-node examples/dashboard-throttled-browser-smoke.mjs
-node examples/dashboard-operator-gate-browser-smoke.mjs
 ```
 
 The home browser smoke protects the canonical control-plane home. It uses a

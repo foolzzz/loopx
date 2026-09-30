@@ -856,7 +856,6 @@ CLI/status/quota 并补 smoke；只更新文档不会改变机器的下一次决
 ## 代表性 Smoke
 
 - `examples/state-projection-gap-smoke.py`
-- `examples/project/goal-vision-replan-contract-smoke.py`
 - `examples/control_plane/agent-scoped-evidence-log-smoke.py`
 - `examples/outcome-followthrough-policy-smoke.py`
 - `tests/control_plane_ts/quota_monitor_poll_commit.test.ts`

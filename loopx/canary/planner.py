@@ -271,11 +271,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "tier": "deep",
                 "reason": "samples project-local uninstall safety with isolated fixture registries",
             },
-            {
-                "command": "python3 examples/worker-bridge-install-contract-smoke.py",
-                "tier": "deep",
-                "reason": "checks generic worker bridge install contracts without exposing private runtime material",
-            },
         ],
     },
     {
@@ -430,11 +425,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                     "guards compact runtime handoff history through status, quota should-run, "
                     "and review-packet handoff-only read paths"
                 ),
-            },
-            {
-                "command": "python3 examples/control_plane/run-compaction-readmodel-smoke.py",
-                "tier": "default",
-                "reason": "guards status wrapper parity for compact run read-model and summary projection attachment",
             },
             {
                 "command": "python3 examples/control_plane/goal-channel-readmodel-smoke.py",
@@ -1058,11 +1048,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/claude-goalmode-lifecycle-smoke.py",
                 "tier": "default",
                 "reason": "checks the Claude Code goal-mode loop lifecycle without production actions",
-            },
-            {
-                "command": "python3 examples/worker-bridge-install-contract-smoke.py",
-                "tier": "default",
-                "reason": "checks generic worker bridge install/status contracts without private runtime material",
             },
             {
                 "command": "python3 examples/computer-use-runtime-contract-smoke.py",

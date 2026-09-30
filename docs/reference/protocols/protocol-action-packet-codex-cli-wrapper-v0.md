@@ -15,22 +15,9 @@ codex exec --skip-git-repo-check --ephemeral --ignore-user-config
   -C <isolated-fixture-project> <public-safe prompt>
 ```
 
-The public smoke uses a fake executable to verify the command shape and summary
-sidecar contract. It does not invoke real Codex CLI, read environment values,
-call direct LLM APIs, run Harbor or Terminal-Bench, start Docker/cloud
-sandboxes, use paid compute, read private traces, copy raw session history, or
-touch leaderboard paths.
-
-An explicit local probe can opt into real Codex CLI execution:
-
-```bash
-python3 examples/protocol/protocol-action-packet-codex-cli-wrapper-smoke.py --real-codex-cli
-```
-
-That mode still uses an isolated temporary project, `--ephemeral`,
-`--ignore-user-config`, `--ignore-rules`, and the same compact prompt; it
-records only sidecar fields such as return code, prompt length, summary, and
-stdout/stderr character counts.
+No LoopX code ships this wrapper. The fake-executable smoke that pinned the
+command shape only exercised its own fixture and was retired, so this page is a
+design note, not a supported command.
 
 The wrapper may become a real Codex CLI cold-path experiment only when the
 caller explicitly opts into real execution and keeps the output as a compact

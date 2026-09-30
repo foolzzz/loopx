@@ -548,7 +548,7 @@ If provider commit succeeds but the response is lost, the caller does not
 blindly retry with a new operation identity. It calls `readReceipt` using the
 same `operation_id`. A found receipt proves the canonical revision. An absent
 receipt plus a changed head requires reconciliation; ambiguity is not treated
-as failure. Provider-specific file, NoKV, or PostgreSQL behavior remains behind
+as failure. Provider-specific file, SQLite, or PostgreSQL behavior remains behind
 the provider-neutral authority store contract.
 
 ## 8. Replan integration
@@ -577,7 +577,7 @@ per-Agent Goal Vision without turning one Agent's vision into peer authority.
 ## 9. Provider and projection boundaries
 
 The `GoalAmendmentAuthority` decides whether a proposal is legal and may commit.
-File, NoKV, and PostgreSQL providers persist normalized transactions, CAS
+File, SQLite, and PostgreSQL providers persist normalized transactions, CAS
 heads, and receipts; they do not interpret Goal prose or choose amendment
 policy.
 
@@ -641,7 +641,8 @@ First connect existing commitments/work basis to commit-time validation. Then ve
    shared work-graph amendment that preserves root intent, including automated
    policy commit, CAS, receipt, replan settlement, and lease impact handling.
 5. **Stage 4 — provider-neutral shadow/parity.** Map the reviewed transaction
-   to the file reference provider and optional NoKV/PostgreSQL candidates;
+   to the file reference provider and optional SQLite/PostgreSQL candidates
+   (historical: the NoKV candidate was retired in the fork);
    compare projections and recovery without changing default authority.
 6. **Stage 5 — TEST ONLY shared canary.** Exercise two peers, concurrent
    proposals, unclaimed claim, response-loss recovery, stale bases, and

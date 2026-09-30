@@ -471,7 +471,7 @@ lease/fence 后，才能执行 eligible unclaimed work。提出 proposal 不会�
 如果 provider commit 成功但响应丢失，调用方不会用新 operation identity 盲目重试。
 它使用相同 `operation_id` 调用 `readReceipt`。找到 receipt 即证明 canonical
 revision；receipt 缺失且 head 已变化时必须 reconciliation，不能把 ambiguous 当作
-failure。File、NoKV 或 PostgreSQL 的 provider-specific 行为继续留在
+failure。File、SQLite 或 PostgreSQL 的 provider-specific 行为继续留在
 provider-neutral authority store contract 后面。
 
 ## 8. Replan 集成
@@ -497,7 +497,7 @@ vision 变成 peer authority。
 
 ## 9. Provider 与 projection 边界
 
-Semantic authority 决定 proposal 是否合法、谁可以 commit。File、NoKV 与
+Semantic authority 决定 proposal 是否合法、谁可以 commit。File、SQLite 与
 PostgreSQL provider 只持久化 normalized transaction、CAS head 与 receipt；它们不
 解释 Goal prose，也不选择 amendment policy。
 
@@ -553,7 +553,8 @@ proposal/admission 与提交不可用边界，无关工作继续。验收后，�
    amendment 自动治理 commit，覆盖 policy、CAS、receipt、replan settlement 与
    lease impact。
 5. **Stage 4 — provider-neutral shadow/parity。** 把经过评审的 transaction 映射到
-   file reference provider 与可选 NoKV/PostgreSQL candidate；在不改变默认 authority
+   file reference provider 与可选 SQLite/PostgreSQL candidate（历史说明：NoKV
+   candidate 已在本 fork 退役）；在不改变默认 authority
    的情况下比较 projection 与 recovery。
 6. **Stage 5 — TEST ONLY shared canary。** 在 authority-source promotion 前验证两个
    peer、并发 proposal、unclaimed claim、响应丢失恢复、stale base 与 protected

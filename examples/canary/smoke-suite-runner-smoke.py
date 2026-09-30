@@ -89,8 +89,8 @@ def assert_module_preview_supports_exclusions() -> None:
 
 
 def assert_subdirectory_smoke_selection_is_supported() -> None:
-    script = "examples/canary/smoke-suite-subdir-discovery-smoke.py"
-    for selector in [script, "canary/smoke-suite-subdir-discovery-smoke.py", Path(script).name]:
+    script = "examples/canary/quality-surface-catalog-smoke.py"
+    for selector in [script, "canary/quality-surface-catalog-smoke.py", Path(script).name]:
         payload = build_canary_smoke_suite_run(
             suite="default-public",
             scripts=[selector],
@@ -435,7 +435,7 @@ def assert_parallel_jobs_execute_and_preserve_report_order() -> None:
             suite="default-public",
             scripts=[
                 "todo-contract-smoke.py",
-                "canary/smoke-suite-subdir-discovery-smoke.py",
+                "canary/quality-surface-catalog-smoke.py",
             ],
             execute=True,
             timeout_seconds=60,
@@ -500,7 +500,7 @@ def assert_parallel_jobs_keep_marked_smokes_serial() -> None:
             scripts=[
                 "issue-fix-workflow-e2e-smoke.py",
                 "todo-contract-smoke.py",
-                "canary/smoke-suite-subdir-discovery-smoke.py",
+                "canary/quality-surface-catalog-smoke.py",
             ],
             execute=True,
             timeout_seconds=60,
@@ -541,7 +541,7 @@ def assert_fail_fast_keeps_parallel_jobs_serial() -> None:
             suite="default-public",
             scripts=[
                 "todo-contract-smoke.py",
-                "canary/smoke-suite-subdir-discovery-smoke.py",
+                "canary/quality-surface-catalog-smoke.py",
             ],
             execute=True,
             timeout_seconds=60,

@@ -1561,12 +1561,11 @@ LoopX 已经提供的通用机制包括：
 2. `tests/control_plane_ts/quota_monitor_poll_commit.test.ts`
 3. `examples/control_plane/monitor-poll-writeback-smoke.py`
 4. `examples/project/goal-vision-refresh-state-budget-smoke.py`
-5. `examples/project/goal-vision-replan-contract-smoke.py`
-6. `examples/issue-fix-pr-lifecycle-smoke.py`
-7. `examples/explore-result-layer-smoke.py`
-8. `examples/explore-worker-plan-gate-smoke.py`
-9. `examples/auto-research-layered-e2e-acceptance-smoke.py`
-10. `tests/control_plane/test_goal_frontier_replan_rules.py`
+5. `examples/issue-fix-pr-lifecycle-smoke.py`
+6. `examples/explore-result-layer-smoke.py`
+7. `examples/explore-worker-plan-gate-smoke.py`
+8. `examples/auto-research-layered-e2e-acceptance-smoke.py`
+9. `tests/control_plane/test_goal_frontier_replan_rules.py`
 
 这些验证分别证明局部机制。要证明“长程收敛”这一组合性质，还需要把方向、evidence、
 frontier、cadence、authority 和 terminal 放在同一条 case trace 中推演，不能只看一个
