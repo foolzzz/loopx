@@ -19,8 +19,10 @@ equal(routeWorkspaceInput("不要设置 Heartbeat，只回答当前进度", goal
 const continuation = routeWorkspaceInput("每天推进这个 Goal，设置 heartbeat", goalContext);
 equal(continuation.route, "agent_chat", "Goal continuation is interpreted by the Agent");
 equal(continuation.actionKind, null, "Goal continuation is not read as a daily monitor");
+equal(routeWorkspaceInput("每天推进这个 Goal，并添加定时检查，每 2 小时检查阻塞", goalContext).actionKind, "monitor.create", "explicit monitor wins over heartbeat continuation wording");
 equal(routeWorkspaceInput("Set up a Heartbeat for this Goal with daily progress", goalContext).route, "agent_chat", "English Goal continuation");
 equal(routeWorkspaceInput("Keep this Goal moving with daily progress", goalContext).actionKind, null, "English continuation without heartbeat wording is not a monitor");
+equal(routeWorkspaceInput("Keep this Goal moving, and add a scheduled check every 2 hours", goalContext).actionKind, "monitor.create", "explicit English monitor wins over continuation wording");
 equal(routeWorkspaceInput("Turn Heartbeat off", goalContext).route, "agent_chat", "explicit English heartbeat disable stays in chat");
 equal(routeWorkspaceInput("Add a scheduled check every 2 hours", goalContext).actionKind, "monitor.create", "English monitor");
 equal(routeWorkspaceInput("Add a monitor for off hours", goalContext).actionKind, "monitor.create", "off hours is a valid monitor target");

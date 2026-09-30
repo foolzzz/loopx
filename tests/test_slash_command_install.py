@@ -179,7 +179,8 @@ def test_codex_install_upgrades_managed_loopx_facade(tmp_path: Path) -> None:
 
     skill_text = skill.read_text(encoding="utf-8")
     assert "Treat this as the LoopX `/loopx` explicit LoopX command skill." in skill_text
-    assert "--host-surface <exact-current-host>" in skill_text
+    assert "--host-surface codex-cli-tui" in skill_text
+    assert "--host-surface <exact-current-host>" not in skill_text
     assert "Identify the exact current host surface" in skill_text
     assert "ark-managed-agent" in skill_text
     assert "`ordered_steps` and `goal_start_contract` as authoritative" in skill_text

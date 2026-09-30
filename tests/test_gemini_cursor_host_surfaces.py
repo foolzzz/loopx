@@ -2,9 +2,8 @@
 
 Installing discoverable files is not the same as being a usable LoopX host. The
 generated `/loopx` facade tells the agent to run `start-goal ... --host-surface
-<exact-current-host>`, so these tests execute that path for real: if either host
-is missing from the CLI choices, the selection gate or the activation dispatch,
-the facade dead-ends at argparse and the surface is decorative.
+<exact-current-host>`, so these tests execute that path for real and separately
+verify that an omitted host selects the Codex CLI default.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ import pytest
 
 from host_surface_cli_probes import (
     onboarding_setup_command_installs,
-    selection_gate_offers_surface,
+    omitted_host_defaults_to_codex_cli,
     start_goal_accepts_surface,
 )
 
@@ -40,11 +39,10 @@ def test_start_goal_accepts_the_new_host_surface(tmp_path: Path, host_surface: s
     }[host_surface]
 
 
-@pytest.mark.parametrize("host_surface", NEW_HOSTS)
-def test_host_selection_gate_offers_the_new_surfaces_and_its_rerun_command_works(
-    tmp_path: Path, host_surface: str
+def test_omitted_host_defaults_to_codex_cli(
+    tmp_path: Path,
 ) -> None:
-    selection_gate_offers_surface(host_surface, tmp_path)
+    omitted_host_defaults_to_codex_cli(tmp_path)
 
 
 @pytest.mark.parametrize("agent_type", NEW_HOSTS)

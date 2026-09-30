@@ -1713,7 +1713,7 @@ def test_start_goal_keeps_the_requested_linked_worktree(
     assert old_goal_id not in json.dumps(payload)
 
 
-def test_cli_without_host_returns_read_only_host_selection_gate(
+def test_cli_without_host_defaults_to_codex_cli(
     tmp_path: Path,
 ) -> None:
     project = _write_connected_project(tmp_path)
@@ -1740,31 +1740,14 @@ def test_cli_without_host_returns_read_only_host_selection_gate(
 
     assert exit_code == 0
     payload = json.loads(output.getvalue())
-    assert payload["guided_transaction"]["blocked_by"] == "host_surface_selection"
-    assert payload["safety_contract"]["writes_registry"] is False
-    choices = payload["host_surface_selection_gate"]["choices"]
-    assert [choice["host_surface"] for choice in choices] == [
-        "codex-app-ssh",
-        "codex-cli-tui",
-        "claude-code",
-        "opencode",
-        "opencode2",
-        "traex-cli",
-        "pi",
-        "gemini-cli",
-        "cursor-agent",
-        "zcode",
-        "agy",
-        "kiro-cli",
-        "deepseek-harness",
-        "deepseek-harness-native",
-        "ark-managed-agent",
-        "shell",
-        "other-agent",
-    ]
-    codex = next(choice for choice in choices if choice["host_surface"] == "codex-cli-tui")
-    assert "--host-surface codex-cli-tui" in codex["rerun_command"]
-    assert "--capability-route issue-fix" in codex["rerun_command"]
+    assert payload["host_surface"] == "codex-cli-tui"
+    assert payload["command_pack"]["host_surface"] == "codex-cli-tui"
+    activation = payload["command_pack"]["host_loop_activation"]
+    assert activation["host_surface"] == "codex_cli_visible_goal_mode"
+    assert activation["activation_method"] == "set_visible_goal"
+    assert "host_surface_selection_gate" not in payload
+    assert "--host-surface codex-cli-tui" in payload["command_pack"]["detail_command"]
+    assert "--capability-route issue-fix" in payload["command_pack"]["detail_command"]
 
 
 @pytest.mark.parametrize(

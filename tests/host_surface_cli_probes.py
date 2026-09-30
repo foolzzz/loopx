@@ -2,8 +2,8 @@
 
 Every surface's test file drives the real `loopx.cli` entrypoint inside a
 hermetic connected project; the plumbing — subprocess shape, registry
-fixture, and the three generic contract probes (facade exit path, selection
-gate, onboarding setup command) — is identical across surfaces, so it lives
+fixture, and the generic contract probes (facade exit path, default host,
+onboarding setup command) — is identical across surfaces, so it lives
 here once instead of being copied per surface.
 """
 
@@ -87,11 +87,9 @@ def start_goal_accepts_surface(surface: str, cwd: Path) -> dict:
     return payload
 
 
-def selection_gate_offers_surface(surface: str, cwd: Path) -> None:
-    """The facade falls back to the selection gate when the host is unclear, so
-    a host missing from the gate is unreachable even though it exists. The gate
-    is only useful if its rerun_command is executable as-is."""
-    gate_result = run_cli(
+def omitted_host_defaults_to_codex_cli(cwd: Path) -> None:
+    """An omitted host must select the supported Codex CLI default."""
+    result = run_cli(
         "start-goal",
         "--guided",
         "--project",
@@ -99,19 +97,13 @@ def selection_gate_offers_surface(surface: str, cwd: Path) -> None:
         "--goal-id",
         "surface-goal",
         "--goal-text",
-        "verify the host selection gate",
+        "verify the default host",
         cwd=cwd,
     )
-    assert gate_result.returncode == 0, gate_result.stderr
-    gate = json.loads(gate_result.stdout)["host_surface_selection_gate"]
-    choices = {item["host_surface"]: item for item in gate["choices"]}
-    assert surface in choices, sorted(choices)
-
-    tokens = shlex.split(choices[surface]["rerun_command"])
-    assert tokens[0] == "loopx"
-    rerun = run_cli(*tokens[1:], cwd=cwd)
-    assert rerun.returncode == 0, rerun.stderr
-    assert json.loads(rerun.stdout)["host_surface"] == surface
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["host_surface"] == "codex-cli-tui"
+    assert payload["command_pack"]["host_surface"] == "codex-cli-tui"
 
 
 def onboarding_setup_command_installs(

@@ -2,9 +2,8 @@
 
 Installing discoverable files is not the same as being a usable LoopX host. The
 generated `/loopx` facade tells the agent to run `start-goal ... --host-surface
-<exact-current-host>`, so these tests execute that path for real: if zcode is
-missing from the CLI choices, the selection gate or the activation dispatch,
-the facade dead-ends at argparse and the surface is decorative.
+<exact-current-host>`, so these tests execute that path for real and separately
+verify that an omitted host selects the Codex CLI default.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from pathlib import Path
 import pytest
 from host_surface_cli_probes import (
     onboarding_setup_command_installs,
-    selection_gate_offers_surface,
+    omitted_host_defaults_to_codex_cli,
     start_goal_accepts_surface,
 )
 
@@ -38,10 +37,10 @@ def test_start_goal_accepts_the_zcode_host_surface(tmp_path: Path) -> None:
     assert activation["host_surface"] == "zcode_agent_loop"
 
 
-def test_host_selection_gate_offers_zcode_and_its_rerun_command_works(
+def test_omitted_host_defaults_to_codex_cli(
     tmp_path: Path,
 ) -> None:
-    selection_gate_offers_surface(HOST_SURFACE, tmp_path)
+    omitted_host_defaults_to_codex_cli(tmp_path)
 
 
 def test_agent_onboarding_setup_command_installs_the_zcode_surface(

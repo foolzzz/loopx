@@ -26,7 +26,7 @@ MUST_HAVE = (
     "setup/bootstrap instruction",
     "thin task_body",
     "/goal <thin task_body>",
-    "heartbeat automation",
+    "quota `scheduler_hint`",
     "host loop surface",
     "hidden headless `codex exec`",
     "current goal id",
@@ -109,6 +109,8 @@ def assert_message_contract(payload: dict[str, object]) -> None:
     assert "Headless fallback should never be the only way" not in message, message
     assert "quota spend-slot --goal-id public-codex-cli-goal" in message, message
     assert "--source heartbeat --execute --agent-id codex-side-bypass" in message, message
+    assert "Codex App" not in message, message
+    assert "automation body" not in message, message
 
 
 def run_cli(*extra_args: str) -> str:
@@ -215,7 +217,8 @@ def main() -> int:
     assert "Copy the block below into Codex CLI TUI" in cli_markdown, cli_markdown
     assert "setup message, not the reusable heartbeat body" in cli_markdown, cli_markdown
     assert "`/goal <thin task_body>`" in cli_markdown, cli_markdown
-    assert "Codex App loop" not in cli_markdown, cli_markdown
+    assert "Codex App" not in cli_markdown, cli_markdown
+    assert "automation starting" not in cli_markdown, cli_markdown
     assert "heartbeat-prompt --thin" in cli_markdown, cli_markdown
     assert "Fresh Repo Install Repair" in cli_markdown, cli_markdown
     assert "Post-Bootstrap Thin Loop Prompt" in cli_markdown, cli_markdown

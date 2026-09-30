@@ -71,7 +71,7 @@ def run_install(
     cwd: Path = REPO_ROOT,
     revalidate_extensions: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    result = subprocess.run(
         [str(INSTALL_SCRIPT)],
         cwd=cwd,
         env={
@@ -81,10 +81,16 @@ def run_install(
                 "1" if revalidate_extensions else "0"
             ),
         },
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    assert result.returncode == 0, (
+        f"install-local.sh failed with exit {result.returncode}\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )
+    return result
 
 
 def write_promotion_readiness(
@@ -445,6 +451,8 @@ def main() -> int:
         loopx_command_skill_text = loopx_command_skill.read_text(encoding="utf-8")
         assert "surface=codex-skills" in loopx_command_skill_text, loopx_command_skill_text
         assert "Identify the exact current host surface" in loopx_command_skill_text
+        assert "--host-surface codex-cli-tui" in loopx_command_skill_text
+        assert "--host-surface <exact-current-host>" not in loopx_command_skill_text
         assert "`goal_start_contract` as authoritative" in loopx_command_skill_text
         loopx_openai_metadata = loopx_command_skill.parent / "agents" / "openai.yaml"
         loopx_openai_metadata_text = loopx_openai_metadata.read_text(encoding="utf-8")
