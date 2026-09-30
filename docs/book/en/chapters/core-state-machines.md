@@ -442,11 +442,8 @@ stateDiagram-v2
   Validation --> Failed: invalid or missing receipt
   DurableWriteback --> QuotaSpend: writeback accepted
   DurableWriteback --> Failed: rejected / identity mismatch
-  QuotaSpend --> SchedulerApply
-  SchedulerApply --> SchedulerAck
-  SchedulerApply --> RetryHostUpdate: host update failed
-  RetryHostUpdate --> SchedulerApply
-  SchedulerAck --> [*]
+  QuotaSpend --> SchedulerProjection
+  SchedulerProjection --> [*]
   Failed --> RepairOrRetry
 ```
 
@@ -458,7 +455,7 @@ Three invariants must hold:
 
 1. no durable writeback without a validation receipt;
 2. no spend when durable writeback is missing or rejected;
-3. no claim that the Host changed without an ACK or failure receipt for scheduler apply.
+3. no claim that the Host changed without the direct update result or an authoritative readback.
 
 A failure does not erase the transaction. Failure kinds such as `receipt_missing`, `identity_mismatch`,
 `writeback_rejected`, and `quota_spend_rejected` return control to repair or retry while preserving the
@@ -503,16 +500,18 @@ flowchart TD
   Decision["resolved interaction contract"] --> Hint["scheduler hint"]
   Hint --> Apply{"host cadence already matches?"}
   Apply -->|no| HostUpdate["apply host update"]
-  Apply -->|yes| Ack["record host-match ACK"]
-  HostUpdate -->|success| Ack
-  HostUpdate -->|failure| Fail["record failure receipt"]
-  Ack --> NextTick["next tick re-runs quota"]
-  Fail --> Retry["bounded retry / backoff"]
+  Apply -->|yes| NextTick["next tick re-runs quota"]
+  HostUpdate -->|success| Verify["verify host result"]
+  HostUpdate -->|failure| Keep["keep observed cadence for this turn"]
+  Verify --> NextTick
+  Keep --> NextTick
 ```
 
-When a `reset_token` or identity changes, cadence returns to its initial interval. Only an unchanged
-identity advances through backoff. A schedule change does not spend quota and cannot turn a paused or
-blocked Goal into an eligible one.
+Each App poll projects the current profile's initial interval and compares it with the observed Host
+RRULE. App automation does not persist a progression index, apply ACK, or failure receipt; the next wake
+recomputes the projection from canonical state. Local schedulers may still use bounded unchanged-poll
+backoff. A schedule change does not spend quota and cannot turn a paused or blocked Goal into an eligible
+one.
 
 ### Continuous Monitor: observation is also a bounded state machine
 
@@ -643,8 +642,8 @@ flowchart TD
 3. **Does the next step have a home?** Completing a Todo must leave a runnable successor, a concrete Gate,
    a wait with `resume_when` / `next_due_at`, a repair or replan obligation, or evidence-backed
    `no_followup`.
-4. **Does the Host know whether to continue or stop?** Scheduler apply needs an ACK or failure receipt, and
-   the next wake-up rereads canonical source. `terminal_no_followup` is the basis for stopping recurring
+4. **Does the Host know whether to continue or stop?** Apply a differing projected RRULE once, verify the
+   direct Host result, and let the next wake-up reread canonical source. `terminal_no_followup` is the basis for stopping recurring
    automation because the Goal is complete. A stopped Goal, paused quota, or blocked peer coordination may
    also produce a stop or return-to-owner action, but none of those proves Goal closure.
 
@@ -662,7 +661,7 @@ The following situations are therefore **not** closed-loop:
 - A Todo is marked done while acceptance is unmet or the Vision checkpoint is missing.
 - An external operation succeeded, but durable writeback or the matching spend receipt is missing.
 - Visible Todos are empty while a due monitor, blocked successor, Gate, or retryable sink remains.
-- A heartbeat changed cadence, the Host never ACKed it, yet the control plane claims scheduling succeeded.
+- A heartbeat update failed or was not read back, yet the control plane claims the Host cadence changed.
 
 A closed loop does not require a positive result. A validated blocker, negative evidence, rollback, retired
 path, or coverage-backed `no_followup` can close honestly. What matters is traceability, durable state, and
@@ -683,14 +682,14 @@ approval:
 6. **Write back:** Todo evidence records the revision, validation, and next action; completion creates a
    successor or records `no_followup`.
 7. **Account:** spend exactly once after successful writeback.
-8. **Schedule:** after recomputation, if only the homepage Gate remains, choose human-gate backoff; the
-   Host applies and ACKs it.
+8. **Schedule:** after recomputation, if only the homepage Gate remains, choose the human-gate initial
+   cadence; the Host applies it once when the observed RRULE differs and verifies the direct result.
 9. **Project:** Workspace shows documentation complete and the homepage decision still open. The UI has
    neither swallowed nor widened the Gate scope.
 
 If step 5 fails, the transition stops at validation. If step 6 fails, it must not reach spend. If the
-Host update in step 8 fails, record a failure receipt and retry within bounds instead of claiming that
-the cadence took effect.
+Host update in step 8 fails, retain the observed cadence for this turn instead of claiming that the
+projected cadence took effect; the next wake recomputes from canonical state.
 
 ## Trace symptoms to owners
 
@@ -700,7 +699,7 @@ the cadence took effect.
 | One Gate stops the whole Goal | decision scope and selected fallback | Delete the Gate or approve by default | Repair scope and recompute contract |
 | Blocker cleared, but Agent still loops | handoff state and successor relation | Edit `gate_state` | Add successor, reopen, or record `no_followup` |
 | Spend exists without an artifact | settlement receipt and durable writeback | Add a chat explanation | Repair or compensate, then fix the spend path |
-| Heartbeat waits longer and longer | reset token, identity, ACK/failure receipt | Shorten cadence unconditionally | Repair stale scheduler state |
+| Heartbeat uses the wrong cadence | current profile, projected initial RRULE, observed Host RRULE | Shorten cadence unconditionally | Recompute and apply once only when the observed RRULE differs |
 | Monitor polls forever | `next_due_at`, result hash, stop condition | Count each poll as delivery | Write bounded no-change / closeout |
 | Monitor has an observation but the expected successor is missing | authority mode, operation receipt, material-change generation, projection outbox | Rerun the business mutation or edit the projection | Replay the same operation; retry only pending projection, or use new evidence for a new generation |
 | Replan leaves the route unchanged | Vision/Todo/acceptance delta | Clear obligation with “replanned” | Write a material patch or unchanged reason |

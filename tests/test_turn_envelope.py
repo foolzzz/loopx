@@ -169,10 +169,10 @@ def _full_decision() -> dict[str, object]:
                 "recommended_rrule": "FREQ=MINUTELY;INTERVAL=3",
                 "no_spend_for_cadence_change": True,
                 "stateful_backoff": {
-                    "state_key": "scheduler_hint.codex_app.stateful_backoff",
+                    "reset_token": "reset-1",
                     "current_rrule": "FREQ=MINUTELY;INTERVAL=60",
                     "apply_needed": True,
-                    "state_status": "reset_required",
+                    "state_policy": "ephemeral_no_app_scheduler_state",
                 },
             },
         },

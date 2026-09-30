@@ -206,7 +206,7 @@ def _semantic_contract_field_rules(*, arm: str) -> dict[str, str]:
             "scheduler_action": """project scheduler_hint using only non-null action,
   cadence_class, spend_policy, and a codex_app object containing only non-null
   apply, host_action, recommended_rrule, no_spend_for_cadence_change, and
-  stateful_backoff {state_key,current_rrule,apply_needed,state_status}. Use {}
+  stateful_backoff {reset_token,current_rrule,apply_needed,state_policy}. Use {}
   when absent.""",
             "vision_continuation": """copy only non-null schema_version, required, decision,
   selected_todo_is_goal_completion, closeout_allowed_without_evidence,

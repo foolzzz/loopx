@@ -778,10 +778,7 @@ def assert_scoped_gate_rejects_capability_ineligible_only_fallback() -> None:
     scheduler = payload["scheduler_hint"]
     assert scheduler["action"] == "backoff_waiting_for_user", scheduler
     assert scheduler["cadence_class"] == "human_gate", scheduler
-    assert scheduler["codex_app"]["example_progression_minutes"] == [
-        30,
-        60,
-    ], scheduler
+    assert "example_progression_minutes" not in scheduler["codex_app"], scheduler
     assert scheduler["codex_app"]["max_interval_minutes"] == 60, scheduler
     assert scheduler["codex_app"]["recommended_interval_minutes"] == 30, scheduler
 
@@ -1006,10 +1003,7 @@ def assert_agent_without_advancement_candidate_and_only_monitor_work_stays_quiet
     assert scheduler["action"] == "backoff_until_material_transition", scheduler
     assert scheduler["codex_app"]["recommended_interval_minutes"] == 15, scheduler
     assert scheduler["codex_app"]["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=15", scheduler
-    # A far-future monitor keeps the host floor at 15m, but may back off more
-    # coarsely until the scheduled window gets near.
-    progression = scheduler["codex_app"]["example_progression_minutes"]
-    assert progression == [15, 30, 60], scheduler
+    assert "example_progression_minutes" not in scheduler["codex_app"], scheduler
     assert scheduler["unchanged_poll"]["limits"]["codex_cli_tui"] == 3, scheduler
     assert scheduler["unchanged_poll"]["final_quota_replan_check_enabled"] is True, scheduler
     assert scheduler["unchanged_poll"]["after_limits"]["claude_code_loop"] == "stop_loop", scheduler
@@ -1020,7 +1014,7 @@ def assert_agent_without_advancement_candidate_and_only_monitor_work_stays_quiet
     assert "cold_path_detail" not in scheduler, scheduler
     reset = scheduler["reset_policy"]
     assert isinstance(reset["reset_token"], str) and len(reset["reset_token"]) == 16, reset
-    assert reset["host_state_key"] == "scheduler_hint.reset_policy.reset_token", reset
+    assert "host_state_key" not in reset, reset
     assert reset["app_automation_initial_interval_minutes"] == 15, reset
     assert reset["app_automation_initial_rrule"] == "FREQ=MINUTELY;INTERVAL=15", reset
     assert scheduler["codex_app"]["max_interval_minutes"] == 60, scheduler

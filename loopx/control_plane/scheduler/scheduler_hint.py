@@ -29,11 +29,7 @@ from .monitor_wait import (
     _parse_monitor_timestamp,  # noqa: F401  # re-exported for compatibility
     build_monitor_wait_cadence_plan,
 )
-from .state import (
-    APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-    rrule_for_minutes,
-)
-from .state_transition_rules import decide_scheduler_backoff_state
+from .state import normalize_scheduler_rrule, rrule_for_minutes
 
 SCHEDULER_HINT_SCHEMA_VERSION = "scheduler_hint_v0"
 SCHEDULER_RESET_POLICY_SCHEMA_VERSION = "scheduler_reset_policy_v0"
@@ -42,7 +38,6 @@ APP_AUTOMATION_STATEFUL_BACKOFF_SCHEMA_VERSION = (
     "app_automation_stateful_backoff_v0"
 )
 CODEX_APP_MAX_INTERVAL_MINUTES = 60
-SCHEDULER_STALE_HINT_TOLERANCE_MINUTES = 2
 SCHEDULER_BASE_IDENTITY_KEYS = (
     "goal_id",
     "agent_identity.agent_id",
@@ -100,9 +95,6 @@ def _scheduler_profile_digest_snapshot(
         "app_automation_initial_rrule": "codex_app_initial_rrule",
         "app_automation_max_interval_minutes": (
             "codex_app_max_interval_minutes"
-        ),
-        "app_automation_progression_minutes": (
-            "codex_app_progression_minutes"
         ),
     }
     return {key_aliases.get(key, key): value for key, value in profile_snapshot.items()}
@@ -214,7 +206,6 @@ class _SchedulerHintBuilder:
     execution_context: SchedulerExecutionContextResolution
     arbitration: SchedulerArbitration
     spend_policy: Any
-    codex_app_scheduler_state: dict[str, Any] | None
     codex_app_current_rrule: Any
     include_detail: bool
 
@@ -258,7 +249,6 @@ class _SchedulerHintBuilder:
         cadence_progression_override: list[int] | None = None,
         reset_profile_snapshot_override: dict[str, Any] | None = None,
         cadence_context_detail: dict[str, Any] | None = None,
-        advance_same_identity: bool = True,
     ) -> dict[str, Any]:
         cadence = self._cadence_projections(codex_interval, codex_max, multiplier, cadence_progression_override)
         local_cadence_progression, app_cadence_progression = cadence["local"], cadence["app"]
@@ -287,7 +277,6 @@ class _SchedulerHintBuilder:
             "app_automation_initial_interval_minutes": app_initial_interval,
             "app_automation_initial_rrule": app_rrule,
             "app_automation_max_interval_minutes": app_host_max,
-            "app_automation_progression_minutes": app_cadence_progression,
             "unchanged_poll_backoff_multiplier": multiplier,
             "local_scheduler_unchanged_poll_limit": cli_limit,
             "claude_code_loop_unchanged_poll_limit": claude_limit,
@@ -310,7 +299,6 @@ class _SchedulerHintBuilder:
             "reset_to": "profile_initial_interval",
             "profile_action": action,
             "reset_token": reset_token,
-            "host_state_key": "scheduler_hint.reset_policy.reset_token",
             "app_automation_initial_interval_minutes": app_initial_interval,
             "app_automation_initial_rrule": app_rrule,
             "local_scheduler_initial_interval_minutes": local_initial_interval,
@@ -322,12 +310,11 @@ class _SchedulerHintBuilder:
             "reset_condition_summary": "token_changed|user_feedback|new_or_reassigned_todo|gate_or_material_transition|active_work_projected",
             "after_reset": "apply_initial_interval_before_backoff",
             "app_automation_tool": "automation_update",
-            "app_automation_apply": "call_automation_update_to_restore_initial_rrule_on_token_change",
+            "app_automation_apply": "call_automation_update_when_observed_rrule_differs_from_initial",
             "no_spend_for_reset": True,
         }
         reset_policy = {
             "reset_token": reset_token,
-            "host_state_key": "scheduler_hint.reset_policy.reset_token",
             "app_automation_initial_interval_minutes": app_initial_interval,
             "app_automation_initial_rrule": app_rrule,
             "identity_signature": identity_signature,
@@ -363,74 +350,43 @@ class _SchedulerHintBuilder:
             "final_quota_replan_check": final_replan_check,
             "no_spend_for_stop": True,
         }
-        scheduler_state = _dict_or_empty(self.codex_app_scheduler_state)
-        scheduler_now = now_utc()
-        backoff_decision = decide_scheduler_backoff_state(
-            app_cadence_progression,
-            scheduler_state=scheduler_state,
-            reset_token=reset_token,
-            identity_signature=identity_signature,
-            advance_same_identity=advance_same_identity,
-            current_time=scheduler_now,
-            observed_host_rrule=self.codex_app_current_rrule,
-            cadence_class=cadence_class,
-            stale_tolerance_minutes=SCHEDULER_STALE_HINT_TOLERANCE_MINUTES,
+        current_interval = app_initial_interval
+        current_rrule = app_rrule
+        observed_host_rrule = normalize_scheduler_rrule(
+            self.codex_app_current_rrule
         )
-        cadence_decision = backoff_decision.cadence
-        host_decision = backoff_decision.host
-        current_index = cadence_decision.current_index
-        state_status = cadence_decision.state_status
-        current_interval = backoff_decision.current_interval_minutes
-        current_rrule = backoff_decision.current_rrule
-        observed_host_rrule = backoff_decision.observed_host_rrule
-        host_update_failures = list(backoff_decision.host_update_failures)
-        recorded_host_failure = backoff_decision.recorded_host_failure
-        current_rrule_already_applied = backoff_decision.current_rrule_already_applied
-        apply_needed = host_decision.apply_needed
-        host_failure_suppressed = host_decision.host_failure_suppressed
-        if host_failure_suppressed:
-            state_status = "host_update_failure_suppressed"
+        current_rrule_already_applied = bool(
+            observed_host_rrule
+            and observed_host_rrule == normalize_scheduler_rrule(current_rrule)
+        )
+        apply_needed = not current_rrule_already_applied
         stateful_backoff_detail = {
-            "progression_minutes": app_cadence_progression,
             "current_interval_minutes": current_interval,
             "host_max_interval_minutes": app_host_max,
             "coarser_wait_fallback": "hold_affected_automation" if floor else "local_scheduler_only",
             "state_policy": "ephemeral_no_app_scheduler_state",
-            "reset_action": "clear_progression_index_apply_initial_rrule",
+            "reset_action": "apply_profile_initial_rrule_when_observed_rrule_differs",
             "automation_update_scope": "rrule_only_preserve_body_name_status",
         }
         app_automation = {
             "recommended_interval_minutes": current_interval,
             "max_interval_minutes": app_host_max,
             "unchanged_poll_backoff_multiplier": multiplier,
-            "example_progression_minutes": app_cadence_progression,
             "apply": (
                 "update_automation_cadence_if_possible"
                 if apply_needed
-                else (
-                    "none_recorded_host_failure"
-                    if host_failure_suppressed
-                    else "none_already_applied"
-                )
+                else "none_already_applied"
             ),
             "host_tool": "automation_update",
             "host_action": (
                 "update_current_heartbeat_rrule"
                 if apply_needed
-                else (
-                    "none_recorded_host_failure"
-                    if host_failure_suppressed
-                    else "none"
-                )
+                else "none"
             ),
             "host_action_contract": (
                 "automation_update_rrule_once"
                 if apply_needed
-                else (
-                    "skip_automation_update_for_recorded_host_failure"
-                    if host_failure_suppressed
-                    else "skip_automation_update_when_apply_needed_false"
-                )
+                else "skip_automation_update_when_apply_needed_false"
             ),
             "rrule_source": (
                 "scheduler_hint.app_automation.recommended_rrule"
@@ -439,28 +395,17 @@ class _SchedulerHintBuilder:
             ),
             "stateful_backoff": {
                 "schema_version": APP_AUTOMATION_STATEFUL_BACKOFF_SCHEMA_VERSION,
-                "state_key": APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-                "identity_signature": identity_signature,
                 "reset_token": reset_token,
-                "progression_index": current_index,
                 "current_rrule": current_rrule,
                 "apply_needed": apply_needed,
-                "state_status": state_status,
+                "state_policy": "ephemeral_no_app_scheduler_state",
             },
             "no_spend_for_cadence_change": True,
         }
         if floor:
             app_automation["execution_interval_policy"] = self.payload["automation_cadence"]
             app_automation["guarantee"] = cadence["guarantee"]
-            if host_failure_suppressed:
-                app_automation.update(host_action="pause_current_heartbeat", apply="pause_affected_automation")
         stateful_backoff = app_automation["stateful_backoff"]
-        if host_update_failures:
-            stateful_backoff["host_update_failures"] = [
-                dict(failure) for failure in host_update_failures
-            ]
-        if recorded_host_failure:
-            stateful_backoff["host_update_failure"] = dict(recorded_host_failure)
         if observed_host_rrule:
             stateful_backoff["host_observation"] = {
                 "source": "quota_should_run_host_observation",
@@ -621,7 +566,6 @@ def build_scheduler_hint(
     user_action_required: bool = False,
     agent_scope_frontier_actions: Collection[str] = (),
     include_detail: bool = False,
-    codex_app_scheduler_state: dict[str, Any] | None = None,
     codex_app_current_rrule: Any = None,
     scheduler_execution_context: (
         Mapping[str, Any] | SchedulerExecutionContextResolution | None
@@ -776,7 +720,6 @@ def build_scheduler_hint(
         execution_context=execution_context,
         arbitration=arbitration,
         spend_policy=spend_policy,
-        codex_app_scheduler_state=codex_app_scheduler_state,
         codex_app_current_rrule=codex_app_current_rrule,
         include_detail=include_detail,
     )
@@ -821,7 +764,6 @@ def build_scheduler_hint(
             codex_max=10,
             cli_limit=None,
             claude_limit=None,
-            advance_same_identity=False,
         )
         result["consistency_error"] = arbitration.consistency_error()
         return result
@@ -846,17 +788,6 @@ def build_scheduler_hint(
         )
 
     if arbitration.disposition == SchedulerDisposition.ACTIVE_WORK:
-        interaction_contract = payload.get("interaction_contract")
-        agent_channel = (
-            interaction_contract.get("agent_channel")
-            if isinstance(interaction_contract, Mapping)
-            else None
-        )
-        capability_bridge_wait = (
-            arbitration.mode == "capability_bridge_repair"
-            and isinstance(agent_channel, Mapping)
-            and agent_channel.get("delivery_allowed") is False
-        )
         return builder.build(
             action="run_now",
             cadence_class="active_work",
@@ -868,7 +799,6 @@ def build_scheduler_hint(
             codex_max=10,
             cli_limit=None,
             claude_limit=None,
-            advance_same_identity=capability_bridge_wait,
         )
 
     if arbitration.disposition == SchedulerDisposition.UNCHANGED_WAIT:

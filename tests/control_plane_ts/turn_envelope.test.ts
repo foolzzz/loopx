@@ -245,10 +245,10 @@ test("Trae App Turn envelope preserves app automation without a Codex alias", ()
       apply: "update_automation_cadence_if_possible",
       recommended_rrule: "FREQ=MINUTELY;INTERVAL=3",
       stateful_backoff: {
-        state_key: "scheduler_hint.app_automation.stateful_backoff",
+        reset_token: "reset-1",
         current_rrule: "FREQ=MINUTELY;INTERVAL=15",
         apply_needed: true,
-        state_status: "reset_required",
+        state_policy: "ephemeral_no_app_scheduler_state",
       },
     },
   };
@@ -264,8 +264,8 @@ test("Trae App Turn envelope preserves app automation without a Codex alias", ()
   assert.equal(scheduler.codex_app, undefined);
   assert.equal(app.host_surface, "trae_app");
   assert.equal(
-    (app.stateful_backoff as Record<string, unknown>).state_key,
-    "scheduler_hint.app_automation.stateful_backoff",
+    (app.stateful_backoff as Record<string, unknown>).state_policy,
+    "ephemeral_no_app_scheduler_state",
   );
 });
 

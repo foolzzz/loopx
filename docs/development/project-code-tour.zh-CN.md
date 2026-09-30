@@ -96,7 +96,7 @@ flowchart TB
 
 ```text
 loopx/
-├── entrypoint.py              # 最外层 console 入口，处理版本和少数 native follow-up
+├── entrypoint.py              # 最外层 console 入口，处理版本并加载 CLI runtime
 ├── cli.py                     # 注册全部命令并按命令分派 handler
 ├── cli_runtime.py             # 全局参数、Registry 解析、公共命令分派
 ├── bootstrap.py               # 将项目接入 LoopX，创建/更新 Goal State 与 Registry
@@ -272,7 +272,7 @@ Quota 结果会被压缩成一个面向 Host/Agent 的 packet。关键字段通�
 | `should_run` | 本轮是否允许启动 Agent。 |
 | `work_lane_contract` | 当前选择的领域/工作泳道，以及它的义务。 |
 | `interaction_contract` | Host 如何与 LoopX 交互、下一条 CLI 动作是什么。 |
-| `scheduler_hint` | 唤醒动作、cadence、ACK 和 failure follow-up。 |
+| `scheduler_hint` | 唤醒动作、无状态 App cadence 投影和直接 Host readback。 |
 | `capability_gate` | 是否需要领域能力、用户批准或额外检查。 |
 | `todo_write_hint` | Todo 写回时需要遵守的最小协议。 |
 

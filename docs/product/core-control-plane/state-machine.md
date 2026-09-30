@@ -75,7 +75,7 @@ interpreter. This framing follows the public lecture
 |---|---|---|---|---|---|
 | Todo lifecycle | Agent proposes work, claim, completion, or blocker | Todo projection and authority rules | `open` / `claimed` / `deferred` / `blocked` / `done` / `superseded` | Todo summary and frontier | Next runnable todo or successor |
 | Quota runtime | Agent proposes a bounded turn | `quota should-run` | `run` / `gate` / `wait` / `repair` / `quiet` | Quota packet + `interaction_contract` | Execute, ask owner, observe, repair, or no-op |
-| Scheduler / heartbeat | Host asks when to wake again | Scheduler hint and ACK rules | Host RRULE / initial interval / backoff | `scheduler_hint` packet | Next heartbeat or monitor poll |
+| Scheduler / heartbeat | Host asks when to wake again | Stateless App cadence projection | Host RRULE / profile initial interval | `scheduler_hint` packet | Next heartbeat or monitor poll |
 | Gate and capability | Agent requests an effect with external authority | Capability and user gate rules | `repair_bridge` / `ask_owner` / allow / block | Gate packet and primary action | Repair, ask, execute, or stop |
 | Vision and replan | Agent closes or continues a bounded stage | Replan and vision rules | Continue / replan / watch / close | `goal_frontier_projection` + `vision_continuation_audit` | Next advancement or successor |
 | Monitor | Host polls a target | Monitor scheduler and evidence rules | Due / future / quiet / external observe | Monitor poll event and scheduler hint | Next poll or material transition |
@@ -340,7 +340,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `run_now` | `active_work` | 3 / 10 minutes | Work or repair must be attempted. |
 | `backoff_waiting_for_user` | `human_gate` | 30 / 120 minutes | Concrete user/controller action is next. |
-| `backoff_until_reassigned` | `agent_scope_wait` or `peer_coordination_wait` | 10 / 60 minutes, progression 10/20/30/60 | Handoff owner, peer readiness, coordinator configuration, reassignment, or new local work may unblock this agent. |
+| `backoff_until_reassigned` | `agent_scope_wait` or `peer_coordination_wait` | 10 / 60 minutes | Handoff owner, peer readiness, coordinator configuration, reassignment, or new local work may unblock this agent. |
 | `backoff_until_material_transition` | `monitor_wait` | 15 / 60 minutes | Monitor-only liveness without compute spend. |
 | `backoff_until_fresh_evidence` | `unchanged_noop` | 60 / 240 minutes | Wait for fresh mapped or post-handoff evidence. |
 | `backoff_until_state_change` | `quiet_wait` | 30 / 120 minutes | No specific user/monitor path is projected. |

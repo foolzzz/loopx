@@ -425,7 +425,7 @@ def main() -> int:
         reset_policy = quota_payload["scheduler_hint"]["reset_policy"]
         assert reset_policy["reset_token"], reset_policy
         assert reset_policy["app_automation_initial_rrule"], reset_policy
-        assert reset_policy["host_state_key"] == "scheduler_hint.reset_policy.reset_token", reset_policy
+        assert "host_state_key" not in reset_policy, reset_policy
         assert "identity_snapshot" not in reset_policy, reset_policy
         assert "profile_snapshot" not in reset_policy, reset_policy
         assert "identity_keys" not in reset_policy, reset_policy

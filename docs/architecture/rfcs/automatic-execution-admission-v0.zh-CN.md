@@ -41,7 +41,8 @@ scheduler 退避消费这一约束，不能改写它。配额槽、定时器唤�
 
 ## 4. 基线事实
 
-Quota 管工作资格与验证后的记账；scheduler hint 管退避和宿主 ACK，App 存在 60 分钟的旧上限。
+Quota 管工作资格与验证后的记账；scheduler hint 只投影当前 profile 的初始宿主 cadence，不持久化
+App ACK、failure receipt 或 progression state；App 仍受 60 分钟宿主上限约束。
 `loopx turn run-once` 管 host 启动、恢复与结算。Codex App 自己管理定时器，模型内 LoopX guard 在模型启动后运行；runtime hook 则是另一条
 潜在的启动前路径，调研结论见附录。现有 compute budget / replan 设置没有表示执行最短间隔。
 long-task cadence 是建议，不是用户约束。

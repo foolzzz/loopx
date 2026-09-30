@@ -95,24 +95,23 @@ def assert_compact_runtime_policy_complete(name: str, compact: dict) -> None:
     assert app_automation["recommended_interval_minutes"], (name, compact)
     assert app_automation["recommended_rrule"], (name, compact)
     assert app_automation["max_interval_minutes"], (name, compact)
-    assert isinstance(app_automation["example_progression_minutes"], list), (name, compact)
+    assert "example_progression_minutes" not in app_automation, (name, compact)
     assert app_automation["host_tool"] == "automation_update", (name, compact)
     assert app_automation["host_action"] == "update_current_heartbeat_rrule", (name, compact)
     assert "automation_update" in app_automation["host_action_contract"], (name, compact)
     assert app_automation["rrule_source"] == "scheduler_hint.app_automation.recommended_rrule", (name, compact)
     assert stateful_backoff["schema_version"] == "app_automation_stateful_backoff_v0", (name, compact)
-    assert stateful_backoff["state_key"] == "scheduler_hint.app_automation.stateful_backoff", (name, compact)
-    assert stateful_backoff["identity_signature"] == compact["reset_policy"]["identity_signature"], (
-        name,
-        compact,
-    )
+    assert stateful_backoff["state_policy"] == "ephemeral_no_app_scheduler_state", (name, compact)
     assert stateful_backoff["reset_token"] == compact["reset_policy"]["reset_token"], (name, compact)
     assert stateful_backoff["apply_needed"] is True, (name, compact)
     assert stateful_backoff["current_rrule"] == app_automation["recommended_rrule"], (name, compact)
-    assert stateful_backoff["state_status"] == "missing", (name, compact)
     assert "ack_hint" not in app_automation, (name, compact)
     assert "failure_hint" not in app_automation, (name, compact)
     for omitted in (
+        "state_key",
+        "identity_signature",
+        "progression_index",
+        "state_status",
         "progression_minutes",
         "current_interval_minutes",
         "persist",
@@ -209,10 +208,7 @@ def assert_compact_scheduler(name: str, source_payload: dict) -> None:
     )
     assert cold_path["claude_code_loop"]["after_limit"], (name, detailed)
     stateful_detail = cold_path["stateful_backoff_detail"]
-    assert stateful_detail["progression_minutes"] == compact["app_automation"]["example_progression_minutes"], (
-        name,
-        detailed,
-    )
+    assert "progression_minutes" not in stateful_detail, (name, detailed)
     assert stateful_detail["state_policy"] == "ephemeral_no_app_scheduler_state", (
         name,
         detailed,
@@ -311,9 +307,7 @@ def assert_cli_compact_and_detail_contract() -> None:
         compact["unchanged_poll"]["after_limits"]["claude_code_loop"]
     ), detailed
     assert detailed["cold_path_detail"]["reset_policy_detail"]["app_automation_tool"] == "automation_update", detailed
-    assert detailed["cold_path_detail"]["stateful_backoff_detail"]["progression_minutes"] == (
-        compact["app_automation"]["example_progression_minutes"]
-    ), detailed
+    assert "progression_minutes" not in detailed["cold_path_detail"]["stateful_backoff_detail"], detailed
 
 
 def main() -> int:

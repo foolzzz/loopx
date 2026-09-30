@@ -857,7 +857,6 @@ def render_quota_should_run_markdown(payload: dict[str, Any]) -> str:
             f"app_automation_minutes={app_automation.get('recommended_interval_minutes')} "
             f"app_automation_rrule={app_automation.get('recommended_rrule')} "
             f"app_automation_apply_needed={(app_automation.get('stateful_backoff') or {}).get('apply_needed') if isinstance(app_automation.get('stateful_backoff'), dict) else None} "
-            f"app_automation_progression={app_automation.get('example_progression_minutes')} "
             f"cli_unchanged_limit={cli_unchanged_limit} "
             f"claude_unchanged_limit={claude_unchanged_limit}"
         )

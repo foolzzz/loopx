@@ -231,9 +231,16 @@ def render_codex_cli_local_scheduler_tick_markdown(payload: dict[str, Any]) -> s
         if isinstance(payload.get("scheduler_hint"), dict)
         else {}
     )
+    cold_path_detail = (
+        scheduler_hint.get("cold_path_detail")
+        if isinstance(scheduler_hint.get("cold_path_detail"), dict)
+        else {}
+    )
     local_scheduler = (
         scheduler_hint.get("local_scheduler")
         if isinstance(scheduler_hint.get("local_scheduler"), dict)
+        else cold_path_detail.get("local_scheduler")
+        if isinstance(cold_path_detail.get("local_scheduler"), dict)
         else {}
     )
     codex_app = (
@@ -258,10 +265,7 @@ def render_codex_cli_local_scheduler_tick_markdown(payload: dict[str, Any]) -> s
         local_scheduler.get("recommended_interval_minutes")
         or codex_app.get("recommended_interval_minutes")
     )
-    local_progression = (
-        local_scheduler.get("example_progression_minutes")
-        or codex_app.get("example_progression_minutes")
-    )
+    local_progression = local_scheduler.get("example_progression_minutes")
     local_unchanged_limit = (
         local_scheduler.get("unchanged_poll_limit")
         if "unchanged_poll_limit" in local_scheduler

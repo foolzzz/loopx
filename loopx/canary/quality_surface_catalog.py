@@ -131,7 +131,7 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
     },
     {
         "surface_id": "scheduler-cadence",
-        "title": "Scheduler cadence backoff and reset",
+        "title": "Scheduler cadence projection and local backoff",
         "risk": "high",
         "canary_profile_id": "scheduler-cadence",
         "owner_paths": [
@@ -146,9 +146,9 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "source_kind": "specification",
             "refs": ["docs/status-data-contract.md"],
             "independence_rationale": (
-                "The status contract specifies the unchanged-poll backoff progression "
-                "and the reset to the profile's initial interval when the reset token "
-                "changes, independently of the transition kernel implementation."
+                "The status contract specifies stateless App initial-cadence projection "
+                "and local unchanged-poll backoff independently of the transition kernel "
+                "implementation."
             ),
         },
         "layers": {
@@ -167,7 +167,7 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
                 "no launcher or installer path participates."
             ),
             "model_behavior": _not_applicable(
-                "Cadence backoff and reset are deterministic scheduler invariants."
+                "App cadence projection and local backoff are deterministic scheduler invariants."
             ),
             "release_gate": _covered(
                 "loopx canary premerge --profile scheduler-cadence"

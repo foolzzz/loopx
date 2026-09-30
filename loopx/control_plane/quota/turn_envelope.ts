@@ -388,16 +388,8 @@ function scheduler(payload: JsonObject, turn: ReturnType<typeof interpretQuotaSh
   const state = object(sourceApp.stateful_backoff);
   if (Object.keys(state).length > 0) {
     const compactState: JsonObject = {};
-    for (const field of ["state_key", "current_rrule", "apply_needed", "state_status"]) {
+    for (const field of ["reset_token", "current_rrule", "apply_needed", "state_policy"]) {
       if (state[field] !== null && state[field] !== undefined) compactState[field] = state[field];
-    }
-    const failure = object(state.host_update_failure);
-    if (Object.keys(failure).length > 0) {
-      compactState.host_update_failure = Object.fromEntries(
-        ["target_rrule", "observed_host_rrule", "failure_kind", "failure_count"]
-          .filter((field) => failure[field] !== null && failure[field] !== undefined)
-          .map((field) => [field, failure[field]]),
-      );
     }
     app.stateful_backoff = compactState;
   }

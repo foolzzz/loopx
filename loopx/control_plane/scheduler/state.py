@@ -12,11 +12,6 @@ SCHEDULER_STATE_OPERATION_REQUEST_SCHEMA = (
 SCHEDULER_STATE_OPERATION_RESULT_SCHEMA = (
     "loopx_scheduler_state_operation_result_v0"
 )
-APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY = (
-    "scheduler_hint.app_automation.stateful_backoff"
-)
-
-
 def _operation_result(operation: str, **params: Any) -> Any:
     try:
         result = effect_runtime_result(

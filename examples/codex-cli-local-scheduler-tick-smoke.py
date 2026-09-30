@@ -119,7 +119,6 @@ QUOTA_HINT_FIXTURE = {
             "recommended_interval_minutes": 10,
             "max_interval_minutes": 60,
             "unchanged_poll_backoff_multiplier": 2,
-            "example_progression_minutes": [10, 20, 30, 60],
         },
         "unchanged_poll": {
             "limits": {
@@ -140,6 +139,14 @@ QUOTA_HINT_FIXTURE = {
             "reset_token": "fixture-reset-001",
             "local_scheduler_initial_interval_minutes": 10,
             "codex_app_initial_rrule": "FREQ=MINUTELY;INTERVAL=10",
+        },
+        "cold_path_detail": {
+            "local_scheduler": {
+                "recommended_interval_minutes": 10,
+                "example_progression_minutes": [10, 20, 30, 60],
+                "unchanged_poll_limit": 3,
+                "after_limit": "stop_tick_loop",
+            },
         },
     }
 }
@@ -239,7 +246,7 @@ def main() -> int:
     assert hinted_tick["launchd"]["reset_token"] == "fixture-reset-001", hinted_tick
     assert hinted_tick["launchd"]["reset_interval_seconds"] == 600, hinted_tick
     assert hinted_tick["launchd"]["reset_policy"]["codex_app_initial_rrule"] == "FREQ=MINUTELY;INTERVAL=10", hinted_tick
-    assert hinted_tick["scheduler_hint"]["codex_app"]["example_progression_minutes"] == [10, 20, 30, 60], hinted_tick
+    assert "example_progression_minutes" not in hinted_tick["scheduler_hint"]["codex_app"], hinted_tick
     assert hinted_tick["scheduler_hint"]["unchanged_poll"]["final_quota_replan_check_enabled"] is True, hinted_tick
 
     with tempfile.TemporaryDirectory(prefix="loopx-codex-cli-scheduler-tick-") as tmp:

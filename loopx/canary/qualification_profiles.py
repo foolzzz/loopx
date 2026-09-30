@@ -190,11 +190,11 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "scheduler-cadence",
-        "title": "Scheduler cadence backoff and reset",
+        "title": "Scheduler cadence projection and local backoff",
         "quality_risk": "high",
         "purpose": (
-            "Qualify scheduler cadence backoff convergence, identity reset, and the "
-            "typed state transition kernel without nested smoke execution."
+            "Qualify stateless App cadence convergence, local backoff, and the typed "
+            "state transition kernel without nested smoke execution."
         ),
         "catalog_families": [
             "Work Routing",
