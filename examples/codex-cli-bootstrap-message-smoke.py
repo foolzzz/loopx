@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -180,11 +181,12 @@ def assert_docs_surface_codex_cli_quickstart() -> None:
     assert "headless-disabled boundary" in normalized_getting_started, getting_started
     assert "This command no longer prints a runnable `codex exec` handoff script" in product_contract, product_contract
 
-    default_host_docs = (getting_started, newcomer)
-    for text in default_host_docs:
+    default_host_docs = {
+        "docs/guides/getting-started.md": getting_started,
+        "docs/guides/newcomer-command-path.md": newcomer,
+    }
+    for text in default_host_docs.values():
         assert "defaults to `codex-cli-tui`" in " ".join(text.split()), text
-        assert "returned read-only selection gate" not in " ".join(text.split()), text
-        assert "returns a read-only selection gate" not in " ".join(text.split()), text
 
     retired_entry_paths = (
         "docs/book/chapters/05-connect-existing-project.md",
@@ -195,18 +197,39 @@ def assert_docs_surface_codex_cli_quickstart() -> None:
         "docs/book/en/chapters/06-codex-app.md",
         "docs/development/control-plane-course/03-first-real-loop.md",
     )
-    for relative_path in retired_entry_paths:
-        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
-        assert all(
-            line.strip() != "--host-surface codex-app"
-            for line in text.splitlines()
-        ), relative_path
-
-    identity_plan = (
-        REPO_ROOT / "docs/plans/issue-2785-thread-agent-identity.md"
-    ).read_text(encoding="utf-8")
+    identity_plan_path = "docs/plans/issue-2785-thread-agent-identity.md"
+    identity_plan = (REPO_ROOT / identity_plan_path).read_text(encoding="utf-8")
     assert "Codex CLI Thread Agent Identity Reuse" in identity_plan, identity_plan
     assert "Codex App Thread Agent Identity Reuse" not in identity_plan, identity_plan
+
+    retired_host_argument = re.compile(
+        r"--host-surface(?:\s+|=)codex-app(?![-\w])",
+        re.IGNORECASE,
+    )
+    omitted_host_selection_gate = re.compile(
+        r"(?:"
+        r"(?:--host-surface|host[ -]surface|host|宿主)"
+        r"[^.!?。！？\n]{0,120}(?:omit(?:ted|ting)?|省略)"
+        r"[^.!?。！？\n]{0,120}selection\s+gate"
+        r"|"
+        r"(?:omit(?:ted|ting)?|省略)"
+        r"[^.!?。！？\n]{0,120}(?:--host-surface|host[ -]surface|host|宿主)"
+        r"[^.!?。！？\n]{0,120}selection\s+gate"
+        r")",
+        re.IGNORECASE,
+    )
+    contract_docs = {
+        **default_host_docs,
+        "docs/product/runtimes/codex-cli/codex-cli-tui-loop.md": product_contract,
+        identity_plan_path: identity_plan,
+        **{
+            relative_path: (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for relative_path in retired_entry_paths
+        },
+    }
+    for relative_path, text in contract_docs.items():
+        assert retired_host_argument.search(text) is None, relative_path
+        assert omitted_host_selection_gate.search(text) is None, relative_path
 
 
 def main() -> int:
