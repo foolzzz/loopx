@@ -16,7 +16,34 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- **LoopX state no longer lives under Codex's directory.** This is a breaking
+  path change with no migration.
+  - The global runtime root moves from `~/.codex/loopx` to `~/.loopx`. It
+    holds the global registry (`registry.global.json`), `providers.yaml`,
+    `agents/`, `dispatch/`, `chat/`, per-goal runtime state under `goals/`,
+    backups, extension state and the Lark consumer leases.
+  - Project goal state moves from `<project>/.codex/goals/<goal>/` to
+    `<project>/.loopx/goals/<goal>/`, next to the project's `registry.json`
+    and `agents/`. A project now only needs `.loopx/` (and `.local/`) ignored
+    by Git.
+  - LoopX does not read, fall back to or migrate the old directories, and
+    `loopx backup-state` and the orphaned-goal-state check no longer look at
+    `.codex/goals`. To keep existing state, stop LoopX and move it by hand:
+    `~/.codex/loopx` to `~/.loopx`, and each project's `.codex/goals/` to
+    `.loopx/goals/`. A registry entry whose `state_file` names an explicit
+    path keeps using that path. Codex's own files (`~/.codex/config.toml`,
+    `~/.codex/skills`, `CODEX_HOME`) are unchanged.
+- **`LOOPX_RUNTIME_ROOT` is honored everywhere.** It now sets the default
+  runtime root for every command, module and script, read when the root is
+  used (a relative value is made absolute). Before, only a few call sites
+  read it. `--runtime-root` and a registry's `common_runtime_root` still take
+  precedence. Commands that LoopX renders for another shell (agent prompts,
+  SSH commands) spell the global registry as
+  `"${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json"`, and the macOS
+  dashboard launch agents export `LOOPX_RUNTIME_ROOT` when it is set at
+  install time.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

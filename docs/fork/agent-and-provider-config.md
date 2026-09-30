@@ -5,8 +5,8 @@ Implements design-v0 decisions 14-17 and the Turn-host seams. Code lives in
 
 ## Files
 
-`<runtime-root>` defaults to `~/.codex/loopx` (or `--runtime-root` / the
-registry's `common_runtime_root`).
+`<runtime-root>` defaults to `~/.loopx` (or `LOOPX_RUNTIME_ROOT` when set;
+`--runtime-root` and the registry's `common_runtime_root` take precedence).
 
 ### `<runtime-root>/providers.yaml`
 

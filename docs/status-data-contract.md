@@ -17,7 +17,8 @@ debuggability matters.
 
 When a command is run outside a project-local `.loopx/registry.json`,
 the CLI falls back to the shared local global registry at
-`~/.codex/loopx/registry.global.json` if it exists. That registry is
+`~/.loopx/registry.global.json` (under `LOOPX_RUNTIME_ROOT` or `--runtime-root`
+when set) if it exists. That registry is
 maintained automatically by `connect` and `refresh-state` so each project agent
 can update its own local state while dashboards still see the multi-project
 view.
@@ -170,7 +171,7 @@ loopx --format json status \
 
 For compute allocation, `loopx quota status` and
 `loopx quota plan` derive an agent-facing grouping from this same status
-payload. `loopx --registry "$HOME/.codex/loopx/registry.global.json"
+payload. `loopx --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json"
 quota should-run --goal-id <goal-id>` derives a per-goal automation guard from
 that grouping for project heartbeats. These are read-only views, not a separate
 source of truth. Scripts should treat `summary.next_automatic_turn` in the
@@ -323,7 +324,7 @@ goals must stay out of the eligible lane even when they have a high
   "global_registry": {
     "available": true,
     "ok": true,
-    "registry": "~/.codex/loopx/registry.global.json",
+    "registry": "$HOME/.loopx/registry.global.json",
     "current_registry": ".loopx/registry.json",
     "current_registry_is_global": false,
     "global_goal_count": 4,
@@ -574,7 +575,7 @@ Fresh shape:
 {
   "ok": true,
   "registry": ".loopx/registry.json",
-  "runtime_root": "~/.codex/loopx",
+  "runtime_root": "$HOME/.loopx",
   "gate": "promotion_readiness",
   "gate_state": "ready",
   "can_promote": true,
@@ -1815,7 +1816,7 @@ For same-repo multi-goal projects, `project_registry_exists`,
 `goal_state_dir_exists`, and `active_state_file_exists` are goal-scoped health
 signals. A project can have both `main-control` and `side-bypass` in the same
 repo, but each selected `goal_id` should have its own
-`.codex/goals/<goal-id>/` directory. If that directory is missing, the map
+`.loopx/goals/<goal-id>/` directory. If that directory is missing, the map
 reports `project_goal_state_dir_not_detected:<goal-id>` and the legacy
 `project_local_goal_state_not_detected` risk even when another goal in the same
 repo is healthy.

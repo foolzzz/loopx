@@ -208,7 +208,7 @@ An instance-aware Goal record contains:
   "goal_instance_id": "ginst_6ff38d6d143d4b72a6ff894b95f067c1",
   "status": "active",
   "repo": "/project",
-  "state_file": ".codex/goals/release-2026/ACTIVE_GOAL_STATE.md"
+  "state_file": ".loopx/goals/release-2026/ACTIVE_GOAL_STATE.md"
 }
 ```
 
@@ -369,7 +369,7 @@ candidate requires one explicit disposition:
 loopx resolve-orphaned-goal-state \
   --project . \
   --goal-id release-2026 \
-  --disposition .codex/goals/release-2026/ACTIVE_GOAL_STATE.md=adopt \
+  --disposition .loopx/goals/release-2026/ACTIVE_GOAL_STATE.md=adopt \
   --disposition .claude/goals/release-2026/ACTIVE_GOAL_STATE.md=archive \
   --objective "Ship the release" \
   --domain engineering \
@@ -411,7 +411,7 @@ Execution must bind the preview and human intent:
 loopx resolve-orphaned-goal-state \
   --project . \
   --goal-id release-2026 \
-  --disposition .codex/goals/release-2026/ACTIVE_GOAL_STATE.md=adopt \
+  --disposition .loopx/goals/release-2026/ACTIVE_GOAL_STATE.md=adopt \
   --disposition .claude/goals/release-2026/ACTIVE_GOAL_STATE.md=archive \
   --objective "Ship the release" \
   --domain engineering \

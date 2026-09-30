@@ -18,7 +18,8 @@ The credential is its own file, not a machine-configuration namespace:
 <machine-runtime-root>/machine/credentials/operator_provider.json
 ```
 
-The canonical machine runtime is `~/.codex/loopx`, independent of `CODEX_HOME`
+The canonical machine runtime is `~/.loopx` (or `LOOPX_RUNTIME_ROOT` when
+set), independent of `CODEX_HOME`
 and any Goal's `common_runtime_root` or Turn `--runtime-root`. Turn planning,
 default host selection, dispatch and delegation readiness use this machine
 store. A Goal-local credential file does not override it. Explicit machine

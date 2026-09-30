@@ -131,7 +131,7 @@ than attaching private fixtures, snapshot identifiers, raw output or infrastruct
 
 ## Boundary Checklist
 
-- [ ] Neither the diff nor this PR body/comments/attachments disclose private state, credentials, raw traces or verifier output, internal links, or local machine paths (including `.loopx/`, `.codex/goals/`, and live `ACTIVE_GOAL_STATE.md`).
+- [ ] Neither the diff nor this PR body/comments/attachments disclose private state, credentials, raw traces or verifier output, internal links, or local machine paths (including `.loopx/` and live `ACTIVE_GOAL_STATE.md`).
 - [ ] I did not duplicate maintainer-owned benchmark work unless a maintainer split out a public issue for it.
 - [ ] I kept the change scoped to the linked issue/task.
 - [ ] I completed the visual evidence section for UI changes, or marked UI impact `none`.

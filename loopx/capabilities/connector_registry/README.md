@@ -22,7 +22,7 @@ loopx connector register <id> --status supported --value-tier P0 ...
 loopx connector use <id> --ms 1234      # 记录一次真实调用（成功/耗时）
 ```
 
-默认状态文件：`$LOOPX_RUNTIME_ROOT/connector-registry.json`（可用 `--path` 覆盖）。
+默认状态文件：`~/.loopx/connector-registry.json`（设置 `LOOPX_RUNTIME_ROOT` 时位于该目录下；可用 `--path` 覆盖）。
 
 ## 价值优先级演化
 
