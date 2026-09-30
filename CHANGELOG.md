@@ -112,6 +112,21 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   provider-neutral coordination contract probes moved to
   `tests/control_plane/test_coordination_contract_probes.py`. An authority
   archive whose header names `nokv` as its source provider is now rejected.
+- **Documentation-text and dead example smokes (developer-facing).** 49
+  example files are removed:
+  - 25 smokes that only matched document wording, with their two orphaned
+    fixtures and `cs-notes-integration.example.md`;
+  - 21 smokes and example files that could no longer run or only tested
+    their own fixtures. These include the four `/?view=ops` dashboard browser
+    smokes, eight transitional `cli-*-command-modularization` shape checks,
+    the handoff read-model and protocol-action-packet smokes, and the
+    already-failing `todo-index-rollout-status` smoke.
+
+  The canary planner no longer schedules two smokes that did not exist
+  (three catalog entries): `worker-bridge-install-contract-smoke.py` and
+  `control_plane/run-compaction-readmodel-smoke.py`. The planner smoke now
+  checks a selection table and whole-catalog invariants instead of pinning
+  individual smoke paths.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

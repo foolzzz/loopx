@@ -1113,7 +1113,6 @@ python3 -m py_compile loopx/*.py
 python3 examples/demo-cli-smoke.py
 python3 examples/control_plane/todo-cli-smoke.py
 python3 examples/control_plane/todo-lifecycle-cli-smoke.py
-python3 examples/control_plane/quota-contract-smoke.py
 python3 examples/control_plane/review-packet-cli-smoke.py
 python3 examples/benchmark-candidate-source-boundary-smoke.py
 python3 examples/benchmark-run-permission-policy-smoke.py

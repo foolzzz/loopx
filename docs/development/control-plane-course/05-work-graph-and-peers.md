@@ -317,7 +317,7 @@ else:
 quota、gate、capability、claim/lease 和 workspace guard；packet 本身不触发业务
 执行。`ready_waiting_for_run` 表示恢复条件已经满足，但尚未观察到后续 work run。
 
-阅读 `examples/project/project-handoff-readmodel-smoke.py` 时重点看两个反例：
+理解这条规则时重点看两个反例：
 
 1. handoff surface 完整，但没有 post-handoff run，应保持
    `ready_waiting_for_run`；

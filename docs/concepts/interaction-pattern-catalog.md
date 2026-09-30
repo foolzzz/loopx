@@ -1132,7 +1132,6 @@ decision-point re-read.
 - `docs/reference/contracts/dashboard-reward-write-boundary.md`
 - `examples/reward-gate-direct-write-contract-smoke.py`
 - `examples/reward-append-api-smoke.py`
-- `examples/dashboard-reward-append-browser-smoke.mjs`
 - `examples/project/operator-gate-resume-contract-smoke.py`
 
 #### IP-017 User Reward Lesson Promotion

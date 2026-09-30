@@ -226,11 +226,7 @@ OpenViking-style issue-fix memory is covered by the public specialization
 That adapter keeps per-goal and per-issue session memory as compact refs and
 retrieval gates only: no live OpenViking retrieval, memory writeback, issue or
 comment body read, raw trajectory, or raw tool-output ingest is authorized by
-the public fixture. Validate it with:
-
-```bash
-python3 examples/openviking-session-memory-adapter-smoke.py
-```
+the public fixture.
 
 ## Metrics
 

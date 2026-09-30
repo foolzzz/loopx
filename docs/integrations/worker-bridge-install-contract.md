@@ -48,6 +48,5 @@ verifier semantics benchmark-native.
 ## Validation
 
 ```bash
-python3 examples/cli-worker-bridge-command-modularization-smoke.py
 python3 examples/worker-bridge-active-user-feed-smoke.py
 ```
