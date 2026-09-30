@@ -175,6 +175,20 @@ def test_material_field_changes_are_reported(updates: dict[str, str]) -> None:
     assert set(delta["changed"][0]["changed_fields"]) == set(updates)
 
 
+def test_complete_snapshot_with_only_new_timestamps_is_observation() -> None:
+    module = _load_module()
+    previous = _snapshot(complete=True, generated_at="2026-08-06T09:00:00Z")
+    current = _snapshot(complete=True, generated_at="2026-08-06T10:00:00Z")
+    previous["change_requests"] = previous["change_requests"][:1]
+    current["change_requests"] = current["change_requests"][:1]
+
+    delta = module.build_delta(previous, current)
+
+    assert delta["material_change"] is False
+    assert delta["changed"] == []
+    assert delta["observation_only"] == ["example/runtime#42"]
+
+
 def test_complete_snapshot_removal_alone_is_material() -> None:
     module = _load_module()
     previous = _snapshot(complete=True, generated_at="2026-08-06T09:00:00Z")
