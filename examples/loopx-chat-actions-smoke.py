@@ -999,7 +999,7 @@ def assert_http_action_api(root: Path) -> None:
 
         persisted_payload = action_store.path.read_text(encoding="utf-8")
         assert str(root) not in persisted_payload, persisted_payload
-        assert str(project := registry_path.parent.parent) not in persisted_payload, persisted_payload
+        assert str(registry_path.parent.parent) not in persisted_payload, persisted_payload
 
         cancellable_code, cancellable = request_json(
             f"{base_url}/api/actions/preview",

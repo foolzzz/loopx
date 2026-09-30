@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from loopx.state_backup import (
+from loopx.state_backup import (  # noqa: E402
     build_state_backup_plan,
     execute_state_backup_plan,
     render_state_backup_markdown,
