@@ -173,9 +173,9 @@ The complete observable behaviour is pinned row by row in
 envelopes, stable-field subsets for provider-first rows, exact exit status,
 exclusion-free effect snapshots, and declared after-state) and
 enforced by `tests/control_plane_ts/legacy_writer_fence_caller_parity.test.ts`
-and `tests/control_plane/test_shadow_fence_caller_parity_e2e.py`; the
-`baseline` entries of that fixture document earlier revisions and are never
-executed.
+and `tests/control_plane/test_shadow_fence_caller_parity_e2e.py`. The fixture
+pins only the current behaviour; the baseline delta below records how earlier
+revisions differed.
 
 Promoted CLI acquire, renew, transfer and release rows assert provider commits and
 independent lease readback; fresh acquisition C is separate from keyless A and

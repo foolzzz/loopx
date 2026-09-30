@@ -171,7 +171,7 @@ class TestReadbackLifecycle:
                 source_root=REPO_ROOT)
             assert not ins["ready"]
             assert ins["status"] == "skill_digest_mismatch"
-            assert stale in ins["digest_mismatches"]
+            assert ins["digest_mismatches"] == [stale]
 
     def test_active_runtime_version_mismatch_is_not_ready(self):
         with tempfile.TemporaryDirectory() as td:

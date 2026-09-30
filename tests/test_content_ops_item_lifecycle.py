@@ -10,7 +10,11 @@ import pytest
 from loopx.capabilities.content_ops.item_lifecycle import (
     apply_content_ops_item_event,
     build_content_ops_item,
+    build_content_ops_item_packet,
+    build_content_ops_queue_status_packet,
     project_content_ops_item,
+    render_content_ops_item_packet_markdown,
+    render_content_ops_queue_status_markdown,
     validate_content_ops_item,
 )
 
@@ -19,13 +23,13 @@ DIGEST_V1 = "sha256:" + "1" * 64
 DIGEST_V2 = "sha256:" + "2" * 64
 
 
-def _item() -> dict[str, object]:
+def _item(item_id: str = "partner-launch-reply-v1") -> dict[str, object]:
     return build_content_ops_item(
-        item_id="partner-launch-reply-v1",
+        item_id=item_id,
         item_kind="reply",
         channel="x",
         content_digest=DIGEST_V1,
-        content_ref="draft:partner-launch-reply-v1",
+        content_ref=f"draft:{item_id}",
         source_refs=["source:partner-launch-post"],
         created_at="2026-08-03T09:00:00+08:00",
     )
@@ -60,7 +64,43 @@ def _apply(
         _event(item, event_id, action, payload, occurred_at),
     )
     assert packet["external_writes_performed"] is False
+    assert packet["autopublish_allowed"] is False
     return packet["item"]
+
+
+def test_created_item_starts_captured_without_effect_bindings() -> None:
+    item = _item()
+
+    assert item["schema_version"].startswith("content_ops_item_v")
+    assert item["item_id"] == "partner-launch-reply-v1"
+    assert item["item_kind"] == "reply"
+    assert item["state"] == "captured"
+    assert item["revision"] == 1
+    assert item["content_digest"] == DIGEST_V1
+    assert item["approval"] is None
+    assert item["delivery_intent"] is None
+    assert item["delivery_receipt"] is None
+    assert item["readback_receipt"] is None
+    assert item["autopublish_allowed"] is False
+    assert item["created_at"] == item["updated_at"]
+
+
+def test_item_packet_is_read_only_and_offers_revision() -> None:
+    packet = build_content_ops_item_packet(
+        item_id="p1",
+        item_kind="post",
+        channel="x",
+        content_digest=DIGEST_V1,
+        content_ref="draft:p1",
+        created_at="2026-08-03T09:00:00+08:00",
+    )
+
+    assert packet["ok"] is True
+    assert packet["external_reads_performed"] is False
+    assert packet["external_writes_performed"] is False
+    assert packet["autopublish_allowed"] is False
+    assert packet["projection"]["state"] == "captured"
+    assert "revise" in packet["projection"]["next_actions"]
 
 
 def test_full_item_lifecycle_requires_bound_approval_and_exact_readback() -> None:
@@ -155,6 +195,34 @@ def test_revision_invalidates_prior_approval_and_effect_intent() -> None:
     assert item["delivery_intent"] is None
 
 
+def test_revoked_approval_returns_item_to_review() -> None:
+    item = _apply(_item(), "ev1", "submit_review")
+    item = _apply(
+        item,
+        "ev2",
+        "approve",
+        {
+            "approval_ref": "d:test",
+            "revision": 1,
+            "content_digest": DIGEST_V1,
+            "effect_kind": "reply",
+        },
+    )
+    item = _apply(item, "ev3", "revoke_approval", {"reason": "Window expired."})
+
+    assert item["state"] == "review_ready"
+    assert item["approval"] is None
+    assert item["delivery_receipt"] is None
+
+
+def test_skipped_captured_item_is_terminal_with_reason() -> None:
+    item = _apply(_item(), "ev-skip", "skip", {"reason": "No longer relevant."})
+
+    assert item["state"] == "skipped"
+    assert item["terminal_reason"] == "No longer relevant."
+    assert project_content_ops_item(item)["terminal"] is True
+
+
 def test_approval_and_delivery_fail_closed_on_binding_or_window_mismatch() -> None:
     item = _apply(_item(), "event-review", "submit_review")
     with pytest.raises(ValueError, match="approval content_digest"):
@@ -195,6 +263,22 @@ def test_approval_and_delivery_fail_closed_on_binding_or_window_mismatch() -> No
                 "receipt_ref": "receipt:x-reply-123",
             },
             occurred_at="2026-08-03T10:00:00+08:00",
+        )
+
+
+def test_approval_for_another_revision_is_rejected() -> None:
+    item = _apply(_item(), "ev1", "submit_review")
+    with pytest.raises(ValueError, match="revision"):
+        _apply(
+            item,
+            "ev-bad",
+            "approve",
+            {
+                "approval_ref": "d:test",
+                "revision": 99,
+                "content_digest": DIGEST_V1,
+                "effect_kind": "reply",
+            },
         )
 
 
@@ -239,6 +323,23 @@ def test_forged_state_or_embedded_body_is_rejected() -> None:
     validation = validate_content_ops_item(embedded)
     assert validation["ok"] is False
     assert "unsupported fields" in validation["errors"][0]
+
+
+def test_item_and_queue_markdown_name_the_item() -> None:
+    packet = build_content_ops_item_packet(
+        item_id="md-test",
+        item_kind="article",
+        channel="x",
+        content_digest=DIGEST_V1,
+        content_ref="draft:md-test",
+        created_at="2026-08-03T09:00:00+08:00",
+    )
+    item_markdown = render_content_ops_item_packet_markdown(packet)
+    assert "md-test" in item_markdown
+    assert "captured" in item_markdown
+
+    queue = build_content_ops_queue_status_packet(items=[_item("q-item")])
+    assert "q-item" in render_content_ops_queue_status_markdown(queue)
 
 
 def test_cli_creates_and_transitions_an_item_without_external_effects(

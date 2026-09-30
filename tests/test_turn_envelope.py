@@ -885,6 +885,21 @@ def test_action_signature_detects_semantic_drift() -> None:
     ) != turn_envelope_action_signature_document(envelope)
 
 
+def test_action_signature_binds_effective_action() -> None:
+    quiet_source = _full_decision()
+    quiet_source["effective_action"] = "quiet_noop"
+
+    normal = build_turn_envelope(_full_decision())
+    quiet = build_turn_envelope(quiet_source)
+
+    assert normal["action_signature"]["matches"] is True
+    assert quiet["action_signature"]["matches"] is True
+    assert (
+        normal["action_signature"]["source_hash"]
+        != quiet["action_signature"]["source_hash"]
+    )
+
+
 def test_protocol_packet_derivation_keeps_only_real_residue() -> None:
     source = _compat_decision("residue")
 

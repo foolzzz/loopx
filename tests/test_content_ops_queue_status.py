@@ -77,6 +77,7 @@ def test_queue_projection_orders_actionable_items_and_counts_states() -> None:
     assert projection["next_action"]["item_id"] == "community-recap-v1"
     assert projection["items"][0]["priority_index"] == 1
     assert projection["items"][1]["priority_index"] == 2
+    assert projection["truth_contract"]["projection_is_writable"] is False
     assert packet["external_reads_performed"] is False
     assert packet["external_writes_performed"] is False
     assert packet["autopublish_allowed"] is False

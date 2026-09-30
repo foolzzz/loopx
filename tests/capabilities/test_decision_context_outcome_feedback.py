@@ -20,7 +20,9 @@ OBSERVED_AT = "2026-07-26T05:08:48+00:00"
 REVIEW_AT = "2026-07-29T05:08:48+00:00"
 
 
-def evidence_packet(*, promoted: bool = True) -> dict[str, object]:
+def evidence_packet(
+    *, promoted: bool = True, conflict_status: str = "resolved"
+) -> dict[str, object]:
     return build_decision_evidence_packet(
         goal_id="goal:decision-advisor",
         decision_id="decision:openviking-fusion",
@@ -55,7 +57,7 @@ def evidence_packet(*, promoted: bool = True) -> dict[str, object]:
                 "summary": "The latest owner direction supersedes the old route.",
                 "source_refs": ["source:decision-ledger", "source:legacy-route"],
                 "conflict_rule": "latest_explicit_authority_wins",
-                "status": "resolved",
+                "status": conflict_status,
             }
         ],
         source_revisions=[
@@ -180,6 +182,17 @@ def test_rejected_recall_is_telemetry_only() -> None:
     assert feedback["reward_memory"]["candidate_created"] is False
     assert feedback["reward_memory"]["ineligible_reason_codes"] == [
         "no_exact_read_promoted_claim"
+    ]
+
+
+def test_unresolved_authority_conflict_blocks_candidate() -> None:
+    evidence = evidence_packet(conflict_status="unresolved")
+    feedback = build_feedback(evidence, outcome_receipt(evidence))
+
+    assert feedback["reward_memory_candidate"] is None
+    assert feedback["reward_memory"]["candidate_created"] is False
+    assert feedback["reward_memory"]["ineligible_reason_codes"] == [
+        "unresolved_authority_conflict"
     ]
 
 

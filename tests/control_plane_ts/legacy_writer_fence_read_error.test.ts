@@ -49,10 +49,11 @@ test("fence reader distinguishes a missing file from a real directory read failu
 
   await fs.mkdir(path, { recursive: true });
   const result = await loadLegacyCoordinationWriterFence(root, "synthetic-goal");
-  assert.equal(result.status, "failed");
-  if (result.status !== "failed") assert.fail("directory read must fail closed");
-  assert.equal(result.reason_code, "legacy_writer_fence_read_failed");
-  assert.match(result.reason, /EISDIR/);
-  assert.equal(result.reason.includes(path), false);
+  assert.deepEqual(result, {
+    status: "failed",
+    reason_code: "legacy_writer_fence_read_failed",
+    reason: "EISDIR: illegal operation on a directory, read",
+  });
+  assert.equal(result.status === "failed" && result.reason.includes(path), false);
   assert.equal((await fs.stat(path)).isDirectory(), true);
 });
