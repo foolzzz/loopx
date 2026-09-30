@@ -4,15 +4,9 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${LOOPX_REPO_ROOT:-$(cd "$script_dir/.." && pwd)}"
 bin_dir="${LOOPX_BIN_DIR:-$HOME/.local/bin}"
-# The LoopX default runtime root rule (loopx.paths.default_runtime_root):
-# LOOPX_RUNTIME_ROOT made absolute when it is set, otherwise ~/.loopx. A set
-# value is also exported to both services so they resolve the same root.
-runtime_root="${LOOPX_RUNTIME_ROOT:-}"
-if [[ -n "$runtime_root" ]]; then
-  runtime_root="${runtime_root/#\~/$HOME}"
-  [[ "$runtime_root" == /* ]] || runtime_root="$PWD/$runtime_root"
-fi
-registry="${LOOPX_GLOBAL_REGISTRY:-${runtime_root:-$HOME/.loopx}/registry.global.json}"
+# The default global registry and runtime root are resolved at install time by
+# loopx.paths (resolve_runtime_paths); this script does not repeat the rule.
+registry_override="${LOOPX_GLOBAL_REGISTRY:-}"
 status_port="${LOOPX_STATUS_PORT:-8766}"
 status_limit="${LOOPX_STATUS_LIMIT:-80}"
 status_contract_min_version="${LOOPX_STATUS_CONTRACT_MIN_VERSION:-2}"
@@ -163,6 +157,18 @@ raise SystemExit(1)
 PY
 }
 
+resolve_runtime_paths() {
+  # Line 1: LOOPX_RUNTIME_ROOT made absolute, or empty when it is unset or
+  # blank. Line 2: the default global registry under the default runtime root.
+  PYTHONSAFEPATH=1 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" "$1" - <<'PY'
+from loopx.paths import configured_runtime_root, global_registry_path
+
+configured = configured_runtime_root()
+print(configured if configured is not None else "")
+print(global_registry_path())
+PY
+}
+
 resolve_chat_codex_home() {
   "$1" - "$chat_plist" <<'PY'
 import os
@@ -201,9 +207,16 @@ PY
 
 write_plists() {
   local status_command python_command codex_command claude_command lark_cli_command
-  local path_prefix command_path command_dir status_shell chat_shell control_plane_write_arg lark_cli_arg codex_home_export chat_codex_home runtime_root_export
+  local path_prefix command_path command_dir status_shell chat_shell control_plane_write_arg lark_cli_arg codex_home_export chat_codex_home
+  local runtime_paths runtime_root registry runtime_root_export
   status_command="$(resolve_status_command)"
   python_command="$(resolve_loopx_python)"
+  runtime_paths="$(resolve_runtime_paths "$python_command")" || {
+    echo "Could not resolve the LoopX runtime root with $python_command." >&2
+    exit 1
+  }
+  runtime_root="$(sed -n 1p <<<"$runtime_paths")"
+  registry="${registry_override:-$(sed -n 2p <<<"$runtime_paths")}"
   codex_command="$(resolve_optional_command codex)"
   claude_command="$(resolve_optional_command claude)"
   lark_cli_command="$(resolve_lark_cli_command "$python_command" 2>/dev/null || true)"
