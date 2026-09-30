@@ -5,6 +5,12 @@ from copy import deepcopy
 import pytest
 
 from loopx.control_plane.work_items.delivery_history import project_delivery_history
+from loopx.control_plane.work_items.delivery_outcome import (
+    DELIVERY_TURN_KIND_CHOICES,
+    DeliveryTurnKind,
+    normalize_delivery_turn_kind,
+    require_delivery_turn_kind,
+)
 from loopx.control_plane.work_items.work_lane_context import outcome_followthrough_hint
 from loopx.status import compact_post_handoff_run
 
@@ -208,3 +214,29 @@ def test_invalid_identifier_pair_cannot_prove_blocker_attribution(invalid_id) ->
     run = {"delivery_outcome": "outcome_gap", "todo_id": invalid_id, "progress_observation": observation}
     assert delivery_turn_kind_for_run(run) == "outcome_gap"
     assert build_outcome_followthrough_hint(run)["required"] is True
+
+
+def test_delivery_turn_kind_is_a_closed_six_value_set() -> None:
+    assert DELIVERY_TURN_KIND_CHOICES == (
+        "contract_only_preparation",
+        "compact_evidence",
+        "blocker_writeback",
+        "product_path_execution",
+        "outcome_gap",
+        "unknown",
+    )
+
+
+@pytest.mark.parametrize("value", DELIVERY_TURN_KIND_CHOICES)
+def test_every_declared_turn_kind_normalizes_and_is_required(value: str) -> None:
+    assert normalize_delivery_turn_kind(value) is DeliveryTurnKind(value)
+    assert normalize_delivery_turn_kind(f"  {value}  ") is DeliveryTurnKind(value)
+    assert normalize_delivery_turn_kind(DeliveryTurnKind(value)) is DeliveryTurnKind(value)
+    assert require_delivery_turn_kind(value) is DeliveryTurnKind(value)
+
+
+@pytest.mark.parametrize("value", ["contract_v0_delivered", "Compact_Evidence", "", None, 3])
+def test_undeclared_turn_kind_is_rejected(value: object) -> None:
+    assert normalize_delivery_turn_kind(value) is None
+    with pytest.raises(ValueError, match="delivery_turn_kind must be one of: contract_only_preparation, "):
+        require_delivery_turn_kind(value)

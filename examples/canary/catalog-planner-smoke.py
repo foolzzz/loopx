@@ -2,8 +2,8 @@
 """Smoke-test catalog-informed canary profile planning.
 
 Selection is checked as a table from (changed files, surfaces) to the exact
-domain profile ids the plan selects. A second table pins the scripts each
-profile must keep scheduling, by tier. Invariants hold for every profile: each
+domain and catalog-family profile ids the plan selects. A second table pins the
+scripts each profile must keep scheduling, by tier. Invariants hold for every profile: each
 planned command names a script that exists, and deep checks appear only on
 explicit request.
 """
@@ -33,115 +33,148 @@ from loopx.cli_commands.canary import collect_git_diff_changed_files  # noqa: E4
 
 SCRIPT_TOKEN = re.compile(r"^[\w./-]+\.(?:py|mjs|js|ts|sh)$")
 
-# (label, plan inputs, the exact domain profile ids the plan selects)
-SELECTION_CASES: tuple[tuple[str, dict[str, object], tuple[str, ...]], ...] = (
+# (label, plan inputs, the exact domain profile ids, the exact catalog family profile ids)
+SELECTION_CASES: tuple[tuple[str, dict[str, object], tuple[str, ...], tuple[str, ...]], ...] = (
     ("pr review", {"changed_files": ["loopx/pr_review.py", "skills/loopx-pr-review/SKILL.md"],
                    "surfaces": ["pr-review public PR metadata"]},
-     ("pr-review-and-merge", "repo-architecture-budget")),
+     ("pr-review-and-merge", "repo-architecture-budget"),
+     ("state-and-boundary",)),
     ("release", {"changed_files": ["docs/product/release-readiness.md"],
                  "surfaces": ["release promotion install update"]},
-     ("install-update", "release-promotion", "state-write-correctness")),
+     ("install-update", "release-promotion", "state-write-correctness"),
+     ("state-and-boundary",)),
     ("install", {"changed_files": ["scripts/install-local.sh", "loopx/self_update.py"],
                  "surfaces": ["install update rollback"]},
-     ("install-update", "repo-architecture-budget")),
+     ("install-update", "repo-architecture-budget"),
+     ("state-and-boundary",)),
     ("install without release", {"changed_files": ["loopx/doctor.py", "examples/install-local-smoke.py"]},
-     ("install-update", "repo-architecture-budget")),
+     ("install-update", "repo-architecture-budget"),
+     ()),
     ("refactor", {"changed_files": ["loopx/quota.py", "loopx/status.py"],
                   "surfaces": ["control-plane refactor scheduler hint"]},
-     ("agent-facing-cli-output-budget", "control-plane-refactor", "monitor-scheduler", "repo-architecture-budget", "status-read-path")),
+     ("agent-facing-cli-output-budget", "control-plane-refactor", "monitor-scheduler", "repo-architecture-budget", "status-read-path"),
+     ("planning-governance", "state-and-boundary", "work-routing")),
     ("scheduler ack", {"changed_files": ["loopx/control_plane/scheduler/ack.py"],
                        "surfaces": ["scheduler ACK route binding"]},
-     ("monitor-scheduler", "repo-architecture-budget", "scheduler-ack-route")),
+     ("monitor-scheduler", "repo-architecture-budget", "scheduler-ack-route"),
+     ("planning-governance", "work-routing")),
     ("state machine", {"changed_files": ["examples/control_plane/control-plane-integrated-canary-smoke.py"],
                        "surfaces": ["complex control-plane state-machine interaction_contract "
                                     "scheduler_hint work_lane_contract goal_frontier"]},
-     ("auto-research-demo", "control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route")),
+     ("auto-research-demo", "control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route"),
+     ("work-routing",)),
     ("frontier rules", {"changed_files": ["loopx/control_plane/goals/goal_frontier/replan_rules.py"],
                         "surfaces": ["ordered goal frontier replan policy"]},
-     ("auto-research-demo", "control-plane-state-machine", "goal-frontier-replan-rules", "repo-architecture-budget")),
+     ("auto-research-demo", "control-plane-state-machine", "goal-frontier-replan-rules", "repo-architecture-budget"),
+     ("planning-governance", "state-and-boundary")),
     ("interaction contract", {"changed_files": ["loopx/control_plane/work_items/interaction_contract.py"],
                               "surfaces": ["interaction_contract protocol_action_packet state-machine"]},
-     ("control-plane-refactor", "control-plane-state-machine", "repo-architecture-budget")),
+     ("control-plane-refactor", "control-plane-state-machine", "repo-architecture-budget"),
+     ("work-routing",)),
     ("interaction smoke", {"changed_files": ["examples/control_plane/interaction-contract-state-machine-smoke.py"]},
-     ("control-plane-state-machine", "repo-architecture-budget")),
+     ("control-plane-state-machine", "repo-architecture-budget"),
+     ()),
     ("bounded context", {"changed_files": ["loopx/control_plane/work_items/work_lane.py"],
                          "surfaces": ["bounded-context work_lane_contract state-machine interaction_contract"]},
-     ("control-plane-refactor", "control-plane-state-machine", "repo-architecture-budget")),
+     ("control-plane-refactor", "control-plane-state-machine", "repo-architecture-budget"),
+     ("work-routing",)),
     ("work-lane policy", {"changed_files": ["loopx/control_plane/scheduler/monitor_todo.py"],
                           "surfaces": ["resume_when resume_ready work-lane policy seam"]},
-     ("control-plane-refactor", "monitor-scheduler", "repo-architecture-budget")),
+     ("control-plane-refactor", "monitor-scheduler", "repo-architecture-budget"),
+     ("state-and-boundary", "work-routing")),
     ("monitor target", {"changed_files": ["loopx/control_plane/quota/monitor_poll_commit.ts"],
                         "surfaces": ["monitor_target monitor-poll scheduler_hint state-machine"]},
-     ("control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route")),
+     ("control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route"),
+     ("planning-governance", "work-routing")),
     ("monitor writeback", {"changed_files": ["loopx/control_plane/scheduler/monitor_poll_writeback.py"],
                            "surfaces": ["monitor_poll_writeback scheduler_hint state-machine"]},
-     ("control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route")),
+     ("control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route"),
+     ("work-routing",)),
     ("status", {"changed_files": ["loopx/status.py"], "surfaces": ["status --goal-id read-path"]},
-     ("agent-facing-cli-output-budget", "control-plane-refactor", "repo-architecture-budget", "status-read-path")),
+     ("agent-facing-cli-output-budget", "control-plane-refactor", "repo-architecture-budget", "status-read-path"),
+     ("state-and-boundary", "work-routing")),
     ("status cache", {"changed_files": ["loopx/control_plane/runtime/status_projection_cache.py"],
                       "surfaces": ["status_projection_cache projection-cache read-path"]},
-     ("repo-architecture-budget", "status-projection-cache", "status-read-path")),
+     ("repo-architecture-budget", "status-projection-cache", "status-read-path"),
+     ("state-and-boundary", "work-routing")),
     ("runtime handoff", {"changed_files": ["loopx/control_plane/handoff/project_handoff.py"],
                          "surfaces": ["runtime handoff post_handoff_run status read-path"]},
-     ("control-plane-refactor", "repo-architecture-budget", "status-read-path")),
+     ("control-plane-refactor", "repo-architecture-budget", "status-read-path"),
+     ("state-and-boundary", "work-routing")),
     ("review packet", {"changed_files": ["loopx/review_packet.py", "loopx/cli_commands/status.py"],
                        "surfaces": ["review-packet handoff-only operator packet read-path"]},
-     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path")),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path"),
+     ("human-decision", "work-routing")),
     ("event read", {"changed_files": ["loopx/event_sourced_state.py", "loopx/rollout_event_log.py"],
                     "surfaces": ["event projection downstream read event-store read-path"]},
-     ("event-sourced-read-path", "frontstage-rollout", "repo-architecture-budget", "status-read-path")),
+     ("event-sourced-read-path", "frontstage-rollout", "repo-architecture-budget", "status-read-path"),
+     ("evidence-lifecycle", "state-and-boundary")),
     ("cli", {"changed_files": ["loopx/cli.py", "loopx/cli_commands/version.py"],
              "surfaces": ["cli command modularization"]},
-     ("agent-facing-cli-output-budget", "cli-command-contract", "repo-architecture-budget")),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "repo-architecture-budget"),
+     ()),
     ("cli output budget", {"changed_files": ["loopx/cli_commands/status.py", "loopx/help_surface.py"],
                            "surfaces": ["agent-facing CLI output qualification"]},
-     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path")),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path"),
+     ("evidence-lifecycle", "work-routing")),
     ("todo", {"changed_files": ["loopx/todos.py", "loopx/control_plane/todos/contract.py"],
               "surfaces": ["todo lifecycle todo claim todo list"]},
-     ("agent-facing-cli-output-budget", "repo-architecture-budget", "todo-lifecycle")),
+     ("agent-facing-cli-output-budget", "repo-architecture-budget", "todo-lifecycle"),
+     ("evidence-lifecycle", "human-decision", "planning-governance", "state-and-boundary", "work-routing")),
     ("product entry", {"changed_files": ["README.md", "loopx/capabilities/issue_fix/README.md",
                                          "docs/update-notes/README.md",
                                          "loopx/capabilities/content_ops/surface.py",
                                          "scripts/update_notes_release_job.py"],
                        "surfaces": ["product-entry issue-fix content-ops update-note cross-runtime demo"]},
-     ("cross-runtime-impl-review-demo", "issue-fix-reviewer-routing", "product-entry-workflows", "release-promotion", "repo-architecture-budget", "state-write-correctness")),
+     ("cross-runtime-impl-review-demo", "issue-fix-reviewer-routing", "product-entry-workflows", "release-promotion", "repo-architecture-budget", "state-write-correctness"),
+     ("evidence-lifecycle",)),
     ("issue-fix outcome", {"changed_files": ["loopx/capabilities/issue_fix/repository_memory_provider.py",
                                              "examples/issue-fix-validated-memory-writeback-smoke.py"],
                            "surfaces": ["issue-fix outcome validated memory writeback"]},
-     ("issue-fix-outcome-visibility", "product-entry-workflows", "repo-architecture-budget")),
+     ("issue-fix-outcome-visibility", "product-entry-workflows", "repo-architecture-budget"),
+     ("planning-governance",)),
     ("cross runtime", {"changed_files": ["loopx/control_plane/handoff/cross_runtime_impl_review.py",
                                          "loopx/cli_commands/starter.py",
                                          "docs/product/use-cases/cross-runtime/cross-runtime-impl-review-demo.md"],
                        "surfaces": ["loopx demo impl-review claude implements codex reviews "
                                     "cross_runtime_impl_review_demo_packet_v0"]},
-     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "cross-runtime-impl-review-demo", "product-entry-workflows", "repo-architecture-budget")),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "cross-runtime-impl-review-demo", "product-entry-workflows", "repo-architecture-budget"),
+     ("work-routing",)),
     ("host command", {"changed_files": ["loopx/cli_commands/slash_commands.py",
                                         "docs/reference/protocols/codex-app-host-command-registry-v0.md",
                                         "docs/reference/protocols/global-manager-command-v0.md"],
                       "surfaces": ["slash-commands /loopx-global-summary host command registry"]},
-     ("agent-facing-cli-output-budget", "cli-command-contract", "host-command-entry", "repo-architecture-budget")),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "host-command-entry", "repo-architecture-budget"),
+     ()),
     ("first connect", {"changed_files": ["loopx/bootstrap.py", "loopx/bootstrap_command_pack.py", "loopx/contract.py"],
                        "surfaces": ["new user onboarding first connect contract state projection gap start-goal"]},
-     ("first-connect-contract", "repo-architecture-budget")),
+     ("first-connect-contract", "repo-architecture-budget"),
+     ("evidence-lifecycle", "human-decision", "state-and-boundary", "work-routing")),
     ("runtime connector", {"changed_files": ["docs/integrations/runtime-connector-catalog.md"],
                            "surfaces": ["runtime connector catalog codex app heartbeat codex cli tui claude code "
                                         "loop worker bridge scheduler_hint scoped identity"]},
-     ("control-plane-state-machine", "monitor-scheduler", "runtime-connector-catalog", "scheduler-ack-route")),
+     ("control-plane-state-machine", "monitor-scheduler", "runtime-connector-catalog", "scheduler-ack-route"),
+     ("state-and-boundary", "work-routing")),
     ("auto research", {"changed_files": ["demo/auto_research/core.py"],
                        "surfaces": ["auto-research demo frontier visible launcher"]},
-     ("auto-research-demo",)),
+     ("auto-research-demo",),
+     ()),
     ("explore", {"changed_files": ["loopx/capabilities/explore/harness_runtime.py", "loopx/configure_goal.py"],
                  "surfaces": ["explore harness resume configure-goal"]},
-     ("explore-harness", "peer-agent-runtime", "repo-architecture-budget")),
+     ("explore-harness", "peer-agent-runtime", "repo-architecture-budget"),
+     ("human-decision",)),
     ("configure sync", {"changed_files": ["loopx/control_plane/goals/configure_goal_service.py"],
                         "surfaces": ["configure-goal authoritative shared runtime sync readback"]},
-     ("peer-agent-runtime", "repo-architecture-budget")),
+     ("peer-agent-runtime", "repo-architecture-budget"),
+     ("state-and-boundary",)),
     ("benchmark toolkit", {"changed_files": ["loopx/capabilities/benchmark_toolkit/integrity.py"],
                            "surfaces": ["benchmark toolkit integrity no-submit boundary"]},
-     ("benchmark-toolkit-boundary", "repo-architecture-budget")),
+     ("benchmark-toolkit-boundary", "repo-architecture-budget"),
+     ("evidence-lifecycle", "state-and-boundary")),
     ("catalog canary", {"changed_files": ["loopx/canary/planner.py", "loopx/canary/runner.py"],
                         "surfaces": ["catalog canary runner"]},
-     ("catalog-canary-contract", "repo-architecture-budget")),
+     ("catalog-canary-contract", "repo-architecture-budget"),
+     ()),
 )
 
 
@@ -203,7 +236,7 @@ def assert_profiles_come_from_catalog_matrix() -> None:
     for profile in payload["domain_profiles"]:
         assert profile["checks"], profile
         assert all(check["reason"] for check in profile["checks"]), profile
-    selected_ids = set().union(*(expected for _, _, expected in SELECTION_CASES))
+    selected_ids = set().union(*(expected for _, _, expected, _ in SELECTION_CASES))
     assert selected_ids <= set(_all_domain_profile_ids()), selected_ids - set(_all_domain_profile_ids())
 
 
@@ -261,10 +294,12 @@ def assert_plan_selects_minimal_profiles_from_changed_surfaces() -> None:
 
 
 def assert_changed_surfaces_select_expected_profiles() -> None:
-    for label, inputs, expected in SELECTION_CASES:
+    for label, inputs, expected, expected_families in SELECTION_CASES:
         payload = build_catalog_canary_plan(**inputs)  # type: ignore[arg-type]
         selected = sorted(_domain_profiles(payload))
         assert selected == sorted(expected), (label, selected)
+        families = sorted(profile["id"] for profile in payload["profiles"])
+        assert families == sorted(expected_families), (label, families)
         for profile in payload["domain_profiles"]:
             assert profile["checks"], (label, profile)
             assert all(check["tier"] == "default" for check in profile["checks"]), (label, profile)
