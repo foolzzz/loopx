@@ -844,7 +844,7 @@ def test_a_gate_reply_awaiting_an_orchestrator_without_todos_opens_one(tmp_path:
 
 @pytest.mark.parametrize("model", ["role_v1", "peer_v1"])
 def test_a_completed_orchestrator_planning_todo_opens_no_action_todo_under_role_v1(
-    tmp_path: Path, model: str,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model: str,
 ) -> None:
     """G4: role_v1 derives no vision-checkpoint or no-follow-up replan (decision 31).
 
@@ -875,6 +875,10 @@ def test_a_completed_orchestrator_planning_todo_opens_no_action_todo_under_role_
     )
     assert done.get("ok") is not False, done
     if model == "role_v1":
+        delivery_repo = make_repo(tmp_path, "orchestrator-delivery")
+        delivery_worktree = tmp_path / "orchestrator-delivery-worktree"
+        git(delivery_repo, "worktree", "add", "--quiet", "--detach", str(delivery_worktree))
+        monkeypatch.chdir(delivery_worktree)
         refreshed = refresh_state_run(
             registry_path=fixture["registry"], runtime_root_override=str(fixture["runtime"]),
             goal_id=GOAL_ID, project=None, state_file=None, classification="validated_progress",
