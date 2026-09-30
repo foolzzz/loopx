@@ -27,6 +27,7 @@ from .kiro_cli_goal_mode import (
 )
 from .project_prompt import (
     render_available_capability_args,
+    render_cli_command_prefix,
     render_codex_cli_install_preflight,
     render_quota_guard_command,
     shell_arg,
@@ -278,6 +279,7 @@ def _bootstrap_pack_command(
     agent_id: str | None,
     agent_type: str,
     cli_bin: str,
+    runtime_root: str | None,
     task_text: str | None,
     available_capabilities: list[str] | None,
 ) -> str:
@@ -303,7 +305,7 @@ def _bootstrap_pack_command(
         "other-agent": "other-agent",
     }
     parts = [
-        shell_arg(cli_bin),
+        render_cli_command_prefix(cli_bin=cli_bin, runtime_root=runtime_root),
         "bootstrap-command-pack",
         "--project",
         shell_arg(project),
@@ -455,6 +457,7 @@ def build_agent_onboarding_packet(
         runtime_root_arg,
         registry_path=registry_path,
     )
+    command_runtime_root = str(runtime_root) if runtime_root_arg else None
     goal = project_goal_with_builtin_machine_configuration(
         goal,
         read_machine_configuration(
@@ -482,6 +485,8 @@ def build_agent_onboarding_packet(
         agent_type=canonical_agent_type,
         goal_id=resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
+        identity_runtime_root=command_runtime_root,
         agent_id=agent_id,
         registered_agents=registered_agents,
         available_capabilities=available_capabilities,
@@ -499,6 +504,7 @@ def build_agent_onboarding_packet(
         agent_id=str(selected_agent_id) if selected_agent_id else None,
         agent_type=canonical_agent_type,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         task_text=task_text,
         available_capabilities=normalized_available_capabilities,
     )
@@ -506,12 +512,14 @@ def build_agent_onboarding_packet(
         "doctor_or_install": render_codex_cli_install_preflight(
             cli_bin=cli_bin,
             doctor_agent_type=canonical_agent_type,
+            runtime_root=command_runtime_root,
         ),
         "bootstrap_command_pack": bootstrap_pack_command,
         "quota_guard": (
             render_quota_guard_command(
                 resolved_goal_id,
                 cli_bin=cli_bin,
+                runtime_root=command_runtime_root,
                 agent_id=str(selected_agent_id) if selected_agent_id else None,
                 available_capabilities=normalized_available_capabilities,
                 **scheduler_command_binding_for_agent_type(canonical_agent_type),
@@ -520,7 +528,8 @@ def build_agent_onboarding_packet(
             else None
         ),
         "agent_onboard_recheck": (
-            f"{shell_arg(cli_bin)} agent-onboard "
+            f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+            "agent-onboard "
             f"--agent-type {shell_arg(canonical_agent_type)} "
             f"--project {shell_arg(resolved_project)} "
             f"--goal-id {shell_arg(resolved_goal_id)}"
@@ -536,7 +545,8 @@ def build_agent_onboarding_packet(
         commands["install_command_facade"] = install_command
     if canonical_agent_type == "codex-cli":
         commands["codex_cli_bootstrap_message"] = (
-            f"{shell_arg(cli_bin)} codex-cli-bootstrap-message "
+            f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+            "codex-cli-bootstrap-message "
             f"--project {shell_arg(resolved_project)} "
             f"--goal-id {shell_arg(resolved_goal_id)}"
             + (

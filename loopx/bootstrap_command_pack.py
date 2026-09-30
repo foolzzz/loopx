@@ -915,11 +915,20 @@ def build_loopx_bootstrap_command_pack(
         fine_grained=fine_grained,
         display_name=display_name,
     )
+    goal_start_refresh_state_command = render_refresh_state_command(
+        resolved_goal_id,
+        cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
+        project=".",
+        agent_id=str(selected_agent_id) if selected_agent_id else None,
+        progress_scope="agent_lane" if selected_agent_id else None,
+    )
     goal_start_plan_prompt = build_goal_start_prompt(
         goal_text=normalized_goal_text,
         goal_id=resolved_goal_id,
         agent_id=str(selected_agent_id) if selected_agent_id else None,
         fine_grained=fine_grained,
+        refresh_state_command=goal_start_refresh_state_command,
     )
     slash_command_catalog = build_slash_command_catalog(cli_bin=cli_bin)
 
@@ -1055,14 +1064,7 @@ def build_loopx_bootstrap_command_pack(
                 )
                 else None
             ),
-            "goal_start_refresh_state": render_refresh_state_command(
-                resolved_goal_id,
-                cli_bin=cli_bin,
-                runtime_root=command_runtime_root,
-                project=".",
-                agent_id=str(selected_agent_id) if selected_agent_id else None,
-                progress_scope="agent_lane" if selected_agent_id else None,
-            ),
+            "goal_start_refresh_state": goal_start_refresh_state_command,
             "goal_start_host_loop_activation": host_loop_activation.get("activation_input_command"),
             "goal_start_agent_onboard_recheck": (
                 f"{command_prefix} agent-onboard "

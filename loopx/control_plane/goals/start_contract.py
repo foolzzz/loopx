@@ -169,6 +169,7 @@ def build_goal_start_prompt(
     goal_id: str,
     agent_id: str | None,
     fine_grained: bool,
+    refresh_state_command: str | None = None,
 ) -> str:
     goal_clause = (
         f"Goal text: {goal_text}"
@@ -200,6 +201,7 @@ def build_goal_start_prompt(
         if fine_grained
         else ""
     )
+    refresh_command = refresh_state_command or f"loopx refresh-state --goal-id {goal_id}"
     return f"""Plan; returned `ordered_steps` + `goal_start_contract` are authoritative.
 
 {goal_clause}
@@ -209,7 +211,7 @@ Rules:
 1. Identity: use verified binding/active contract; a stable unbound host gets a fresh public-safe agent. Existing lanes require explicit takeover plus bind/readback before Todo; never infer peers from Todo/worktree/arguments. Unknown host: `loopx agent-onboard --list-agent-types`.
 2. Capability: only `selected_capability_route`; run entry/admission and its later `capability show`; never infer from text/URLs. Capability state owns facts; generic Todos schedule.
 3. Todos: {todo_rule}.
-4. Writeback: current Todo evidence + next executable Todo, then `loopx refresh-state --goal-id {goal_id}` and quota readback. Chat/model summaries are not durable state.
+4. Writeback: current Todo evidence + next executable Todo, then `{refresh_command}` and quota readback. Chat/model summaries are not durable state.
 5. Host loop: after Todo write, activate missing/unknown/stale/type-changed Codex App heartbeat automation, CLI/TraeX `/goal`, Claude `/loop`, OpenCode bridge, Ark one-shot, or custom gate. Else surface the exact pasteable gate; never claim autonomy.
 6. Run the returned typed `quota_guard`; finish one bounded segment with validation + LoopX writeback or an exact blocker. Setup/planning/claim is not delivery.
 7. Optional features: need, preview, explicit apply. Respect private data, credentials, destructive git, production authority, and review rules.{fine_rule}

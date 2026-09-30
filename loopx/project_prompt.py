@@ -135,8 +135,13 @@ def render_codex_cli_install_preflight(
     *,
     cli_bin: str = "loopx",
     doctor_agent_type: str | None = None,
+    runtime_root: str | Path | None = None,
 ) -> str:
     cli_bin_arg = shell_arg(cli_bin)
+    command_prefix = render_cli_command_prefix(
+        cli_bin=cli_bin,
+        runtime_root=runtime_root,
+    )
     doctor_agent_arg = (
         f" --agent-type {shell_arg(doctor_agent_type)}"
         if doctor_agent_type
@@ -159,7 +164,7 @@ if ! command -v {cli_bin_arg} >/dev/null 2>&1; then
     exit 1
   fi
 fi
-{cli_bin_arg} doctor{doctor_agent_arg} >/dev/null"""
+{command_prefix} doctor{doctor_agent_arg} >/dev/null"""
 
 
 def render_quota_guard_command(

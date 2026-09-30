@@ -210,6 +210,10 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     state_file.parent.mkdir(parents=True)
     state_file.write_text("# state\n", encoding="utf-8")
     goal = _goal(project, registry_path, str(state_file.relative_to(project)))
+    goal["coordination"] = {
+        "agent_model": "peer_v1",
+        "registered_agents": ["worker-a"],
+    }
     _write_json(
         registry_path,
         {
@@ -246,6 +250,7 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     assert commands["doctor"].startswith(runtime_prefix)
     assert runtime_prefix in commands["status"]
     assert runtime_prefix in commands["goal_start_agent_onboard_recheck"]
+    assert commands["goal_start_refresh_state"] in commands["goal_start_plan_prompt"]
     for key in (
         "issue_fix_workflow_plan_template",
         "issue_fix_feasibility_template",
@@ -258,9 +263,32 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         project=worktree,
         agent_type="codex-cli",
         goal_id=GOAL_ID,
+        agent_id="worker-a",
         runtime_root_arg=str(runtime_root),
     )
     assert onboard["project"] == str(project.resolve())
+    onboarding_commands = onboard["commands"]
+    assert runtime_prefix in onboarding_commands["doctor_or_install"]
+    assert onboarding_commands["bootstrap_command_pack"].startswith(runtime_prefix)
+    assert onboarding_commands["quota_guard"].startswith(runtime_prefix)
+    assert onboarding_commands["agent_onboard_recheck"].startswith(runtime_prefix)
+    assert onboarding_commands["codex_cli_bootstrap_message"].startswith(
+        runtime_prefix
+    )
+    assert onboard["host_loop_activation"]["activation_input_command"].startswith(
+        runtime_prefix
+    )
+    fresh_onboard = build_agent_onboarding_packet(
+        project=worktree,
+        agent_type="codex-cli",
+        goal_id=GOAL_ID,
+        runtime_root_arg=str(runtime_root),
+    )
+    fresh_registration = fresh_onboard["identity_selection_gate"][
+        "fresh_agent_registration"
+    ]
+    assert fresh_registration["preview_command"].startswith(runtime_prefix)
+    assert fresh_registration["execute_command"].startswith(runtime_prefix)
 
 
 def test_multi_goal_start_commands_preserve_explicit_runtime_root(
@@ -548,3 +576,49 @@ def test_uninstall_reports_missing_legacy_state_file_without_moving_runtime_file
     assert runtime_receipt.is_file()
     assert state_dir.is_dir()
     assert not (runtime_root / "archived-project-state").exists()
+
+
+def test_uninstall_override_still_protects_recorded_legacy_runtime_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    recorded_runtime_root = home / ".loopx"
+    override_runtime_root = tmp_path / "other-runtime"
+    registry_path = recorded_runtime_root / "registry.json"
+    state_dir = recorded_runtime_root / "goals" / GOAL_ID
+    state_file = state_dir / "ACTIVE_GOAL_STATE.md"
+    runtime_receipt = state_dir / "runtime-receipt.json"
+    state_dir.mkdir(parents=True)
+    state_file.write_text("# state\n", encoding="utf-8")
+    runtime_receipt.write_text("{}\n", encoding="utf-8")
+    goal = _goal(
+        home,
+        registry_path,
+        f".loopx/goals/{GOAL_ID}/ACTIVE_GOAL_STATE.md",
+    )
+    _write_json(
+        registry_path,
+        {
+            "schema_version": "0.1",
+            "registry_role": "project-local",
+            "common_runtime_root": str(recorded_runtime_root),
+            "goals": [goal],
+        },
+    )
+
+    result = uninstall_project(
+        registry_path=registry_path,
+        runtime_root_override=str(override_runtime_root),
+        goal_ids=[GOAL_ID],
+        archive_state=True,
+        remove_empty_registry=False,
+        execute=True,
+    )
+
+    action = result["state_actions"][0]
+    assert action["action"] == "moved-state-file"
+    assert not state_file.exists()
+    assert runtime_receipt.is_file()
+    assert state_dir.is_dir()

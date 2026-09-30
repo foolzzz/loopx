@@ -23,7 +23,7 @@
   "sites": [
     {
       "site": "loopx/agent_onboarding.py::<module>.build_agent_onboarding_packet::codec_read:load_registry#1",
-      "line": 437,
+      "line": 439,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1679,7 +1679,7 @@
     },
     {
       "site": "loopx/project_uninstall.py::<module>.uninstall_project::codec_read:load_registry#1",
-      "line": 277,
+      "line": 279,
       "column": 24,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1687,7 +1687,7 @@
     },
     {
       "site": "loopx/project_uninstall.py::<module>.uninstall_project::codec_transaction:project_registry_transaction#1",
-      "line": 350,
+      "line": 358,
       "column": 14,
       "kind": "codec_transaction",
       "api": "project_registry_transaction",
