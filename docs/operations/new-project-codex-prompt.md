@@ -133,9 +133,8 @@ loopx new-project-prompt \
    loopx --format json --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota should-run --goal-id <STABLE_GOAL_ID> --runtime-profile outer_controller
    ```
 
-   Codex App 使用紧凑别名 `--codex-app`；其他常见宿主只传一个
-   `--runtime-profile`（`codex_cli`、`claude_code`、`generic_cli` 或
-   `outer_controller`）。只有自定义执行上下文才同时传 `--host-surface`、
+   常见宿主只传一个 `--runtime-profile`（`codex_cli`、`claude_code`、
+   `generic_cli` 或 `outer_controller`）。只有自定义执行上下文才同时传 `--host-surface`、
    `--scheduler-owner` 和 `--execution-mode`。
 
    如果返回 `state=operator_gate`，把它当成人/控制器交互，而不是安静 skip：优先读取
@@ -192,8 +191,8 @@ loopx new-project-prompt \
 
    只把输出的 handoff 交给目标项目 agent；完整 review packet 留给 operator view /
    evidence drill-down。
-6. 如果要给这个项目设置 recurring Codex App heartbeat，默认每 3 分钟一次；不要手抄
-   guard 和 spend 协议；先生成 task body，再把输出复制进 automation：
+6. 如果要给这个项目设置宿主循环（如 Codex CLI `/goal`），不要手抄 guard 和 spend
+   协议；先生成 task body，再把输出交给宿主循环：
 
    ```bash
    loopx heartbeat-prompt \

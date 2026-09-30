@@ -21,24 +21,13 @@ When the user provides text after `/loopx`, the host should:
 4. Write planned todos in exact plan order.
 5. Run `refresh-state`.
 6. Activate the host loop if it is missing, unknown, or stale:
-   - `codex-app`: create or update the Codex App heartbeat automation from the
-     generated `heartbeat-prompt` task body.
-   - `trae_app`: create or update the Trae App heartbeat automation from the
-     generated `heartbeat-prompt` task body. The `trae_app` runtime
-     profile preserves Trae host identity while consuming the provider-neutral
-     `scheduler_hint.app_automation` cadence and terminal-stop contract.
-     Its packet carries `host_surface=trae_app` and never requires a Codex
-     automation-store fallback. A settled non-terminal turn keeps
-     the automation active so the next wake can select the successor.
-   - `codex-app-ssh`: when Codex App is attached to a remote workspace over SSH
-     and host automation tools are unavailable, set the current visible task to
+   - `codex-app-ssh`: when Codex App is attached to a remote workspace over SSH,
+     set the current visible task to
      `/goal <task_body>` using the generated `codex_app_ssh_goal` profile. After
      its typed unchanged-poll limit and final quota check, use native
      `update_goal(status=blocked)` to block only that host Goal; keep the
      registered LoopX goal active and resume the host with `/goal resume`.
    - `codex-cli`: set the visible Codex CLI TUI to `/goal <task_body>`.
-   - `codex-ide-plugin`: set the visible IDE composer task to
-     `/goal <task_body>` through the same `codex_cli` runtime profile.
    - `ark-managed-agent`: submit the generated `<task_body>` once as a native
      Goal. The Goal runtime owns continuation and terminal evaluation; do not
      wrap its inner iterations in LoopX Turn or resubmit at phase boundaries.
@@ -51,9 +40,8 @@ When the user provides text after `/loopx`, the host should:
      `generic_cli` runtime profile. TraeX `/goal` requires
      `[features] goals = true` in `~/.trae/traecli.toml`; if goal mode is off,
      show the pasteable `/goal <task_body>` gate. Do not route to `/loop`
-     unless a verified LoopX adapter is installed. This CLI surface does not
-     create an App automation and has no slash-command installer; TraeX loads
-     skills from `~/.trae/skills`.
+     unless a verified LoopX adapter is installed. This CLI surface has no
+     slash-command installer; TraeX loads skills from `~/.trae/skills`.
    - `pi`: call `loopx_goal_activate` from the installed LoopX Pi extension;
      the extension gates settled continuations and timer wakes through
      `quota should-run` and stops only on validated terminal no-follow-up.
@@ -70,13 +58,11 @@ New hosts should discover exact agent types with:
 loopx agent-onboard --list-agent-types
 ```
 
-Ambiguous values such as `codex` must fail closed because Codex App automation,
-Codex App over SSH, the IDE plugin, and Codex CLI use different host-loop
-activation paths.
-Likewise, callers must choose `trae_app` for Trae App heartbeat automation or
-`traex-cli` for the existing visible `/goal` loop.
+The bare `codex` / `openai-codex` inputs resolve to `codex-cli`; choose
+`codex-app-ssh` explicitly for Codex App over SSH. The bare `cli` input stays
+ambiguous and fails closed.
 
-Codex App SSH, Codex CLI/IDE, and Ark Managed Agent form one native Goal host
+Codex App SSH, Codex CLI, and Ark Managed Agent form one native Goal host
 family. They share the stable `loopx_goal_prompt_v0` body, the 4,000-character
 host budget, per-continuation `quota should-run` packets, durable LoopX
 writeback, and non-heartbeat quota accounting. Their continuation owner remains
@@ -84,7 +70,7 @@ an explicit host contract:
 
 | Native Goal host | Activation | Continuation and blocked-state owner |
 | --- | --- | --- |
-| Codex App SSH / Codex CLI / Codex IDE | Set a visible `/goal <task_body>`. | Native Codex Goal; after the unchanged limit it may call `update_goal(status=blocked)`, and only user `/goal resume` reactivates it. |
+| Codex App SSH / Codex CLI | Set a visible `/goal <task_body>`. | Native Codex Goal; after the unchanged limit it may call `update_goal(status=blocked)`, and only user `/goal resume` reactivates it. |
 | Ark Managed Agent | Submit the same prompt family once. | Managed Agent Goal runtime and its durable journal; LoopX must not emulate `/goal resume` or blindly resubmit. |
 
 This family is a prompt, quota, and state-boundary abstraction, not a claim that
@@ -115,7 +101,7 @@ remain user gates. This contract is shared by local visible Goal hosts and Ark
 Managed Agent Goal mode without requiring prompt regeneration.
 
 Agent identity follows the same fail-closed rule. `agent-onboard` keeps its
-fresh-registration path, while Codex App `start-goal --guided` consumes the
+fresh-registration path, while Codex CLI `start-goal --guided` consumes the
 ambient `CODEX_THREAD_ID` when `--thread-id` is omitted and must reuse a
 matching stable opaque thread binding when available. A stable thread ID with
 no binding is no longer treated as fresh onboarding when registered lanes

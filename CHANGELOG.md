@@ -210,6 +210,50 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   migration. Keep `scheduler-state/owner-policy-*/`, which holds the
   automation cadence policy. The canary `scheduler-ack-route` surface and
   profile become `scheduler-cadence`.
+- **Codex App, Trae App and Codex IDE plugin as onboarding hosts.** LoopX no
+  longer onboards or activates these hosts. Removed:
+  - the `codex-app`, `trae_app` and `codex-ide-plugin` agent types and their
+    aliases (`codex_app`, `codex desktop`, `codex-ide`, `vscode codex` and the
+    rest) from `agent-onboard`, `agent-onboard --list-agent-types` and host
+    loop activation, with their activation packets and the App-only
+    `automation_cadence_json` command;
+  - `codex-app`, `trae_app`, `codex-ide-plugin`, `codex-ide` and `chat-box`
+    as `start-goal --host-surface`, `bootstrap-command-pack --host-surface`
+    and `slash-commands --surface` values. They now fail as unsupported;
+  - the guided-start `scheduler_ack_when_needed` step, which only acked an
+    App automation RRULE;
+  - reading `TRAECLI_THREAD_ID` as the ambient thread id;
+  - the `codex_app_loop_surface` and `codex_app_default_heartbeat_cadence`
+    fields of the `codex-cli-bootstrap-message` JSON payload;
+  - the Codex App host command registry protocol and its smoke, and the Codex
+    App plugin plan;
+  - the App host rows and instructions in the `/loopx` command, the
+    `loopx-project` skill, the goal-start contract, the project prompts,
+    getting-started, the newcomer guide and the README host tables.
+
+  Default changes:
+  - `bootstrap-command-pack --host-surface` defaults to `codex-cli-tui`
+    (was `codex-app`), and a missing host surface resolves to `codex-cli`.
+  - Bare `codex`, `openai-codex` and `openai codex` now resolve to
+    `codex-cli`. Before, they failed as ambiguous. Bare `cli` is still
+    ambiguous.
+  - Beginner preset commands pass `--runtime-profile codex_cli` (was
+    `codex_app_heartbeat`).
+
+  No migration is provided for removed App host values; bind the thread again
+  from a supported host. Codex App over SSH (`codex-app-ssh`) is unchanged.
+- **The `heartbeat.bind` typed Chat action.** It only returned a gate asking
+  the Codex App host to create a heartbeat automation. Removed with it:
+  - `goal.create`'s `heartbeat` parameter, which added the same gate after
+    the Goal was created; a preview that still sends it is rejected as an
+    unknown parameter;
+  - the dashboard's **Set up Heartbeat** Goal action, its Goal Heartbeat
+    schedule rows and drawer, and their strings.
+
+  In a Goal, a request to keep the Goal moving (for example, "keep this Goal
+   moving every day") now goes to the selected Agent in Chat. It no longer
+   opens a typed preview or becomes a scheduled check. Bounded recurring checks
+   continue to use `monitor.create` and `monitor.update`.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

@@ -87,9 +87,9 @@ pytest -q \
   tests/test_thread_agent_binding.py \
   tests/control_plane/test_start_goal_compact_projection.py \
   tests/test_slash_command_install.py
-python3 examples/codex-app-thread-agent-identity-smoke.py
+python3 examples/codex-cli-thread-agent-identity-smoke.py
 python3 examples/run-smokes.py --suite full-public \
-  --script examples/codex-app-thread-agent-identity-smoke.py --json
+  --script examples/codex-cli-thread-agent-identity-smoke.py --json
 git diff --check
 ```
 

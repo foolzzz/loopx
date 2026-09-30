@@ -34,10 +34,11 @@ loopx status
 replace an existing goal just to restart a session. Keep runtime state out of
 version control as described in the installation guide.
 
-## Codex: continue a task across sessions
+## Codex CLI: continue a task across sessions
 
-In Codex App, use the installed `loopx` skill through `$loopx` or `/skills`.
-A useful first task has a bounded result and a clear stopping rule:
+Start Codex CLI from the project root and use the installed `loopx` skill
+through `$loopx` or `/skills`. A useful first task has a bounded result and a
+clear stopping rule:
 
 ```text
 $loopx Fix the failing integration test, explain the cause, and prepare a
@@ -45,18 +46,17 @@ reviewable PR. Preserve the existing project goal and record test evidence.
 Wait for my approval before merging.
 ```
 
-For Codex CLI, start from the project root and use the generated bootstrap
-message:
+Use the generated bootstrap message for first-time setup:
 
 ```bash
 loopx codex-cli-bootstrap-message --project .
 ```
 
-Follow the returned instructions in the actual Codex session. App automation,
-visible CLI continuation and isolated headless execution have different host
-contracts; they are not interchangeable. The [driver selection table](newcomer-command-path.md#choose-the-loop-driver)
-and [Codex App chapter](../book/en/chapters/06-codex-app.md) explain activation.
-Installing LoopX by itself does not keep a closed or unavailable host running.
+Follow the returned instructions in the actual Codex session. Visible CLI
+continuation and isolated headless execution have different host contracts;
+they are not interchangeable. The [driver selection table](newcomer-command-path.md#choose-the-loop-driver)
+explains activation. Installing LoopX by itself does not keep a closed or
+unavailable host running.
 
 ## Claude Code: track work without losing review state
 
