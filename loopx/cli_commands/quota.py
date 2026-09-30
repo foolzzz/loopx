@@ -62,7 +62,6 @@ from ..quota import (
     void_quota_slot,
 )
 from ..status import collect_status
-from ..upgrade import resolve_codex_app_automation_rrule
 from .lark_inbox import (
     build_lark_operator_inbox_urgency_projector,
     dispatch_goal_lark_turn_start_hooks,
@@ -214,7 +213,6 @@ def _record_automatic_heartbeat_stall(
         codex_app_current_rrule=args.app_automation_current_rrule,
         registry_path=registry_path,
         runtime_root=context.runtime_root,
-        host_observation_resolver=resolve_codex_app_automation_rrule,
         scheduler_execution_context=context.scheduler_context,
         operator_inbox_urgency_projector=context.operator_inbox_urgency_projector,
         bounded_research_frontier_projector=project_live_explore_composition_frontier,
@@ -409,7 +407,6 @@ def handle_quota_command(
                 codex_app_current_rrule=args.app_automation_current_rrule,
                 registry_path=registry_path,
                 runtime_root=runtime_root,
-                host_observation_resolver=resolve_codex_app_automation_rrule,
                 scheduler_execution_context=scheduler_context,
                 operator_inbox_urgency_projector=operator_inbox_urgency_projector,
                 bounded_research_frontier_projector=(

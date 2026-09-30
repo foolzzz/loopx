@@ -655,7 +655,7 @@
     },
     {
       "site": "loopx/cli_commands/quota.py::<module>._dispatch_quota_turn_start_hooks::codec_read:load_registry#1",
-      "line": 267,
+      "line": 265,
       "column": 37,
       "kind": "codec_read",
       "api": "load_registry",
@@ -703,7 +703,7 @@
     },
     {
       "site": "loopx/cli_commands/support_control_backup.py::<module>.handle_backup_state_command::codec_read:load_registry#1",
-      "line": 84,
+      "line": 79,
       "column": 49,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1209,22 +1209,6 @@
       "site": "loopx/control_plane/goals/task_planning.py::<module>.build_task_planning_packet::codec_read:load_registry#1",
       "line": 59,
       "column": 31,
-      "kind": "codec_read",
-      "api": "load_registry",
-      "classification": "codec_api"
-    },
-    {
-      "site": "loopx/control_plane/heartbeat/automation_upgrade.py::<module>.build_plan::codec_read:load_registry#1",
-      "line": 193,
-      "column": 63,
-      "kind": "codec_read",
-      "api": "load_registry",
-      "classification": "codec_api"
-    },
-    {
-      "site": "loopx/control_plane/heartbeat/prompt_upgrade_hook.py::<module>.record_deferred_upgrades::codec_read:load_registry#1",
-      "line": 46,
-      "column": 33,
       "kind": "codec_read",
       "api": "load_registry",
       "classification": "codec_api"
@@ -1881,22 +1865,6 @@
       "site": "loopx/todos.py::<module>.list_goal_todos::codec_read:load_registry#1",
       "line": 203,
       "column": 16,
-      "kind": "codec_read",
-      "api": "load_registry",
-      "classification": "codec_api"
-    },
-    {
-      "site": "loopx/upgrade.py::<module>.build_upgrade_plan::codec_read:load_registry#1",
-      "line": 741,
-      "column": 16,
-      "kind": "codec_read",
-      "api": "load_registry",
-      "classification": "codec_api"
-    },
-    {
-      "site": "loopx/upgrade.py::<module>.build_upgrade_plan::codec_read:load_registry#2",
-      "line": 747,
-      "column": 24,
       "kind": "codec_read",
       "api": "load_registry",
       "classification": "codec_api"

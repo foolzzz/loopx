@@ -6,7 +6,6 @@ from loopx.control_plane.actor_identity import normalize_owner_controller_actor
 from loopx.control_plane.goals.activation_service import set_goal_activation_state
 from loopx.control_plane.runtime.run_compaction import compact_human_reward
 from loopx.feedback import append_human_reward
-from scripts.codex_app_apply_rrule import _parse_args
 
 
 def test_mutation_entrypoints_fail_before_io_without_an_explicit_actor(
@@ -30,10 +29,6 @@ def test_mutation_entrypoints_fail_before_io_without_an_explicit_actor(
             run_generated_at=None,
             reward={},
         )
-
-    with pytest.raises(SystemExit) as scheduler_error:
-        _parse_args([])
-    assert scheduler_error.value.code == 2
 
 
 def test_owner_controller_actor_is_typed_and_optional_for_read_only_preview() -> None:

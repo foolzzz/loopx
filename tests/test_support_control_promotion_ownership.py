@@ -1,6 +1,6 @@
 """Refs GH-C06: the promotion command group still belongs to support control.
 
-`promotion-gate`, `promotion-readiness`, and `upgrade-plan` were extracted from
+`promotion-gate` and `promotion-readiness` were extracted from
 `cli_commands/support_control.py` into
 `cli_commands/support_control_promotion.py` so the shared support-control seam
 stops owning three unrelated command groups at once. The extraction must not
@@ -24,7 +24,7 @@ ADD_PARSER_RE = re.compile(
     re.MULTILINE,
 )
 
-PROMOTION_COMMANDS = ("promotion-gate", "promotion-readiness", "upgrade-plan")
+PROMOTION_COMMANDS = ("promotion-gate", "promotion-readiness")
 
 
 def registered_commands() -> dict[str, list[str]]:

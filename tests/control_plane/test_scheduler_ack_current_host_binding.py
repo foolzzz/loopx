@@ -14,10 +14,8 @@ from loopx.cli_commands.quota_context import validate_quota_command_context_requ
 from loopx.control_plane.testing.canary_harness import run_json_cli, run_json_cli_result
 from loopx.control_plane.scheduler.state import (
     APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-    build_scheduler_state,
     load_scheduler_state,
     scheduler_state_path,
-    write_scheduler_state,
 )
 from loopx.control_plane.scheduler.execution_context import (
     SchedulerRuntimeProfile,
@@ -28,30 +26,6 @@ from loopx.status import AUTONOMOUS_REPLAN_PERIODIC_LOOKBACK
 
 
 GOAL_ID = "needs-operator"
-
-
-def _write_heartbeat_rrule(codex_home: Path, rrule: str) -> None:
-    automation_path = codex_home / "automations" / "fixture" / "automation.toml"
-    automation_path.parent.mkdir(parents=True, exist_ok=True)
-    automation_path.write_text(
-        "\n".join(
-            [
-                "version = 1",
-                'id = "fixture"',
-                'kind = "heartbeat"',
-                'name = "Scheduler ACK fixture"',
-                (
-                    'prompt = "Advance `needs-operator` from active state. '
-                    'Agent: `codex-side-bypass`."'
-                ),
-                'status = "ACTIVE"',
-                f'rrule = "{rrule}"',
-                'target_thread_id = "fixture-thread"',
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
 
 
 def _quota(
@@ -221,108 +195,6 @@ def test_trae_app_followup_rejects_codex_rrule_alias() -> None:
         validate_quota_command_context_request(args)
 
 
-def test_scheduler_ack_current_replays_host_binding_after_update(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    registry_path, runtime_root, project = write_cli_fixture(
-        tmp_path / "fixture",
-        scoped_agents=True,
-    )
-    codex_home = tmp_path / "codex-home"
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("CODEX_THREAD_ID", "fixture-thread")
-    _write_heartbeat_rrule(codex_home, "FREQ=MINUTELY;INTERVAL=3")
-
-    first = _quota(registry_path, runtime_root, project)
-    app = first["scheduler_hint"]["codex_app"]
-    target_rrule = app["recommended_rrule"]
-    ack_hint = app["ack_hint"]
-    assert app["stateful_backoff"]["apply_needed"] is True
-    assert ack_hint["after"] == "automation_update_rrule_success"
-    assert ack_hint["args"]["host_match_observed"] is True
-
-    # Simulate a successful host update before executing the original ACK hint.
-    _write_heartbeat_rrule(codex_home, target_rrule)
-    ack = run_json_cli(
-        *ack_hint["cli_args"],
-        registry_path=registry_path,
-        runtime_root=runtime_root,
-        cwd=project,
-    )
-    assert ack["scheduler_state_mutated"] is True
-    assert ack["already_applied"] is False
-
-    settled = _quota(registry_path, runtime_root, project)
-    settled_app = settled["scheduler_hint"]["codex_app"]
-    assert settled_app["stateful_backoff"]["apply_needed"] is False
-    assert settled_app["stateful_backoff"]["ack_needed"] is False
-    assert settled_app["host_action"] == "none"
-
-
-def test_scheduler_ack_current_resets_stale_identity_from_matching_host(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    registry_path, runtime_root, project = write_cli_fixture(
-        tmp_path / "fixture",
-        scoped_agents=True,
-    )
-    codex_home = tmp_path / "codex-home"
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("CODEX_THREAD_ID", "fixture-thread")
-    _write_heartbeat_rrule(codex_home, "FREQ=MINUTELY;INTERVAL=3")
-
-    first = _quota(registry_path, runtime_root, project)
-    first_app = first["scheduler_hint"]["codex_app"]
-    target_rrule = first_app["recommended_rrule"]
-    _write_heartbeat_rrule(codex_home, target_rrule)
-    stale_state = build_scheduler_state(
-        goal_id=GOAL_ID,
-        agent_id=SCOPED_AGENT_ID,
-        reset_token="stale-reset-token",
-        identity_signature="stale-identity-signature",
-        progression_index=0,
-        progression_minutes=first_app["example_progression_minutes"],
-        last_applied_rrule=target_rrule,
-        updated_at="2026-08-26T00:00:00+00:00",
-        source="test_scheduler_ack_current_stale_identity",
-    )
-    write_scheduler_state(
-        runtime_root,
-        stale_state,
-        goal_id=GOAL_ID,
-        agent_id=SCOPED_AGENT_ID,
-    )
-
-    reset = _quota(registry_path, runtime_root, project)
-    reset_app = reset["scheduler_hint"]["codex_app"]
-    reset_backoff = reset_app["stateful_backoff"]
-    assert reset_backoff["state_status"] == "reset_required"
-    assert reset_backoff["apply_needed"] is False
-    assert reset_backoff["ack_needed"] is True
-    assert reset_backoff["host_observation"]["status"] == "matches_recommended"
-
-    ack = run_json_cli(
-        *reset_app["ack_hint"]["cli_args"],
-        registry_path=registry_path,
-        runtime_root=runtime_root,
-        cwd=project,
-    )
-    assert ack["scheduler_state_mutated"] is True
-    assert ack["scheduler_ack_event"]["scheduler_state"]["reset_token"] == (
-        reset_backoff["reset_token"]
-    )
-
-    settled = _quota(registry_path, runtime_root, project)
-    settled_backoff = settled["scheduler_hint"]["codex_app"][
-        "stateful_backoff"
-    ]
-    assert settled_backoff["state_status"] == "same_identity"
-    assert settled_backoff["apply_needed"] is False
-    assert settled_backoff["ack_needed"] is False
-
-
 def test_quota_should_run_ignores_cross_agent_scheduler_state(tmp_path: Path) -> None:
     registry_path, runtime_root, project = write_cli_fixture(
         tmp_path / "fixture",
@@ -408,9 +280,6 @@ def test_trae_app_scheduler_failure_does_not_read_codex_automation_store(
 ) -> None:
     observed: dict[str, object] = {}
 
-    def reject_codex_store_read(**_kwargs):
-        raise AssertionError("Trae App must not read the Codex automation store")
-
     def fake_build_decision(*_args, **_kwargs):
         return {"effective_action": "execute_todo"}
 
@@ -418,11 +287,6 @@ def test_trae_app_scheduler_failure_does_not_read_codex_automation_store(
         observed.update(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(
-        quota_scheduler_followup,
-        "resolve_codex_app_automation_rrule",
-        reject_codex_store_read,
-    )
     monkeypatch.setattr(
         quota_scheduler_followup,
         "_build_scheduler_followup_decision",

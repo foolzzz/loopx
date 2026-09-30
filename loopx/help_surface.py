@@ -213,7 +213,6 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "command": "loopx supervisor-event",
                 "purpose": "Preview, append, or read supervisor proposals and host execution receipts.",
             },
-            {"command": "loopx upgrade-plan", "purpose": "Plan default heartbeat upgrade propagation."},
             {
                 "command": "loopx update [check|plan|apply]",
                 "purpose": "Inspect installation ownership, then explicitly apply archive updates.",
@@ -349,7 +348,6 @@ MANPAGE_COMMAND_HELP_ONLY = frozenset(
     {
         "agent-context",
         "archive-runtime",
-        "automation-prompts",
         "automation-cadence",
         "authority-archive",
         "authority-shadow",

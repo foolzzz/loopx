@@ -21,12 +21,9 @@ from ..control_plane.quota.scheduler_ack import (
     record_quota_scheduler_failure_for_decision,
 )
 from ..control_plane.scheduler.execution_context import (
-    HostSurface,
     SchedulerExecutionContextResolution,
-    resolve_scheduler_execution_context,
 )
 from ..quota import record_quota_scheduler_ack
-from ..upgrade import resolve_codex_app_automation_rrule
 
 
 def _build_scheduler_followup_decision(
@@ -64,7 +61,6 @@ def _build_scheduler_followup_decision(
         codex_app_current_rrule=codex_app_current_rrule,
         registry_path=registry_path,
         runtime_root=runtime_root,
-        host_observation_resolver=resolve_codex_app_automation_rrule,
         scheduler_execution_context=scheduler_context,
         operator_inbox_urgency_projector=operator_inbox_urgency_projector,
         bounded_research_frontier_projector=project_live_explore_composition_frontier,
@@ -135,23 +131,6 @@ def build_scheduler_followup_payload(
         or getattr(args, "codex_app_current_rrule", None)
         or ""
     ).strip()
-    resolved_context = resolve_scheduler_execution_context(scheduler_context)
-    codex_app_host = bool(
-        resolved_context.ok
-        and resolved_context.context is not None
-        and resolved_context.context.host_surface is HostSurface.CODEX_APP
-    )
-    if (
-        args.quota_command == "scheduler-fail-current"
-        and not observed_rrule
-        and codex_app_host
-    ):
-        host_observation = resolve_codex_app_automation_rrule(
-            goal_id=args.goal_id,
-            agent_id=args.agent_id,
-        )
-        if host_observation.get("available") is True:
-            observed_rrule = str(host_observation.get("rrule") or "")
 
     before_decision = _build_scheduler_followup_decision(
         status_payload,

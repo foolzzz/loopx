@@ -755,7 +755,6 @@ def main() -> int:
         "docs/product/migrations/README.md",
         "docs/product/roadmaps/README.md",
         "docs/product/runtimes/README.md",
-        "docs/product/runtimes/codex-app/README.md",
         "docs/product/runtimes/codex-cli/README.md",
         "docs/product/surfaces/README.md",
         "docs/product/use-cases/README.md",

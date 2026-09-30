@@ -1,13 +1,13 @@
-"""Registration and dispatch for the promotion-gate, promotion-readiness, and
-upgrade-plan commands.
+"""Registration and dispatch for the promotion-gate and promotion-readiness
+commands.
 
 Refs GH-C06. This group was carved out of `support_control.py`, which registers
 seven unrelated top-level commands in one module that sits just under the
 1000-line default budget in
 `examples/cli-command-module-size-ownership-command-modularization-smoke.py`.
-The three commands are one group -- canary promotion readiness and the local
-default upgrade plan that follows it -- so their parser flags and their
-dispatch branches move together and the public invocation is unchanged.
+The two commands are one group -- canary promotion readiness -- so their
+parser flags and their dispatch branches move together and the public
+invocation is unchanged.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from ..promotion_gate import (
     render_promotion_gate_markdown,
     render_promotion_readiness_record_markdown,
 )
-from ..upgrade import build_upgrade_plan, render_upgrade_plan_markdown
 
 PrintPayload = Callable[
     [dict[str, object], str, Callable[[dict[str, object]], str]],
@@ -32,7 +31,6 @@ PrintPayload = Callable[
 PROMOTION_CONTROL_COMMANDS = {
     "promotion-gate",
     "promotion-readiness",
-    "upgrade-plan",
 }
 
 
@@ -71,37 +69,6 @@ def register_promotion_control_commands(
         help="Append the evidence event. Without this flag, emit a dry-run plan.",
     )
 
-    upgrade_plan_parser = subparsers.add_parser(
-        "upgrade-plan",
-        help="Plan local default upgrade propagation for managed heartbeat automations.",
-    )
-    add_subcommand_format(upgrade_plan_parser)
-    upgrade_plan_parser.add_argument(
-        "--goal-id",
-        action="append",
-        default=[],
-        help="Only include one goal id. Repeatable.",
-    )
-    upgrade_plan_parser.add_argument(
-        "--installed-manifest",
-        help=(
-            "Optional JSON manifest of installed automations with goal_id, mode, automation_id, and "
-            "prompt_sha256/task_body. If omitted, upgrade-plan auto-discovers Codex App heartbeat "
-            "automations from $CODEX_HOME/automations or ~/.codex/automations."
-        ),
-    )
-    upgrade_plan_parser.add_argument(
-        "--cli-bin",
-        default="loopx",
-        help="CLI command embedded in generated heartbeat prompts for the promoted default.",
-    )
-    upgrade_plan_parser.add_argument(
-        "--mode",
-        action="append",
-        choices=["thin", "brief", "compact"],
-        default=[],
-        help="Prompt mode to compare. Repeatable; defaults to the thin installed heartbeat contract.",
-    )
 
 def handle_promotion_control_command(
     args: argparse.Namespace,
@@ -158,44 +125,6 @@ def handle_promotion_control_command(
             output_format(args),
             render_promotion_readiness_record_markdown,
         )
-        return 0 if payload.get("ok") else 1
-
-    if args.command == "upgrade-plan":
-        try:
-            payload = build_upgrade_plan(
-                registry_path=registry_path,
-                runtime_root_override=args.runtime_root,
-                installed_manifest=Path(args.installed_manifest).expanduser()
-                if args.installed_manifest
-                else None,
-                cli_bin=args.cli_bin,
-                modes=args.mode or None,
-                goal_ids=args.goal_id or None,
-            )
-        except Exception as exc:
-            payload = {
-                "ok": False,
-                "mode": "upgrade-plan",
-                "registry": str(registry_path),
-                "runtime_root": args.runtime_root,
-                "error": str(exc),
-                "summary": {
-                    "managed_goal_count": 0,
-                    "current_prompt_count": 0,
-                    "stale_prompt_count": 0,
-                    "unknown_prompt_count": 0,
-                    "not_installed_prompt_count": 0,
-                    "stage_deferred_goal_count": 0,
-                    "ready_for_default_promotion": False,
-                    "installed_manifest_available": False,
-                    "installed_manifest_source": None,
-                    "installed_manifest_entry_count": 0,
-                    "installed_manifest_task_body_count": 0,
-                    "installed_manifest_has_task_body": False,
-                },
-                "recommended_action": "fix upgrade-plan collection before default promotion",
-            }
-        print_payload(payload, output_format(args), render_upgrade_plan_markdown)
         return 0 if payload.get("ok") else 1
 
     return None

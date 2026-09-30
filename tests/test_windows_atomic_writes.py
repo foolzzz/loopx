@@ -11,7 +11,6 @@ import pytest
 
 from loopx.capabilities.decision_context import private_state
 from loopx.capabilities.benchmark_toolkit import native_codex_isolation
-from loopx.control_plane.heartbeat import automation_upgrade
 from loopx.control_plane.goals import botmux_runtime
 from loopx.extensions import presentation
 from loopx.extensions.lark import private_json
@@ -49,10 +48,6 @@ def _write_extension_projection(path: Path) -> None:
     presentation._atomic_write_projection(path, {"status": "ready"})
 
 
-def _write_heartbeat_automation(path: Path) -> None:
-    automation_upgrade._atomic(path, 'prompt = "ready"\n')
-
-
 def _write_botmux_binding(path: Path) -> None:
     botmux_runtime._write_private_json_atomic(path, {"status": "ready"})
 
@@ -81,12 +76,6 @@ def _write_native_isolation(path: Path) -> None:
             _write_extension_projection,
             {"status": "ready"},
             id="extension-projection",
-        ),
-        pytest.param(
-            automation_upgrade,
-            _write_heartbeat_automation,
-            'prompt = "ready"\n',
-            id="heartbeat-automation",
         ),
         pytest.param(
             botmux_runtime,

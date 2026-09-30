@@ -82,7 +82,6 @@ FormatSelector = Callable[..., str]
 AddFormat = Callable[[argparse.ArgumentParser], None]
 
 SUPPORT_CONTROL_COMMANDS = {
-    "automation-prompts",
     "backup-state",
     "chat",
     "chat-endpoint",
@@ -91,7 +90,6 @@ SUPPORT_CONTROL_COMMANDS = {
     "heartbeat-prompt",
     "promotion-gate",
     "promotion-readiness",
-    "upgrade-plan",
     "update",
     "registry",
     "registry-boundary",
@@ -104,8 +102,6 @@ def register_support_control_commands(
     subparsers: argparse._SubParsersAction,
     add_subcommand_format: AddFormat,
 ) -> None:
-    from .automation_prompts import register_automation_prompts
-    register_automation_prompts(subparsers, add_subcommand_format)
     register_backup_state_command(subparsers, add_subcommand_format)
     register_heartbeat_control_commands(subparsers, add_subcommand_format)
 
@@ -199,15 +195,6 @@ def handle_support_control_command(
 ) -> int | None:
     if args.command not in SUPPORT_CONTROL_COMMANDS:
         return None
-
-    if args.command == "automation-prompts":
-        from .automation_prompts import render, run
-        try:
-            payload = run(args, registry_path)
-        except Exception as error:
-            payload = {"ok": False, "error": str(error)}
-        print_payload(payload, output_format(args), render)
-        return 0 if payload.get("ok") else 1
 
     if args.command == "chat-endpoint":
         return handle_chat_endpoint_command(
@@ -451,8 +438,6 @@ def handle_support_control_command(
     if args.command in UPDATE_CONTROL_COMMANDS:
         return handle_update_command(
             args,
-            registry_path=registry_path,
-            registry_was_supplied=registry_was_supplied,
             print_payload=print_payload,
             output_format=output_format,
         )

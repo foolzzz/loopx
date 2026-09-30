@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import shlex
 from pathlib import Path
-from types import SimpleNamespace
 
 
 BOOTSTRAP_INSTRUCTION = (
@@ -51,8 +50,7 @@ def _goal_command(args, *, registry: Path, legacy: bool) -> list[str]:
     command += ["heartbeat-prompt"]
     mode = next((mode for mode in ("full", "compact", "brief", "thin") if getattr(args, mode)), "thin")
     # The v2 contract puts the wake-up mode and host identity immediately
-    # after the subcommand.  This is also the exact command shape emitted by
-    # automation-prompts. Native Goal loaders retain their historical contract.
+    # after the subcommand. Native Goal loaders retain their historical contract.
     if not legacy:
         command.append("--" + mode)
         if args.codex_app:
@@ -100,56 +98,3 @@ def goal_bootstrap(args, *, registry: Path) -> str:
         return render_heartbeat_bootstrap(command)
     return render_bootstrap(command, title=LEGACY_HOST_BOOTSTRAP,
                             entry=LEGACY_HOST_BOOTSTRAP_ENTRY)
-
-
-def host_bootstrap_binding(prompt: str) -> dict | None:
-    """Recognize complete v2 loaders and the exact legacy host wrapper."""
-    if not prompt.startswith((HEARTBEAT_BOOTSTRAP + "\n", LEGACY_HOST_BOOTSTRAP + "\n")):
-        return None
-    try:
-        command = shlex.split(prompt.split("```sh\n", 1)[1].split("\n```", 1)[0])
-        if command[1:3] != ["--format", "json"]:
-            return None
-        values = dict(cli_bin=command[0], turn_instance_id=None, codex_app=False,
-                      trae_app=False,
-                      full=False, compact=False, brief=False, thin=False,
-                      visible_goal_host=None, available_capabilities=[], agent_scopes=[],
-                      runtime_root=None)
-        singles = {"--" + name.replace("_", "-"): name for name in (
-            "registry", "runtime_root", "goal_id", "agent_id", "active_state",
-            "material_rule", "permission_rule", "runtime_profile", "visible_goal_host",
-            "host_surface", "scheduler_owner", "execution_mode", "cli_bin")}
-        repeated = {"--agent-scope": "agent_scopes", "--available-capability": "available_capabilities"}
-        booleans = {
-            "--codex-app": "codex_app",
-            "--trae_app": "trae_app",
-            **{"--" + name.replace("_", "-"): name for name in ("full", "compact", "brief", "thin")},
-        }
-        index = 3
-        while index < len(command):
-            token = command[index]
-            if token == "heartbeat-prompt":
-                index += 1
-                continue
-            if token in booleans:
-                values[booleans[token]] = True
-                index += 1
-                continue
-            if token in repeated:
-                values[repeated[token]].append(command[index + 1])
-            elif token in singles:
-                values[singles[token]] = command[index + 1]
-            else:
-                return None
-            index += 2
-        registry = Path(values.pop("registry"))
-        expected = goal_bootstrap(SimpleNamespace(**values), registry=registry)
-        if prompt.startswith(LEGACY_HOST_BOOTSTRAP + "\n"):
-            expected = render_bootstrap(
-                _goal_command(SimpleNamespace(**values), registry=registry, legacy=True),
-                title=LEGACY_HOST_BOOTSTRAP,
-                entry=LEGACY_HOST_BOOTSTRAP_ENTRY,
-            )
-        return {**values, "registry": registry} if prompt == expected else None
-    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
-        return None
