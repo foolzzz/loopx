@@ -123,7 +123,6 @@ def _discover_targets(
     project: Path,
     runtime_root: Path,
     output_dir: Path,
-    include_automations: bool,
     include_skills: bool,
     include_registry_projects: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str], dict[str, Any]]:
@@ -249,8 +248,6 @@ def _discover_targets(
                     registry_source_registry_included_count += 1
 
     codex_home = _codex_home()
-    if include_automations:
-        add("codex_automations", codex_home / "automations", "codex/automations")
     if include_skills:
         skills_root = codex_home / "skills"
         skill_dirs = sorted(skills_root.glob("loopx-*")) if skills_root.exists() else []
@@ -306,8 +303,6 @@ def _target_category(key: str) -> str:
         return "active_state_routes"
     if key.startswith("registry_source_registry:"):
         return "source_registries"
-    if key == "codex_automations":
-        return "automations"
     if key.startswith("codex_skill:"):
         return "skills"
     return "other"
@@ -358,7 +353,6 @@ def build_state_backup_plan(
     runtime_root: Path | str | None = None,
     output_dir: Path | str | None = None,
     backup_id: str | None = None,
-    include_automations: bool = True,
     include_skills: bool = True,
     include_registry_projects: bool = True,
 ) -> dict[str, Any]:
@@ -372,7 +366,6 @@ def build_state_backup_plan(
         project=resolved_project,
         runtime_root=resolved_runtime_root,
         output_dir=resolved_output_dir,
-        include_automations=include_automations,
         include_skills=include_skills,
         include_registry_projects=include_registry_projects,
     )

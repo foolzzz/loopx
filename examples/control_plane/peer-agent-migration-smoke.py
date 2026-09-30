@@ -22,7 +22,6 @@ from loopx.control_plane.agents.legacy_migration import (  # noqa: E402
     PEER_AGENT_RUNTIME_MIGRATION,
 )
 from loopx.heartbeat_prompt import build_heartbeat_prompt  # noqa: E402
-from loopx.upgrade import peer_runtime_upgrade_migration  # noqa: E402
 
 
 GOAL_ID = "peer-agent-migration-fixture"
@@ -97,43 +96,6 @@ def main() -> int:
         assert first["host_update_idempotency_key"] == first["migration_id"], first
         assert first["migration_id"] in first["completion_command"], first
         migration_id = first["migration_id"]
-
-        host_migration = peer_runtime_upgrade_migration(
-            legacy_goal,
-            goal_id=GOAL_ID,
-            installed={
-                "thin:codex-alpha": {
-                    "status": "stale",
-                    "installed": True,
-                    "requires_update": True,
-                    "automation_id": "alpha-heartbeat",
-                    "agent_id": AGENTS[0],
-                },
-                "thin:codex-beta": {
-                    "status": "unknown",
-                    "installed": False,
-                    "requires_update": True,
-                    "automation_id": None,
-                    "agent_id": AGENTS[1],
-                },
-                "thin:codex-current": {
-                    "status": "current",
-                    "installed": True,
-                    "requires_update": False,
-                    "automation_id": "current-heartbeat",
-                    "agent_id": "codex-current",
-                },
-            },
-            generated_prompts={
-                "thin:codex-alpha": {"command": "loopx heartbeat-prompt --thin"},
-                "thin:codex-beta": {"command": "loopx heartbeat-prompt --thin"},
-                "thin:codex-current": {"command": "loopx heartbeat-prompt --thin"},
-            },
-        )
-        assert host_migration["host_update_required_once"] is True, host_migration
-        assert [
-            item["automation_id"] for item in host_migration["host_updates"]
-        ] == ["alpha-heartbeat"], host_migration
 
         preview = configure_goal(
             registry_path=registry_path,
@@ -220,18 +182,6 @@ def main() -> int:
             )
             is None
         )
-        completed_upgrade = peer_runtime_upgrade_migration(
-            goal,
-            goal_id=GOAL_ID,
-            installed={},
-            generated_prompts={},
-        )
-        assert completed_upgrade == {
-            "schema_version": "peer_runtime_automation_migration_v1",
-            "required": False,
-            "status": "completed",
-            "migration_id": migration_id,
-        }, completed_upgrade
         reintroduced_registry = json.loads(registry_path.read_text(encoding="utf-8"))
         reintroduced_registry["goals"][0] = goal
         registry_path.write_text(

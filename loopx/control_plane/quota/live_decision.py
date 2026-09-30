@@ -34,7 +34,6 @@ from .unsettled_host_turn import (
 )
 
 
-HostObservationResolver = Callable[..., Mapping[str, Any]]
 BoundedResearchFrontierProjector = Callable[..., Mapping[str, Any] | None]
 
 
@@ -354,28 +353,12 @@ def bind_scheduler_followup_cli_routes(
         if isinstance((packet := scheduler_hint.get(packet_key)), dict)
     ]
     for app_packet in app_packets:
-        for hint_name in ("ack_hint", "failure_hint", "fallback_hint"):
+        for hint_name in ("ack_hint", "failure_hint"):
             followup_hint = app_packet.get(hint_name)
             if not isinstance(followup_hint, dict):
                 continue
             cli_args = followup_hint.get("cli_args")
             if not isinstance(cli_args, list) or not cli_args:
-                continue
-            if hint_name == "fallback_hint":
-                if cli_args[0] != "loopx-apply-rrule" or "--registry" in cli_args:
-                    continue
-                followup_hint["cli_args"] = [
-                    cli_args[0],
-                    "--registry",
-                    str(registry_path.expanduser().resolve()),
-                    *cli_args[1:],
-                ]
-                followup_hint["route_binding"] = {
-                    "schema_version": "codex_app_scheduler_fallback_route_v0",
-                    "source": source,
-                    "registry_bound": True,
-                    "runtime_root_bound": False,
-                }
                 continue
             bound_cli_args = list(cli_args)
             if bound_cli_args[0] != "--registry":
@@ -471,7 +454,6 @@ def build_live_quota_should_run_decision(
     codex_app_current_rrule: str | None,
     registry_path: Path,
     runtime_root: Path,
-    host_observation_resolver: HostObservationResolver | None = None,
     route_source: str = "quota_cli_invocation",
     scheduler_execution_context: Mapping[str, Any]
     | SchedulerExecutionContextResolution
@@ -489,27 +471,7 @@ def build_live_quota_should_run_decision(
 ) -> dict[str, Any]:
     """Build one live CLI decision while keeping host observation injectable."""
     resolved_context = resolve_scheduler_execution_context(scheduler_execution_context)
-    app_automation_applicable = (
-        resolved_context.ok
-        and resolved_context.context is not None
-        and resolved_context.context.app_automation_applicable
-    )
-    codex_app_host = bool(
-        app_automation_applicable
-        and resolved_context.context is not None
-        and resolved_context.context.host_surface.value == "codex_app"
-    )
     observed_rrule = str(codex_app_current_rrule or "").strip()
-    observed_automation_id = ""
-    if (
-        codex_app_host
-        and not observed_rrule
-        and host_observation_resolver is not None
-    ):
-        observation = host_observation_resolver(goal_id=goal_id, agent_id=agent_id)
-        if observation.get("available") is True:
-            observed_rrule = str(observation.get("rrule") or "")
-            observed_automation_id = str(observation.get("automation_id") or "").strip()
     decision_status_payload = {
         **status_payload,
         "runtime_root": str(runtime_root),
@@ -580,7 +542,7 @@ def build_live_quota_should_run_decision(
         include_scheduler_detail=include_scheduler_detail,
         include_agent_todo_detail=include_agent_todo_detail,
         codex_app_current_rrule=observed_rrule,
-        codex_app_automation_id=observed_automation_id or None,
+        codex_app_automation_id=None,
         scheduler_execution_context=resolved_context,
         operator_inbox_urgency_projector=(
             _fresh_read_covers_all_pending_material(
@@ -613,13 +575,6 @@ def build_live_quota_should_run_decision(
         available_capabilities = remembered_runtime
     if route_source.startswith("loopx_turn_"):
         payload["runtime_root"] = str(runtime_root)
-    if codex_app_host and agent_id:
-        from ..heartbeat.prompt_upgrade_hook import extend_prompt_upgrade_reads
-
-        turn_start_hook_dispatch = extend_prompt_upgrade_reads(
-            turn_start_hook_dispatch, registry=registry_path, runtime_root=runtime_root,
-            goal_id=goal_id, agent_id=agent_id,
-        )
     _project_turn_start_required_reads(
         payload,
         turn_start_hook_dispatch,

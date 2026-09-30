@@ -48,11 +48,6 @@ def register_backup_state_command(
         help="Stable id for the archive name. Defaults to a UTC timestamp.",
     )
     parser.add_argument(
-        "--no-automations",
-        action="store_true",
-        help="Exclude $CODEX_HOME/automations from the backup.",
-    )
-    parser.add_argument(
         "--no-skills",
         action="store_true",
         help="Exclude $CODEX_HOME/skills/loopx-* skill directories from the backup.",
@@ -87,7 +82,6 @@ def handle_backup_state_command(
             runtime_root=runtime_root,
             output_dir=Path(args.output_dir).expanduser() if args.output_dir else None,
             backup_id=args.backup_id,
-            include_automations=not bool(args.no_automations),
             include_skills=not bool(args.no_skills),
             include_registry_projects=not bool(args.current_project_only),
         )

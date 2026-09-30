@@ -139,10 +139,6 @@ def main() -> int:
         assert heartbeat["schema_version"] == "heartbeat_agent_input_v1", heartbeat
         assert heartbeat["interface_budget"]["mode"] == "thin", heartbeat
 
-        upgrade = cli_json(registry_path, "upgrade-plan", "--format", "json")
-        assert upgrade["ok"] is True, upgrade
-        assert upgrade["mode"] == "upgrade-plan", upgrade
-
         update = cli_json(registry_path, "update", "--format", "json", "--check")
         assert update["ok"] is True, update
         assert update["mode"] == "update", update

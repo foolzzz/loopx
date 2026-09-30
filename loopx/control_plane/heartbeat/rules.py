@@ -52,19 +52,15 @@ REWARD_MEMORY_OUTCOME_COMPACT_RULE = (
 SCHEDULER_HINT_APPLICATION_RULE = (
     "`scheduler_hint` no-spend. host_action=pause_or_delete_current_heartbeat -> "
     "automation_update stop once, verify, end; else apply_needed -> RRULE via "
-    "automation_update; unavailable -> use fallback_hint.cli_args only when projected "
-    "(SQLite/app API "
-    "bypass - fallback only), then ack; further failure -> failure_hint; "
-    "ack_needed -> ack."
+    "automation_update, then ack; failure -> failure_hint; ack_needed -> ack."
 )
 SCHEDULER_HINT_COMPACT_RULE = (
     "host_action=pause_or_delete_current_heartbeat: automation_update stop; "
-    "else RRULE apply via automation_update, projected fallback_hint when unavailable, "
-    "then ack/fail. No spend."
+    "else RRULE apply via automation_update, then ack/fail. No spend."
 )
 SCHEDULER_HINT_THIN_RULE = (
     "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend); "
-    "else RRULE/projected-fallback_hint/ack/fail."
+    "else RRULE/ack/fail."
 )
 RUNTIME_CAPABILITY_PROJECTION_THIN_RULE = (
     "Observed capabilities -> `--available-capability`; never user gates."

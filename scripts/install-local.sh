@@ -570,11 +570,6 @@ validate_release_candidate() {
     echo "loopx installer error: release candidate is missing an executable wrapper" >&2
     return 1
   fi
-  local fallback_wrapper="$candidate/scripts/loopx-apply-rrule"
-  if [[ ! -x "$fallback_wrapper" ]]; then
-    echo "loopx installer error: release candidate is missing the executable Codex App fallback wrapper" >&2
-    return 1
-  fi
 
   local doctor_json
   if ! doctor_json="$(PATH="$candidate/scripts:$PATH" "$candidate_wrapper" --format json doctor --deep --installation-only)"; then
@@ -762,7 +757,7 @@ PYTHONPATH="$release_tmp" "${LOOPX_PYTHON:-python3}" \
     --source-root "$repo_root" \
     --installed-at "$installed_at"
 )
-chmod +x "$release_tmp/scripts/loopx" "$release_tmp/scripts/loopx-apply-rrule"
+chmod +x "$release_tmp/scripts/loopx"
 mv "$release_tmp" "$release_dir"
 release_tmp=""
 if ! validate_release_candidate "$release_dir"; then
@@ -774,7 +769,6 @@ if ! preflight_workflow_skills "$release_dir/skills" "$release_dir" "$bin_dir/lo
   exit 1
 fi
 install_symlink "$release_dir/scripts/loopx" "$bin_dir/loopx"
-install_symlink "$release_dir/scripts/loopx-apply-rrule" "$bin_dir/loopx-apply-rrule"
 verify_default_promotion
 
 canary_line="- canary executable: skipped"
@@ -924,7 +918,6 @@ fi
 cat <<EOF
 loopx installed locally
 - executable: $bin_dir/loopx
-- Codex App fallback executable: $bin_dir/loopx-apply-rrule
 - release: $release_dir
 - promotion mode: $promotion_mode
 - manual root: $man_root

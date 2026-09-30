@@ -72,7 +72,6 @@ def seed_fixture(root: Path) -> tuple[Path, Path, Path]:
             ],
         },
     )
-    write_json(codex_home / "automations" / "fixture.json", {"automation_id": "fixture"})
     write_text(codex_home / "skills" / "loopx-fixture" / "SKILL.md", "# fixture skill\n")
 
     # This path lives under the default output dir and must not be captured.
@@ -133,7 +132,6 @@ def assert_archive(payload: dict[str, object]) -> None:
     assert "project/.loopx/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
     assert "project/.claude/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
     assert "project/.local/goals/fixture/ACTIVE_GOAL_STATE.md" in names, names
-    assert "codex/automations/fixture.json" in names, names
     assert "codex/skills/loopx-fixture/SKILL.md" in names, names
     remote_loopx = included["registry_project_loopx:remote"]
     remote_state = included["registry_active_state:remote"]
@@ -171,7 +169,6 @@ def main() -> int:
             assert category_stats["project_state"]["bytes"] > 0, category_stats
             assert category_stats["active_state_routes"]["target_count"] == 2, category_stats
             assert category_stats["source_registries"]["target_count"] == 2, category_stats
-            assert category_stats["automations"]["target_count"] == 1, category_stats
             assert category_stats["skills"]["target_count"] == 1, category_stats
             overlap = summary["contained_overlap_stats"]
             assert overlap["contained_target_count"] >= 4, overlap

@@ -86,7 +86,7 @@ task bundle and selects one temporary coordinator. The resulting
 
 ## Migration
 
-For an old registry, first let `quota should-run` or `upgrade-plan` project the
+For an old registry, first let `quota should-run` project the
 stable migration id and per-peer heartbeat commands. Update each installed host
 automation idempotently with that migration id, then acknowledge the completed
 host update:

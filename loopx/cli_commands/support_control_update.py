@@ -30,7 +30,6 @@ from ..self_update import (
     render_update_plan_markdown,
     resolve_update_action,
 )
-from .support_control_registry import explicit_global_registry
 
 PrintPayload = Callable[
     [dict[str, object], str, Callable[[dict[str, object]], str]],
@@ -113,8 +112,6 @@ def register_update_command(
 def handle_update_command(
     args: argparse.Namespace,
     *,
-    registry_path: Path,
-    registry_was_supplied: bool,
     print_payload: PrintPayload,
     output_format: FormatSelector,
 ) -> int | None:
@@ -163,14 +160,7 @@ def handle_update_command(
             if update_action is UpdateAction.APPLY and payload.get("plan", {}).get(
                 "apply_supported"
             ):
-                from ..control_plane.heartbeat.installed_prompt_update import (
-                    update_with_prompts,
-                )
-                payload = update_with_prompts(
-                    payload, registry=(registry_path if registry_was_supplied else explicit_global_registry(args.runtime_root)),
-                    runtime_root=args.runtime_root,
-                    timeout_seconds=args.timeout_seconds, runtime_update=execute_update_plan,
-                )
+                payload = execute_update_plan(payload, timeout_seconds=args.timeout_seconds)
     except Exception as exc:
         payload = {
             "ok": False,

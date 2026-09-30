@@ -22,10 +22,8 @@ def build_codex_app_compatibility_projection(
     scheduler_host_facts: Mapping[str, Any] | None,
     observed_host_rrule: Any,
     scheduler_before: Mapping[str, Any],
-    automation_id: Any,
     build_ack_hint: Callable[..., dict[str, Any]],
     build_failure_hint: Callable[..., dict[str, Any]],
-    build_fallback_hint: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
     """Translate the canonical App packet to the exact legacy Codex shape."""
 
@@ -72,12 +70,6 @@ def build_codex_app_compatibility_projection(
             scheduler_host_facts=failure_facts,
             scheduler_before=scheduler_before,
         )
-        if not legacy.get("execution_interval_policy"):
-            legacy["fallback_hint"] = build_fallback_hint(
-                goal_id=goal_id,
-                agent_id=agent_id,
-                automation_id=automation_id,
-            )
     if isinstance(legacy.get("ack_hint"), dict):
         canonical_ack = app_automation["ack_hint"]
         canonical_args = (

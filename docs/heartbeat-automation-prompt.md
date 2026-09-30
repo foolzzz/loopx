@@ -74,10 +74,8 @@ checks. Registry-derived state is resolved at load time; explicitly supplied
 policy remains bound. The inner command does not request another bootstrap.
 Claude Code loads its inner body through the bound MCP `host_prompt` tool.
 TraeX's separate capability projection remains separate, not embedded by this
-loader. See [prompt upgrade lifecycle](reference/automation-prompt-upgrades.md)
-for automatic exact-managed adoption during `update --apply`, including the
-closed-App SQLite/TOML adapter and conflict recovery boundary. Running Apps
-require their native automation API.
+loader. `update --apply` does not rewrite saved host prompts; update an existing
+automation through its host's native automation API.
 
 #### Static semantics retained across hosts
 
@@ -205,12 +203,10 @@ current execution or audit body; do not save that changing policy as the recurri
 prompt. Connected goals resolve their active-state path from the registry.
 Explicit detached-state overrides remain available through `--active-state`.
 
-Use `loopx automation-prompts plan --codex-home <ACTIVE_CODEX_HOME>` to inspect
-existing prompts, then apply the reviewed `desired_prompt` through the App API.
-Preserve each automation's own goal/agent/task binding, cadence and notification
-setting, and read back the result. The offline adapter requires the App closed;
-while running, its cached scheduler can overwrite direct database/file changes.
-Installing a binary or changing a TOML file alone does not prove migration.
+To update an existing automation, save the new bootstrap through the host's
+automation API. Preserve each automation's own goal/agent/task binding, cadence
+and notification setting, and read back the result. Installing a binary alone
+does not prove migration.
 
 When multiple agents share the same project control plane, first register the
 public-safe agent ids on the goal, then give each automation an explicit
@@ -328,7 +324,7 @@ identity/scope upgrade command instead of returning a legacy unscoped prompt.
 `quota should-run` follows the same rule for executor safety: an unscoped call
 returns `automation_prompt_upgrade.required=true`,
 `blocks_should_run=true`, and `should_run=false` instead of allowing delivery.
-For a hierarchy-era registry, `quota should-run` and `upgrade-plan` return one
+For a hierarchy-era registry, `quota should-run` returns one
 stable migration id, one heartbeat command per registered peer, and a completion
 command. The host update may be retried with that idempotency key; the completion
 command atomically records the migration once, and later quota checks do not
@@ -369,19 +365,6 @@ rather than hand-editing the automation body.
 and `within_budget`; generator diagnostics and duplicate commands stay out of
 the recurring Agent hot path. Human-readable Markdown and non-thin JSON modes
 retain the richer generator packet, including `char_count` and `line_count`.
-`upgrade-plan --format json` also carries that richer budget summary inside
-each generated prompt, so local default-promotion checks can flag prompt bloat
-without parsing prose or relying on a chat thread.
-
-`upgrade-plan --format json` also carries a compact `prompt_policy_audit` for
-installed prompts when their body is available through the local Codex App
-automation record or an explicit manifest. The audit does not echo the prompt
-body. It only reports warning kinds such as a generic `should_run=false`
-hard-stop appearing before safe-bypass handling, embedded project policy blocks,
-or pinned `--active-state` arguments. Any warning should be treated as upgrade
-work: regenerate the installed heartbeat from the current CLI contract and keep
-project-specific policy in registry/state/status/review-packet payloads.
-
 For gray rollout, generate the brief body through `loopx-canary` and pass
 `--cli-bin loopx-canary` so only the selected goal controller uses the
 live checkout:
@@ -672,20 +655,8 @@ hint directly, otherwise do nothing. For the uniquely matched current heartbeat,
 `quota should-run` reconciles the installed RRULE with the ACK ledger; a
 `host_observation.status=drift_detected` result reopens `apply_needed`:
 
-If `automation_update` is unavailable in the session and
-`scheduler_hint.app_automation.fallback_hint.available=true`, run the bound
-`fallback_hint.cli_args` (`loopx-apply-rrule`) once instead. The fallback
-requires the projected registered `--agent-id`; there is no implicit Agent
-default. It backs up
-`codex-dev.db`, syncs the automation TOML and SQLite row, and runs the bound
-ACK; direct SQLite edits bypass the app API, so this is a bounded fallback and
-never the routine path. The bridge reuses the provided parent Turn for its
-internal `quota should-run` query. That same-Turn replay preserves the committed
-receipt's bound Todo, observed capabilities, and settlement identity; an
-explicitly conflicting identity still fails closed. When the automation id
-could not be resolved,
-`fallback_hint.available=false` and the pasteable heartbeat gate is the correct
-stop - never guess an automation id.
+If `automation_update` is unavailable in the session, surface the pasteable
+heartbeat gate; LoopX does not edit a host's automation store directly.
 
 ```text
 Create a heartbeat automation starting at 3 minutes for the current thread;
@@ -693,9 +664,7 @@ then apply `quota should-run.scheduler_hint`: update RRULE only when
 `apply_needed=true`, trying once per hint and turn; ack with the provided
 `ack_hint.cli_args` only after the host update succeeds, or run the provided
 `failure_hint.cli_args` once if that update fails or times out. If
-`automation_update` is unavailable and `fallback_hint.available=true`, run the
-provided `fallback_hint.cli_args` once instead; if it is unavailable, surface
-the pasteable heartbeat gate.
+`automation_update` is unavailable, surface the pasteable heartbeat gate.
 
 Task:
 Advance <GOAL_ID> using <ACTIVE_GOAL_STATE_PATH>. Before any delivery work,
