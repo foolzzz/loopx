@@ -495,7 +495,7 @@ def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
             "-m",
             "loopx.cli",
             "--runtime-root",
-            str(runtime_root),
+            "runtime",
             "--format",
             "json",
             "codex-cli-bootstrap-message",
@@ -509,6 +509,7 @@ def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
         check=True,
         text=True,
         capture_output=True,
+        cwd=tmp_path,
     )
     cli_packet = json.loads(completed.stdout)
     for key in (
