@@ -21,11 +21,11 @@ from .candidate_review import (
     issue_fix_verified_contributor_candidate_fixture,
     review_reward_memory_candidate,
 )
-from .codex_app_outcome import (
-    run_staged_codex_app_turn_outcome_ingest,
-    run_staged_codex_app_turn_outcome_ingest_fail_open,
-    stage_codex_app_turn_outcome_candidate,
-    stage_codex_app_turn_outcome_candidate_fail_open,
+from .refresh_outcome_candidate import (
+    run_staged_refresh_outcome_candidate_ingest,
+    run_staged_refresh_outcome_candidate_ingest_fail_open,
+    stage_refresh_outcome_candidate,
+    stage_refresh_outcome_candidate_fail_open,
 )
 from .health import (
     build_reward_memory_corpus_health_packet,
@@ -98,10 +98,10 @@ __all__ = [
     "reconcile_pending_turn_outcome_ingests_fail_open",
     "run_configured_turn_outcome_ingest",
     "run_configured_turn_outcome_ingest_fail_open",
-    "run_staged_codex_app_turn_outcome_ingest",
-    "run_staged_codex_app_turn_outcome_ingest_fail_open",
+    "run_staged_refresh_outcome_candidate_ingest",
+    "run_staged_refresh_outcome_candidate_ingest_fail_open",
     "semantic_preference_inventory_to_reward_corpora",
-    "stage_codex_app_turn_outcome_candidate",
-    "stage_codex_app_turn_outcome_candidate_fail_open",
+    "stage_refresh_outcome_candidate",
+    "stage_refresh_outcome_candidate_fail_open",
     "validate_reward_memory_utility_observation",
 ]

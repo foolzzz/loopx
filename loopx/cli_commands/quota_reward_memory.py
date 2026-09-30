@@ -9,9 +9,9 @@ from typing import Any
 from ..capabilities.agent_turn_recall import (
     run_configured_agent_turn_recall_fail_open,
 )
-from ..capabilities.reward_memory.codex_app_outcome import (
-    stage_codex_app_turn_outcome_candidate_fail_open,
-    run_staged_codex_app_turn_outcome_ingest_fail_open,
+from ..capabilities.reward_memory.refresh_outcome_candidate import (
+    run_staged_refresh_outcome_candidate_ingest_fail_open,
+    stage_refresh_outcome_candidate_fail_open,
 )
 from ..control_plane.quota.settlement import read_heartbeat_settlement
 
@@ -37,7 +37,7 @@ def stage_reward_memory_outcome_candidate(
     state = payload.get("state")
     state = state if isinstance(state, Mapping) else {}
     payload["reward_memory_outcome_candidate"] = (
-        stage_codex_app_turn_outcome_candidate_fail_open(
+        stage_refresh_outcome_candidate_fail_open(
             registry_path=registry_path,
             runtime_root=runtime_root,
             goal_id=goal_id,
@@ -97,7 +97,7 @@ def attach_reward_memory_ingest_after_spend(
     if not candidate_id or identity is None or not identity.todo_id:
         return
     payload["reward_memory_ingest"] = (
-        run_staged_codex_app_turn_outcome_ingest_fail_open(
+        run_staged_refresh_outcome_candidate_ingest_fail_open(
             registry_path=registry_path,
             goal_id=identity.goal_id,
             agent_id=identity.agent_id,

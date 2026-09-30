@@ -889,7 +889,7 @@ def test_codex_app_refresh_stages_validated_memory_and_spend_finalizes_hook(
     assert spend_rc == 0, spend
     assert spend["settlement_result"]["ok"] is True
     assert spend["reward_memory_ingest"]["host_wiring"] == (
-        "codex_app_refresh_spend_post_settlement"
+        "refresh_outcome_candidate_post_settlement"
     )
     assert spend["reward_memory_ingest"]["external_writes_performed"] is False
 

@@ -55,6 +55,11 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
     `--runtime-root`, so one bot App has one consumer per machine.
   - Exceptions: the KunlunCode goal mode and the benchmark runner keep their
     own path literals. Both are being removed.
+- **Reward Memory refresh outcome candidates are host-neutral.** New candidate
+  responses and private sidecars use the `refresh_outcome_candidate` schema,
+  storage path and receipt names instead of `codex_app_outcome`. Existing
+  sidecars with the old Codex App schema and storage path remain readable, but
+  every new write uses the new names.
 
 ### Fixed
 
