@@ -88,7 +88,18 @@ test("registration, exclusion, and self-merge invariants fail closed", () => {
       resolveTodoCompletionPolicy(
         request({ agent_model: "legacy_hierarchy" }),
       ),
-    /coordination.agent_model must be role_v1 or peer_v1/,
+    /retired v0.1 agent hierarchy field coordination.agent_model/,
+  );
+  assert.throws(
+    () =>
+      resolveTodoCompletionPolicy(
+        request({
+          agent_model: "legacy_hierarchy",
+          claimed_by: "../private-agent",
+          registered_agents: ["../private-agent"],
+        }),
+      ),
+    /retired v0.1 agent hierarchy field coordination.agent_model/,
   );
   // role_v1 (fork default) is an accepted runtime model.
   assert.doesNotThrow(() => resolveTodoCompletionPolicy(request({ agent_model: "role_v1" })));

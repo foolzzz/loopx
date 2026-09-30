@@ -33,6 +33,7 @@ def build_quota_agent_identity(
     *,
     agent_id: str | None,
 ) -> dict[str, Any] | None:
+    reject_legacy_agent_hierarchy(goal)
     normalized_agent_id = normalize_todo_claimed_by(agent_id) if agent_id else None
     if agent_id and not normalized_agent_id:
         raise QuotaIdentityPreconditionError(

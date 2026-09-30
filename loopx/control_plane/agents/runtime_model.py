@@ -59,6 +59,14 @@ def normalize_agent_role(value: Any) -> str | None:
     return candidate if candidate in AGENT_ROLE_VALUES else None
 
 
+def _profile_mapping_path(agent_id: Any) -> str:
+    raw_agent_id = str(agent_id)
+    if normalize_todo_claimed_by(raw_agent_id) == raw_agent_id:
+        return f"coordination.agent_profiles[{json.dumps(raw_agent_id)}]"
+    fingerprint = hashlib.sha256(raw_agent_id.encode("utf-8")).hexdigest()[:12]
+    return f'coordination.agent_profiles["<invalid-agent-id:{fingerprint}>"]'
+
+
 def legacy_agent_hierarchy_fields(
     goal: Mapping[str, Any] | None,
 ) -> tuple[str, ...]:
@@ -81,11 +89,17 @@ def legacy_agent_hierarchy_fields(
 
     profiles = coordination.get("agent_profiles")
     if isinstance(profiles, Mapping):
-        profile_items = profiles.items()
+        profile_items = (
+            (
+                _profile_mapping_path(agent_id),
+                profile,
+            )
+            for agent_id, profile in profiles.items()
+        )
     elif isinstance(profiles, list):
         profile_items = (
             (
-                str(profile.get("agent_id") or profile.get("id") or index),
+                f"coordination.agent_profiles[{index}]",
                 profile,
             )
             for index, profile in enumerate(profiles)
@@ -94,10 +108,9 @@ def legacy_agent_hierarchy_fields(
     else:
         profile_items = ()
     role_v1 = configured_model == AgentRuntimeModel.ROLE_V1.value
-    for agent_id, profile in profile_items:
+    for prefix, profile in profile_items:
         if not isinstance(profile, Mapping):
             continue
-        prefix = f"coordination.agent_profiles.{agent_id}"
         if profile.get("schema_version") == LEGACY_AGENT_PROFILE_SCHEMA_VERSION:
             fields.append(f"{prefix}.schema_version")
         if not role_v1 and "role" in profile:

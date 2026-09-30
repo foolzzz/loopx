@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -162,11 +163,11 @@ def test_quota_identity_admission_uses_typed_public_preconditions(
                     AGENT_ID: {"schema_version": "agent_profile_v0"}
                 }
             },
-            f"coordination.agent_profiles.{AGENT_ID}.schema_version",
+            f'coordination.agent_profiles["{AGENT_ID}"].schema_version',
         ),
         (
             {"agent_profiles": {AGENT_ID: {"primary_agent": "agent-beta"}}},
-            f"coordination.agent_profiles.{AGENT_ID}.primary_agent",
+            f'coordination.agent_profiles["{AGENT_ID}"].primary_agent',
         ),
         (
             {
@@ -174,7 +175,10 @@ def test_quota_identity_admission_uses_typed_public_preconditions(
                     AGENT_ID: {"review_policy": {"handoff_agent": "agent-beta"}}
                 }
             },
-            f"coordination.agent_profiles.{AGENT_ID}.review_policy.handoff_agent",
+            (
+                f'coordination.agent_profiles["{AGENT_ID}"].review_policy.'
+                "handoff_agent"
+            ),
         ),
         (
             {
@@ -185,13 +189,13 @@ def test_quota_identity_admission_uses_typed_public_preconditions(
                 }
             },
             (
-                f"coordination.agent_profiles.{AGENT_ID}.review_policy."
+                f'coordination.agent_profiles["{AGENT_ID}"].review_policy.'
                 "reviews_side_agent_work"
             ),
         ),
         (
             {"agent_profiles": {AGENT_ID: {"role": "side-agent"}}},
-            f"coordination.agent_profiles.{AGENT_ID}.role",
+            f'coordination.agent_profiles["{AGENT_ID}"].role',
         ),
     ],
 )
@@ -227,6 +231,53 @@ def test_root_legacy_model_alias_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="retired v0.1.*agent_model"):
         build_quota_agent_identity(goal, agent_id=AGENT_ID)
+
+
+@pytest.mark.parametrize("agent_id", [None, "../private-agent", "agent-beta"])
+def test_retired_hierarchy_precedes_identity_admission(agent_id: str | None) -> None:
+    goal = {
+        "coordination": {
+            "agent_model": "peer_v1",
+            "registered_agents": [AGENT_ID],
+            "side_agent_handoff_agent": AGENT_ID,
+        }
+    }
+
+    with pytest.raises(ValueError, match="retired v0.1 agent hierarchy"):
+        build_quota_agent_identity(goal, agent_id=agent_id)
+
+
+def test_profile_list_paths_use_source_indexes_and_redact_invalid_map_keys() -> None:
+    list_goal = {
+        "coordination": {
+            "agent_model": "peer_v1",
+            "agent_profiles": [
+                {"agent_id": AGENT_ID, "schema_version": "agent_profile_v0"}
+            ],
+        }
+    }
+    with pytest.raises(ValueError) as list_error:
+        build_quota_agent_identity(list_goal, agent_id=None)
+    assert list_error.value.fields == (
+        "coordination.agent_profiles[0].schema_version",
+    )
+
+    map_goal = {
+        "coordination": {
+            "agent_model": "peer_v1",
+            "agent_profiles": {
+                "synthetic.private/path": {"schema_version": "agent_profile_v0"}
+            },
+        }
+    }
+    with pytest.raises(ValueError) as map_error:
+        build_quota_agent_identity(map_goal, agent_id=None)
+    fingerprint = hashlib.sha256(b"synthetic.private/path").hexdigest()[:12]
+    assert map_error.value.fields == (
+        f'coordination.agent_profiles["<invalid-agent-id:{fingerprint}>"]'
+        ".schema_version",
+    )
+    assert "synthetic.private/path" not in str(map_error.value)
 
 
 def test_missing_agent_id_remains_blocked_for_current_agent_models() -> None:
