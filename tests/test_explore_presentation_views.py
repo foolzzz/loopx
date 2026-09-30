@@ -543,6 +543,12 @@ def test_executive_view_suppresses_dense_hub_scaffolding_edges() -> None:
 
 def test_findings_change_digest_and_stale_view_is_rejected() -> None:
     projection = _small_projection()
+    digest = explore_source_digest(projection)
+    assert explore_source_digest(json.loads(json.dumps(projection))) == digest
+    retitled = json.loads(json.dumps(projection))
+    retitled["nodes"][0]["title"] = "Changed"
+    assert explore_source_digest(retitled) != digest
+
     bundle = build_explore_presentation_bundle(projection)
     changed = json.loads(json.dumps(projection))
     changed["findings"][0]["finding"] = "Updated candidate evidence"

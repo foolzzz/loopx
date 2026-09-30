@@ -18,9 +18,11 @@ from typing import Any
 
 import pytest
 
+from loopx.control_plane.quota.turn_envelope import build_turn_envelope
 from loopx.control_plane.turn_driver import (
     LOOPX_TURN_EXECUTION_SCHEMA_VERSION,
     LOOPX_TURN_RESULT_SCHEMA_VERSION,
+    LoopDisposition,
     LoopXTurnResultKind,
     build_loopx_turn_transaction_plan,
     validate_loopx_turn_receipt,
@@ -545,6 +547,47 @@ def test_replan_decision_without_receipt_also_requires_delta() -> None:
     )
     _assert_markers(payload, "replan")
     assert payload["replan_continuation"]["stale_todo_rerun_allowed"] is False
+    assert "vision_delta" in payload["replan_continuation"]["delta_kinds"]
+
+
+def _quota_decision(**overrides: object) -> dict[str, object]:
+    decision: dict[str, object] = {
+        "ok": True, "goal_id": "g", "agent_id": "a",
+        "agent_identity": {"agent_id": "a"},
+        "decision": "run", "should_run": True,
+        "effective_action": "normal_run", "state": "eligible",
+        "recommended_action": "Advance.",
+        "selected_todo": {"todo_id": "t001", "text": "Advance."},
+        "interaction_contract": {
+            "schema_version": "loopx_interaction_contract_v0",
+            "mode": "normal_run",
+            "user_channel": {"action_required": False, "notify": "DONT_NOTIFY"},
+            "agent_channel": {"must_attempt": True, "delivery_allowed": True, "quiet_noop_allowed": False},
+            "cli_channel": {"spend_after_validation": True},
+        },
+        "open_count": 0, "action_required": False,
+    }
+    decision.update(overrides)
+    return decision
+
+
+@pytest.mark.parametrize(
+    ("overrides", "disposition"),
+    [
+        ({}, LoopDisposition.RUN_NOW),
+        ({"should_run": False, "effective_action": "terminal_no_followup",
+          "state": "terminal_no_followup", "decision": "stop"}, LoopDisposition.TERMINAL),
+        ({"should_run": False, "effective_action": "quiet_noop", "state": "waiting",
+          "decision": "wait", "quiet_noop_allowed": True}, LoopDisposition.WAIT),
+        ({"effective_action": "autonomous_replan"}, LoopDisposition.REPLAN),
+    ],
+)
+def test_built_turn_envelope_routes_without_receipt(
+    overrides: dict[str, object], disposition: LoopDisposition
+) -> None:
+    envelope = build_turn_envelope(_quota_decision(**overrides))
+    payload = decide_loop_disposition(turn_receipt=None, quota_decision=envelope)
+    _assert_markers(payload, disposition.value)
 
 
 def test_user_action_from_receipt_wins() -> None:

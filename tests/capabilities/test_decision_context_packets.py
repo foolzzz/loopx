@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from loopx.capabilities.decision_context import (
+    build_decision_context_architecture_packet,
     build_decision_evidence_packet,
     build_decision_outcome_receipt,
     build_decision_proposal,
@@ -125,6 +126,17 @@ def proposal_packet(evidence_ref: str) -> dict[str, object]:
                 "condition": "Resume only after the pilot receipt is reviewed.",
             }
         ],
+    )
+
+
+def test_architecture_is_default_off_and_fails_open_to_current_authority() -> None:
+    architecture = build_decision_context_architecture_packet()
+
+    assert architecture["capability"]["default_enabled"] is False
+    assert architecture["capability"]["creates_authority"] is False
+    assert (
+        architecture["provider_boundaries"]["provider_failure_policy"]
+        == "fail_open_to_current_authority"
     )
 
 

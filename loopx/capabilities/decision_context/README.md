@@ -419,7 +419,7 @@ For implementation details and invariants, read the
 
 ```bash
 python3 examples/decision-context-contract-smoke.py
-python3 -m pytest -q tests/test_decision_context_material.py
+python3 -m pytest -q tests/capabilities/test_decision_context_packets.py tests/capabilities/test_decision_context_outcome_feedback.py
 python3 -m pytest -q tests/capabilities/test_decision_context_capture.py
 ```
 

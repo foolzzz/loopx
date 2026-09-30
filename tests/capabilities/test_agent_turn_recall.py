@@ -293,8 +293,12 @@ def test_situation_is_prompt_independent_and_fingerprints_material_changes() -> 
     assert first["situation_fingerprint"] != phase_change["situation_fingerprint"]
     assert first["situation_fingerprint"] != target_change["situation_fingerprint"]
     preview = build_agent_turn_recall_preview(first)
+    assert preview["status"] == "preview"
     assert preview["query_evidence"]["exact_query_exposed"] is False
     assert preview["provider_call_count"] == 0
+    assert preview["context"]["guidance"] == []
+    assert preview["execute_required_for_recall"] is True
+    assert preview["grants_new_action_authority"] is False
 
 
 def test_recall_injects_private_guidance_without_granting_authority(
@@ -589,4 +593,6 @@ def test_expiry_survives_candidate_review_and_activation(tmp_path: Path) -> None
         activated_at="2026-08-02T10:00:00+00:00",
     )
 
+    assert reviewed["grants_new_action_authority"] is False
     assert active["lifecycle"] == {"state": "active", "expires_at": expires_at}
+    assert active["provider_write_performed"] is False

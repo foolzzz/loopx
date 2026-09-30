@@ -208,7 +208,7 @@ For packet schemas and detailed invariants, read the
 
 ```bash
 python3 examples/material-lifecycle-contract-smoke.py
-python3 -m pytest -q tests/test_decision_context_material.py
+python3 -m pytest -q tests/capabilities/test_material_lifecycle_contracts.py
 ```
 
 The contract smoke covers Material Lifecycle packet and architecture readback.

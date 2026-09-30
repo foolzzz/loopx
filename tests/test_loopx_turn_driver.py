@@ -822,6 +822,9 @@ def test_turn_host_request_carries_typed_child_operations() -> None:
 
     request = build_loopx_turn_host_request(plan)
 
+    assert request["schema_version"] == "loopx_turn_host_request_v0"
+    assert request["turn_key"] == plan["transaction"]["turn_key"]
+    assert request["route"] == LoopXTurnRoute.READY_FOR_HOST.value
     assert request["child_operations"] == plan["child_operations"]
     assert (
         request["subagent_execution_topology"]

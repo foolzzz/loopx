@@ -237,6 +237,22 @@ class TestHostModePlanRouting:
             assert p["selected_connector_id"] == connector
             assert p["selected_turn_mapping"]["host"] == "generic-cli"
 
+    def test_declared_host_capabilities_make_selected_mode_ready(self):
+        visible = build_host_mode_plan(
+            goal_id="g", user_intent="watch_each_turn",
+            host_capabilities=["visible_session"],
+            agent_id="a", registered_agents=["a"],
+            available_capabilities=["shell", "network"],
+            host_identity="codex-cli")
+        headless = build_host_mode_plan(
+            goal_id="g", user_intent="continue_without_ui",
+            host_capabilities=["loopx_turn", "typed_host_adapter", "independent_validator"],
+            agent_id="a", registered_agents=["a"],
+            available_capabilities=["shell"], host_identity="generic-cli")
+        assert visible["selected_capability_ready"] is True
+        assert headless["selected_mode"] == "isolated_headless_turn"
+        assert headless["selected_capability_ready"] is True
+
 
 # -- Fail-closed --------------------------------------------------------------
 

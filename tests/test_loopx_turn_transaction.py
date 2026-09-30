@@ -11,6 +11,9 @@ from loopx.control_plane.turn_driver import (
     loopx_turn_execution_recovery_required,
     validate_loopx_turn_receipt,
 )
+from loopx.control_plane.turn_driver.transaction import (
+    LOOPX_TURN_TRANSACTION_PLAN_SCHEMA_VERSION,
+)
 
 
 def _plan() -> dict[str, object]:
@@ -48,6 +51,49 @@ def _result(
     if failed_phase:
         result["failed_phase"] = failed_phase
     return result
+
+
+def test_planned_transaction_declares_schema_and_conditional_closeout() -> None:
+    plan = build_loopx_turn_transaction_plan(
+        planned=True,
+        lineage={"goal_id": "g", "agent_id": "a", "todo_id": "t001"},
+        host="codex-cli",
+        execution_mode="interactive-visible",
+        session_action="start_new",
+        scheduler_owner="agent_cli_loop",
+    )
+
+    assert plan["schema_version"] == LOOPX_TURN_TRANSACTION_PLAN_SCHEMA_VERSION
+    closeout = plan["settlement_plan"]["ordered_steps"][-1]
+    assert closeout["kind"] == "terminal_closeout"
+    assert closeout["conditional"] is True
+
+
+def test_turn_key_binds_host_execution_mode_and_scheduler_owner() -> None:
+    lineage = {"goal_id": "g", "agent_id": "a", "todo_id": "t001"}
+    visible = build_loopx_turn_transaction_plan(
+        planned=True,
+        lineage=lineage,
+        host="codex-cli",
+        execution_mode="interactive-visible",
+        session_action="start_new",
+        scheduler_owner="agent_cli_loop",
+    )
+    headless = build_loopx_turn_transaction_plan(
+        planned=True,
+        lineage=lineage,
+        host="generic-cli",
+        execution_mode="isolated-headless",
+        session_action="start_new",
+        scheduler_owner="outer_controller",
+    )
+
+    assert visible["turn_key"] != headless["turn_key"]
+    assert (
+        visible["settlement_plan"]["identity"]["goal_id"]
+        == headless["settlement_plan"]["identity"]["goal_id"]
+        == "g"
+    )
 
 
 def test_validated_result_becomes_writeback_eligible_without_spend() -> None:
@@ -232,6 +278,10 @@ def test_non_executable_plan_rejects_a_result() -> None:
         session_action="none",
     )
 
+    assert plan["status"] == "not_applicable"
+    assert plan["phases"] == []
+    assert plan["receipt_seed"]["next_phase"] is None
+
     receipt = validate_loopx_turn_receipt(plan, _result(plan))
 
     assert receipt["ok"] is False
@@ -275,3 +325,6 @@ def test_public_execution_outcome_predicates_share_transaction_semantics() -> No
 
     repair["effects"] = {"state_written": True, "quota_spent": False}
     assert loopx_turn_execution_has_durable_effects(repair) is True
+
+    committed["effects"] = {"state_written": False, "quota_spent": False}
+    assert loopx_turn_execution_committed(committed) is False
