@@ -37,7 +37,7 @@ def test_latest_delivery_ignores_controller_and_peer_rows() -> None:
         _status_with_runs(
             [
                 {
-                    "classification": "quota_scheduler_ack",
+                    "classification": "quota_slot_spent",
                     "agent_id": "codex-main",
                 },
                 {

@@ -288,19 +288,9 @@ def test_codex_app_runtime_profile_preserves_host_backoff() -> None:
     assert canonical["stateful_backoff"]["state_key"] == (
         "scheduler_hint.app_automation.stateful_backoff"
     )
-    assert canonical["ack_hint"]["schema_version"] == (
-        "app_automation_scheduler_ack_hint_v0"
-    )
-    assert legacy["stateful_backoff"]["schema_version"] == (
-        "codex_app_stateful_backoff_v0"
-    )
-    assert legacy["stateful_backoff"]["state_key"] == (
-        "scheduler_hint.codex_app.stateful_backoff"
-    )
-    assert legacy["ack_hint"]["schema_version"] == (
-        "codex_app_scheduler_ack_hint_v0"
-    )
-    assert legacy["rrule_source"] == "scheduler_hint.codex_app.recommended_rrule"
+    for packet in (canonical, legacy):
+        assert "ack_hint" not in packet
+        assert "failure_hint" not in packet
     assert legacy["stateful_backoff"]["apply_needed"] is True
     assert legacy["recommended_interval_minutes"] == 3
     assert hint["reset_policy"]["reset_token"] == "3e649fb65bf246f9"
@@ -332,8 +322,8 @@ def test_trae_app_runtime_profile_preserves_host_backoff_and_identity() -> None:
     assert app["recommended_interval_minutes"] == 3
     assert app["rrule_source"] == "scheduler_hint.app_automation.recommended_rrule"
     assert "fallback_hint" not in app
-    assert "--trae_app" in app["ack_hint"]["cli_args"]
-    assert "--surface" in app["ack_hint"]["cli_args"]
+    assert "ack_hint" not in app
+    assert "failure_hint" not in app
     assert hint["cold_path_detail"]["execution_phase"]["host_surface"] == (
         "trae_app"
     )
@@ -1374,48 +1364,6 @@ def test_observed_spawn_enters_next_cli_action_and_replay_admits_child() -> None
         assert contract["mode"] == "adaptive"
         assert contract["primary_todo_id"] == "todo_primary"
         assert contract["eligible_child_lanes"][0]["todo_id"] == "todo_child"
-
-
-def test_persisted_capabilities_do_not_enter_scheduler_ack() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        persisted_capabilities=["subagent_spawn", "subagent_resume"],
-    )
-
-    ack_cli_args = quota["scheduler_hint"]["codex_app"]["ack_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(ack_cli_args) == []
-
-
-def test_observed_spawn_enters_scheduler_ack() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        available_capabilities=["subagent_spawn"],
-    )
-
-    ack_cli_args = quota["scheduler_hint"]["codex_app"]["ack_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(ack_cli_args) == ["subagent_spawn"]
-
-
-def test_persisted_capabilities_do_not_enter_scheduler_failure() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        persisted_capabilities=["subagent_spawn", "subagent_resume"],
-    )
-
-    failure_cli_args = quota["scheduler_hint"]["codex_app"]["failure_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(failure_cli_args) == []
-
-
-def test_observed_spawn_enters_scheduler_failure() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        available_capabilities=["subagent_spawn"],
-    )
-
-    failure_cli_args = quota["scheduler_hint"]["codex_app"]["failure_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(failure_cli_args) == [
-        "subagent_spawn"
-    ]
 
 
 def test_persisted_capabilities_do_not_enter_cooldown_rebuild() -> None:

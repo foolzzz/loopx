@@ -700,15 +700,13 @@
       },
       "values": [
         "apply_required",
-        "host_match_ack_required",
         "recorded_failure_suppressed",
         "settled"
       ],
       "value_notes": {
-        "apply_required": "The fall-through when the target rrule is not effective at the host, or is effective but the identity was reset, and no cached failure records that identical target and observed pair. The host cadence actually has to be written.",
-        "host_match_ack_required": "First branch of evaluateHost: the host reported a cadence that already equals the current target, but something still owes an acknowledgement, because the scheduler state's last applied rrule does not match the target, the identity is not a clean match, or the retained failure cache holds a failure for this target. Nothing needs applying; only the ack has to be written.",
+        "apply_required": "The fall-through when the target rrule is not effective at the host and no cached failure records that identical target and observed pair. The host cadence actually has to be written.",
         "recorded_failure_suppressed": "Emitted when the target is not effective yet but the selected unexpired failure cache entry records the identical pair of target rrule and observed host rrule, so the exact same apply attempt already failed with nothing changed since. The retry is suppressed rather than looped.",
-        "settled": "Emitted when the target rrule is already effective at the host and the scheduler state acknowledges it under a matching identity with no cached failure for that target. It also covers the monitor_wait stale-tolerance fallback, where no host rrule was observed but the last applied cadence is no looser than the target and still inside the tolerance window."
+        "settled": "Emitted when the target rrule is already effective at the host. It also covers the monitor_wait stale-tolerance fallback, where no host rrule was observed but the last applied cadence is no looser than the target and still inside the tolerance window."
       }
     },
     "todo_completion_continuation": {

@@ -110,11 +110,7 @@ import {
 import { evaluateSchedulerStateTransition } from "./scheduler/state_transition_rules.ts";
 import { projectTodoResumePlanning } from "./todos/resume_planning.ts";
 import { projectTodoQuotaPlanning } from "./todos/quota_selection.ts";
-import {
-  evaluateSchedulerStateOperation,
-  loadSchedulerState,
-  writeSchedulerState,
-} from "./scheduler/state_store.ts";
+import { evaluateSchedulerStateOperation } from "./scheduler/state_store.ts";
 import { buildVisionCheckpoint } from "./goals/vision_checkpoint.ts";
 import {evaluateCheckpointReadContext} from "./goals/checkpoint_read_context.ts";
 import {readCheckpointAuthority} from "./goals/checkpoint_authority.ts";
@@ -501,8 +497,6 @@ export function createEffectRuntimeHandlers(
     ["quota.automation_cadence.confirm_start", confirmAutomationStart],
     ["quota.automation_cadence.schedule", projectCadenceSchedule],
     ["scheduler.state.evaluate", evaluateSchedulerStateOperation],
-    ["scheduler.state.load", loadSchedulerState],
-    ["scheduler.state.write", writeSchedulerState],
     ["turn.delivery_route.evaluate", evaluateDeliveryRoute],
     ["work_item.action_portfolio.project", projectQuotaActionPortfolio],
     ["work_item.action_selection.qualify", qualifyActionSelection],

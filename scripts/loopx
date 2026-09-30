@@ -37,32 +37,6 @@ for arg in "$@"; do
   fi
 done
 
-native_scheduler_facts=0
-native_scheduler_turn=0
-for arg in "$@"; do
-  case "$arg" in
-    --scheduler-host-facts-chunk|--scheduler-host-facts-chunk=*)
-      native_scheduler_facts=1
-      ;;
-    --turn-instance-id|--turn-instance-id=*)
-      native_scheduler_turn=1
-      ;;
-  esac
-done
-
-if [[ "$loopx_command" == "quota" \
-  && ( "$loopx_subcommand" == "scheduler-ack-current" || "$loopx_subcommand" == "scheduler-fail-current" ) \
-  && "$native_scheduler_facts" == "1" \
-  && "$native_scheduler_turn" == "1" ]]; then
-  native_scheduler_entry="$repo_root/loopx/control_plane/scheduler/heartbeat_followup_cli.ts"
-  if ! command -v node >/dev/null 2>&1; then
-    echo "loopx runtime error: native scheduler follow-up requires Node.js 22.22.3 or newer" >&2
-    exit 2
-  fi
-  export LOOPX_RELEASE_ROOT="$repo_root"
-  exec node --no-warnings --experimental-strip-types "$native_scheduler_entry" "$@"
-fi
-
 python_selector="$repo_root/scripts/loopx-python.sh"
 if [[ -n "${LOOPX_PYTHON:-}" ]]; then
   python_bin="$LOOPX_PYTHON"

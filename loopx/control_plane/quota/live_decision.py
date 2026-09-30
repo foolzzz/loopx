@@ -334,69 +334,6 @@ def _apply_pending_capability_intent_precedence(
     return True
 
 
-def bind_scheduler_followup_cli_routes(
-    payload: dict[str, Any],
-    *,
-    registry_path: Path,
-    runtime_root: Path,
-    turn_instance_id: str | None = None,
-    source: str = "quota_cli_invocation",
-) -> None:
-    """Bind scheduler follow-ups to the registry/runtime/Turn that built the hint."""
-
-    scheduler_hint = payload.get("scheduler_hint")
-    if not isinstance(scheduler_hint, dict):
-        return
-    app_packets = [
-        packet
-        for packet_key in ("app_automation", "codex_app")
-        if isinstance((packet := scheduler_hint.get(packet_key)), dict)
-    ]
-    for app_packet in app_packets:
-        for hint_name in ("ack_hint", "failure_hint"):
-            followup_hint = app_packet.get(hint_name)
-            if not isinstance(followup_hint, dict):
-                continue
-            cli_args = followup_hint.get("cli_args")
-            if not isinstance(cli_args, list) or not cli_args:
-                continue
-            bound_cli_args = list(cli_args)
-            if bound_cli_args[0] != "--registry":
-                bound_cli_args = [
-                    "--registry",
-                    str(registry_path.expanduser().resolve()),
-                    "--runtime-root",
-                    str(runtime_root.expanduser().resolve()),
-                    *bound_cli_args,
-                ]
-            safe_turn_instance_id = str(turn_instance_id or "").strip()
-            if safe_turn_instance_id and "--turn-instance-id" not in bound_cli_args:
-                execute_index = (
-                    bound_cli_args.index("--execute")
-                    if "--execute" in bound_cli_args
-                    else len(bound_cli_args)
-                )
-                bound_cli_args[execute_index:execute_index] = [
-                    "--turn-instance-id",
-                    safe_turn_instance_id,
-                ]
-                args_value = followup_hint.get("args")
-                if isinstance(args_value, dict):
-                    args_value["turn_instance_id"] = safe_turn_instance_id
-            followup_hint["cli_args"] = bound_cli_args
-            followup_hint["route_binding"] = {
-                "schema_version": (
-                    "scheduler_ack_cli_route_v0"
-                    if hint_name == "ack_hint"
-                    else "scheduler_failure_cli_route_v0"
-                ),
-                "source": source,
-                "registry_bound": True,
-                "runtime_root_bound": True,
-                "turn_instance_bound": bool(safe_turn_instance_id),
-            }
-
-
 def bind_action_selection_cli_routes(
     payload: dict[str, Any],
     *,
@@ -639,13 +576,6 @@ def build_live_quota_should_run_decision(
             )
         if context is not None:
             interaction["agent_context"] = context
-    bind_scheduler_followup_cli_routes(
-        payload,
-        registry_path=registry_path,
-        runtime_root=runtime_root,
-        turn_instance_id=turn_instance_id,
-        source=route_source,
-    )
     bind_action_selection_cli_routes(
         payload,
         registry_path=registry_path,

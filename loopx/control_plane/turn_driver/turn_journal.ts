@@ -683,8 +683,6 @@ export function interpretTurnJournalEffect(
       execution_mode: null,
       scheduler_action: null,
       cadence_class: null,
-      ack_cli_args: [],
-      failure_cli_args: [],
     },
   };
 }

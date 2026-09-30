@@ -33,7 +33,6 @@ export type SchedulerCadenceTransition =
 
 export const SCHEDULER_HOST_TRANSITIONS = [
   "apply_required",
-  "host_match_ack_required",
   "recorded_failure_suppressed",
   "settled",
 ] as const;
@@ -253,7 +252,6 @@ function evaluateCadence(request: JsonObject): SchedulerCadenceTransitionResult 
 }
 
 function evaluateHost(request: JsonObject): SchedulerHostTransitionResult {
-  const stateStatus = requiredString(request.state_status, "state_status");
   const currentTargetHasFailure = requiredBoolean(
     request.current_target_has_failure,
     "current_target_has_failure",
@@ -263,19 +261,10 @@ function evaluateHost(request: JsonObject): SchedulerHostTransitionResult {
     "repeated_failed_pair",
   );
   let transition: SchedulerHostTransition;
-  if (
-    requiredBoolean(request.observed_host_rrule_present, "observed_host_rrule_present") &&
-    requiredBoolean(request.current_rrule_already_applied, "current_rrule_already_applied") &&
-    (!requiredBoolean(
-      request.scheduler_state_acknowledges_current_rrule,
-      "scheduler_state_acknowledges_current_rrule",
-    ) || stateStatus !== "same_identity" || currentTargetHasFailure)
-  ) {
-    transition = "host_match_ack_required";
-  } else if (
-    requiredBoolean(request.current_rrule_already_applied, "current_rrule_already_applied") &&
-    stateStatus === "same_identity"
-  ) {
+  if (requiredBoolean(
+    request.current_rrule_already_applied,
+    "current_rrule_already_applied",
+  )) {
     transition = "settled";
   } else if (repeatedFailedPair) {
     transition = "recorded_failure_suppressed";

@@ -25,7 +25,7 @@ from ..control_plane.turn_driver.journal_store import load_turn_journal, turn_jo
 
 # Phases that settle a completed host result; a failure here keeps the Turn.
 SETTLEMENT_FAILED_PHASES = frozenset(
-    {"durable_writeback", "quota_spend", "terminal_closeout", "scheduler_apply", "scheduler_ack"}
+    {"durable_writeback", "quota_spend", "terminal_closeout", "scheduler_apply"}
 )
 # A settlement that still fails after this many resumes falls back to a new Turn.
 SETTLEMENT_RETRY_LIMIT = 5

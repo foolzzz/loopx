@@ -146,7 +146,7 @@ def assert_terminal_guard_stops_recurring_automation() -> None:
     assert scheduler["codex_app"]["host_action_required"] is True, guard
     assert scheduler["codex_app"]["attempt_limit"] == 1, guard
     assert scheduler["codex_app"]["verify_host_result"] is True, guard
-    assert scheduler["codex_app"]["ack_required"] is False, guard
+    assert "ack_required" not in scheduler["codex_app"], guard
     assert scheduler["unchanged_poll"]["codex_cli_tui"] == "exit", guard
 
 

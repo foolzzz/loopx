@@ -29,25 +29,22 @@ def register_quota_command(
             "plan",
             "should-run",
             "monitor-poll",
-            "scheduler-ack",
-            "scheduler-ack-current",
-            "scheduler-fail-current",
             "spend-slot",
             "void-slot",
         ],
         default="status",
-        help="Use status for all groups, plan for next-turn groups, should-run for one goal, monitor-poll for no-spend quiet poll evidence, scheduler-ack for successful Codex App RRULE state, scheduler-fail-current to suppress a repeated failed host update pair, spend-slot for accounting, or void-slot for a non-destructive accounting correction.",
+        help="Use status for all groups, plan for next-turn groups, should-run for one goal, monitor-poll for no-spend quiet poll evidence, spend-slot for accounting, or void-slot for a non-destructive accounting correction.",
     )
     quota_parser.add_argument(
         "--goal-id",
-        help="Goal id to check. Required for one-goal quota commands, including should-run, scheduler ACK/failure, spend, and void.",
+        help="Goal id to check. Required for one-goal quota commands, including should-run, spend, and void.",
     )
     quota_parser.add_argument(
         "--agent-id",
         help=(
             "Registered agent id for `quota should-run` and scoped quota accounting "
             "commands; suppresses identity-upgrade warnings and records the identity "
-            "on appended monitor/scheduler/spend/void events."
+            "on appended monitor/spend/void events."
         ),
     )
     quota_parser.add_argument(
@@ -55,9 +52,8 @@ def register_quota_command(
         dest="available_capabilities",
         action="append",
         help=(
-            "For `quota should-run`, `quota monitor-poll`, `quota scheduler-ack`, "
-            "`quota scheduler-ack-current`, and `quota spend-slot`, declare a "
-            "capability observed in this current agent environment. Live should-run "
+            "For `quota should-run`, `quota monitor-poll`, and `quota spend-slot`, "
+            "declare a capability observed in this current agent environment. Live should-run "
             "remembers supported runtime observations for this registered Agent on "
             "this host; inspect or correct them with agent-capabilities. Basic local "
             "shell/filesystem capabilities are assumed."
@@ -94,16 +90,16 @@ def register_quota_command(
         "--app-automation-current-rrule",
         help=(
             "Current RRULE observed from the selected hosted App heartbeat. "
-            "This provider-neutral input reconciles host reality with LoopX's "
-            "last scheduler ACK."
+            "This provider-neutral input reconciles host reality with the "
+            "projected cadence."
         ),
     )
     quota_parser.add_argument(
         "--codex-app-current-rrule",
         help=(
             "Current RRULE observed from the active Codex App heartbeat. For "
-            "`quota should-run`, this reconciles host reality with LoopX's last "
-            "scheduler ACK so a stale ACK cannot suppress a required update. "
+            "`quota should-run`, this reconciles host reality with the projected "
+            "cadence. "
             "Deprecated compatibility alias for --app-automation-current-rrule."
         ),
     )
@@ -180,18 +176,10 @@ def register_quota_command(
         "--turn-instance-id",
         help=(
             "Stable heartbeat settlement id for `quota should-run`, "
-            "`quota monitor-poll`, scheduler ACK/failure follow-ups, and "
-            "`quota spend-slot`. The guard persists one idempotent receipt; "
-            "reuse the same id through monitor writeback, scheduler handoff, "
+            "`quota monitor-poll`, and `quota spend-slot`. The guard persists one "
+            "idempotent receipt; reuse the same id through monitor writeback, "
             "refresh-state, spend, and retries."
         ),
-    )
-    quota_parser.add_argument(
-        "--scheduler-host-facts-chunk",
-        dest="scheduler_host_facts_chunks",
-        action="append",
-        default=[],
-        help=argparse.SUPPRESS,
     )
     quota_parser.add_argument(
         "--begin-turn",
@@ -229,67 +217,14 @@ def register_quota_command(
     )
     register_quota_monitor_poll_request_arguments(quota_parser)
     quota_parser.add_argument(
-        "--surface",
-        help=(
-            "Scheduler surface for scheduler ACK/failure commands; derived from "
-            "the selected App runtime, or codex_app for a legacy unscoped call."
-        ),
-    )
-    quota_parser.add_argument(
-        "--state-key",
-        help=(
-            "Scheduler state key for scheduler ACK/failure commands; derived from "
-            "the selected App runtime when omitted."
-        ),
-    )
-    quota_parser.add_argument(
-        "--applied-rrule",
-        help="RRULE successfully applied by the host before `quota scheduler-ack --execute`.",
-    )
-    quota_parser.add_argument(
-        "--failed-rrule",
-        help="RRULE whose host update failed before `quota scheduler-fail-current --execute`.",
-    )
-    quota_parser.add_argument(
-        "--failure-kind",
-        choices=["host_tool_failure", "timeout", "rejected", "unavailable"],
-        default="host_tool_failure",
-        help="Bounded public-safe failure category for scheduler-fail-current.",
-    )
-    quota_parser.add_argument(
-        "--reset-token", help="Optional reset token to validate before scheduler ack."
-    )
-    quota_parser.add_argument(
-        "--identity-signature",
-        help="Optional identity signature to validate before scheduler ack.",
-    )
-    quota_parser.add_argument(
-        "--host-match-observed",
-        action="store_true",
-        help=(
-            "A bound scheduler hint has authoritative host proof from a successful "
-            "update or matching readback, so persist its exact reset-token/identity "
-            "binding."
-        ),
-    )
-    quota_parser.add_argument(
-        "--use-current-hint",
-        action="store_true",
-        help=(
-            "For `quota scheduler-ack`, resolve reset token and identity signature "
-            "from the latest quota should-run scheduler hint; `scheduler-ack-current` "
-            "sets this automatically."
-        ),
-    )
-    quota_parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Keep quota accounting or scheduler-state writes as preview-only. This is the default.",
+        help="Keep quota accounting writes as preview-only. This is the default.",
     )
     quota_parser.add_argument(
         "--execute",
         action="store_true",
-        help="Execute the quota accounting write or no-spend scheduler-state ack.",
+        help="Execute the quota accounting write.",
     )
     quota_parser.add_argument(
         "--record-host-poll",

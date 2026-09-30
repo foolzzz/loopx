@@ -128,15 +128,6 @@ def validate_quota_command_request(args: argparse.Namespace) -> None:
         raise QuotaCommandValidationError(
             f"`loopx quota {command}` requires --goal-id"
         )
-    scheduler_commands = {
-        "scheduler-ack",
-        "scheduler-ack-current",
-        "scheduler-fail-current",
-    }
-    if command in scheduler_commands and not args.agent_id:
-        raise QuotaCommandValidationError(
-            f"`loopx quota {command}` requires --agent-id"
-        )
     if command == "void-slot" and not args.void_generated_at:
         raise QuotaCommandValidationError(
             "`loopx quota void-slot` requires --void-generated-at"

@@ -70,8 +70,7 @@ test("runtime boundary rejects malformed transition facts", () => {
     () => evaluateSchedulerStateTransition({
       schema_version: SCHEDULER_STATE_TRANSITION_REQUEST_SCHEMA,
       operation: "host",
-      state_status: "same_identity",
-      observed_host_rrule_present: "yes",
+      current_rrule_already_applied: "yes",
     }),
     /must be a boolean/,
   );

@@ -396,9 +396,7 @@ def test_default_projection_preserves_host_actions_and_json_anchors(
     assert _host_shadow_document(compact) == _host_shadow_document(detailed)
     assert compact["command_pack_detail_included"] is False
     assert detailed["command_pack_detail_included"] is True
-    assert compact["guided_transaction"]["ordered_steps"][-1]["id"] == (
-        "scheduler_ack_when_needed"
-    )
+    assert compact["guided_transaction"]["ordered_steps"][-1]["id"] == "quota_guard"
 
     projection = compact["command_pack"]
     assert projection["schema_version"] == "loopx_bootstrap_command_pack_v0"

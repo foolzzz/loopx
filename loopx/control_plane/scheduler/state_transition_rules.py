@@ -178,7 +178,6 @@ def decide_scheduler_cadence_transition(
 
 class SchedulerHostTransition(str, Enum):
     APPLY_REQUIRED = "apply_required"
-    HOST_MATCH_ACK_REQUIRED = "host_match_ack_required"
     RECORDED_FAILURE_SUPPRESSED = "recorded_failure_suppressed"
     SETTLED = "settled"
 
@@ -194,19 +193,8 @@ class SchedulerHostDecision:
         return self.transition == SchedulerHostTransition.APPLY_REQUIRED
 
     @property
-    def host_match_ack_needed(self) -> bool:
-        return self.transition == SchedulerHostTransition.HOST_MATCH_ACK_REQUIRED
-
-    @property
     def host_failure_suppressed(self) -> bool:
         return self.transition == SchedulerHostTransition.RECORDED_FAILURE_SUPPRESSED
-
-    @property
-    def ack_needed(self) -> bool:
-        return self.transition in {
-            SchedulerHostTransition.APPLY_REQUIRED,
-            SchedulerHostTransition.HOST_MATCH_ACK_REQUIRED,
-        }
 
 
 @dataclass(frozen=True)

@@ -167,22 +167,22 @@ HOST_CASES = [
         "expected": SchedulerHostTransition.SETTLED,
     },
     {
-        "id": "matching_host_repairs_identity_with_ack",
+        "id": "matching_host_settles_after_identity_reset",
         "state_status": "reset_required",
         "already_applied": True,
-        "expected": SchedulerHostTransition.HOST_MATCH_ACK_REQUIRED,
+        "expected": SchedulerHostTransition.SETTLED,
     },
     {
-        "id": "matching_host_new_progression_requires_ack",
+        "id": "matching_host_settles_without_persisted_state",
         "already_applied": True,
         "persisted": False,
-        "expected": SchedulerHostTransition.HOST_MATCH_ACK_REQUIRED,
+        "expected": SchedulerHostTransition.SETTLED,
     },
     {
-        "id": "matching_host_acks_current_target_failure",
+        "id": "matching_host_settles_despite_recorded_failure",
         "already_applied": True,
         "failures": [_failure(target=TARGET_15, host=HOST_60)],
-        "expected": SchedulerHostTransition.HOST_MATCH_ACK_REQUIRED,
+        "expected": SchedulerHostTransition.SETTLED,
     },
     {
         "id": "unrelated_failure_does_not_unsettle_matching_host",
@@ -218,12 +218,12 @@ HOST_CASES = [
         "expected": SchedulerHostTransition.APPLY_REQUIRED,
     },
     {
-        "id": "persisted_match_without_host_observation_reapplies_after_reset",
+        "id": "effective_match_without_host_observation_is_settled",
         "state_status": "reset_required",
         "observed": "",
         "effective": TARGET_15,
         "already_applied": True,
-        "expected": SchedulerHostTransition.APPLY_REQUIRED,
+        "expected": SchedulerHostTransition.SETTLED,
     },
 ]
 
@@ -245,13 +245,6 @@ def test_scheduler_host_transition_table(case: dict) -> None:
     assert decision.transition == case["expected"]
     assert decision.apply_needed is (
         decision.transition == SchedulerHostTransition.APPLY_REQUIRED
-    )
-    assert decision.ack_needed is (
-        decision.transition
-        in {
-            SchedulerHostTransition.APPLY_REQUIRED,
-            SchedulerHostTransition.HOST_MATCH_ACK_REQUIRED,
-        }
     )
 
 

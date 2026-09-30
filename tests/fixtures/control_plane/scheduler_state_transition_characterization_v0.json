@@ -53,19 +53,19 @@
       "expected_result": {"operation": "host", "transition": "settled", "current_target_has_failure": false, "repeated_failed_pair": false}
     },
     {
-      "name": "matching_host_repairs_identity_with_ack",
+      "name": "matching_host_settles_after_identity_reset",
       "request": {"operation": "host", "state_status": "reset_required", "observed_host_rrule_present": true, "current_rrule_already_applied": true, "scheduler_state_acknowledges_current_rrule": true, "current_target_has_failure": false, "repeated_failed_pair": false},
-      "expected_result": {"operation": "host", "transition": "host_match_ack_required", "current_target_has_failure": false, "repeated_failed_pair": false}
+      "expected_result": {"operation": "host", "transition": "settled", "current_target_has_failure": false, "repeated_failed_pair": false}
     },
     {
-      "name": "matching_host_new_progression_requires_ack",
+      "name": "matching_host_settles_without_persisted_state",
       "request": {"operation": "host", "state_status": "same_identity", "observed_host_rrule_present": true, "current_rrule_already_applied": true, "scheduler_state_acknowledges_current_rrule": false, "current_target_has_failure": false, "repeated_failed_pair": false},
-      "expected_result": {"operation": "host", "transition": "host_match_ack_required", "current_target_has_failure": false, "repeated_failed_pair": false}
+      "expected_result": {"operation": "host", "transition": "settled", "current_target_has_failure": false, "repeated_failed_pair": false}
     },
     {
-      "name": "matching_host_acks_current_target_failure",
+      "name": "matching_host_settles_despite_recorded_failure",
       "request": {"operation": "host", "state_status": "same_identity", "observed_host_rrule_present": true, "current_rrule_already_applied": true, "scheduler_state_acknowledges_current_rrule": true, "current_target_has_failure": true, "repeated_failed_pair": false},
-      "expected_result": {"operation": "host", "transition": "host_match_ack_required", "current_target_has_failure": true, "repeated_failed_pair": false}
+      "expected_result": {"operation": "host", "transition": "settled", "current_target_has_failure": true, "repeated_failed_pair": false}
     },
     {
       "name": "unrelated_failure_does_not_unsettle_matching_host",
@@ -93,9 +93,9 @@
       "expected_result": {"operation": "host", "transition": "apply_required", "current_target_has_failure": false, "repeated_failed_pair": false}
     },
     {
-      "name": "persisted_match_without_host_observation_reapplies_after_reset",
+      "name": "effective_match_without_host_observation_is_settled",
       "request": {"operation": "host", "state_status": "reset_required", "observed_host_rrule_present": false, "current_rrule_already_applied": true, "scheduler_state_acknowledges_current_rrule": true, "current_target_has_failure": false, "repeated_failed_pair": false},
-      "expected_result": {"operation": "host", "transition": "apply_required", "current_target_has_failure": false, "repeated_failed_pair": false}
+      "expected_result": {"operation": "host", "transition": "settled", "current_target_has_failure": false, "repeated_failed_pair": false}
     }
   ]
 }

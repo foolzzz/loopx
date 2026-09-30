@@ -1474,18 +1474,6 @@ def build_start_goal_guided_packet(
         if isinstance(selected_capability_route, dict)
         else None
     )
-    scheduler_ack_steps = (
-        [
-            {
-                "id": "scheduler_ack_when_needed",
-                "kind": "scheduler_state",
-                "command_source": "quota.should-run.scheduler_hint.app_automation.ack_hint.cli_args",
-                "purpose": "ack an applied App automation RRULE without spending quota",
-            }
-        ]
-        if host_surface in {"codex-app", "trae_app"}
-        else []
-    )
     bind_thread_steps = (
         [
             {
@@ -1595,7 +1583,6 @@ def build_start_goal_guided_packet(
                 "command": commands.get("goal_start_quota_should_run"),
                 "purpose": "let LoopX choose the first bounded segment and scheduler cadence",
             },
-            *scheduler_ack_steps,
         ],
         "idempotency_policy": {
             "safe_to_rerun_preview": True,

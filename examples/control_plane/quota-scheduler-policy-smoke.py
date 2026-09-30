@@ -83,7 +83,6 @@ def assert_policy_case(
     expected_action: str,
     expected_rrule: str,
     expected_progression: list[int] | None = None,
-    expected_same_identity_action: str = "advance_index_after_applied_interval_elapsed",
 ) -> None:
     quota_wrapper = _scheduler_hint(
         deepcopy(base_payload),
@@ -135,7 +134,6 @@ def assert_policy_case(
     for omitted in (
         "progression_minutes",
         "current_interval_minutes",
-        "ack_required_after_apply",
         "same_identity_action",
         "reset_action",
         "automation_update_scope",
@@ -152,8 +150,7 @@ def assert_policy_case(
     stateful_detail = detailed["cold_path_detail"]["stateful_backoff_detail"]
     if expected_progression is not None:
         assert stateful_detail["progression_minutes"] == expected_progression, (name, detailed)
-    assert stateful_detail["ack_required_after_apply"] is True, (name, detailed)
-    assert stateful_detail["same_identity_action"] == expected_same_identity_action, (
+    assert stateful_detail["state_policy"] == "ephemeral_no_app_scheduler_state", (
         name,
         detailed,
     )
@@ -185,7 +182,6 @@ def main() -> int:
         payload(should_run=True, effective_action="normal_run"),
         expected_action="run_now",
         expected_rrule="FREQ=MINUTELY;INTERVAL=3",
-        expected_same_identity_action="keep_initial_interval_while_active_work",
     )
     assert_policy_case(
         "mapped-noop",

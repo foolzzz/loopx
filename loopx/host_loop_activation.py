@@ -768,7 +768,7 @@ def _codex_app_activation(commands: dict[str, str]) -> dict[str, Any]:
             "Read commands.automation_cadence_json before choosing a schedule; for an existing automation also read its automation-id scope.",
             "New heartbeat: use max(3 minutes, configured minimum). Existing: preserve schedule unless it violates the configured minimum; preserve status, prompt and task binding.",
             "Apply through automation_update, then view the automation and verify its actual RRULE. If the host rejects the required interval, hold the affected automation; never shorten the owner minimum.",
-            "On later ticks, follow quota should-run scheduler_hint for backoff, reset, and scheduler-ack.",
+            "On later ticks, follow quota should-run scheduler_hint for backoff and reset.",
         ],
         "success_criteria": [
             "A Codex App heartbeat automation exists for this goal and uses the generated task_body.",
@@ -796,7 +796,7 @@ def _trae_app_activation(commands: dict[str, str]) -> dict[str, Any]:
             "Run the heartbeat-prompt JSON command after project state and todos are written.",
             "Read task_body from the JSON payload.",
             "Create or update a Trae App heartbeat automation starting at 3 minutes.",
-            "On later ticks, follow quota should-run scheduler_hint for backoff, reset, and scheduler-ack.",
+            "On later ticks, follow quota should-run scheduler_hint for backoff and reset.",
         ],
         "success_criteria": [
             "A Trae App heartbeat automation exists for this goal and uses the generated task_body.",

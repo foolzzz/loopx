@@ -875,7 +875,6 @@ def unchanged_monitor_poll(*, material_change: bool = False) -> dict:
 def assert_monitor_debt_yields_to_equal_priority_advancement() -> None:
     recent_runs = [
         unchanged_monitor_poll(),
-        {"classification": "quota_scheduler_state_ack"},
         {"classification": "state_refreshed"},
         unchanged_monitor_poll(),
     ]

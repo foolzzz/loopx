@@ -37,7 +37,6 @@ from loopx.control_plane.turn_driver.subagent_execution_topology import (
     CHILD_FALLBACK_ACTIONS,
 )
 from loopx.control_plane.turn_driver.executor import BuiltInHostError
-from loopx.control_plane.quota.live_decision import bind_scheduler_followup_cli_routes
 from loopx.todos import complete_goal_todo
 
 
@@ -1146,27 +1145,6 @@ def test_turn_plan_preserves_route_on_budget_warning() -> None:
     assert payload["turn_envelope"]["compaction"]["within_budget"] is False
 
 
-def test_scheduler_followup_binding_preserves_turn_lineage(
-    tmp_path: Path,
-) -> None:
-    payload = {
-        "scheduler_hint": {
-            "codex_app": {"ack_hint": {"cli_args": ["quota", "scheduler-ack-current"]}}
-        }
-    }
-
-    bind_scheduler_followup_cli_routes(
-        payload,
-        registry_path=tmp_path / "registry.json",
-        runtime_root=tmp_path / "runtime",
-        source="loopx_turn_plan",
-    )
-
-    ack_hint = payload["scheduler_hint"]["codex_app"]["ack_hint"]
-    assert ack_hint["cli_args"][:2] == ["--registry", str(tmp_path / "registry.json")]
-    assert ack_hint["route_binding"]["source"] == "loopx_turn_plan"
-
-
 def _write_live_fixture(
     root: Path,
     *,
@@ -1327,7 +1305,7 @@ def test_quota_cli_projects_outer_controller_without_codex_app_action(
     assert hint["execution_phase"]["scheduler_owner"] == "outer_controller"
     assert hint["execution_phase"]["completed"] is True
     assert hint["execution_phase"]["apply_needed"] is False
-    assert hint["execution_phase"]["ack_needed"] is False
+    assert "ack_needed" not in hint["execution_phase"]
 
 
 def test_quota_cli_without_scheduler_context_fails_closed(tmp_path: Path) -> None:
@@ -1874,9 +1852,7 @@ raise SystemExit(0 if artifact.read_text(encoding="utf-8") == "validated" else 7
         "disposition": "outer_controller_owned",
         "completed": True,
         "apply_needed": False,
-        "ack_needed": False,
-        "acknowledged": False,
-        "completion_reason": "selected scheduler owner requires no Codex App apply or ACK",
+        "completion_reason": "selected scheduler owner requires no App cadence update",
     }
     assert payload["effects"] == {
         "host_invoked": True,

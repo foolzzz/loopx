@@ -145,7 +145,6 @@ def build_quota_paused_should_run_payload(
     goal_health_ok: bool,
     include_scheduler_detail: bool,
     codex_app_current_rrule: Any,
-    codex_app_automation_id: Any = None,
     resolved_scheduler_context: SchedulerExecutionContextResolution,
     runtime_root: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -241,9 +240,7 @@ def build_quota_paused_should_run_payload(
     payload["scheduler_hint"] = _scheduler_hint(
         payload,
         include_detail=include_scheduler_detail,
-        available_capabilities=None,
         codex_app_current_rrule=codex_app_current_rrule,
-        codex_app_automation_id=codex_app_automation_id,
         scheduler_execution_context=resolved_scheduler_context,
     )
     return payload
@@ -315,7 +312,6 @@ def build_quota_should_run(
                 goal_health_ok=goal_health_ok,
                 include_scheduler_detail=include_scheduler_detail,
                 codex_app_current_rrule=codex_app_current_rrule,
-                codex_app_automation_id=codex_app_automation_id,
                 resolved_scheduler_context=resolved_scheduler_context,
                 runtime_root=runtime_root,
             )

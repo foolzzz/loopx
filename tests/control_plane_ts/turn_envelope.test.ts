@@ -248,20 +248,7 @@ test("Trae App Turn envelope preserves app automation without a Codex alias", ()
         state_key: "scheduler_hint.app_automation.stateful_backoff",
         current_rrule: "FREQ=MINUTELY;INTERVAL=15",
         apply_needed: true,
-        ack_needed: false,
         state_status: "reset_required",
-      },
-      ack_hint: {
-        cli_args: [
-          "quota", "scheduler-ack-current", "--surface", "trae_app",
-          "--execute",
-        ],
-      },
-      failure_hint: {
-        cli_args: [
-          "quota", "scheduler-fail-current", "--surface", "trae_app",
-          "--execute",
-        ],
       },
     },
   };
@@ -276,18 +263,10 @@ test("Trae App Turn envelope preserves app automation without a Codex alias", ()
 
   assert.equal(scheduler.codex_app, undefined);
   assert.equal(app.host_surface, "trae_app");
-  assert.deepEqual(app.ack_cli_args, [
-    "quota", "scheduler-ack-current", "--surface", "trae_app",
-    "--execute",
-  ]);
   assert.equal(
     (app.stateful_backoff as Record<string, unknown>).state_key,
     "scheduler_hint.app_automation.stateful_backoff",
   );
-  assert.deepEqual(app.failure_cli_args_detail_ref, {
-    reason: "cold_path_until_host_update_failure",
-    request: "loopx quota should-run --include-detail scheduler",
-  });
 });
 
 test("monitor-only capsule preserves the non-runnable non-monitor count", () => {

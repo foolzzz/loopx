@@ -1,27 +1,18 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
-import zlib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any
 
-from ..quota.decision_summary import compact_quota_decision
 from ..effect_runtime import effect_runtime_result
-from ..runtime.time import now_utc, utc_isoformat
+from ..runtime.time import now_utc
 from ..todos.frontier_deadline import build_frontier_recheck_plan
 from .arbitration import (
     SchedulerArbitration,
     SchedulerDisposition,
     build_scheduler_arbitration,
-)
-from .app_automation_compat import (
-    CODEX_APP_SCHEDULER_ACK_HINT_SCHEMA_VERSION,
-    CODEX_APP_SCHEDULER_FAILURE_HINT_SCHEMA_VERSION,
-    build_codex_app_compatibility_projection,
 )
 from .execution_context import (
     SchedulerExecutionContextResolution,
@@ -40,14 +31,9 @@ from .monitor_wait import (
 )
 from .state import (
     APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-    CODEX_APP_STATEFUL_BACKOFF_STATE_KEY,
-    CODEX_APP_SURFACE,
-    normalize_scheduler_rrule,
     rrule_for_minutes,
-    scheduler_rrule_interval_minutes,
 )
 from .state_transition_rules import decide_scheduler_backoff_state
-from .time import parse_scheduler_timestamp
 
 SCHEDULER_HINT_SCHEMA_VERSION = "scheduler_hint_v0"
 SCHEDULER_RESET_POLICY_SCHEMA_VERSION = "scheduler_reset_policy_v0"
@@ -55,21 +41,8 @@ SCHEDULER_HINT_DETAIL_SCHEMA_VERSION = "scheduler_hint_detail_v0"
 APP_AUTOMATION_STATEFUL_BACKOFF_SCHEMA_VERSION = (
     "app_automation_stateful_backoff_v0"
 )
-APP_AUTOMATION_SCHEDULER_ACK_HINT_SCHEMA_VERSION = (
-    "app_automation_scheduler_ack_hint_v0"
-)
-APP_AUTOMATION_SCHEDULER_FAILURE_HINT_SCHEMA_VERSION = (
-    "app_automation_scheduler_failure_hint_v0"
-)
-USER_GATE_NOTIFICATION_COOLDOWN_SCHEMA_VERSION = "user_gate_notification_cooldown_v0"
 CODEX_APP_MAX_INTERVAL_MINUTES = 60
-DEFAULT_ACK_CAPABILITIES = {"shell", "filesystem_read", "filesystem_write"}
-SCHEDULER_HOST_FACTS_CHUNK_FLAG = "--scheduler-host-facts-chunk"
-SCHEDULER_HOST_FACTS_CHUNK_CHARS = 384
-SCHEDULER_HOST_FACTS_MAX_ENCODED_CHARS = 1_536
-SCHEDULER_EXECUTABLE_CLI_ARGS_MAX_ITEMS = 64
-SCHEDULER_EXECUTABLE_CLI_ARGS_MAX_TOTAL_CHARS = 8_192
-SCHEDULER_ACK_STALE_HINT_TOLERANCE_MINUTES = 2
+SCHEDULER_STALE_HINT_TOLERANCE_MINUTES = 2
 SCHEDULER_BASE_IDENTITY_KEYS = (
     "goal_id",
     "agent_identity.agent_id",
@@ -213,7 +186,6 @@ def _build_scheduler_stop_hint(
                 "host_action_required": True,
                 "attempt_limit": 1,
                 "verify_host_result": True,
-                "ack_required": False,
                 "resume_trigger": resume_trigger,
                 "no_spend_for_host_action": True,
             },
@@ -236,297 +208,14 @@ def _build_scheduler_stop_hint(
     )
 
 
-def _user_gate_notification_cooldown(
-    *,
-    cadence_class: str,
-    host_failure_suppressed: bool,
-    current_interval_minutes: int,
-    effective_host_rrule: str,
-    recorded_host_failure: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """Bound repeat gate notices when a failed host update leaves a tight poll."""
-
-    if cadence_class != "human_gate" or not host_failure_suppressed:
-        return None
-    failed_at = parse_scheduler_timestamp(
-        (recorded_host_failure or {}).get("failed_at")
-    )
-    host_interval = scheduler_rrule_interval_minutes(effective_host_rrule)
-    target_interval = max(1, int(current_interval_minutes))
-    if failed_at is None or host_interval is None or host_interval >= target_interval:
-        return None
-    current_time = now_utc()
-    elapsed_seconds = max(0.0, (current_time - failed_at).total_seconds())
-    cooldown_seconds = target_interval * 60
-    window_seconds = host_interval * 60
-    cycle_index = int(elapsed_seconds // cooldown_seconds)
-    cycle_position = elapsed_seconds - cycle_index * cooldown_seconds
-    notification_due = cycle_index >= 1 and cycle_position < window_seconds
-    next_reminder_at = failed_at + timedelta(
-        seconds=(cycle_index + 1) * cooldown_seconds
-    )
-    return {
-        "schema_version": USER_GATE_NOTIFICATION_COOLDOWN_SCHEMA_VERSION,
-        "active": True,
-        "notification_due": notification_due,
-        "notification_suppressed": not notification_due,
-        "policy": "failed_host_update_bounded_reminder_window",
-        "cooldown_minutes": target_interval,
-        "reminder_window_minutes": host_interval,
-        "failed_at": utc_isoformat(failed_at),
-        "next_reminder_at": utc_isoformat(next_reminder_at),
-        "reason": (
-            "the user gate is still pending, but the failed host cadence update "
-            "left a tighter poll; suppress duplicate notices outside the bounded "
-            "human-gate reminder window"
-        ),
-    }
-
-
-def _scheduler_host_followup_transport_args(
-    scheduler_host_facts: Mapping[str, Any] | None,
-    *,
-    before: Mapping[str, Any] | None,
-    use_current_hint: bool,
-) -> list[str]:
-    """Encode a bounded, transport-only native scheduler follow-up hint."""
-
-    if not isinstance(scheduler_host_facts, Mapping):
-        return []
-    payload = {
-        "schema_version": "loopx_scheduler_host_followup_hint_v0",
-        "before": compact_quota_decision(dict(before or {})),
-        "use_current_hint": use_current_hint,
-        "host_facts": dict(scheduler_host_facts),
-    }
-    raw = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    encoded = base64.b64encode(zlib.compress(raw, level=9)).decode("ascii")
-    encoded = encoded.rstrip("=")
-    if len(encoded) > SCHEDULER_HOST_FACTS_MAX_ENCODED_CHARS:
-        raise ValueError("scheduler host facts exceed the native CLI transport bound")
-    result: list[str] = []
-    for index in range(0, len(encoded), SCHEDULER_HOST_FACTS_CHUNK_CHARS):
-        chunk = encoded[index : index + SCHEDULER_HOST_FACTS_CHUNK_CHARS]
-        result.extend([SCHEDULER_HOST_FACTS_CHUNK_FLAG, chunk])
-    return result
-
-
-def _bounded_scheduler_followup_cli_args(
-    cli_args: list[str],
-    *,
-    native_args: list[str],
-) -> list[str]:
-    if not native_args:
-        return cli_args
-    if (
-        len(cli_args) <= SCHEDULER_EXECUTABLE_CLI_ARGS_MAX_ITEMS
-        and sum(map(len, cli_args)) <= SCHEDULER_EXECUTABLE_CLI_ARGS_MAX_TOTAL_CHARS
-    ):
-        return cli_args
-    raise ValueError("native scheduler follow-up CLI arguments exceed the transport bound")
-
-
-def build_app_automation_scheduler_ack_hint(
-    *,
-    goal_id: Any,
-    agent_id: Any,
-    applied_rrule: Any,
-    reset_token: Any,
-    identity_signature: Any,
-    available_capabilities: Any = None,
-    after: str = "automation_update_rrule_success",
-    host_match_observed: bool = False,
-    surface: str = CODEX_APP_SURFACE,
-    state_key: str = APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-    scheduler_host_facts: Mapping[str, Any] | None = None,
-    scheduler_before: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    safe_rrule = normalize_scheduler_rrule(applied_rrule)
-    safe_goal_id = str(goal_id or "").strip()
-    safe_agent_id = str(agent_id or "").strip()
-    safe_surface = str(surface or "").strip()
-    safe_state_key = str(state_key or "").strip()
-    safe_reset_token = str(reset_token or "").strip()
-    safe_identity_signature = str(identity_signature or "").strip()
-    safe_available_capabilities: list[str] = []
-    if isinstance(available_capabilities, (list, tuple, set)):
-        for capability in available_capabilities:
-            safe_capability = str(capability or "").strip()
-            if (
-                safe_capability
-                and safe_capability not in DEFAULT_ACK_CAPABILITIES
-                and safe_capability not in safe_available_capabilities
-            ):
-                safe_available_capabilities.append(safe_capability)
-    runtime_alias = "--trae_app" if safe_surface == "trae_app" else "-A"
-    cli_args = [
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        safe_goal_id,
-        "--agent-id",
-        safe_agent_id,
-        runtime_alias,
-    ]
-    for capability in safe_available_capabilities:
-        cli_args.extend(["--available-capability", capability])
-    native_args = _scheduler_host_followup_transport_args(
-        scheduler_host_facts,
-        before=scheduler_before,
-        use_current_hint=True,
-    )
-    cli_args.extend(native_args)
-    if safe_surface != CODEX_APP_SURFACE:
-        cli_args.extend(["--surface", safe_surface])
-    if safe_state_key != CODEX_APP_STATEFUL_BACKOFF_STATE_KEY:
-        cli_args.extend(["--state-key", safe_state_key])
-    cli_args.extend(["--applied-rrule", safe_rrule])
-    if host_match_observed:
-        cli_args.extend(
-            [
-                "--host-match-observed",
-                "--reset-token",
-                safe_reset_token,
-                "--identity-signature",
-                safe_identity_signature,
-            ]
-        )
-    cli_args.append("--execute")
-    cli_args = _bounded_scheduler_followup_cli_args(cli_args, native_args=native_args)
-    args = {
-        "goal_id": safe_goal_id,
-        "agent_id": safe_agent_id,
-        "surface": safe_surface,
-        "state_key": safe_state_key,
-        "applied_rrule": safe_rrule,
-        "reset_token": safe_reset_token,
-        "identity_signature": safe_identity_signature,
-    }
-    if safe_available_capabilities:
-        args["available_capabilities"] = safe_available_capabilities
-    if host_match_observed:
-        args["host_match_observed"] = True
-    return {
-        "schema_version": APP_AUTOMATION_SCHEDULER_ACK_HINT_SCHEMA_VERSION,
-        "after": str(after or "automation_update_rrule_success").strip(),
-        "command": "quota scheduler-ack-current",
-        "execute": True,
-        "cli_args": cli_args,
-        "args": args,
-        "uses_current_hint": True,
-        "no_spend": True,
-    }
-
-
-def build_app_automation_scheduler_failure_hint(
-    *,
-    goal_id: Any,
-    agent_id: Any,
-    failed_rrule: Any,
-    observed_host_rrule: Any = None,
-    available_capabilities: Any = None,
-    scheduler_host_facts: Mapping[str, Any] | None = None,
-    scheduler_before: Mapping[str, Any] | None = None,
-    surface: str = CODEX_APP_SURFACE,
-    state_key: str = APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-) -> dict[str, Any]:
-    safe_goal_id = str(goal_id or "").strip()
-    safe_agent_id = str(agent_id or "").strip()
-    safe_rrule = normalize_scheduler_rrule(failed_rrule)
-    safe_observed_rrule = normalize_scheduler_rrule(observed_host_rrule)
-    safe_capabilities: list[str] = []
-    if isinstance(available_capabilities, (list, tuple, set)):
-        for capability in available_capabilities:
-            safe_capability = str(capability or "").strip()
-            if (
-                safe_capability
-                and safe_capability not in DEFAULT_ACK_CAPABILITIES
-                and safe_capability not in safe_capabilities
-            ):
-                safe_capabilities.append(safe_capability)
-    safe_surface = str(surface or "").strip()
-    safe_state_key = str(state_key or "").strip()
-    runtime_alias = "--trae_app" if safe_surface == "trae_app" else "-A"
-    cli_args = [
-        "quota",
-        "scheduler-fail-current",
-        "--goal-id",
-        safe_goal_id,
-        "--agent-id",
-        safe_agent_id,
-        runtime_alias,
-    ]
-    for capability in safe_capabilities:
-        cli_args.extend(["--available-capability", capability])
-    native_args = _scheduler_host_followup_transport_args(
-        scheduler_host_facts,
-        before=scheduler_before,
-        use_current_hint=False,
-    )
-    cli_args.extend(native_args)
-    if safe_surface != CODEX_APP_SURFACE:
-        cli_args.extend(["--surface", safe_surface])
-    if safe_state_key != CODEX_APP_STATEFUL_BACKOFF_STATE_KEY:
-        cli_args.extend(["--state-key", safe_state_key])
-    cli_args.extend(
-        [
-            "--failed-rrule",
-            safe_rrule,
-        ]
-    )
-    if safe_observed_rrule:
-        cli_args.extend(["--app-automation-current-rrule", safe_observed_rrule])
-    cli_args.append("--execute")
-    cli_args = _bounded_scheduler_followup_cli_args(cli_args, native_args=native_args)
-    return {
-        "schema_version": APP_AUTOMATION_SCHEDULER_FAILURE_HINT_SCHEMA_VERSION,
-        "cli_args": cli_args,
-    }
-
-
-def build_codex_app_scheduler_ack_hint(**kwargs: Any) -> dict[str, Any]:
-    """Build the historical Codex packet while the neutral packet coexists."""
-
-    kwargs.setdefault("surface", CODEX_APP_SURFACE)
-    kwargs.setdefault("state_key", CODEX_APP_STATEFUL_BACKOFF_STATE_KEY)
-    hint = build_app_automation_scheduler_ack_hint(**kwargs)
-    hint["schema_version"] = CODEX_APP_SCHEDULER_ACK_HINT_SCHEMA_VERSION
-    return hint
-
-
-def build_codex_app_scheduler_failure_hint(**kwargs: Any) -> dict[str, Any]:
-    """Build the historical Codex packet while the neutral packet coexists."""
-
-    kwargs.setdefault("surface", CODEX_APP_SURFACE)
-    kwargs.setdefault("state_key", CODEX_APP_STATEFUL_BACKOFF_STATE_KEY)
-    hint = build_app_automation_scheduler_failure_hint(**kwargs)
-    hint["schema_version"] = CODEX_APP_SCHEDULER_FAILURE_HINT_SCHEMA_VERSION
-    cli_args = hint.get("cli_args")
-    if isinstance(cli_args, list):
-        hint["cli_args"] = [
-            "--codex-app-current-rrule"
-            if item == "--app-automation-current-rrule"
-            else item
-            for item in cli_args
-        ]
-    return hint
-
-
 @dataclass(frozen=True)
 class _SchedulerHintBuilder:
     payload: dict[str, Any]
     execution_context: SchedulerExecutionContextResolution
     arbitration: SchedulerArbitration
     spend_policy: Any
-    scheduler_ack_capabilities: Any
     codex_app_scheduler_state: dict[str, Any] | None
     codex_app_current_rrule: Any
-    codex_app_automation_id: Any
     include_detail: bool
 
     def _identity_value(self, path: str) -> Any:
@@ -569,15 +258,8 @@ class _SchedulerHintBuilder:
         cadence_progression_override: list[int] | None = None,
         reset_profile_snapshot_override: dict[str, Any] | None = None,
         cadence_context_detail: dict[str, Any] | None = None,
-        notification_cooldown_interval_minutes: int | None = None,
         advance_same_identity: bool = True,
     ) -> dict[str, Any]:
-        context = self.execution_context.context
-        app_surface = (
-            context.host_surface.value
-            if context is not None and context.app_automation_applicable
-            else CODEX_APP_SURFACE
-        )
         cadence = self._cadence_projections(codex_interval, codex_max, multiplier, cadence_progression_override)
         local_cadence_progression, app_cadence_progression = cadence["local"], cadence["app"]
         app_host_max, codex_max, floor = cadence["app_max"], cadence["local_max"], cadence["floor"]
@@ -692,7 +374,7 @@ class _SchedulerHintBuilder:
             current_time=scheduler_now,
             observed_host_rrule=self.codex_app_current_rrule,
             cadence_class=cadence_class,
-            stale_tolerance_minutes=SCHEDULER_ACK_STALE_HINT_TOLERANCE_MINUTES,
+            stale_tolerance_minutes=SCHEDULER_STALE_HINT_TOLERANCE_MINUTES,
         )
         cadence_decision = backoff_decision.cadence
         host_decision = backoff_decision.host
@@ -701,13 +383,10 @@ class _SchedulerHintBuilder:
         current_interval = backoff_decision.current_interval_minutes
         current_rrule = backoff_decision.current_rrule
         observed_host_rrule = backoff_decision.observed_host_rrule
-        effective_host_rrule = backoff_decision.effective_host_rrule
         host_update_failures = list(backoff_decision.host_update_failures)
         recorded_host_failure = backoff_decision.recorded_host_failure
         current_rrule_already_applied = backoff_decision.current_rrule_already_applied
         apply_needed = host_decision.apply_needed
-        ack_needed = host_decision.ack_needed
-        host_match_ack_needed = host_decision.host_match_ack_needed
         host_failure_suppressed = host_decision.host_failure_suppressed
         if host_failure_suppressed:
             state_status = "host_update_failure_suppressed"
@@ -716,15 +395,7 @@ class _SchedulerHintBuilder:
             "current_interval_minutes": current_interval,
             "host_max_interval_minutes": app_host_max,
             "coarser_wait_fallback": "hold_affected_automation" if floor else "local_scheduler_only",
-            "host_update_failure": "cache_recent_failed_target_and_observed_host_pairs_then_suppress_each_exact_repeat_until_host_changes_ack_or_expiry",
-            "ack_required_after_apply": apply_needed,
-            "ack_required_from_host_match": host_match_ack_needed,
-            "persist": "reset_token|identity_signature|progression_index|last_applied_rrule|host_update_failures|host_update_failure_compat",
-            "same_identity_action": (
-                "advance_index_after_applied_interval_elapsed"
-                if advance_same_identity
-                else "keep_initial_interval_while_active_work"
-            ),
+            "state_policy": "ephemeral_no_app_scheduler_state",
             "reset_action": "clear_progression_index_apply_initial_rrule",
             "automation_update_scope": "rrule_only_preserve_body_name_status",
         }
@@ -749,19 +420,15 @@ class _SchedulerHintBuilder:
                 else (
                     "none_recorded_host_failure"
                     if host_failure_suppressed
-                    else "ack_observed_rrule_without_update"
-                    if host_match_ack_needed
                     else "none"
                 )
             ),
             "host_action_contract": (
-                "automation_update_rrule_then_quota_scheduler_ack"
+                "automation_update_rrule_once"
                 if apply_needed
                 else (
                     "skip_automation_update_for_recorded_host_failure"
                     if host_failure_suppressed
-                    else "quota_scheduler_ack_from_matching_host_observation"
-                    if host_match_ack_needed
                     else "skip_automation_update_when_apply_needed_false"
                 )
             ),
@@ -778,7 +445,6 @@ class _SchedulerHintBuilder:
                 "progression_index": current_index,
                 "current_rrule": current_rrule,
                 "apply_needed": apply_needed,
-                "ack_needed": ack_needed,
                 "state_status": state_status,
             },
             "no_spend_for_cadence_change": True,
@@ -805,76 +471,8 @@ class _SchedulerHintBuilder:
                     else "drift_detected"
                 ),
             }
-        goal_id = self.payload.get("goal_id")
-        agent_id = self._identity_value("agent_identity.agent_id")
-        scheduler_host_facts = (
-            {
-                "schema_version": "loopx_scheduler_heartbeat_host_facts_v0",
-                "goal_id": str(goal_id),
-                "agent_id": str(agent_id),
-                "surface": app_surface,
-                "state_key": APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-                "reset_token": reset_token,
-                "identity_signature": identity_signature,
-                "progression_index": current_index,
-                "progression_minutes": app_cadence_progression,
-                "expected_rrule": current_rrule,
-                "cadence_class": cadence_class,
-                "stale_tolerance_minutes": SCHEDULER_ACK_STALE_HINT_TOLERANCE_MINUTES,
-                "generated_at": utc_isoformat(scheduler_now),
-                "ack_needed": ack_needed,
-                "apply_needed": apply_needed,
-            }
-            if goal_id and agent_id
-            else None
-        )
         if apply_needed:
             app_automation["recommended_rrule"] = current_rrule
-            if goal_id and agent_id:
-                app_automation["failure_hint"] = build_app_automation_scheduler_failure_hint(
-                    goal_id=goal_id,
-                    agent_id=agent_id,
-                    failed_rrule=current_rrule,
-                    observed_host_rrule=effective_host_rrule,
-                    available_capabilities=self.scheduler_ack_capabilities,
-                    scheduler_host_facts={
-                        **(scheduler_host_facts or {}),
-                        "operation": "host_failure",
-                        "applied_rrule": effective_host_rrule,
-                        "observed_host_rrule": effective_host_rrule,
-                        "failure_kind": "host_tool_failure",
-                        "source": "quota_scheduler_host_update_failure",
-                        "host_match_observed": False,
-                    },
-                    scheduler_before=self.payload,
-                    surface=app_surface,
-                )
-        if ack_needed and goal_id and agent_id:
-            app_automation["ack_hint"] = build_app_automation_scheduler_ack_hint(
-                goal_id=goal_id,
-                agent_id=agent_id,
-                applied_rrule=current_rrule,
-                reset_token=reset_token,
-                identity_signature=identity_signature,
-                available_capabilities=self.scheduler_ack_capabilities,
-                after=(
-                    ("automation_update_then_readback_actual_rrule" if floor else "automation_update_rrule_success")
-                    if apply_needed
-                    else "matching_host_rrule_observed"
-                ),
-                # Bind the host proof to the originating identity.
-                host_match_observed=True,
-                scheduler_host_facts={
-                    **(scheduler_host_facts or {}),
-                    "operation": "ack",
-                    "applied_rrule": current_rrule,
-                    "observed_host_rrule": effective_host_rrule,
-                    "source": "quota_scheduler_ack",
-                    "host_match_observed": True,
-                },
-                scheduler_before=self.payload,
-                surface=app_surface,
-            )
         unchanged_poll_limits = {
             "local_scheduler": cli_limit,
             "codex_cli_tui": cli_limit,
@@ -934,31 +532,6 @@ class _SchedulerHintBuilder:
                 "contains": detail_contains,
             },
         }
-        if app_surface == CODEX_APP_SURFACE:
-            scheduler_hint["codex_app"] = build_codex_app_compatibility_projection(
-                app_automation,
-                goal_id=goal_id,
-                agent_id=agent_id,
-                available_capabilities=self.scheduler_ack_capabilities,
-                scheduler_host_facts=scheduler_host_facts,
-                observed_host_rrule=effective_host_rrule,
-                scheduler_before=self.payload,
-                build_ack_hint=build_codex_app_scheduler_ack_hint,
-                build_failure_hint=build_codex_app_scheduler_failure_hint,
-            )
-        notification_cooldown = _user_gate_notification_cooldown(
-            cadence_class=cadence_class,
-            host_failure_suppressed=host_failure_suppressed,
-            current_interval_minutes=(
-                notification_cooldown_interval_minutes
-                if notification_cooldown_interval_minutes is not None
-                else current_interval
-            ),
-            effective_host_rrule=effective_host_rrule,
-            recorded_host_failure=recorded_host_failure,
-        )
-        if notification_cooldown:
-            scheduler_hint["user_gate_notification_cooldown"] = notification_cooldown
         frontier_recheck = build_frontier_recheck_plan(
             self.payload,
             current_time=now_utc(),
@@ -1049,9 +622,7 @@ def build_scheduler_hint(
     agent_scope_frontier_actions: Collection[str] = (),
     include_detail: bool = False,
     codex_app_scheduler_state: dict[str, Any] | None = None,
-    available_capabilities: Any = None,
     codex_app_current_rrule: Any = None,
-    codex_app_automation_id: Any = None,
     scheduler_execution_context: (
         Mapping[str, Any] | SchedulerExecutionContextResolution | None
     ) = None,
@@ -1069,7 +640,6 @@ def build_scheduler_hint(
             "applicability": "blocked_invalid_context",
             "apply": "none",
             "host_action": "none",
-            "ack_required": False,
         }
         blocked_hint = {
             "schema_version": SCHEDULER_HINT_SCHEMA_VERSION,
@@ -1088,8 +658,6 @@ def build_scheduler_hint(
                 "disposition": "contract_error",
                 "completed": False,
                 "apply_needed": False,
-                "ack_needed": False,
-                "acknowledged": False,
             },
             "unchanged_poll": {
                 "local_scheduler": "stop_until_context_repaired",
@@ -1149,7 +717,6 @@ def build_scheduler_hint(
                     "host_action_required": True,
                     "attempt_limit": 1,
                     "verify_host_result": True,
-                    "ack_required": False,
                     "resume_trigger": resume_trigger,
                     "no_spend_for_host_action": True,
                 },
@@ -1182,14 +749,6 @@ def build_scheduler_hint(
         or execution_obligation.get("spend_policy")
         or heartbeat_recommendation.get("spend_policy")
     )
-    capability_gate = _dict_or_empty(payload.get("capability_gate"))
-    scheduler_ack_capabilities = (
-        available_capabilities
-        if available_capabilities is not None
-        else capability_gate.get("available")
-        if isinstance(capability_gate.get("available"), list)
-        else []
-    )
     agent_scope_action_set = {str(value) for value in agent_scope_frontier_actions}
     arbitration = build_scheduler_arbitration(
         payload,
@@ -1217,10 +776,8 @@ def build_scheduler_hint(
         execution_context=execution_context,
         arbitration=arbitration,
         spend_policy=spend_policy,
-        scheduler_ack_capabilities=scheduler_ack_capabilities,
         codex_app_scheduler_state=codex_app_scheduler_state,
         codex_app_current_rrule=codex_app_current_rrule,
-        codex_app_automation_id=codex_app_automation_id,
         include_detail=include_detail,
     )
     if arbitration.disposition == SchedulerDisposition.PEER_COORDINATION_WAIT:
@@ -1285,7 +842,6 @@ def build_scheduler_hint(
             ),
             cli_limit=3,
             claude_limit=3,
-            notification_cooldown_interval_minutes=30,
             **human_gate_profile,
         )
 

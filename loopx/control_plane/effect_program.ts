@@ -62,8 +62,6 @@ export interface EffectNext {
   execution_mode: string | null;
   scheduler_action: string | null;
   cadence_class: string | null;
-  ack_cli_args: readonly string[];
-  failure_cli_args: readonly string[];
 }
 
 export interface EffectTurn<
@@ -296,8 +294,6 @@ export function interpretQuotaShouldRunPacket(
   const lane = asObject(packet.work_lane_contract);
   const scheduler = asObject(packet.scheduler_hint);
   const codexApp = asObject(scheduler.codex_app);
-  const ackHint = asObject(codexApp.ack_hint);
-  const failureHint = asObject(codexApp.failure_hint);
   const cliChannel = asObject(interaction.cli_channel);
   const gate = asObject(packet.capability_gate);
   const protocol = asObject(packet.protocol_action_packet);
@@ -338,8 +334,6 @@ export function interpretQuotaShouldRunPacket(
       ),
       scheduler_action: nullableTruthyString(scheduler.action),
       cadence_class: nullableTruthyString(scheduler.cadence_class),
-      ack_cli_args: stringArray(ackHint.cli_args),
-      failure_cli_args: stringArray(failureHint.cli_args),
     },
   };
 }
@@ -355,8 +349,6 @@ export function interpretTurnResultPacket(
   const packet = asObject(packetValue);
   const scheduler = asObject(packet.scheduler_hint);
   const codexApp = asObject(scheduler.codex_app);
-  const ackHint = asObject(codexApp.ack_hint);
-  const failureHint = asObject(codexApp.failure_hint);
   const completedPhases = stringArray(packet.completed_phases);
   const failedPhase = nullableTruthyString(packet.failed_phase);
   const resultKind = truthyString(packet.result_kind);
@@ -400,8 +392,6 @@ export function interpretTurnResultPacket(
       ),
       scheduler_action: nullableTruthyString(scheduler.action),
       cadence_class: nullableTruthyString(scheduler.cadence_class),
-      ack_cli_args: stringArray(ackHint.cli_args),
-      failure_cli_args: stringArray(failureHint.cli_args),
     },
   };
 }

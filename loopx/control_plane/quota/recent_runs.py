@@ -47,7 +47,6 @@ def _run_is_controller_bookkeeping(run: dict[str, Any]) -> bool:
     classification = str(run.get("classification") or "").strip()
     return bool(
         classification.startswith("quota_slot_")
-        or classification.startswith("quota_scheduler_")
         or classification in NON_WORK_RUN_CLASSIFICATIONS
     )
 
@@ -61,7 +60,7 @@ def consecutive_unchanged_monitor_observations(
 ) -> list[dict[str, Any]]:
     """Return the latest consecutive unchanged monitor-only work turns.
 
-    Scheduler ACKs, quota accounting, and state refreshes are controller
+    Quota accounting and state refreshes are controller
     bookkeeping rather than work-lane progress, so they do not break the
     streak. Any material monitor transition or non-monitor work event does.
     """
@@ -150,7 +149,7 @@ def latest_accountable_agent_delivery(
     agent_id: str,
     scan_limit: int = 12,
 ) -> dict[str, Any] | None:
-    """Return the latest same-agent delivery anchor, ignoring controller ACKs.
+    """Return the latest same-agent delivery anchor, ignoring controller bookkeeping.
 
     A newer same-agent work event without a typed Todo binding intentionally
     breaks continuity. Peer-agent events do not steal this agent's lane.
@@ -217,7 +216,7 @@ def latest_unchanged_monitor_observation(
 ) -> dict[str, Any] | None:
     """Return an unchanged monitor poll only when it is the latest work event.
 
-    Quota accounting, scheduler acknowledgements, and state refreshes do not
+    Quota accounting and state refreshes do not
     start a new work lane. Any other current-agent or legacy-unscoped run does,
     so an older monitor poll cannot suppress monitor priority after later
     delivery.

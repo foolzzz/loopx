@@ -954,8 +954,6 @@ def assert_cli_help_names_capability_sensitive_commands() -> None:
     for command in (
         "quota should-run",
         "quota monitor-poll",
-        "quota scheduler-ack",
-        "quota scheduler-ack-current",
         "quota spend-slot",
     ):
         assert command in option_help, (command, option_help)
@@ -1112,7 +1110,7 @@ def assert_cli_monitor_poll_preserves_outer_controller_scheduler_context() -> No
             assert execution_phase["disposition"] == "outer_controller_owned", scheduler_hint
             assert execution_phase["completed"] is True, scheduler_hint
             assert execution_phase["apply_needed"] is False, scheduler_hint
-            assert execution_phase["ack_needed"] is False, scheduler_hint
+            assert "ack_needed" not in execution_phase, scheduler_hint
 
 
 def assert_cli_monitor_poll_invalid_scheduler_context_fails_closed() -> None:
@@ -1139,7 +1137,7 @@ def assert_cli_monitor_poll_invalid_scheduler_context_fails_closed() -> None:
             assert execution_phase["disposition"] == "contract_error", scheduler_hint
             assert execution_phase["completed"] is False, scheduler_hint
             assert execution_phase["apply_needed"] is False, scheduler_hint
-            assert execution_phase["ack_needed"] is False, scheduler_hint
+            assert "ack_needed" not in execution_phase, scheduler_hint
 
 
 def assert_writeback_helper_preview_contract() -> None:

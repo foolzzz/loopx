@@ -2299,22 +2299,6 @@ def test_standard_codex_app_settlement_is_receipted_and_idempotent(
     )
     assert _spend_run_count(runtime) == 1
 
-    settled_ack_hint = settled_replay["scheduler_hint"]["codex_app"]["ack_hint"]
-    assert settled_ack_hint["args"]["turn_instance_id"] == TURN_ID
-    assert settled_ack_hint["cli_args"][-3:] == [
-        "--turn-instance-id",
-        TURN_ID,
-        "--execute",
-    ]
-    ack_rc, ack = _run_cli(
-        registry_path,
-        runtime,
-        *settled_ack_hint["cli_args"],
-    )
-    assert ack_rc == 0, ack
-    assert ack["scheduler_state_mutated"] is True
-    assert ack["already_applied"] is False
-
     fresh_turn_rc, fresh_turn = _run_cli(
         registry_path,
         runtime,
@@ -4849,15 +4833,6 @@ def test_todoless_autonomous_replan_settles_quota_refresh_spend_chain(
     assert plan_identity["binding_id"] == identity["binding_id"]
     assert plan_identity["replan_obligation_id"] == obligation_id
     assert plan_identity["turn_instance_id"] == turn_instance_id
-    original_scheduler_ack_args = guard["scheduler_hint"]["codex_app"][
-        "ack_hint"
-    ]["cli_args"]
-    original_scheduler_ack_args = original_scheduler_ack_args[
-        original_scheduler_ack_args.index("quota"):
-    ]
-    assert original_scheduler_ack_args[:2] == ["quota", "scheduler-ack-current"]
-    assert "--turn-instance-id" in original_scheduler_ack_args
-    assert turn_instance_id in original_scheduler_ack_args
     actions = cli_channel["next_cli_actions"]
     refresh_command = next(action for action in actions if "refresh-state" in action)
     spend_command = next(action for action in actions if "spend-slot" in action)
@@ -4949,22 +4924,6 @@ def test_todoless_autonomous_replan_settles_quota_refresh_spend_chain(
     assert settled["heartbeat_receipt"]["settlement_identity"][
         "binding_kind"
     ] == "autonomous_replan"
-    assert _spend_run_count(runtime) == 1
-
-    ack_rc, ack = _run_cli(
-        registry_path,
-        runtime,
-        *original_scheduler_ack_args,
-    )
-    assert ack_rc == 0, ack
-    assert ack["ok"] is True
-    assert ack["mode"] == "scheduler-ack-current"
-    assert ack["status"] == "heartbeat_settled_skip"
-    assert ack["idempotent_replay"] is True
-    assert ack["write_performed"] is False
-    assert ack["scheduler_state_mutated"] is False
-    assert ack["quota_spend_performed"] is False
-    assert ack["appended"] is False
     assert _spend_run_count(runtime) == 1
 
     fresh_turn_id = "turn-autonomous-replan-settlement-2"

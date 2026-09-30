@@ -21,7 +21,6 @@ from ..work_items.delivery_outcome import (
     qualifies_turn_scoped_settlement,
 )
 from .monitor_poll import QUOTA_MONITOR_POLL_CLASSIFICATION
-from .scheduler_ack import QUOTA_SCHEDULER_ACK_CLASSIFICATION
 from ..effect_program import SettlementBindingKind
 from .settlement import (
     SettlementFailureKind,
@@ -404,8 +403,7 @@ def _latest_unspent_turn_settlement_run(
 ) -> dict[str, Any] | None:
     """Return the latest same-agent Turn settlement that still needs accounting.
 
-    Unchanged monitor polls, scheduler acknowledgements, and plain state
-    refreshes are quota-neutral. They may occur after validation and before
+    Unchanged monitor polls and plain state refreshes are quota-neutral. They may occur after validation and before
     accounting, so they must not hide the accountable run. A state refresh
     with a non-settling delivery outcome and other non-delivery events remain
     fail closed. A typed blocked ``outcome_gap`` settles the Turn without being
@@ -436,8 +434,6 @@ def _latest_unspent_turn_settlement_run(
             classification == QUOTA_MONITOR_POLL_CLASSIFICATION
             and run.get("material_change") is not True
         ):
-            continue
-        if classification == QUOTA_SCHEDULER_ACK_CLASSIFICATION:
             continue
         if _is_quota_neutral_state_refresh(run):
             continue

@@ -48,8 +48,6 @@ from ..presentation.renderers.quota_event_markdown import (
 )
 from ..presentation.renderers.quota_markdown import (
     render_quota_markdown,
-    render_quota_scheduler_ack_markdown,
-    render_quota_scheduler_failure_markdown,
     render_quota_should_run_markdown,
 )
 from ..presentation.renderers.turn_envelope_markdown import (
@@ -92,7 +90,6 @@ from .quota_reward_memory import (
     attach_reward_memory_ingest_after_spend,
     attach_reward_memory_recall_after_should_run,
 )
-from .quota_scheduler_followup import build_scheduler_followup_payload
 
 PrintPayload = Callable[
     [dict[str, object], str, Callable[[dict[str, object]], str]],
@@ -137,9 +134,6 @@ def _quota_renderer(
     return {
         "should-run": render_quota_should_run_markdown,
         "monitor-poll": render_quota_monitor_poll_markdown,
-        "scheduler-ack": render_quota_scheduler_ack_markdown,
-        "scheduler-ack-current": render_quota_scheduler_ack_markdown,
-        "scheduler-fail-current": render_quota_scheduler_failure_markdown,
         "spend-slot": render_quota_slot_preview_markdown,
         "void-slot": render_quota_slot_preview_markdown,
     }.get(command, render_quota_markdown)
@@ -498,20 +492,6 @@ def handle_quota_command(
                     goal_id=status_goal_id,
                     available_capabilities=args.available_capabilities,
                 ),
-            )
-        elif args.quota_command in {
-            "scheduler-ack",
-            "scheduler-ack-current",
-            "scheduler-fail-current",
-        }:
-            payload = build_scheduler_followup_payload(
-                status_payload,
-                args,
-                registry_path=registry_path,
-                runtime_root=runtime_root,
-                turn_instance_id=heartbeat_turn_id,
-                scheduler_context=scheduler_context,
-                operator_inbox_urgency_projector=operator_inbox_urgency_projector,
             )
         elif args.quota_command == "spend-slot":
             payload = spend_quota_slot(

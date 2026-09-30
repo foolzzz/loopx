@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, fields
 import json
 import sys
 
@@ -185,11 +185,9 @@ def test_effect_turn_keeps_monitor_quiet_around_decision_data_visible() -> None:
     assert turn.next_effect.cli_actions == ()
     assert turn.next_effect.scheduler_action == "no_spend"
     assert turn.next_effect.cadence_class == "monitor_wait"
-    assert turn.next_effect.ack_cli_args == ()
-    assert turn.next_effect.failure_cli_args == ()
 
 
-def test_effect_turn_carries_scheduler_ack_and_failure_hints() -> None:
+def test_effect_turn_carries_scheduler_cadence_but_no_followup_args() -> None:
     packet = {
         "decision": "run",
         "should_run": True,
@@ -223,27 +221,6 @@ def test_effect_turn_carries_scheduler_ack_and_failure_hints() -> None:
         "scheduler_hint": {
             "action": "apply_rrule",
             "cadence_class": "active_work",
-            "codex_app": {
-                "ack_hint": {
-                    "cli_args": [
-                        "quota",
-                        "scheduler-ack-current",
-                        "--goal-id",
-                        "effect-interpreter-fixture",
-                        "--execute",
-                    ]
-                },
-                "failure_hint": {
-                    "cli_args": [
-                        "quota",
-                        "scheduler-ack-current",
-                        "--goal-id",
-                        "effect-interpreter-fixture",
-                        "--failure",
-                        "--execute",
-                    ]
-                },
-            },
         },
     }
     turn = interpret_quota_should_run_packet(
@@ -259,21 +236,13 @@ def test_effect_turn_carries_scheduler_ack_and_failure_hints() -> None:
     assert turn.next_effect.execution_mode == "interleaved"
     assert turn.next_effect.scheduler_action == "apply_rrule"
     assert turn.next_effect.cadence_class == "active_work"
-    assert turn.next_effect.ack_cli_args == (
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        "effect-interpreter-fixture",
-        "--execute",
-    )
-    assert turn.next_effect.failure_cli_args == (
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        "effect-interpreter-fixture",
-        "--failure",
-        "--execute",
-    )
+    # The next effect carries CLI actions and cadence only.
+    assert {field.name for field in fields(turn.next_effect)} == {
+        "cli_actions",
+        "execution_mode",
+        "scheduler_action",
+        "cadence_class",
+    }
 
 
 @pytest.mark.parametrize("result_kind", [kind.value for kind in LoopXTurnResultKind])

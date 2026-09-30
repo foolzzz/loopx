@@ -205,7 +205,7 @@ def overlay_active_turn_retries(
         if not todo_id or todo_id in seen:
             continue
         classification = str(run.get("classification") or "")
-        if classification.startswith(("quota_slot_", "quota_scheduler_")):
+        if classification.startswith("quota_slot_"):
             continue
         seen.add(todo_id)
         retry = active_turn_retry_for_run(run, observed_at=observed_at)
