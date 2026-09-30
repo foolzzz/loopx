@@ -184,7 +184,7 @@ def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfil
     task_body = (
         'f"Use {cli} with runtime root {runtime}."'
         if bind_cli
-        else '"No installed CLI reference."'
+        else repr("No installed CLI reference.")
     )
     cli.write_text(
         "#!/usr/bin/env python3\n"

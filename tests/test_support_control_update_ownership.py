@@ -61,8 +61,6 @@ def test_dispatch_ignores_other_commands() -> None:
     assert (
         update_module.handle_update_command(
             args,
-            registry_path=Path("/nonexistent-registry"),
-            registry_was_supplied=False,
             print_payload=lambda *_args: None,
             output_format=lambda *_args: "json",
         )

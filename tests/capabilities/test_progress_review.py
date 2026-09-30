@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 from pathlib import Path
 
 import pytest
@@ -213,7 +214,9 @@ def test_catalog_registers_the_default_off_capability() -> None:
     for doc in record["docs"]:
         assert (repository / doc).is_file(), doc
     for command in record["smokes"]:
-        assert (repository / command.removeprefix("python3 ")).is_file(), command
+        smoke_paths = [token for token in shlex.split(command) if token.endswith(".py")]
+        assert smoke_paths, command
+        assert all((repository / path).is_file() for path in smoke_paths), command
 
 
 # --- configuration surfaces ---------------------------------------------------

@@ -183,7 +183,16 @@ def make_repo(root: Path, name: str) -> Path:
     git(repo, "init", "-q", "-b", "main")
     (repo / "README.md").write_text(f"{name}\n", encoding="utf-8")
     git(repo, "add", ".")
-    git(repo, "commit", "-qm", "init")
+    git(
+        repo,
+        "-c",
+        "user.name=LoopX Test",
+        "-c",
+        "user.email=loopx@example.invalid",
+        "commit",
+        "-qm",
+        "init",
+    )
     return repo
 
 
