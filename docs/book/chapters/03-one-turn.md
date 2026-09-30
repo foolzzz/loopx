@@ -382,7 +382,7 @@ interaction contract: what this turn may do
 Host 即使在正确时间唤醒，也必须重新运行 current decision。旧 scheduler proposal、旧
 `should_run` 或旧 selected Todo 不能跨状态变化直接复用。
 
-### Scheduler 需要 apply、readback 与 ACK
+### Scheduler 需要 apply 与 readback
 
 以 Codex App heartbeat 为例，`recommended_rrule` 只是目标 cadence。完整收敛链是：
 
@@ -390,28 +390,18 @@ Host 即使在正确时间唤醒，也必须重新运行 current decision。旧 
 LoopX proposes recommended_rrule
   -> Host applies one automation update
   -> Host result / observed RRULE proves the actual cadence
-  -> run the exact ack_hint.cli_args
-  -> LoopX records reset token, identity and applied RRULE
 ```
 
 协议上的几个关键分支：
 
-- `apply_needed=true`：Host 最多尝试一次 update；成功后执行 packet 中完整的
-  `ack_hint.cli_args`，失败或超时则不 ACK，并执行一次 `failure_hint.cli_args`；
-- `apply_needed=false, ack_needed=true`：Host readback 已精确匹配 proposal，跳过 no-op update，
-  直接执行绑定的 ACK；
-- `host_observation.status=drift_detected`：实际 cadence 与 ledger 不一致，旧 ACK 不能压过当前
-  readback，需要重新 repair；
-- terminal pause/stop：按 Host contract 验证停止结果，不把它伪装成普通 RRULE ACK。
+- `apply_needed=true`：Host 最多尝试一次 update；失败或超时不重试；
+- `apply_needed=false`：观察到的 Host cadence 已精确匹配 proposal，跳过 no-op update；
+- `host_observation.status=drift_detected`：实际 cadence 与 proposal 不一致，按当前 hint 更新一次；
+- terminal pause/stop：按 Host contract 验证停止结果。
 
-当前 ACK 使用 `quota scheduler-ack-current` 重新读取 latest hint。Host 必须执行 packet 给出的完整
-argv，因为其中可能绑定 registry、runtime profile、Agent identity 和 capability envelope；手抄
-reset token 或删掉全局参数会把 ACK 写到错误状态。
-
-Scheduler state 还绑定 `reset_token` 与 `identity_signature`。用户反馈、新 Todo、reassignment、
-Gate resolution 或 material evidence transition 会改变 identity，并把 cadence 恢复到当前 profile
-的初始值；连续 unchanged polls 才继续 backoff。Cadence apply、failure writeback 和 ACK 都不产生
-delivery quota spend。
+LoopX 不再持久化 App scheduler state，也不接受 ACK/failure follow-up。每轮根据当前 profile 与
+decision 重新推导 target，调用方提供的 Host RRULE 用于避免重复 update。Cadence 变化属于控制面
+housekeeping，不产生 delivery quota spend。
 
 ### 多 Monitor 交错时的 per-lane 计数
 

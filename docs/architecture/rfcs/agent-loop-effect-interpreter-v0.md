@@ -124,7 +124,7 @@ GoalState => F[QuotaDecision]
 | Effect request | `todo add`, `quota spend`, `refresh-state`, `notify`, `monitor poll`, `bind-agent-thread` |
 | Harness interprets effect | `quota should-run` + `interaction_contract` + `capability_gate` + `work_lane_contract` + `scheduler_hint` |
 | Observation | Quota packet, run history, evidence log, state writeback |
-| Middleware mount points | User gate, capability bridge, scheduler ACK, cooldown, external evidence poll |
+| Middleware mount points | User gate, capability bridge, scheduler cadence, external evidence poll |
 | `A => B` | Idealized `GoalState => GoalState` |
 | `A => F[B]` | Real `GoalState => F[QuotaDecision]` |
 
@@ -228,8 +228,8 @@ program or moving its execution authority into a generic base class.
 Runtime middleware receives a `handler` callable and decides whether to call
 it, call it once, retry, fallback, or short-circuit. LoopX cannot receive a
 model or host callable across context and session boundaries. Instead, the
-interpreter returns a `next_effect` in the packet: CLI actions, scheduler
-ACK, and failure hint. The host or the next automation turn invokes that
+interpreter returns a `next_effect` in the packet: CLI actions and scheduler
+cadence. The host or the next automation turn invokes that
 data-encoded handler.
 
 This keeps the power of around style while making the handler durable and
@@ -241,8 +241,8 @@ replayable:
 - rewrite: `work_lane_contract` can preempt ordinary advancement with a due
   monitor or Lark inbox, and `capability_gate` can rewrite the next effect to
   materialize the missing capability first;
-- settle: `scheduler_hint.ack_hint` and `failure_hint` tell the host how to
-  commit success or failure, while `unchanged_poll` bounds repeated attempts.
+- settle: `cli_channel.next_cli_actions` carry the writeback and spend that
+  commit the turn, while `unchanged_poll` bounds repeated attempts.
 
 Failure, cancellation, permission, and budget stay visible in typed packet
 fields instead of being swallowed by a catch-all wrapper:
@@ -275,7 +275,7 @@ middleware stack:
 
 A single tool call is `ToolInput => F[ToolOutput]`. A LoopX CLI packet is a
 higher-density effect: one command can carry permission, budget, parameter
-validation, external execution, failure semantics, scheduler ACK, and
+validation, external execution, failure semantics, scheduler cadence, and
 writeback in the same request. The model still only proposes effect requests;
 the harness interprets them into CLI actions.
 

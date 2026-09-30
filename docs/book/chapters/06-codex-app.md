@@ -102,9 +102,8 @@ loopx history --goal-id <goal-id> --limit 10
 - 最新 run 是否包含验证和 writeback，而不只是 status poll。
 
 如果 `scheduler_hint.app_automation.stateful_backoff.apply_needed=true`，还要确认 App 实际应用了
-`recommended_rrule`，随后执行 packet 提供的完整 `ack_hint.cli_args`。仅看到 recommendation 或
-本地 ACK ledger 都不足以证明 cadence 已生效；实际 Host RRULE readback 若报告 drift，必须按当前
-hint 修复。
+`recommended_rrule`。仅看到 recommendation 不足以证明 cadence 已生效；实际 Host RRULE readback
+若报告 drift，必须按当前 hint 修复。LoopX 不保留 App scheduler ACK ledger。
 
 ## 5. 在 App 与 CLI 之间切换
 

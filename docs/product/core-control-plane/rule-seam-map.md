@@ -62,8 +62,8 @@ Keep these areas in `quota.py` until the characterization fixture exists:
 - handoff gate, cleared-successor, deferred-resume, and
   monitor-blocked-resume selection;
 - work-lane contract assembly and effective-action choice;
-- protocol action packet, scheduler hint, quota spend, monitor-poll, and
-  scheduler-ack write paths.
+- protocol action packet, scheduler hint, quota spend, and monitor-poll write
+  paths.
 
 Those areas mix projection with policy. Moving them without a parity fixture
 can silently change which todo a peer sees, whether a monitor item is due,

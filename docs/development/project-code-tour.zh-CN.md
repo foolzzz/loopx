@@ -154,11 +154,11 @@ Domain State、Evidence、Receipt 和 Projection 都是这些角色交换或派�
 
 ### 第 1 跳：最外层入口
 
-- 文件：[entrypoint.py](../../loopx/entrypoint.py#L66-L84)
+- 文件：[entrypoint.py](../../loopx/entrypoint.py#L8-L18)
 - 关键函数：`main`
-- 做了什么：处理 `--version`，识别少数带回执的原生 scheduler follow-up，然后把其余命令交给 CLI runtime。
+- 做了什么：处理 `--version`，然后把其余命令交给 CLI runtime。
 
-这里的设计意图是保持最外层很薄。`loopx --version` 不需要加载整个命令注册表；scheduler 的 `ack-current` / `fail-current` 只有在参数带有 Host facts 和 Turn instance 绑定时，才会转给 TypeScript follow-up。
+这里的设计意图是保持最外层很薄。`loopx --version` 不需要加载整个命令注册表。
 
 ### 第 2 跳：建立统一参数语法
 
@@ -584,7 +584,7 @@ LoopX 的复杂度主要来自“谁拥有事实、谁有权改变事实、一�
 
 | 主题 | 入口 |
 | --- | --- |
-| CLI 最外层 | [entrypoint.py](../../loopx/entrypoint.py#L20-L84) |
+| CLI 最外层 | [entrypoint.py](../../loopx/entrypoint.py#L8-L18) |
 | CLI 注册与分派 | [cli.py](../../loopx/cli.py#L246-L363) · [cli.py](../../loopx/cli.py#L366-L531) |
 | 参数与 Registry 解析 | [cli_runtime.py](../../loopx/cli_runtime.py#L116-L168) |
 | Goal Bootstrap | [bootstrap.py](../../loopx/bootstrap.py#L116-L190) · [bootstrap.py](../../loopx/bootstrap.py#L197-L245) |

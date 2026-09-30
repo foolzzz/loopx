@@ -610,10 +610,9 @@ continue, but it must not bypass the gate.
 Peer agents use `loopx todo claim` before delivery and `loopx todo update`
 after validation so ownership and evidence remain visible.
 
-Scheduler cadence follows `quota should-run.scheduler_hint`; installed Codex
-App automations acknowledge the current hint through the returned
-`ack_hint.cli_args`. Collision recovery, monitor semantics, self-repair, and
-the exact operator commands are maintained in
+Scheduler cadence follows `quota should-run.scheduler_hint`. Collision
+recovery, monitor semantics, self-repair, and the exact operator commands are
+maintained in
 [Getting Started](docs/guides/getting-started.md),
 [Quota Allocation](docs/quota-allocation.md), and
 [Long-Task Cadence Policy](docs/operations/long-task-cadence-policy.md).

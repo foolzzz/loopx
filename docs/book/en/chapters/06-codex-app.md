@@ -104,9 +104,8 @@ Check:
 - whether the latest run contains validation and writeback rather than only a status poll.
 
 When `scheduler_hint.app_automation.stateful_backoff.apply_needed=true`, also verify that the App applied the
-`recommended_rrule` and then ran the packet's complete `ack_hint.cli_args`. A recommendation or local ACK
-ledger alone does not prove that Host cadence changed. If actual RRULE readback reports drift, repair it
-from the current hint.
+`recommended_rrule`. The recommendation alone does not prove that Host cadence changed. If actual RRULE
+readback reports drift, repair it from the current hint; LoopX keeps no App scheduler ACK ledger.
 
 ## 5. Switch between App and CLI safely
 

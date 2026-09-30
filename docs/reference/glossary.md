@@ -164,7 +164,7 @@ Legal scheduler host state transition.
 - Tier / 层级: `cross_runtime`; status / 状态: `canonical`.
 - python: [`SchedulerHostTransition`](../../loopx/control_plane/scheduler/state_transition_rules.py).
 - typescript: [`SCHEDULER_HOST_TRANSITIONS`](../../loopx/control_plane/scheduler/state_transition_rules.ts).
-- Values / 值: `apply_required`, `host_match_ack_required`, `recorded_failure_suppressed`, `settled`.
+- Values / 值: `apply_required`, `recorded_failure_suppressed`, `settled`.
 
 ## settlement_binding_kind
 

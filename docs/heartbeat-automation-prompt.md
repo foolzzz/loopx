@@ -634,23 +634,14 @@ heartbeats should search/use `automation_update` when available. If
 `scheduler_hint.app_automation.host_action=pause_or_delete_current_heartbeat`: in
 that terminal case, call `automation_update` once to pause the current
 heartbeat (delete only if pause is unavailable), verify the host result, spend
-no quota, and end the turn without a scheduler ACK. Otherwise call it only when
+no quota, and end the turn. Otherwise call it only when
 `scheduler_hint.app_automation.stateful_backoff.apply_needed=true` and
-`scheduler_hint.app_automation.recommended_rrule` is present. After a successful
-RRULE update, run `loopx` with
-`scheduler_hint.app_automation.ack_hint.cli_args`; current payloads use
-`quota scheduler-ack-current` so LoopX re-reads the latest hint and owns the
-progression/reset state. The ACK settles that RRULE; an immediate final guard
-may verify the same target but must not be treated as another elapsed poll.
+`scheduler_hint.app_automation.recommended_rrule` is present.
 Attempt the host update at most once per hint and
-turn. If it fails or times out, do not retry or ACK; run
-`scheduler_hint.app_automation.failure_hint.cli_args` once to persist the failed
-target and observed host RRULE without spending quota. Exact repeats are then
-suppressed until either value changes. Continue any allowed delivery under the
-observed host cadence. When the desired RRULE is already applied, skip
-`automation_update`; if `stateful_backoff.ack_needed=true`, run the bound ack
-hint directly, otherwise do nothing. For the uniquely matched current heartbeat,
-`quota should-run` reconciles the installed RRULE with the ACK ledger; a
+turn. If it fails or times out, do not retry; continue any allowed delivery
+under the observed host cadence. LoopX keeps no App scheduler state and has no
+scheduler ACK or failure follow-up. When the desired RRULE is already applied,
+skip `automation_update`. When the caller passes the observed RRULE, a
 `host_observation.status=drift_detected` result reopens `apply_needed`:
 
 If `automation_update` is unavailable in the session, surface the pasteable
@@ -659,10 +650,9 @@ heartbeat gate; LoopX does not edit a host's automation store directly.
 ```text
 Create a heartbeat automation starting at 3 minutes for the current thread;
 then apply `quota should-run.scheduler_hint`: update RRULE only when
-`apply_needed=true`, trying once per hint and turn; ack with the provided
-`ack_hint.cli_args` only after the host update succeeds, or run the provided
-`failure_hint.cli_args` once if that update fails or times out. If
-`automation_update` is unavailable, surface the pasteable heartbeat gate.
+`apply_needed=true`, trying once per hint and turn; do not retry a failed or
+timed-out update. If `automation_update` is unavailable, surface the pasteable
+heartbeat gate.
 
 Task:
 Advance <GOAL_ID> using <ACTIVE_GOAL_STATE_PATH>. Before any delivery work,
@@ -802,10 +792,7 @@ controller loop, Codex CLI TUI, Claude Code loop, or future Codex goal-mode
 automations can all share the same LoopX quota guard without hard-coding
 different wait loops. Host implementations should first honor a terminal
 `app_automation.host_action=pause_or_delete_current_heartbeat` by stopping the
-current heartbeat once, verifying the result, and ending without scheduler ACK
-or quota spend. Otherwise they should read the compact
-`app_automation.stateful_backoff` packet, call `automation_update` only when
-`apply_needed=true`, and then let `quota scheduler-ack-current` persist the
-applied RRULE state from the latest scheduler hint without spending quota. A
-matching reset readback may instead set `ack_needed=true`; in that case skip the
-host write and execute the bound ack directly.
+current heartbeat once, verifying the result, and ending without quota spend.
+Otherwise they should read the compact `app_automation.stateful_backoff` packet
+and call `automation_update` only when `apply_needed=true`; no scheduler ACK
+follows and no quota is spent.

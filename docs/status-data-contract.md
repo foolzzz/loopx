@@ -1546,26 +1546,11 @@ App/local cadence back to the current profile's initial interval before
 unchanged backoff resumes, and does not spend quota.
 Codex App heartbeats should use `automation_update` only when
 `app_automation.stateful_backoff.apply_needed=true` and
-`app_automation.recommended_rrule` is present. If that update succeeds, the agent
-must run `app_automation.ack_hint.cli_args`;
-current payloads use `quota scheduler-ack-current` so LoopX re-reads the latest
-hint, then persists `reset_token`, `identity_signature`, `progression_index`,
-and `last_applied_rrule` under the runtime root. When the same identity repeats,
-LoopX advances the progression after the applied interval has elapsed, until
-the max interval. An immediate post-ACK readback remains on the acknowledged
-RRULE so repeated reconciliation converges rather than oscillates. When the reset token
-changes, the next projected RRULE returns to
-`reset_policy.app_automation_initial_rrule`. If the current desired RRULE is already
-applied, `recommended_rrule` is omitted and the host update should be skipped.
-When that matching readback still needs a reset-token/identity binding,
-`ack_needed=true`; run the bound ack directly. Otherwise no scheduler action
-is needed.
-For CLI payloads, `ack_hint.cli_args` begins with the registry and effective
-runtime-root binding used by the originating `should-run` call. Consumers must
-preserve that prefix so the ACK cannot split scheduler state between project
-and shared registries.
-`scheduler-ack` only records the applied host cadence; the next RRULE, if any,
-is projected by a future `quota should-run`, not by the ack response.
+`app_automation.recommended_rrule` is present. If the current desired RRULE is
+already applied, `recommended_rrule` is omitted and the host update should be
+skipped. There is no scheduler ACK or failure follow-up: LoopX does not persist
+App cadence state, so each poll projects from the current profile's initial
+interval and `reset_policy.app_automation_initial_rrule`.
 The payload also includes `execution_obligation`, which is the compatibility
 entry point for older workers deciding whether a quiet no-op is allowed.
 `heartbeat_recommendation.notify` is only a user-facing notification policy. It

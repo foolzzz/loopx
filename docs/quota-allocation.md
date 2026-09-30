@@ -1015,12 +1015,10 @@ user todos and the expected reply (`done`, `defer/not now`, or new evidence
 link/date/conclusion), while skipping delivery work and quota spend for that
 blocker-push turn. If quota also sets
 `open_todo_notification_policy=repeat_until_resolved`, repeat that notification
-until the todo is done, deferred, or replaced. If a failed host cadence update
-leaves a tighter poll, `user_gate_notification_cooldown_v0` keeps the gate open
-but suppresses duplicate notices outside a bounded reminder window. Otherwise,
-blocker-push cases may still be de-duplicated when the same blocker was already
-surfaced recently. Eligible monitor-only polls with no material transition keep
-the open user todo visible in `user_todo_summary`, but do not force a repeated
+until the todo is done, deferred, or replaced. Other blocker-push cases may
+still be de-duplicated when the same blocker was already surfaced recently.
+Eligible monitor-only polls with no material transition keep the open user todo
+visible in `user_todo_summary`, but do not force a repeated
 notification, make the turn a user-action gate, or leave the top-level
 `should_run` set for an otherwise quiet no-op.
 
@@ -1155,28 +1153,13 @@ For Codex App and local schedulers, `recommended_interval_minutes` is the next
 target interval. For Codex App heartbeats, `recommended_rrule` is emitted only
 when `app_automation.stateful_backoff.apply_needed=true`; if the desired RRULE is
 already applied, it is omitted so the agent does not call a host tool again.
-If that match still needs a reset-token/identity binding,
-`stateful_backoff.ack_needed=true` and the bound ack runs without a host update.
 When an apply is required but `automation_update` is unavailable in the
 session, the agent surfaces the pasteable heartbeat gate; LoopX does not edit
 the host's automation store directly.
-After a successful host RRULE update, the agent records that fact with
-`loopx` plus `app_automation.ack_hint.cli_args`; current payloads use
-`quota scheduler-ack-current` to re-read the latest scheduler hint before LoopX
-advances the per goal/agent scheduler state without spending quota. Human gates
-can move Codex App heartbeats through `[30, 60]` after the concrete user todo
+Human-gate waits use the `[30, 60]` progression after the concrete user todo
 has been surfaced. LoopX caps the Codex App integration at 60 minutes; coarser
 waits remain available to the local scheduler instead of being emitted as App
 heartbeat RRULEs.
-CLI-produced ACK hints bind that argument vector to the exact registry and
-effective runtime root that produced `quota should-run`. Hosts must execute the
-complete vector; stripping its leading global options can route a
-project-launched ACK into project-local scheduler state instead of the shared
-control plane. When the decision is heartbeat-receipted, ACK and failure hints
-also bind the originating `turn_instance_id`. The follow-up rebuilds the same
-receipt-bound live decision before validating its reset token and identity;
-later Todos or a different unscoped wait lane cannot replace the decision that
-requested the host action.
 Monitor-only quiet waits move through `[15, 30, 60]` while preserving the
 same no-spend monitor-poll contract, unless a monitor cadence or due time caps
 the progression earlier. Fifteen minutes is only the default quiet-monitor
@@ -1185,8 +1168,6 @@ initial interval so the next wake cannot occur after the monitor is due.
 The same deadline cap applies while a human gate owns notification semantics:
 the user action remains a human gate and ordinary gates still use `[30, 60]`,
 but a tighter continuous-monitor wakeup remains authoritative for host cadence.
-Notification-only cooldown continues to use the human-gate interval rather
-than turning the monitor deadline into a three-minute reminder policy.
 Agent-scope waits use a more conservative adjustment curve such as
 `[10, 20, 30, 60]`, so a 600-second local tick stays close to the existing
 agent-to-agent interaction cadence before cooling further.
@@ -1206,57 +1187,18 @@ the matching local scheduler initial interval) before starting unchanged
 backoff again; it never spends quota.
 For Codex App heartbeats, hosts and agents should use `automation_update` only
 when `app_automation.stateful_backoff.apply_needed=true` and
-`app_automation.recommended_rrule` is present. After `automation_update` succeeds,
-the agent must run `app_automation.ack_hint.cli_args`. Current payloads use
-`quota scheduler-ack-current`, so LoopX then persists `reset_token`,
-`identity_signature`, `progression_index`, and
-`last_applied_rrule` under the runtime root. Repeated unchanged identity
-advances through `progression_minutes` only after the applied RRULE has had one
-real interval to run. An immediate post-ACK reconciliation therefore verifies
-the settled target instead of manufacturing the next backoff target in the
-same turn. A changed `reset_policy.reset_token`
-returns to the current profile's initial interval. This gives hosts a compact
-post-update ack protocol instead of requiring them to own or diff the whole
-quota state. If `apply_needed=false` and `ack_needed=true`, the same command
-records an exact matching host readback without calling `automation_update`.
-If `automation_update` fails or times out, the agent must not ACK. LoopX keeps
-the observed host RRULE authoritative. The agent runs
-`app_automation.failure_hint.cli_args` once to persist the failed target/observed-host
-pair without quota spend. LoopX retains up to four distinct pairs for 24 hours,
-so active-work and monitor-wait targets cannot overwrite one another while the
-host RRULE remains unchanged. Later heartbeats expose `apply_needed=false` and
-`state_status=host_update_failure_suppressed` for every retained exact pair.
-A changed host observation invalidates failures recorded against the old host,
-and a successful scheduler ACK clears only failures whose target is the
-acknowledged RRULE. A fallback ACK therefore preserves failures for other
-targets observed against the same unchanged host, preventing the next turn
-from retrying a known-bad target/host pair. The legacy
-`host_update_failure` scalar remains as the latest compatibility projection;
-new hosts should consume `host_update_failures`. LoopX never treats an intended
-cadence as an applied cadence.
-For a human gate whose observed host interval is tighter than the failed target,
-the same packet also projects `user_gate_notification_cooldown_v0`. The first
-notice is preserved; short host polls are quiet, one host-sized window opens at
-each target cadence, and a changed gate identity or host RRULE bypasses the old
-cooldown. This changes notification delivery only, not the underlying user todo.
-`scheduler-ack` is not a second `should-run`: it confirms the host update or
-matching readback and does not emit or make immediately due a successor RRULE
-in the same turn. User
-feedback, newly runnable work, reassignment, or material evidence therefore
-restores the automation to the current profile's initial interval before
-backoff resumes.
+`app_automation.recommended_rrule` is present. There is no post-update ACK or
+failure follow-up: LoopX does not persist App cadence state, so each poll
+projects the current profile's initial interval and a changed
+`reset_policy.reset_token` still marks a reset. If `automation_update` fails or
+times out, the agent does not retry in that turn and keeps the observed host
+cadence. LoopX never treats an intended cadence as an applied cadence.
 
-`quota should-run` also observes the RRULE of a uniquely matched active Codex
-App heartbeat (goal + agent + current thread). The observed host RRULE takes
-precedence over `last_applied_rrule` when computing `apply_needed`, and the
-compact result is exposed as `stateful_backoff.host_observation`. A mismatch is
-`drift_detected`, so an ACK written before the host update—or a later host-side
-cadence regression—cannot permanently suppress the repair. This observation
-contains only cadence metadata. If a reset RRULE already matches but its new
-reset token/identity is not persisted, `apply_needed=false`, `ack_needed=true`,
-and the bound `ack_hint.cli_args` records that exact readback without a no-op
-host write. Missing or mismatched readback still requires `automation_update`;
-LoopX never edits the App manifest directly.
+When the caller passes the observed RRULE with `--app-automation-current-rrule`,
+it takes precedence when computing `apply_needed`, and the compact result is
+exposed as `stateful_backoff.host_observation`; a mismatch is `drift_detected`.
+This observation contains only cadence metadata; LoopX never edits the App
+manifest directly.
 For Codex App SSH Goal, Codex CLI TUI, and Claude Code loops, the default hot path reads
 `scheduler_hint.unchanged_poll.limits.<runtime>`. A value of `3` means the third
 unchanged poll triggers the compact final quota/replan check named by

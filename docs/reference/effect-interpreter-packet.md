@@ -174,14 +174,11 @@ The observation points back into the loop:
 | `execution_mode` | Execution strategy (`serial` / `parallel` / `interleaved`) for an ordered effect program |
 | `scheduler_hint.action` | Scheduler around decision |
 | `scheduler_hint.cadence_class` | Cadence for the next host wake |
-| `scheduler_hint.app_automation.ack_hint.cli_args` | Host ACK effect |
-| `scheduler_hint.app_automation.failure_hint.cli_args` | Host failure effect |
 
 `EffectTurn.next_effect` is the code lens for this slot. It keeps the
-data-encoded handler visible: the host invokes the CLI actions and settles
-success or failure through the ACK/failure hints instead of LoopX holding a
-callable across turns. `execution_mode` is the data-encoded strategy when the
-next effect is an ordered effect program; it defaults to `None` when the
+data-encoded handler visible: the host invokes the CLI actions instead of LoopX
+holding a callable across turns. `execution_mode` is the data-encoded strategy
+when the next effect is an ordered effect program; it defaults to `None` when the
 packet does not declare one.
 
 ## Around Semantics

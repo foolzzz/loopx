@@ -89,7 +89,7 @@ Codex 的自动化基线通过 `thread/goal/set` 持久化 objective/status，�
 稳定 objective，加上 host 对继续、暂停、预算受限或完成的结果判断。
 
 Host 可以自行安排后续 Turn，模型也可以在执行中调整方案；这仍不等于项目已经拥有 typed
-scheduler ACK 或 replan delta。区别不在于系统“会不会再跑、会不会改计划”，而在于 cadence、
+scheduler cadence 或 replan delta。区别不在于系统“会不会再跑、会不会改计划”，而在于 cadence、
 路线变化及其证据是否成为跨 host、跨 Agent 可重放的结构化事实。
 
 LoopX 不否定这层能力，而是继续外置两层：

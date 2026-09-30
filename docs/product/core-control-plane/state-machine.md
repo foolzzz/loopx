@@ -3,7 +3,7 @@
 LoopX does not have one giant state machine. It has a small set of
 cooperating machines that are projected from the same canonical state bodies:
 registry entries, active state, todo metadata, run history, quota events,
-operator gates, scheduler acknowledgements, and projection sinks.
+operator gates, and projection sinks.
 
 This document is not a new store and not a private incident narrative. It is a
 public-safe map over the current repository contracts, especially:
@@ -350,8 +350,7 @@ stateDiagram-v2
 The reset token is part of the machine. When identity, selected action,
 recommended mode, user feedback, gate resolution, reassignment, material
 evidence, or active work changes the token, hosts should return to the profile
-initial cadence and acknowledge the scheduler state. Cadence changes do not
-spend quota.
+initial cadence. Cadence changes do not spend quota.
 
 ## 7. Projection Sink Machine
 
@@ -373,7 +372,7 @@ flowchart LR
 | --- | --- | --- |
 | `Read-only view` | The sink matches current source fields closely enough to display. | It may guide a user/agent, but writes go through LoopX APIs. |
 | `Projection gap` | Missing concrete todo, stale route, conflicting source, or collapsed user/agent channel. | Repair the source or projection builder before relying on it. |
-| `Write API` | Todo update, gate decision, refresh-state, monitor poll, spend, scheduler ack, or event append. | Append durable facts; do not mutate the sink as truth. |
+| `Write API` | Todo update, gate decision, refresh-state, monitor poll, spend, or event append. | Append durable facts; do not mutate the sink as truth. |
 
 This machine protects the public/private boundary: a projection may render
 public-safe summaries and evidence refs, but it must not become a dependency on

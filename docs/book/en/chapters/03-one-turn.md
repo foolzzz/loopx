@@ -406,7 +406,7 @@ interaction contract: what this turn may do
 Even if the Host wakes at the correct time, it must re-run the current decision. An old scheduler
 proposal, old `should_run`, or old selected Todo cannot be reused across state changes by default.
 
-### Scheduler convergence requires apply, readback, and ACK
+### Scheduler convergence requires apply and readback
 
 For a Codex App heartbeat, `recommended_rrule` is the target cadence, not proof that the Host applied
 it. The complete convergence chain is:
@@ -415,32 +415,19 @@ it. The complete convergence chain is:
 LoopX proposes recommended_rrule
   -> Host applies one automation update
   -> Host result / observed RRULE proves the actual cadence
-  -> run the exact ack_hint.cli_args
-  -> LoopX records reset token, identity, and applied RRULE
 ```
 
 The important protocol branches are:
 
-- `apply_needed=true`: the Host attempts at most one update; after success it runs the complete
-  `ack_hint.cli_args` from the packet; after failure or timeout it does not ACK and runs
-  `failure_hint.cli_args` once;
-- `apply_needed=false, ack_needed=true`: the Host readback already exactly matches the proposal, so
-  skip the no-op update and execute the bound ACK directly;
-- `host_observation.status=drift_detected`: the actual cadence does not match the ledger; an old ACK
-  cannot override the current readback; repair is needed;
-- terminal pause/stop: verify the stop result according to the Host contract; do not disguise it as a
-  normal RRULE ACK.
+- `apply_needed=true`: the Host attempts at most one update; after failure or timeout it does not retry;
+- `apply_needed=false`: the observed Host cadence already matches the proposal, so skip the no-op update;
+- `host_observation.status=drift_detected`: the actual cadence differs from the proposal, so apply the
+  current hint once;
+- terminal pause/stop: verify the stop result according to the Host contract.
 
-The current ACK uses `quota scheduler-ack-current` to re-read the latest hint. The Host must execute
-the complete argv from the packet, because it may bind registry, runtime profile, Agent identity, and
-capability envelope; manually copying only the reset token or dropping global arguments will write the
-ACK to the wrong state.
-
-Scheduler state also binds a `reset_token` and `identity_signature`. User feedback, a new Todo,
-reassignment, Gate resolution, or material evidence transition changes the identity and restores the
-cadence to the current profile's initial value; only consecutive unchanged polls continue backoff.
-Cadence apply, failure writeback, and ACK are control-plane housekeeping and do not consume delivery
-quota.
+LoopX no longer persists App scheduler state or accepts an ACK/failure follow-up. Each poll derives the
+target from the current profile and decision, while the supplied Host RRULE prevents a redundant update.
+Cadence changes are control-plane housekeeping and do not consume delivery quota.
 
 ### Per-lane counting when multiple monitors are interleaved
 

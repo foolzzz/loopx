@@ -62,7 +62,7 @@ GoalState => F[QuotaDecision]
 | Effect request | `todo add`、`quota spend`、`refresh-state`、`notify`、`monitor poll`、`bind-agent-thread` |
 | Harness interprets effect | `quota should-run` + `interaction_contract` + `capability_gate` + `work_lane_contract` + `scheduler_hint` |
 | Observation | quota packet、run history、evidence log、状态 writeback |
-| Middleware 挂载点 | user gate、capability bridge、scheduler ACK、cooldown、外部 evidence poll |
+| Middleware 挂载点 | user gate、capability bridge、scheduler cadence、外部 evidence poll |
 
 ## State Machine 是 Interpretation Table
 
@@ -105,7 +105,7 @@ Agent proposes next bounded turn
 很多 runtime 的 around 逻辑会拿到 `handler`：一个可继续执行主流程的回调，
 然后决定是否调用、调用几次、失败后怎样 fallback。LoopX 不能跨上下文和 session
 传递一个可调用对象。它的 `handler` 是数据：packet 里的 `next_effect` 编码下一组
-CLI 动作、scheduler ACK 和 failure hint，由 host 或下一轮 automation 执行。
+CLI 动作与 scheduler cadence，由 host 或下一轮 automation 执行。
 
 这个差异不是缺一个 middleware 层，而是控制面的合理形状：
 

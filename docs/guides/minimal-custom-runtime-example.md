@@ -46,7 +46,7 @@ refresh state, and spend one controller slot. It does not copy private logs,
 credentials, or live agent transcripts.
 
 For day-to-day onboarding commands (`agent-onboard`, skill delivery, scheduler
-ACK), use the longer
+hints), use the longer
 [Embed LoopX in Your Agent Runner](custom-agent-runner-integration.md) guide.
 
 ## Path B — Advanced: typed LoopX Turn adapter

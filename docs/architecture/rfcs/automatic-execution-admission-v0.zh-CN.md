@@ -80,7 +80,7 @@ App、Turn、前端、Lark 不得另存一套策略。共享 authority provider 
 | --- | --- | --- |
 | Managed `turn run-once` | 每次新 host 尝试及失败重试前原子准入 | M2 候选；已做隔离 CLI、并发与跨边界崩溃恢复测试，未推广外部宿主 |
 | 旧 local scheduler / 外部 launcher | 经受控 Turn 启动，或调用相同准入 owner | 尚未验收，不宣传为已强制执行 |
-| Codex App automation | 应用满足下限的定时器，回读真实值，事实匹配后 ACK | M1 调度建议下限；hook 覆盖范围未验收 |
+| Codex App automation | 应用满足下限的定时器并回读真实值 | M1 调度建议下限；hook 覆盖范围未验收 |
 | 附着式交互 / 手动会话 | 显式手动意图；其余门禁保留 | 记录原因；自动续跑不能冒充手动 |
 
 App 必须显示目标和实际 schedule、应用失败。不支持该间隔时，应挂起受影响自动化，不能缩短间隔。

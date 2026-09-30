@@ -113,7 +113,7 @@ LoopX 不把整个 registry、event ledger、run history 和所有 todo 直接�
 | Identity | goal、agent lane、selected todo、snapshot/lineage | 防止把结果写到另一个目标或旧状态 |
 | Decision | mode、primary action、user/agent/CLI channel | 区分 operator-facing deliver/wait/ask/repair/quiet 与 typed Turn route/result |
 | Proof boundary | required evidence、gate、workspace/capability guard | 防止“做过”或“能做”冒充可提交 |
-| Closeout | refresh、receipt、spend、scheduler ACK 命令 | 让本轮结果进入下一轮可重放事实 |
+| Closeout | refresh、receipt、spend 命令 | 让本轮结果进入下一轮可重放事实 |
 
 这与 host 原生 Goal 是互补关系。原生 Goal object 让 objective 和生命周期不依赖一次 prompt；
 LoopX packet 则让当前 Turn 不依赖模型记住完整项目过程。Codex App heartbeat automation
@@ -303,7 +303,7 @@ quota 还会返回：
 }
 ```
 
-当 `apply_needed=true` 时，host 先更新 App automation 的 RRULE，再运行 CLI 给出的 ACK。ACK 绑定 goal、agent、surface、state key 和实际 RRULE，防止“模型说已更新”被当成执行证据。
+当 `apply_needed=true` 时，host 更新 App automation 的 RRULE，并回读实际 schedule；LoopX 不再维护独立的 App scheduler ACK 状态。
 
 ### 7. 验证写回后才 spend
 
@@ -326,7 +326,7 @@ loopx quota spend-slot \
   --agent-id <agent-id>
 ```
 
-Spend 是“这轮已形成有效控制面推进”的账，不是“模型被唤醒过”的计数器。dry-run、read-only poll、monitor quiet skip、scheduler ACK 都不应该先花配额。
+Spend 是“这轮已形成有效控制面推进”的账，不是“模型被唤醒过”的计数器。dry-run、read-only poll、monitor quiet skip、cadence 调整都不应该先花配额。
 
 ## 为什么 App automation 不是主循环本身
 
@@ -627,7 +627,6 @@ effective_action = _effective_action(...)
   -> refresh-state 投影本轮计划
   -> quota should-run 选择第一个 todo
   -> App scheduler 从 15m 调整为 3m
-  -> scheduler-ack-current 记录实际 RRULE
   -> 完成取证 todo，链接设计 todo 为 successor
   -> claim 设计 todo，开始讲义交付
 ```
@@ -641,16 +640,6 @@ effective_action = _effective_action(...)
 <todo-verify>    [P1] 交叉校验与公开交付
 ```
 
-Scheduler ACK 应保留的关键字段：
-
-```text
-goal_id     = <goal-id>
-agent_id    = <agent-id>
-surface     = codex_app
-state_key   = scheduler_hint.app_automation.stateful_backoff
-RRULE       = FREQ=MINUTELY;INTERVAL=3
-```
-
 课堂上可以逐条对照自己的状态文件。实验还应故意漏写一次 material refresh 的 vision decision，观察后续 quota 产生 `vision_checkpoint_missing`；第 8 讲会完整复盘这个失败案例。
 
 ## 课后检查
@@ -659,6 +648,6 @@ RRULE       = FREQ=MINUTELY;INTERVAL=3
 2. 为什么计划要写入 todo，而不能只留在 assistant message？
 3. `should_run=false` 和“automation 应永久停止”有什么区别？
 4. 为什么 spend 必须晚于验证和 writeback？
-5. 如果 host 更新了 RRULE，但没有 scheduler ACK，会留下什么不确定性？
+5. 为什么 scheduler hint 不能证明 host 已更新 RRULE？
 
 下一讲将把这条运行路径中的“状态”拆开：哪些是配置真相、哪些是事件真相、哪些只是 read model。

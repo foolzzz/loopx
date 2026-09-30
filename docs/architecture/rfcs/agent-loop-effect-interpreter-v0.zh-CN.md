@@ -106,7 +106,7 @@ GoalState => F[QuotaDecision]
 | Effect request | `todo add`、`quota spend`、`refresh-state`、`notify`、`monitor poll`、`bind-agent-thread` |
 | Harness 解释 effect | `quota should-run` + `interaction_contract` + `capability_gate` + `work_lane_contract` + `scheduler_hint` |
 | Observation | Quota packet、run history、evidence log、state writeback |
-| Middleware mount points | User gate、capability bridge、scheduler ACK、cooldown、external evidence poll |
+| Middleware mount points | User gate、capability bridge、scheduler cadence、external evidence poll |
 | `A => B` | 理想化的 `GoalState => GoalState` |
 | `A => F[B]` | 真实的 `GoalState => F[QuotaDecision]` |
 
@@ -182,13 +182,13 @@ runtime algebra 目前有三个一等 adapter。默认 Codex App 路径通过跨
 
 ### Handler 是数据，不是 Callable
 
-Runtime middleware 接收一个 `handler` callable，并决定是否调用、调用一次、重试、fallback 或短路。LoopX 无法跨 context 和 session 边界接收 model 或 host callable。相反，interpreter 在 packet 中返回 `next_effect`：CLI actions、scheduler ACK 和 failure hint。host 或下一个自动化 turn 调用这个 data-encoded handler。
+Runtime middleware 接收一个 `handler` callable，并决定是否调用、调用一次、重试、fallback 或短路。LoopX 无法跨 context 和 session 边界接收 model 或 host callable。相反，interpreter 在 packet 中返回 `next_effect`：CLI actions 与 scheduler cadence。host 或下一个自动化 turn 调用这个 data-encoded handler。
 
 这保留了 around 风格的能力，同时让 handler 可持久、可重放：
 
 - short-circuit：`decision` 和 `effective_action` 可以说 `skip`、`wait`、`monitor_quiet_skip`、`repair_bridge` 或 `ask_owner`，而不假装原 effect 已执行；
 - rewrite：`work_lane_contract` 可以用到期 monitor 或 Lark inbox 抢占普通 advancement，`capability_gate` 可以把 next effect 重写为先物化缺失能力；
-- settle：`scheduler_hint.ack_hint` 和 `failure_hint` 告诉 host 如何提交成功或失败，`unchanged_poll` 限制重复尝试。
+- settle：`cli_channel.next_cli_actions` 携带提交本轮的 writeback 与 spend，`unchanged_poll` 限制重复尝试。
 
 失败、取消、权限和预算保持在 typed packet 字段中可见，而不是被 catch-all wrapper 吞掉：
 
@@ -213,7 +213,7 @@ Runtime middleware 接收一个 `handler` callable，并决定是否调用、调
 
 ### CLI 是高密度 Effect
 
-单个 tool call 是 `ToolInput => F[ToolOutput]`。LoopX CLI packet 是高密度 effect：一条命令可以在同一个 request 中携带 permission、budget、参数校验、外部执行、失败语义、scheduler ACK 和 writeback。模型仍然只提出 effect request；harness 把它们解释为 CLI actions。
+单个 tool call 是 `ToolInput => F[ToolOutput]`。LoopX CLI packet 是高密度 effect：一条命令可以在同一个 request 中携带 permission、budget、参数校验、外部执行、失败语义、scheduler cadence 和 writeback。模型仍然只提出 effect request；harness 把它们解释为 CLI actions。
 
 如果某个 vendor API 后续支持串行 tool calls 或交错推理，并不会改变 LoopX 的形状。它只是 interpreter 内部的一种 execution mode：
 

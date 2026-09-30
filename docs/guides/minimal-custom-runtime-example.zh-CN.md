@@ -42,7 +42,7 @@ python3 examples/custom-runtime-minimal-cli-turn-smoke.py
 校验 marker、带 evidence 完成、refresh，并花费一个 controller slot。
 它不会复制私有日志、凭证或真实 agent transcript。
 
-日常 onboarding（`agent-onboard`、skill 投递、scheduler ACK）见更长的
+日常 onboarding（`agent-onboard`、skill 投递、scheduler hint）见更长的
 [把 LoopX 嵌入你的 Agent Runner](custom-agent-runner-integration.zh-CN.md)。
 
 ## 路径 B — 进阶：typed LoopX Turn adapter

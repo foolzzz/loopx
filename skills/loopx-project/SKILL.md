@@ -581,34 +581,20 @@ search/use `automation_update` when available. If
 `scheduler_hint.app_automation.host_action=pause_or_delete_current_heartbeat`, call
 `automation_update` once to pause the current heartbeat (delete only when the
 host cannot pause), verify the host result, spend no quota, and end the turn.
-This terminal host action takes precedence over RRULE handling and requires no
-scheduler ACK. Otherwise use `automation_update` only when
+This terminal host action takes precedence over RRULE handling. Otherwise use
+`automation_update` only when
 `scheduler_hint.app_automation.stateful_backoff.apply_needed=true` and
-`scheduler_hint.app_automation.recommended_rrule` is present. After a successful
-RRULE update, run `loopx` with
-`scheduler_hint.app_automation.ack_hint.cli_args` (normally `quota scheduler-ack-current`,
-which re-reads the latest scheduler hint instead of hand-copying short-lived
-reset tokens). Attempt the host update at most once per hint and turn. If it
-fails or times out, do not retry or ACK; run
-`scheduler_hint.app_automation.failure_hint.cli_args` once. That no-spend writeback
-records the failed target/observed-host pair so later heartbeats suppress the
-exact repeat until either value changes. Continue allowed delivery under the
-observed host cadence. If
-`apply_needed=false` but `ack_needed=true`, a matching host
-readback already proves the RRULE; skip `automation_update` and run the bound
-ack hint directly. LoopX owns reset/progression state
-and omits `recommended_rrule` when the desired RRULE is already applied.
+`scheduler_hint.app_automation.recommended_rrule` is present. Attempt the host
+update at most once per hint and turn. If it fails or times out, do not retry;
+continue allowed delivery under the observed host cadence. LoopX keeps no App
+scheduler state and has no scheduler ACK or failure follow-up; it omits
+`recommended_rrule` when the desired RRULE is already applied.
 Cadence changes, reset-to-initial updates, final checks, and self-stop changes
 do not spend quota.
-For a uniquely matched active App heartbeat, `quota should-run`
-automatically reconciles the installed RRULE with LoopX's ACK ledger. Treat
+When the caller passes the observed RRULE, treat
 `stateful_backoff.host_observation.status=drift_detected` as authoritative for
-cadence repair; a stale or premature ACK must not suppress `apply_needed`.
-When readback matches a reset RRULE that is not yet bound in scheduler state,
-the ack hint carries the exact reset token, identity signature, and CLI route;
-missing readback must not use this shortcut.
-This readback is cadence-only and never exposes the automation prompt or grants
-LoopX permission to edit Codex App files directly.
+cadence repair. This readback is cadence-only and never exposes the automation
+prompt or grants LoopX permission to edit Codex App files directly.
 
 Read
 `execution_obligation` before
