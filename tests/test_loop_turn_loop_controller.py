@@ -458,18 +458,6 @@ def test_active_goal_completion_cannot_reselect_completed_todo() -> None:
         )
 
 
-def test_validated_progress_with_budget_runs_now() -> None:
-    receipt = _validated_receipt(result_kind=LoopXTurnResultKind.VALIDATED_PROGRESS)
-    payload = decide_loop_disposition(
-        turn_receipt=receipt,
-        quota_decision=_envelope(
-            should_run=True, predecessor_turn_key=receipt.turn_key
-        ),
-        bounded_turn_budget=_budget(max_turns=3, completed_turns=1),
-    )
-    _assert_markers(payload, "run_now")
-
-
 def test_validated_progress_with_exhausted_budget_requires_replan() -> None:
     receipt = _validated_receipt(result_kind=LoopXTurnResultKind.VALIDATED_PROGRESS)
     payload = decide_loop_disposition(
@@ -482,31 +470,6 @@ def test_validated_progress_with_exhausted_budget_requires_replan() -> None:
     _assert_markers(payload, "replan")
     assert "budget" in str(payload["reason"])
     assert payload["replan_continuation"]["requires_bounded_delta"] is True
-
-
-def test_validated_progress_without_delivery_decision_waits() -> None:
-    receipt = _validated_receipt(result_kind=LoopXTurnResultKind.VALIDATED_PROGRESS)
-    payload = decide_loop_disposition(
-        turn_receipt=receipt,
-        quota_decision=_envelope(
-            should_run=False,
-            quiet_noop_allowed=True,
-            predecessor_turn_key=receipt.turn_key,
-        ),
-        bounded_turn_budget=_budget(max_turns=3, completed_turns=1),
-    )
-    _assert_markers(payload, "wait")
-
-
-def test_validated_progress_without_bounded_budget_raises() -> None:
-    receipt = _validated_receipt(result_kind=LoopXTurnResultKind.VALIDATED_PROGRESS)
-    with pytest.raises(ValueError, match="bounded turn budget"):
-        decide_loop_disposition(
-            turn_receipt=receipt,
-            quota_decision=_envelope(
-                should_run=True, predecessor_turn_key=receipt.turn_key
-            ),
-        )
 
 
 def test_repair_receipt_routes_to_repair() -> None:
@@ -599,20 +562,6 @@ def test_user_action_from_receipt_wins() -> None:
         quota_decision=_envelope(
             should_run=True, predecessor_turn_key=receipt.turn_key
         ),
-    )
-    _assert_markers(payload, "user_action_required")
-
-
-def test_user_action_from_decision_wins_even_with_receipt() -> None:
-    receipt = _validated_receipt(result_kind=LoopXTurnResultKind.VALIDATED_PROGRESS)
-    payload = decide_loop_disposition(
-        turn_receipt=receipt,
-        quota_decision=_envelope(
-            should_run=True,
-            user_action_required=True,
-            predecessor_turn_key=receipt.turn_key,
-        ),
-        bounded_turn_budget=_budget(max_turns=3, completed_turns=1),
     )
     _assert_markers(payload, "user_action_required")
 

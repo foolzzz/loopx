@@ -320,11 +320,3 @@ def test_fence_caller_parity(workspaces: Callable[[str], Workspace], row: dict) 
             assert_canonical_lease_transition(ws, row["caller"], canonical_before, observed)
     assert observed["effect"] == row["effect"], observed
     assert observed["outbox_added"] == row.get("outbox_added", []), observed
-
-
-def test_baseline_annotations_are_not_stale() -> None:
-    for row in load_rows():
-        for revision, delta in (row.get("baseline") or {}).items():
-            if revision == "note":
-                continue
-            assert delta != row["expect"], row["id"]

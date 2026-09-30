@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
 from loopx.control_plane.work_items.task_lease import (
     acquire_task_lease,
@@ -23,6 +25,7 @@ def _fixture(
     *,
     enabled: bool,
     handoff_mode: str = "hard_lease",
+    retired_authority_shadow: bool = False,
 ) -> tuple[Path, Path, Path]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -45,6 +48,11 @@ def _fixture(
             "enabled": True,
             "schema_version": "loopx_coordination_runtime_shadow_config_v0",
             "provider": "file_v0",
+        }
+    if retired_authority_shadow:
+        coordination["authority_shadow"] = {
+            "schema_version": "loopx_local_authority_shadow_config_v0",
+            "mode": "file_one_way",
         }
     registry = tmp_path / "registry.json"
     registry.write_text(
@@ -252,3 +260,35 @@ def test_runtime_shadow_native_lease_writer_is_zero_effect_by_default(tmp_path: 
     assert "coordination_runtime_shadow_capture" not in acquired
     assert "coordination_runtime_shadow" not in acquired
     assert not (runtime_root / "authority-shadow").exists()
+
+
+@pytest.mark.parametrize("retired", [False, True])
+def test_retired_and_absent_settings_leave_public_writers_on_primary_only(tmp_path: Path, retired: bool) -> None:
+    registry, state, runtime = _fixture(tmp_path, enabled=False, retired_authority_shadow=retired)
+    retained = runtime / "authority-shadow" / "file" / GOAL_ID / "historical.json"
+    if retired:
+        retained.parent.mkdir(parents=True)
+        retained.write_bytes(b'{"historical":true}\n')
+    before = retained.read_bytes() if retired else None
+    added = add_goal_todo(registry_path=registry, goal_id=GOAL_ID, role="agent",
+        text="Continue primary work with a retained observation setting.", task_class="advancement_task")
+    todo_id = added["todo_id"]
+    acquired = acquire_task_lease(registry_path=registry, runtime_root=runtime, goal_id=GOAL_ID,
+        todo_id=todo_id, owner="agent-a", idempotency_key="retired-writer", ttl_seconds=120)
+    renewed = renew_task_lease(registry_path=registry, runtime_root=runtime, goal_id=GOAL_ID,
+        todo_id=todo_id, owner="agent-a", idempotency_key="retired-writer",
+        expected_version=acquired["lease"]["version"], ttl_seconds=180)
+    released = release_task_lease(registry_path=registry, runtime_root=runtime, goal_id=GOAL_ID,
+        todo_id=todo_id, owner="agent-a", idempotency_key="retired-writer",
+        expected_version=renewed["lease"]["version"])
+    for result in (added, acquired, renewed, released):
+        assert result["ok"] is True
+        assert "authority_shadow" not in result
+    assert todo_id in state.read_text()
+    assert not (runtime / "authority-shadow" / "outbox").exists()
+    assert not (runtime / "authority-shadow" / "file-v0").exists()
+    if retired:
+        assert retained.read_bytes() == before
+        assert list(retained.parent.iterdir()) == [retained]
+    else:
+        assert not (runtime / "authority-shadow").exists()

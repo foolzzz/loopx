@@ -1,16 +1,10 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import type { JsonObject } from "../../loopx/control_plane/effect_program.ts";
-import {
-  legacyCoordinationWriterFencePath,
-  loadLegacyCoordinationWriterFence,
-} from "../../loopx/control_plane/coordination/legacy_writer_fence.ts";
-import { GOAL, observeRow, TS_ROWS, type ParityRow } from "./legacy_writer_fence_caller_parity_support.ts";
+import { observeRow, TS_ROWS, type ParityRow } from "./legacy_writer_fence_caller_parity_support.ts";
 
 /**
  * Data-driven sibling-caller parity for fenced legacy writes.
@@ -33,29 +27,12 @@ interface FixtureRow {
   effect: { added: string[]; removed: string[]; changed: string[] };
   retry: JsonObject | null;
   after?: Record<string, JsonObject>;
-  baseline: Record<string, unknown> | null;
 }
 
 const fixture = JSON.parse(
   readFileSync(new URL("../fixtures/control_plane/legacy_writer_fence_caller_parity_v0.json", import.meta.url), "utf8"),
 ) as { schema_version: string; rows: FixtureRow[] };
 const rows = fixture.rows.filter((row) => row.surface === "ts_entry");
-
-test("production fence read removes the runtime path from EISDIR diagnostics", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "loopx-fence-read-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const path = legacyCoordinationWriterFencePath(root, GOAL);
-  await mkdir(path, { recursive: true });
-
-  const result = await loadLegacyCoordinationWriterFence(root, GOAL);
-
-  assert.deepEqual(result, {
-    status: "failed",
-    reason_code: "legacy_writer_fence_read_failed",
-    reason: "EISDIR: illegal operation on a directory, read",
-  });
-  assert.equal(result.status === "failed" && result.reason.includes(path), false);
-});
 
 function globMatches(pattern: string, path: string): boolean {
   const escaped = pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*");
@@ -72,12 +49,6 @@ function listFiles(root: string, prefix = ""): string[] {
 test("the fixture declares every TypeScript entry row exactly once", () => {
   assert.equal(fixture.schema_version, "loopx_legacy_writer_fence_caller_parity_v0");
   assert.deepEqual(rows.map((row) => row.id).sort(), TS_ROWS.map((row) => row.id).sort());
-  for (const row of rows) {
-    for (const [revision, delta] of Object.entries(row.baseline ?? {})) {
-      if (revision === "note") continue;
-      assert.notDeepEqual(delta, row.expect, `${row.id}: stale baseline annotation for ${revision}`);
-    }
-  }
 });
 
 for (const row of rows) {

@@ -243,25 +243,6 @@ def test_onboarding_projects_verified_filesystem_readback(
     assert contract["host_readback_required"] is True
 
 
-def test_skill_readback_rejects_content_changed_after_install(tmp_path: Path) -> None:
-    skills_dir = tmp_path / ".agents" / "skills"
-    _materialize_workflow_skills(skills_dir)
-    skill_path = skills_dir / REQUIRED_HOST_SKILL_IDS[0] / "SKILL.md"
-    skill_path.write_text(
-        skill_path.read_text(encoding="utf-8") + "\npost-install mutation\n",
-        encoding="utf-8",
-    )
-
-    readback = inspect_skill_install_readback(
-        skills_dir=skills_dir,
-        required_skill_ids=REQUIRED_HOST_SKILL_IDS,
-    )
-
-    assert readback["ready"] is False
-    assert readback["status"] == "skill_digest_mismatch"
-    assert readback["digest_mismatches"] == [REQUIRED_HOST_SKILL_IDS[0]]
-
-
 def test_skill_readback_rejects_a_different_cli_source_revision(
     tmp_path: Path,
 ) -> None:

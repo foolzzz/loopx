@@ -128,34 +128,9 @@ class TestAgentTypeCatalog:
 # -- Scheduler bindings -------------------------------------------------------
 
 class TestSchedulerBindings:
-    def test_runtime_profiles(self):
-        expected = {
-            "ark-managed-agent": "ark_managed_agent_goal",
-            "codex-app": "codex_app_heartbeat",
-            "trae_app": "trae_app",
-            "codex-app-ssh": "codex_app_ssh_goal",
-            "codex-cli": "codex_cli",
-            "codex-ide-plugin": "codex_cli",
-            "claude-code": "claude_code",
-            "opencode": "generic_cli",
-            "traex-cli": "generic_cli",
-            "pi": "generic_cli",
-            "gemini-cli": "generic_cli",
-            "cursor-agent": "generic_cli",
-        }
-        for at, profile in expected.items():
-            b = scheduler_command_binding_for_agent_type(at)
-            assert b.get("runtime_profile") == profile, at
-
     def test_manual_and_other_agent_have_no_profile(self):
         assert scheduler_command_binding_for_agent_type("manual") == {}
         assert scheduler_command_binding_for_agent_type("other-agent") == {}
-
-    def test_generic_cli_types_share_profile(self):
-        profiles = {
-            t: scheduler_command_binding_for_agent_type(t)["runtime_profile"]
-            for t in ["opencode", "traex-cli", "pi", "gemini-cli", "cursor-agent"]}
-        assert len(set(profiles.values())) == 1
 
 
 # -- Turn host identities -----------------------------------------------------

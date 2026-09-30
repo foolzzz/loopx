@@ -437,8 +437,10 @@ def test_goal_runtime_projects_typed_defer_with_recheck_delay() -> None:
 
     continuation = hint["goal_runtime_continuation"]
     assert continuation["disposition"] == "defer"
+    assert "recheck_source" not in continuation
     assert continuation["recheck_after_seconds"] == 15 * 60
     assert continuation["wake_policy"] == "state_change_or_deadline"
+    assert "frontier_recheck" not in hint
     assert hint["reset_policy"]["reset_token"]
     assert hint["execution_phase"]["disposition"] == "goal_runtime_owned"
 
@@ -1020,24 +1022,6 @@ def test_goal_runtime_defer_uses_exact_due_inside_host_floor() -> None:
     continuation = hint["goal_runtime_continuation"]
     assert continuation["recheck_after_seconds"] == 5 * 60
     assert continuation["recheck_source"] == "frontier_earliest_material_transition"
-
-
-def test_goal_runtime_defer_falls_back_to_codex_interval_without_frontier() -> None:
-    context = scheduler_execution_context_for_runtime_profile(
-        SchedulerRuntimeProfile.ARK_MANAGED_AGENT_GOAL
-    )
-
-    hint = build_scheduler_hint(
-        _monitor_wait_payload(),
-        scheduler_execution_context=context,
-    )
-
-    continuation = hint["goal_runtime_continuation"]
-    assert continuation["disposition"] == "defer"
-    assert "recheck_source" not in continuation
-    assert continuation["recheck_after_seconds"] == 15 * 60
-    assert continuation["wake_policy"] == "state_change_or_deadline"
-    assert "frontier_recheck" not in hint
 
 
 def test_non_goal_runtime_does_not_receive_goal_continuation() -> None:
