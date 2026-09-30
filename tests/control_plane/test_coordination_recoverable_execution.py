@@ -766,7 +766,7 @@ def test_evidence_rejects_host_paths_and_unknown_privacy_classes() -> None:
 
     accepted = verb(executor, "agent-a", "op-good-evidence", complete_command(
         revision=8, fence=fence, no_followup=True, evidence={
-            "pointer": "artifact://private/nokv/wb-goals/goal-a/report",
+            "pointer": "artifact://private/store/wb-goals/goal-a/report",
             "digest": GOOD_DIGEST, "privacy_class": "private",
         },
     ))
@@ -799,7 +799,7 @@ def test_evidence_pointer_binds_its_declared_privacy_class() -> None:
     rejected = [
         # An arbitrary URI scheme is not a reviewed artifact contract.
         {"pointer": "https://localhost/private/report", "privacy_class": "public"},
-        {"pointer": "nokv://private-workbench/secret", "privacy_class": "public"},
+        {"pointer": "kv://private-workbench/secret", "privacy_class": "public"},
         {"pointer": "artifact:/etc/passwd", "privacy_class": "private"},
         # The URI's typed privacy namespace and the sibling enum must agree.
         {"pointer": "artifact://private/runs/secret", "privacy_class": "public"},
@@ -829,7 +829,7 @@ def test_evidence_pointer_binds_its_declared_privacy_class() -> None:
                 "privacy_class": "public",
             },
             {
-                "pointer": "artifact://private/nokv/wb-goals/goal-a/report",
+                "pointer": "artifact://private/store/wb-goals/goal-a/report",
                 "digest": GOOD_DIGEST,
                 "privacy_class": "private",
             },

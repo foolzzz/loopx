@@ -4,6 +4,11 @@
 - 参考实现与探针：`examples/nokv-shadow-provider/`
 - 证据范围：canonical coordination aggregate、target-scoped conflict、内部 CAS
   rebase 与历史 operation receipt 重放
+- Fork 说明（2026-09-29）：本 fork 已退役 NoKV provider candidate，
+  `examples/nokv-shadow-provider/` 已删除。与 provider 无关的合同探针迁至
+  `tests/control_plane/test_coordination_contract_probes.py`，file provider 的
+  十二行场景矩阵迁至 `loopx/control_plane/testing/authority_e2e_file_matrix.py`。
+  下文保留为历史验证记录
 
 ## 1. 当前合并证据回答什么
 

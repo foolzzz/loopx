@@ -575,7 +575,7 @@ LoopX 当前有三个活跃战略计划和一个架构与研究孵化器。这�
   旅程仍在验收，由 `@maxliux5` 作为 implementation lead。
   [方向 Tracker](https://github.com/loopx-project/loopx/issues/3244)
 - **Shared Goal Authority 与跨 Host 协作：**为显式共享 goal 提供
-  provider-neutral 协调；NoKV 是尚未晋级的 provider candidate，而不是新的控制面
+  provider-neutral 协调；存储 provider 是尚未晋级的 candidate，而不是新的控制面
   权威。
   [方向 Tracker](https://github.com/loopx-project/loopx/issues/3245)
 - **架构与研究孵化器：**以明确不同的成熟度推进 Effect Program hardening、

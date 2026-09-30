@@ -1,60 +1,43 @@
-"""Deterministic probes for the coordination authority proof.
+"""Deterministic probes for the coordination authority contract.
 
-Run ``python probes.py contract`` without NoKV or external services.  Every
-claim/CAS probe drives the production coordination modules
-(``loopx.control_plane.coordination.head`` and ``.executor``) - there is no
-second reference authority - and finishes by round-tripping its persisted
-head through the production ``validated_head``, so a probe that passes is
-evidence about the exact code the runtime ships.  The claim/CAS probes do
-not qualify NoKV restart, recovery, GC, HA, or a live deployment.  The
-durable-completion probes are the offline read-side comparison registered by
-RFC shared-goal-authority-state-provider-v0.  They prove the provider byte-CAS
-can hold and read back a post-completion
-head whose durable records project to the same typed continuation outcomes
-(``successor | no_followup | active_goal``, fail-closed on
-contradiction/dangling) as the LoopX projection seam.  They deliberately
-mutate provider bytes to construct negative read fixtures; Stage 3 focused
-tests and ``live_e2e.py`` qualify the actual atomic completion write side.
+Every claim/CAS probe drives the production coordination modules
+(``loopx.control_plane.coordination.head`` and ``.executor``) over an in-memory
+byte-CAS provider - there is no second reference authority - and finishes by
+round-tripping its persisted head through the production ``validated_head``.
+The durable-completion probes are the offline read-side comparison registered
+by RFC shared-goal-authority-state-provider-v0: the provider byte-CAS can hold
+and read back a post-completion head whose durable records project to the same
+typed continuation outcomes (``successor | no_followup | active_goal``,
+fail-closed on contradiction/dangling) as the LoopX projection seam. They
+deliberately mutate provider bytes to construct negative read fixtures; the
+Stage 0 file matrix of the authority E2E ladder qualifies the atomic completion
+write side.
 """
 
 from __future__ import annotations
 
 import copy
 import json
-import os
-import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(
-    0,
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ),
-)
+import pytest
 
-from loopx.control_plane.coordination.executor import (  # noqa: E402
+from loopx.control_plane.coordination.executor import (
     CoordinationAuthorityExecutor,
     EnvelopeError,
     sample_claim_envelope,
 )
-from loopx.control_plane.coordination.head import (  # noqa: E402
+from loopx.control_plane.coordination.head import (
     bootstrap_head,
     validated_head,
 )
-from loopx.control_plane.todos.completion_state import (  # noqa: E402
+from loopx.control_plane.todos.completion_state import (
     completion_continuation_for_write,
 )
-from loopx.control_plane.todos.durable_completion import (  # noqa: E402
+from loopx.control_plane.todos.durable_completion import (
     project_durable_completion_outcome,
-)
-
-from provider import (  # noqa: E402
-    NoKVCoordinationProvider,
-    ProviderProtocolError,
-    ProviderUnavailableError,
-    open_nokv_coordination_provider,
 )
 
 
@@ -838,332 +821,6 @@ def probe_durable_completion_fail_closed() -> None:
     )
 
 
-class FakeNoKVClient:
-    """Minimal double for the NoKV Python SDK ``Client`` surface the adapter uses.
-
-    It raises the exception classes the SDK raises since NoKV 0.11.0
-    (``nokv-python`` maps ``NotFound`` to ``FileNotFoundError`` and
-    ``AlreadyExists`` to ``FileExistsError``; every other client failure stays
-    ``RuntimeError``).  Generations restart at 1 per path lifetime and every
-    replacement advances by one, like the live workspace.
-    """
-
-    def __init__(self):
-        self.paths: dict[tuple[str, str], tuple[bytes, int]] = {}
-        self.stat_failure: Exception | None = None
-        self.read_failure: Exception | None = None
-
-    def stat(self, workbench: str, path: str) -> dict:
-        if self.stat_failure is not None:
-            failure, self.stat_failure = self.stat_failure, None
-            raise failure
-        try:
-            _bytes, generation = self.paths[(workbench, path)]
-        except KeyError:
-            raise FileNotFoundError("workspace request failed: path does not exist") from None
-        return {"generation": generation}
-
-    def read(self, workbench: str, path: str) -> dict:
-        if self.read_failure is not None:
-            failure, self.read_failure = self.read_failure, None
-            raise failure
-        try:
-            data, generation = self.paths[(workbench, path)]
-        except KeyError:
-            raise FileNotFoundError("workspace request failed: path does not exist") from None
-        return {"bytes": data, "metadata": {"generation": generation}}
-
-    def publish_bytes(self, workbench: str, path: str, data: bytes, **options) -> dict:
-        expected = options.get("expected_generation")
-        current = self.paths.get((workbench, path))
-        if expected is None:
-            if current is not None:
-                raise FileExistsError(
-                    "artifact publication failed during complete: workspace request "
-                    "failed: path already exists"
-                )
-            generation = 1
-        else:
-            if current is None or current[1] != expected:
-                raise RuntimeError(
-                    "artifact publication failed during complete: workspace request "
-                    f"failed: path generation mismatch: expected {expected}"
-                )
-            generation = current[1] + 1
-        self.paths[(workbench, path)] = (bytes(data), generation)
-        return {"generation": generation}
-
-
-def probe_nokv_adapter_exception_mapping() -> None:
-    """The NoKV byte-CAS adapter classifies SDK failures by exception class only.
-
-    ``load`` returns ``(None, 0)`` only for the SDK's typed missing signal
-    (``FileNotFoundError``); any other client failure raises the typed
-    ``ProviderUnavailableError`` instead of masquerading as an uninitialized
-    goal or escaping as a bare ``RuntimeError``.  ``compare_and_put`` reports
-    typed ``applied | conflict | ambiguous | failed`` for every SDK outcome:
-    error prose is never a channel, because real non-missing failures carry
-    messages such as ``invalid root route: root placement does not exist``.
-    """
-
-    client = FakeNoKVClient()
-    goal_id = "adapter-mapping"
-    provider = NoKVCoordinationProvider(client, "wb-adapter", goal_id)
-    head = bootstrap_head(goal_id, {}, store_binding="probe:adapter")
-
-    assert provider.load() == (None, 0)
-    created = provider.compare_and_put(0, head)
-    assert created == {"result": "applied", "provider_generation": 1}, created
-    loaded, generation = provider.load()
-    assert loaded == head and generation == 1
-
-    # bootstrap race: the loser observed generation 0 before the winner landed
-    lost_race = provider.compare_and_put(0, head)
-    assert lost_race["result"] == "conflict", lost_race
-    assert lost_race["current_provider_generation"] == 1
-    provider._generation = lambda: 0  # the stat pre-check raced too
-    lost_race_at_publish = provider.compare_and_put(0, head)
-    assert lost_race_at_publish == {"result": "ambiguous"}, lost_race_at_publish
-    del provider._generation
-
-    # replacement CAS: stale expected generation, both before and at publish
-    advanced = copy.deepcopy(head)
-    advanced["authority_revision"] = 1
-    replaced = provider.compare_and_put(1, advanced)
-    assert replaced == {"result": "applied", "provider_generation": 2}, replaced
-    stale = provider.compare_and_put(1, advanced)
-    assert stale == {"result": "conflict", "current_provider_generation": 2}, stale
-    provider._generation = lambda: 1
-    stale_at_publish = provider.compare_and_put(1, advanced)
-    assert stale_at_publish == {"result": "ambiguous"}, stale_at_publish
-    del provider._generation
-
-    # a provider failure before any publish attempt proves that nothing was written
-    client.stat_failure = RuntimeError("RPC transport failed: connection refused")
-    failed = provider.compare_and_put(2, advanced)
-    assert failed["result"] == "failed", failed
-    assert provider.load() == (advanced, 2)
-
-    # A routing outage whose message carries a not-found token must classify
-    # as unavailable, never as missing: (None, 0) would tell the authority
-    # the goal is uninitialized and authorize a bootstrap-create during an
-    # outage.  This is the real string shape ClientError::InvalidRoute
-    # produces through the 0.11 SDK.
-    routing_outage = RuntimeError("invalid root route: root placement does not exist")
-    client.read_failure = routing_outage
-    try:
-        provider.load()
-    except ProviderUnavailableError as exc:
-        assert "root placement does not exist" in str(exc)
-    else:
-        raise AssertionError("routing outage was classified as missing")
-
-    # The same routing outage during the CAS pre-check is a typed failed
-    # verdict, never the conflict-or-create path a misclassified generation 0
-    # would take.
-    client.stat_failure = RuntimeError(
-        "logical shard LogicalShardId([34]) was not found"
-    )
-    outage_verdict = provider.compare_and_put(2, advanced)
-    assert outage_verdict["result"] == "failed", outage_verdict
-    assert "was not found" in outage_verdict["error"]
-
-    # A token-free outage is the same typed unavailable, not a bare
-    # RuntimeError leak.
-    client.read_failure = RuntimeError("connection refused by endpoint")
-    try:
-        provider.load()
-    except ProviderUnavailableError:
-        pass
-    else:
-        raise AssertionError("token-free outage did not raise typed unavailable")
-
-    # Pre-0.11 SDKs signalled missing with RuntimeError prose.  They cannot
-    # route the post-#465 control plane and are outside the pinned baseline,
-    # so that prose now classifies as unavailable rather than missing.
-    class LegacyClient(FakeNoKVClient):
-        def read(self, workbench: str, path: str) -> dict:
-            if (workbench, path) not in self.paths:
-                raise RuntimeError("workspace request failed: path not found")
-            return super().read(workbench, path)
-
-    legacy = NoKVCoordinationProvider(LegacyClient(), "wb-legacy", goal_id)
-    try:
-        legacy.load()
-    except ProviderUnavailableError:
-        pass
-    else:
-        raise AssertionError("legacy prose was still classified as missing")
-
-    # Corrupt persisted bytes and unserializable heads stay typed too, in
-    # parity with the file provider's seam contract.
-    corrupt_client = FakeNoKVClient()
-    corrupt_client.paths[("wb-corrupt", f"goals/{goal_id}/coordination-head.json")] = (
-        b"{not json",
-        3,
-    )
-    corrupt = NoKVCoordinationProvider(corrupt_client, "wb-corrupt", goal_id)
-    try:
-        corrupt.load()
-    except ProviderProtocolError:
-        pass
-    else:
-        raise AssertionError("corrupt persisted bytes escaped untyped")
-    unserializable = provider.compare_and_put(2, {"x": float("nan")})
-    assert unserializable["result"] == "failed", unserializable
-    assert "serializable" in unserializable["error"]
-
-    # The authoritative CAS token is typed state at both ends of the seam.
-    # A bool or otherwise invalid caller expectation is a typed failed
-    # verdict before any client I/O, and a malformed SDK response carrying
-    # generation true / a negative / a string must never be repaired into a
-    # legitimate generation.
-    class ExplodingClient:
-        def __getattr__(self, name):
-            raise AssertionError("no client I/O may happen for invalid input")
-
-    untouchable = NoKVCoordinationProvider(ExplodingClient(), "wb-typed", goal_id)
-    for invalid_expected in (True, False, -1, "1"):
-        verdict = untouchable.compare_and_put(invalid_expected, head)
-        assert verdict["result"] == "failed", (invalid_expected, verdict)
-        assert "non-negative integer" in verdict["error"]
-
-    class MalformedClient(FakeNoKVClient):
-        def __init__(self, generation_value):
-            super().__init__()
-            self.generation_value = generation_value
-
-        def stat(self, workbench, path):
-            return {"generation": self.generation_value}
-
-        def read(self, workbench, path):
-            return {
-                "bytes": b"{}",
-                "metadata": {"generation": self.generation_value},
-            }
-
-    for bad_generation in (True, -3, "7", None):
-        malformed = NoKVCoordinationProvider(
-            MalformedClient(bad_generation), "wb-malformed", goal_id
-        )
-        try:
-            malformed.load()
-        except ProviderProtocolError:
-            pass
-        else:
-            raise AssertionError(f"generation {bad_generation!r} was repaired")
-        try:
-            malformed._generation()
-        except ProviderProtocolError:
-            pass
-        else:
-            raise AssertionError(f"stat generation {bad_generation!r} was repaired")
-
-    class ShapelessClient(FakeNoKVClient):
-        def read(self, workbench, path):
-            return {"metadata": {"generation": 1}}
-
-    shapeless = NoKVCoordinationProvider(ShapelessClient(), "wb-shapeless", goal_id)
-    try:
-        shapeless.load()
-    except ProviderProtocolError as exc:
-        assert "bytes" in str(exc)
-    else:
-        raise AssertionError("missing read bytes escaped untyped")
-
-    class BoolPublishClient(FakeNoKVClient):
-        def publish_bytes(self, workbench, path, data, **options):
-            return {"generation": True}
-
-    bool_publish = NoKVCoordinationProvider(BoolPublishClient(), "wb-boolpub", goal_id)
-    try:
-        bool_publish.compare_and_put(0, head)
-    except ProviderProtocolError:
-        pass
-    else:
-        raise AssertionError("publish generation true was repaired to applied")
-
-    out(
-        "contract.nokv_adapter_exception_mapping",
-        ok=True,
-        uninitialized_load_typed=True,
-        create_only_race_typed=True,
-        stale_generation_typed=True,
-        pre_publish_failure_typed=True,
-        routing_outage_not_missing=True,
-        outage_raises_typed_unavailable=True,
-        legacy_prose_unsupported=True,
-        corrupt_bytes_typed=True,
-        unserializable_head_typed_failed=True,
-        invalid_expected_generation_typed=True,
-        malformed_generation_never_repaired=True,
-        malformed_result_shape_typed=True,
-    )
-
-
-def probe_nokv_fresh_client_failure_is_typed() -> None:
-    """A fresh SDK admission failure belongs to the provider boundary too.
-
-    Python evaluates constructor arguments before ``NoKVCoordinationProvider``
-    can run, so ``NoKVCoordinationProvider(make_client(), ...)`` leaks the
-    SDK's bare ``RuntimeError`` when eager route admission fails.  The
-    adapter-owned factory must classify that failure before any provider can
-    be returned or any coordination write can be attempted.  An already
-    admitted client must keep the same typed behavior on later calls.
-    """
-
-    calls = {"factory": 0, "publish": 0}
-
-    def unavailable_client_factory():
-        calls["factory"] += 1
-        raise RuntimeError("invalid root route: root placement does not exist")
-
-    try:
-        open_nokv_coordination_provider(
-            unavailable_client_factory,
-            "wb-fresh-outage",
-            "fresh-outage",
-        )
-    except ProviderUnavailableError as exc:
-        assert "root placement does not exist" in str(exc)
-        assert isinstance(exc.__cause__, RuntimeError)
-    else:
-        raise AssertionError("fresh client failure escaped the typed boundary")
-
-    assert calls == {"factory": 1, "publish": 0}
-
-    class AdmittedThenUnavailable(FakeNoKVClient):
-        def publish_bytes(self, workbench, path, data, **options):
-            calls["publish"] += 1
-            return super().publish_bytes(workbench, path, data, **options)
-
-    client = AdmittedThenUnavailable()
-    provider = open_nokv_coordination_provider(
-        lambda: client,
-        "wb-existing-outage",
-        "existing-outage",
-    )
-    client.read_failure = RuntimeError("transport closed after admission")
-    try:
-        provider.load()
-    except ProviderUnavailableError as exc:
-        assert "transport closed after admission" in str(exc)
-    else:
-        raise AssertionError("established provider leaked a bare client failure")
-
-    # Neither construction/read failure authorizes a create, local-file
-    # fallback, or other provider write.
-    assert calls == {"factory": 1, "publish": 0}
-
-    out(
-        "contract.nokv_fresh_client_failure_is_typed",
-        ok=True,
-        construction_failure_typed=True,
-        established_failure_typed=True,
-        no_write_or_fallback=True,
-    )
-
-
 PROBES = (
     probe_bootstrap_and_preconditions,
     probe_a_b_replay_a,
@@ -1171,26 +828,11 @@ PROBES = (
     probe_competing_claims,
     probe_crash_windows_and_ambiguity,
     probe_version_domains_and_retain_all,
-    probe_nokv_adapter_exception_mapping,
-    probe_nokv_fresh_client_failure_is_typed,
     probe_durable_completion_projection,
     probe_durable_completion_fail_closed,
 )
 
 
-def run_contract() -> None:
-    for probe in PROBES:
-        probe()
-    out("contract.summary", ok=True, probes=len(PROBES))
-
-
-def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] != "contract":
-        print("usage: python probes.py contract", file=sys.stderr)
-        return 2
-    run_contract()
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+@pytest.mark.parametrize("probe", PROBES, ids=lambda probe: probe.__name__)
+def test_contract_probe(probe: Callable[[], None]) -> None:
+    probe()

@@ -19,18 +19,8 @@ import pytest
 from loopx.control_plane.testing import authority_e2e_ladder as ladder
 
 
-LIVE_ENVIRONMENT_VARIABLES = (
-    ladder.POSTGRES_URL_VARIABLE,
-    ladder.NOKV_LIVE_FLAG,
-    *ladder.NOKV_STACK_VARIABLES,
-    ladder.NOKV_AUTHORITY_LIVE_FLAG,
-    *ladder.NOKV_AUTHORITY_VARIABLES,
-)
-GATED_ROW_IDS = (
-    "s0.nokv_live_matrix",
-    "s2a.nokv_live_qualification",
-    "s2b.postgresql_conformance_live",
-)
+LIVE_ENVIRONMENT_VARIABLES = (ladder.POSTGRES_URL_VARIABLE,)
+GATED_ROW_IDS = ("s2b.postgresql_conformance_live",)
 PENDING_ONLY_ROW_ID = "s2c2.sustained_parity_soak"
 PENDING_ROW_IDS = (PENDING_ONLY_ROW_ID,)
 CHEAP_DETERMINISTIC_ROW_ID = "s0.file_matrix_twelve_rows"
@@ -119,7 +109,7 @@ def test_registry_vocabulary_and_pending_rows_are_declared_not_claimed() -> None
     assert set(row_ids).isdisjoint(pending_ids)
     assert [row.id for row in ladder.LADDER_ROWS if row.stage == "2c2"] == list(STAGE_2C2_ROW_IDS)
     assert pending_ids == list(PENDING_ROW_IDS)
-    assert {row.stage for row in ladder.LADDER_ROWS} == {"0", "1", "2a", "2b", "2c1", "2c2"}
+    assert {row.stage for row in ladder.LADDER_ROWS} == {"0", "1", "2b", "2c1", "2c2"}
     assert {row.stage for row in ladder.PENDING_ROWS} == {"2c2"}
     assert all("#3819" not in row.pending_until for row in ladder.PENDING_ROWS)
     for row_id in STAGE_2C2_ROW_IDS:
@@ -158,17 +148,13 @@ def test_main_never_reports_green_while_unverified(
     assert report["summary"] == {
         "pass": 0,
         "fail": 0,
-        "unverified": 3,
+        "unverified": 1,
         "pending": 0,
-        "executed": 3,
+        "executed": 1,
         "privacy_violations": 0,
     }
     assert {row["status"] for row in report["rows"]} == {"unverified"}
-    assert {row["reason_code"] for row in report["rows"]} == {
-        "nokv_live_env_missing",
-        "nokv_authority_env_missing",
-        "postgres_url_missing",
-    }
+    assert {row["reason_code"] for row in report["rows"]} == {"postgres_url_missing"}
     assert report["exit_policy"] == {
         "allow_unverified": False,
         "allow_pending": False,
@@ -176,64 +162,16 @@ def test_main_never_reports_green_while_unverified(
         "rule": ladder.EXIT_POLICY_RULE,
     }
     assert report["bindings"]["postgres_url_sha256_prefix"] is None
-    assert report["bindings"]["nokv_client_config_sha256"] is None
     assert report["bindings"]["loopx_commit"] is None or len(report["bindings"]["loopx_commit"]) == 40
     captured = capsys.readouterr()
     assert "unverified rows:" in captured.err
 
     assert ladder.main([*argv, "--allow-unverified"]) == 0
     relaxed = json.loads(report_path.read_text(encoding="utf-8"))
-    assert relaxed["summary"]["unverified"] == 3
+    assert relaxed["summary"]["unverified"] == 1
     assert relaxed["exit_policy"]["allow_unverified"] is True
     assert relaxed["exit_policy"]["exit_code"] == 0
     capsys.readouterr()
-
-
-def test_stage_2a_row_reports_specific_unverified_reasons_for_each_missing_input(
-    tmp_path: Path,
-) -> None:
-    row = ladder.row_by_id("s2a.nokv_live_qualification")
-    assert row.gate == "env:nokv_authority"
-    assert row.stage == "2a"
-    base = {name: value for name, value in os.environ.items() if name not in LIVE_ENVIRONMENT_VARIABLES}
-
-    gated = ladder.run_row(row, root=tmp_path, environ=base)
-    assert gated.status == "unverified"
-    assert gated.reason_code == "nokv_authority_env_missing"
-    assert gated.evidence["missing_variables"] == sorted(
-        [ladder.NOKV_AUTHORITY_LIVE_FLAG, *ladder.NOKV_AUTHORITY_VARIABLES]
-    )
-
-    config = tmp_path / "nokv-client.json"
-    config.write_text(json.dumps({"root_id": "0" * 32, "object_store": {"kind": "memory"}}), encoding="utf-8")
-    inputs = {
-        **base,
-        ladder.NOKV_AUTHORITY_LIVE_FLAG: "0",
-        ladder.NOKV_AUTHORITY_CONFIG_VARIABLE: str(config),
-        ladder.NOKV_AUTHORITY_PYTHON_VARIABLE: "relative/python",
-        ladder.NOKV_AUTHORITY_WORKBENCH_VARIABLE: "ladder-workbench",
-    }
-    not_enabled = ladder.run_row(row, root=tmp_path, environ=inputs)
-    assert not_enabled.status == "unverified"
-    assert not_enabled.reason_code == "loopx_nokv_authority_live_not_enabled"
-
-    inputs[ladder.NOKV_AUTHORITY_LIVE_FLAG] = "1"
-    relative_python = ladder.run_row(row, root=tmp_path, environ=inputs)
-    assert relative_python.status == "unverified"
-    assert relative_python.reason_code == "nokv_authority_python_missing"
-
-    inputs[ladder.NOKV_AUTHORITY_CONFIG_VARIABLE] = str(tmp_path / "absent.json")
-    missing_config = ladder.run_row(row, root=tmp_path, environ=inputs)
-    assert missing_config.status == "unverified"
-    assert missing_config.reason_code == "nokv_authority_config_missing"
-
-    # Configuration values are secrets: every string leaf becomes a forbidden token.
-    inputs[ladder.NOKV_AUTHORITY_CONFIG_VARIABLE] = str(config)
-    tokens = ladder.default_forbidden_tokens([tmp_path], inputs)
-    assert str(config) in tokens
-    assert "0" * 32 in tokens
-    assert "memory" in tokens
-    assert ladder.collect_bindings(inputs)["nokv_client_config_sha256"] is not None
 
 
 @pytest.mark.stage2c_e2e
@@ -252,18 +190,6 @@ def test_stage_2c2_row_passes_when_the_ladder_root_is_reached_through_a_symlink(
     if result.status == "unverified":
         pytest.skip(f"unverified: {result.reason_code}")
     assert result.status == "pass", (result.reason_code, result.evidence)
-
-
-def test_nokv_sdk_pin_and_fence_checks_agree_across_helper_ladder_and_probe() -> None:
-    from loopx.control_plane.coordination import nokv_jsonl_helper as helper
-
-    assert ladder.QUALIFIED_NOKV_SDK_VERSION == helper.QUALIFIED_NOKV_SDK_VERSION == "0.11.1"
-    assert ladder.QUALIFIED_NOKV_API_VERSION == helper.QUALIFIED_NOKV_API_VERSION == 1
-    probe = (ladder.REPO_ROOT / ladder.NOKV_QUALIFICATION_SCRIPT).read_text(encoding="utf-8")
-    assert f'export const QUALIFIED_NOKV_SDK_VERSION = "{ladder.QUALIFIED_NOKV_SDK_VERSION}";' in probe
-    assert f"export const QUALIFIED_NOKV_API_VERSION = {ladder.QUALIFIED_NOKV_API_VERSION};" in probe
-    for check_id in ladder.NOKV_INCARNATION_FENCE_CHECKS:
-        assert f'passed("{check_id}")' in probe
 
 
 def test_pending_rows_never_exit_green_without_allow_pending(

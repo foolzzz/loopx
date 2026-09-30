@@ -104,7 +104,7 @@ async function* records(path: string): AsyncGenerator<ArchiveRecord> {
       exact(value, ["kind", "schema_version", "goal_id", "source_provider", "store_identity",
         "cursor", "provider_revision", "projection_sha256"]);
       if (value.kind !== "header" || value.schema_version !== SCHEMA ||
-          !["file", "sqlite", "postgresql", "nokv"].includes(String(value.source_provider))) invalid("invalid archive header");
+          !["file", "sqlite", "postgresql"].includes(String(value.source_provider))) invalid("invalid archive header");
       header = {...value, kind: "header", schema_version: SCHEMA,
         goal_id: requireAuthorityStoreId(value.goal_id, "archive goal id"),
         source_provider: String(value.source_provider), store_identity: requireAuthorityStoreId(value.store_identity, "store identity"),

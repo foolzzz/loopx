@@ -18,7 +18,7 @@ provider output, and no authority rule is re-derived here: the executor is the
 only decision maker under test.
 
 In scope: characterization only. No production code changes, no new provider,
-no default-provider or public-behavior change, and no live NoKV, credential,
+no default-provider or public-behavior change, and no live provider, credential,
 service-startup, or provider-promotion surface.
 """
 

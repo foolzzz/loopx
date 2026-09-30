@@ -96,6 +96,22 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   host surface, and the KunlunCode adapter guide. `LOOPX_KUNLUNCODE_OUTER_CONTROLLER`
   no longer has any effect. A persisted scheduler context or `--runtime-profile`
   that still names `kunluncode` is now reported as unsupported.
+- **NoKV authority provider candidate.** The Stage 2A NoKV candidate had no
+  CLI or runtime entry point and is retired. Removed:
+  - the TypeScript `NoKVAuthorityStore` and its JSONL transport, the Python
+    `nokv_jsonl_helper`, and the `nokv` provider profile;
+  - the `nokv-shadow-provider` and `nokv-authority-store` examples;
+  - the NoKV unit, transport and qualification-harness tests and their fake
+    SDK fixtures.
+
+  The shared-authority E2E ladder loses its `s0.nokv_live_matrix` and
+  `s2a.nokv_live_qualification` rows, the `env:nokv_*` gates, stage `2a`, and
+  the `nokv_client_config_sha256` and `nokv_sdk_version` report bindings. Its
+  Stage 0 file matrix now runs in-process from
+  `loopx/control_plane/testing/authority_e2e_file_matrix.py`. The
+  provider-neutral coordination contract probes moved to
+  `tests/control_plane/test_coordination_contract_probes.py`. An authority
+  archive whose header names `nokv` as its source provider is now rejected.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

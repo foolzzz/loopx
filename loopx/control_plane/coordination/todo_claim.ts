@@ -322,7 +322,7 @@ function activeLeaseForOwner(
 /**
  * Claim one Todo against the canonical provider head.
  *
- * The transaction is store-neutral: file, NoKV, and PostgreSQL adapters share
+ * The transaction is store-neutral: file, SQLite, and PostgreSQL adapters share
  * the same semantic decision, complete-record replacement, CAS, and receipt.
  * No caller-supplied projection is accepted.
  */

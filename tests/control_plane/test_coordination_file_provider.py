@@ -58,7 +58,7 @@ def test_store_identity_is_stable_and_strictly_formatted(provider) -> None:
         b"file:0123456789abcdef0123456789abcde",
         b"file:0123456789abcdef0123456789abcdef\n",
         b"file:0123456789ABCDEF0123456789ABCDEF",
-        b"nokv:0123456789abcdef0123456789abcdef",
+        b"sqlite:0123456789abcdef0123456789abcdef",
         b"file:\xff",
     ],
 )

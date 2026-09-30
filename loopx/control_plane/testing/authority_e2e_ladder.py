@@ -2,7 +2,7 @@
 
 One ladder, one row per completed RFC stage claim, one exit policy: the run
 is green only when every selected row passed. A row that cannot run in this
-environment (no PostgreSQL, no NoKV stack, no POSIX signals) reports
+environment (no PostgreSQL, no POSIX signals) reports
 ``unverified`` and, unless ``--allow-unverified`` is given, the ladder exits
 non-zero. Rows for stages that later PRs will land are declared as
 ``pending`` so the report never silently claims them.
@@ -24,9 +24,9 @@ import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from importlib import metadata
 from pathlib import Path
 
+from .authority_e2e_file_matrix import file_matrix
 from .authority_e2e_row_support import (
     AGENT_A,
     RowAssertionError,
@@ -57,26 +57,21 @@ from .authority_e2e_rows_stage2c2 import (
 )
 from .authority_e2e_fixtures import (
     REPO_ROOT,
-    CliOutputError,
     TS_READBACK_PROBE,
     JsonObject,
     node_executable,
-    parse_json_object,
     run_cli,
     tap_summary,
     ts_readback,
-    unique_goal_id,
 )
 
 REPORT_SCHEMA = "loopx_shared_goal_authority_e2e_report_v0"
 LIST_SCHEMA = "loopx_shared_goal_authority_e2e_rows_v0"
-STAGES: tuple[str, ...] = ("0", "1", "2a", "2b", "2c1", "2c2")
+STAGES: tuple[str, ...] = ("0", "1", "2b", "2c1", "2c2")
 PRODUCT_PATHS: tuple[str, ...] = ("real_cli", "store_direct")
 GATES: tuple[str, ...] = (
     "deterministic",
     "env:postgresql",
-    "env:nokv_authority",
-    "env:nokv_legacy",
 )
 ROW_STATUSES: tuple[str, ...] = ("pass", "fail", "unverified")
 EXIT_POLICY_RULE = (
@@ -85,67 +80,22 @@ EXIT_POLICY_RULE = (
 )
 
 POSTGRES_URL_VARIABLE = "LOOPX_TEST_POSTGRES_URL"
-NOKV_LIVE_FLAG = "NOKV_COORDINATION_LIVE"
-NOKV_STACK_VARIABLES: tuple[str, ...] = (
-    "NOKV_ETCD",
-    "NOKV_ETCD_PREFIX",
-    "NOKV_ROOT_ID",
-    "NOKV_BUCKET",
-    "NOKV_OBJECT_ENDPOINT",
-    "NOKV_OBJECT_ROOT",
-    "NOKV_OBJECT_KEY",
-    "NOKV_OBJECT_SECRET",
-)
-NOKV_SECRET_VARIABLES: tuple[str, ...] = ("NOKV_OBJECT_KEY", "NOKV_OBJECT_SECRET")
-# Stage 2A qualification inputs: the probe writes durable test data into an
-# existing workbench, so it needs an explicit opt-in flag plus the ignored
-# client configuration file, the Python executable that resolves the qualified
-# NoKV SDK, and the workbench name. Tenant and goal ids are minted per run.
-NOKV_AUTHORITY_LIVE_FLAG = "LOOPX_NOKV_AUTHORITY_LIVE"
-NOKV_AUTHORITY_CONFIG_VARIABLE = "LOOPX_NOKV_AUTHORITY_CONFIG_JSON"
-NOKV_AUTHORITY_PYTHON_VARIABLE = "LOOPX_NOKV_AUTHORITY_PYTHON"
-NOKV_AUTHORITY_WORKBENCH_VARIABLE = "LOOPX_NOKV_AUTHORITY_WORKBENCH"
-NOKV_AUTHORITY_VARIABLES: tuple[str, ...] = (
-    NOKV_AUTHORITY_CONFIG_VARIABLE,
-    NOKV_AUTHORITY_PYTHON_VARIABLE,
-    NOKV_AUTHORITY_WORKBENCH_VARIABLE,
-)
-LIVE_OPT_IN_FLAGS: tuple[str, ...] = (NOKV_LIVE_FLAG, NOKV_AUTHORITY_LIVE_FLAG)
 GATE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "deterministic": (),
     "env:postgresql": (POSTGRES_URL_VARIABLE,),
-    "env:nokv_authority": (NOKV_AUTHORITY_LIVE_FLAG, *NOKV_AUTHORITY_VARIABLES),
-    "env:nokv_legacy": (NOKV_LIVE_FLAG, *NOKV_STACK_VARIABLES),
 }
 GATE_UNVERIFIED_REASON: dict[str, str] = {
     "env:postgresql": "postgres_url_missing",
-    "env:nokv_authority": "nokv_authority_env_missing",
-    "env:nokv_legacy": "nokv_live_env_missing",
 }
 
-LIVE_E2E_SCRIPT = Path("examples") / "nokv-shadow-provider" / "live_e2e.py"
 PG_INTEGRATION_TEST = (
     Path("tests") / "control_plane_ts" / "postgresql_authority_store.integration.test.ts"
 )
-NOKV_QUALIFICATION_SCRIPT = Path("examples") / "nokv-authority-store" / "live-qualification.ts"
-NOKV_HELPER = Path("loopx") / "control_plane" / "coordination" / "nokv_jsonl_helper.py"
-NOKV_QUALIFICATION_REPORT_SCHEMA = "loopx_nokv_authority_live_qualification_v0"
-NOKV_QUALIFICATION_SCOPE = "stage_2a_single_node_store_conformance"
-QUALIFIED_NOKV_SDK_VERSION = "0.11.1"
-QUALIFIED_NOKV_API_VERSION = 1
-# NoKV 0.11.1 refuses a publication fenced on a stale workbench incarnation
-# before any durable row or object exists; the live probe must prove it.
-NOKV_INCARNATION_FENCE_CHECKS: tuple[str, ...] = (
-    "stale_incarnation_fence_rejected",
-    "stale_incarnation_fence_left_generation_unchanged",
-)
 PROBE_SOURCES: tuple[Path, ...] = (
-    LIVE_E2E_SCRIPT,
     TS_READBACK_PROBE,
     PG_INTEGRATION_TEST,
-    NOKV_QUALIFICATION_SCRIPT,
-    NOKV_HELPER,
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_ladder.py",
+    Path("loopx") / "control_plane" / "testing" / "authority_e2e_file_matrix.py",
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_fixtures.py",
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_row_support.py",
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_rows_stage2c.py",
@@ -165,7 +115,6 @@ FILE_MATRIX_ROWS: tuple[str, ...] = (
     "superseded_executor_cannot_write_back",
     "complete_creates_claimable_successor_atomically",
 )
-NOKV_ONLY_MATRIX_ROW = "restored_lineage_fails_closed"
 MINIMUM_POSTGRES_TAP_PASSES = 9
 @dataclass(frozen=True)
 class LadderRow:
@@ -233,73 +182,20 @@ class RowResult:
         }
 
 
-def _run_live_matrix_script(environ: Mapping[str, str], *, live: bool) -> JsonObject:
-    env = dict(environ)
-    env["PYTHONPATH"] = str(REPO_ROOT)
-    if not live:
-        env.pop(NOKV_LIVE_FLAG, None)
-    completed = subprocess.run(
-        [sys.executable, str(REPO_ROOT / LIVE_E2E_SCRIPT)],
-        cwd=REPO_ROOT,
-        env=env,
-        capture_output=True,
-        text=True, encoding="utf-8", errors="replace",
-        timeout=900,
-        check=False,
-    )
-    matrix = parse_json_object(completed.stdout)
-    matrix["_exit_code"] = completed.returncode
-    return matrix
-
-
-def _matrix_rows(matrix: Mapping[str, object], key: str) -> dict[str, object]:
-    rows = matrix.get(key)
-    expect(isinstance(rows, dict), f"live matrix must report {key}")
-    assert isinstance(rows, dict)
-    return {str(name): value for name, value in rows.items()}
-
-
-def _false_rows(rows: Mapping[str, object]) -> list[str]:
-    return sorted(name for name, value in rows.items() if value is not True)
-
-
 # ---------------------------------------------------------------------------
 # Stage 0: recoverable reference foundation (store_direct)
 # ---------------------------------------------------------------------------
 
 
 def _row_file_matrix_twelve_rows(context: RowContext) -> RowOutcome:
-    matrix = _run_live_matrix_script(context.environ, live=False)
-    file_rows = _matrix_rows(matrix, "file_provider")
+    file_rows = file_matrix(context.root / "file-matrix")
     expect(
         set(file_rows) == set(FILE_MATRIX_ROWS),
         "file provider matrix must contain exactly the twelve known rows",
     )
-    expect(not _false_rows(file_rows), "every file provider matrix row must be true")
-    expect(matrix["_exit_code"] == 0, "live matrix script must exit 0 without a stack")
-    return passed(matrix_rows=len(file_rows), script_exit_code=matrix["_exit_code"])
-
-
-def _row_nokv_live_matrix(context: RowContext) -> RowOutcome:
-    matrix = _run_live_matrix_script(context.environ, live=True)
-    nokv_rows = _matrix_rows(matrix, "nokv_provider")
-    if "unverified" in nokv_rows:
-        reason = str(nokv_rows["unverified"])
-        code = "nokv_sdk_missing" if "SDK" in reason else "nokv_matrix_unverified"
-        return unverified(code)
-    expected = {*FILE_MATRIX_ROWS, NOKV_ONLY_MATRIX_ROW}
-    expect(set(nokv_rows) == expected, "NoKV matrix must contain the shared rows plus the lineage row")
-    expect(not _false_rows(nokv_rows), "every NoKV matrix row must be true")
-    parity = _matrix_rows(matrix, "file_nokv_parity")
-    expect(parity.get("identical_row_outcomes") is True, "file and NoKV rows must be identical")
-    expect(parity.get("rows") == len(FILE_MATRIX_ROWS), "parity must cover the twelve shared rows")
-    expect(matrix["_exit_code"] == 0, "live matrix script must exit 0")
-    return passed(
-        nokv_rows=len(nokv_rows),
-        parity_rows=parity.get("rows"),
-        restored_lineage_fails_closed=True,
-        script_exit_code=matrix["_exit_code"],
-    )
+    failed = sorted(name for name, value in file_rows.items() if value is not True)
+    expect(not failed, f"every file provider matrix row must be true: {failed}")
+    return passed(matrix_rows=len(file_rows))
 
 
 # ---------------------------------------------------------------------------
@@ -354,133 +250,6 @@ def _row_cli_document_decodes_through_ts_store(context: RowContext) -> RowOutcom
     receipt = receipt_probe.get("receipt")
     expect(isinstance(receipt, dict) and receipt.get("status") == "found", "readReceipt must find the first source write")
     return passed(cursor="4", scan_pages=scan.get("pages"), transaction_count=4)
-
-
-# ---------------------------------------------------------------------------
-# Stage 2A: NoKV candidate conformance against a live single-node stack
-# ---------------------------------------------------------------------------
-
-
-def _absolute_existing_path(value: str | None, *, must_be_file: bool) -> Path | None:
-    if not value:
-        return None
-    path = Path(value)
-    if not path.is_absolute():
-        return None
-    if must_be_file and not path.is_file():
-        return None
-    if not must_be_file and not path.exists():
-        return None
-    return path
-
-
-def _nokv_authority_config_sha256(path: Path) -> str:
-    """Digest of the canonical client configuration; the values never leave the file."""
-
-    document = json.loads(path.read_text(encoding="utf-8"))
-    return sha256_hex(json.dumps(document, sort_keys=True, separators=(",", ":")))
-
-
-def _row_nokv_live_qualification(context: RowContext) -> RowOutcome:
-    node = node_executable()
-    if node is None:
-        return unverified("node_missing")
-    config_path = _absolute_existing_path(
-        context.environ.get(NOKV_AUTHORITY_CONFIG_VARIABLE), must_be_file=True
-    )
-    if config_path is None:
-        return unverified("nokv_authority_config_missing", variable=NOKV_AUTHORITY_CONFIG_VARIABLE)
-    python = _absolute_existing_path(
-        context.environ.get(NOKV_AUTHORITY_PYTHON_VARIABLE), must_be_file=True
-    )
-    if python is None:
-        return unverified("nokv_authority_python_missing", variable=NOKV_AUTHORITY_PYTHON_VARIABLE)
-    workbench = str(context.environ.get(NOKV_AUTHORITY_WORKBENCH_VARIABLE) or "")
-    tenant_id = unique_goal_id("ladder-tenant")
-    goal_id = unique_goal_id("ladder-2a")
-    completed = subprocess.run(
-        [
-            node,
-            "--no-warnings",
-            "--experimental-strip-types",
-            str(REPO_ROOT / NOKV_QUALIFICATION_SCRIPT),
-            "--execute-live",
-            "--config-json",
-            str(config_path),
-            "--python-executable",
-            str(python),
-            "--tenant-id",
-            tenant_id,
-            "--goal-id",
-            goal_id,
-            "--workbench",
-            workbench,
-        ],
-        cwd=REPO_ROOT,
-        env=dict(context.environ),
-        capture_output=True,
-        text=True, encoding="utf-8", errors="replace",
-        timeout=600,
-        check=False,
-    )
-    if completed.returncode != 0:
-        failure: JsonObject = {}
-        try:
-            failure = parse_json_object(completed.stderr.strip().splitlines()[-1])
-        except (CliOutputError, IndexError):
-            pass
-        raise RowAssertionError(
-            f"qualification probe exited {completed.returncode}: "
-            f"{failure.get('reason_code') or 'no typed failure on stderr'}"
-        )
-    report = parse_json_object(completed.stdout)
-    expect(
-        report.get("schema_version") == NOKV_QUALIFICATION_REPORT_SCHEMA
-        and report.get("ok") is True,
-        "qualification report must carry the reviewed schema and ok=true",
-    )
-    expect(
-        report.get("qualification_scope") == NOKV_QUALIFICATION_SCOPE,
-        "qualification scope must be single-node store conformance",
-    )
-    checks = report.get("checks")
-    expect(isinstance(checks, list) and len(checks) > 0, "qualification must report its checks")
-    assert isinstance(checks, list)
-    check_ids = [str(check.get("id")) for check in checks if isinstance(check, dict)]
-    expect(
-        len(check_ids) == len(checks)
-        and all(check.get("status") == "passed" for check in checks if isinstance(check, dict)),
-        "every qualification check must have passed",
-    )
-    expect(
-        all(check_id in check_ids for check_id in NOKV_INCARNATION_FENCE_CHECKS),
-        "qualification must prove the stale-incarnation publication fence",
-    )
-    expect(
-        report.get("nokv_sdk_version") == QUALIFIED_NOKV_SDK_VERSION
-        and report.get("nokv_api_version") == QUALIFIED_NOKV_API_VERSION,
-        "qualification must name the qualified NoKV SDK and API versions",
-    )
-    expect(
-        report.get("authority_source_changed") is False
-        and report.get("availability_or_ha_proven") is False,
-        "qualification must not claim promotion or availability",
-    )
-    return passed(
-        qualification_scope=NOKV_QUALIFICATION_SCOPE,
-        check_count=len(check_ids),
-        check_ids=check_ids,
-        incarnation_fence_checks=list(NOKV_INCARNATION_FENCE_CHECKS),
-        final_generation=report.get("final_generation"),
-        final_cursor=report.get("final_cursor"),
-        nokv_sdk_version=report.get("nokv_sdk_version"),
-        nokv_api_version=report.get("nokv_api_version"),
-        config_sha256_prefix=_nokv_authority_config_sha256(config_path)[:12],
-        workbench_sha256_prefix=sha256_hex(workbench)[:12],
-        tenant_id=tenant_id,
-        goal_id=goal_id,
-        durable_test_data_left=report.get("durable_test_data_left") is True,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -550,15 +319,6 @@ LADDER_ROWS: tuple[LadderRow, ...] = (
         run=_row_file_matrix_twelve_rows,
     ),
     LadderRow(
-        id="s0.nokv_live_matrix",
-        stage="0",
-        title="The same matrix passes on a live NoKV stack with identical outcomes",
-        product_path="store_direct",
-        gate="env:nokv_legacy",
-        posix_only=False,
-        run=_row_nokv_live_matrix,
-    ),
-    LadderRow(
         id="s1.cli_document_decodes_through_ts_store",
         stage="1",
         title="CLI-written candidate documents decode through the TypeScript FileAuthorityStore",
@@ -566,15 +326,6 @@ LADDER_ROWS: tuple[LadderRow, ...] = (
         gate="deterministic",
         posix_only=False,
         run=_row_cli_document_decodes_through_ts_store,
-    ),
-    LadderRow(
-        id="s2a.nokv_live_qualification",
-        stage="2a",
-        title="The merged NoKV candidate passes its live single-node qualification",
-        product_path="store_direct",
-        gate="env:nokv_authority",
-        posix_only=False,
-        run=_row_nokv_live_qualification,
     ),
     LadderRow(
         id="s2b.postgresql_conformance_live",
@@ -724,9 +475,6 @@ def gate_unverified_reason(gate: str, environ: Mapping[str, str]) -> tuple[str, 
     missing = sorted(name for name in required if not environ.get(name))
     if missing:
         return GATE_UNVERIFIED_REASON[gate], {"missing_variables": missing}
-    for flag in LIVE_OPT_IN_FLAGS:
-        if flag in required and environ.get(flag) != "1":
-            return f"{flag.lower()}_not_enabled", {"flag": flag}
     return None
 
 
@@ -741,38 +489,10 @@ def default_forbidden_tokens(roots: Iterable[Path], environ: Mapping[str, str]) 
     tokens.update({str(temp_root), str(temp_root.resolve())})
     tokens.add(environ.get("HOME") or str(Path.home()))
     tokens.update({str(REPO_ROOT), str(REPO_ROOT.resolve())})
-    for name in (POSTGRES_URL_VARIABLE, *NOKV_STACK_VARIABLES, *NOKV_AUTHORITY_VARIABLES):
-        value = environ.get(name)
-        if value:
-            tokens.add(value)
-    tokens.update(_nokv_authority_config_tokens(environ))
+    postgres_url = environ.get(POSTGRES_URL_VARIABLE)
+    if postgres_url:
+        tokens.add(postgres_url)
     return sorted((token for token in tokens if len(token) >= 4), key=len, reverse=True)
-
-
-def _nokv_authority_config_tokens(environ: Mapping[str, str]) -> set[str]:
-    """Every string leaf of the ignored client configuration is a forbidden token."""
-
-    path = _absolute_existing_path(environ.get(NOKV_AUTHORITY_CONFIG_VARIABLE), must_be_file=True)
-    if path is None:
-        return set()
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return set()
-    tokens: set[str] = set()
-
-    def walk(value: object) -> None:
-        if isinstance(value, str):
-            tokens.add(value)
-        elif isinstance(value, dict):
-            for item in value.values():
-                walk(item)
-        elif isinstance(value, list):
-            for item in value:
-                walk(item)
-
-    walk(document)
-    return tokens
 
 
 def redact(text: str, forbidden: Sequence[str]) -> str:
@@ -867,34 +587,6 @@ def _probe_digests() -> list[JsonObject]:
     return digests
 
 
-def _nokv_client_config_digest(environ: Mapping[str, str]) -> str | None:
-    config_path = _absolute_existing_path(
-        environ.get(NOKV_AUTHORITY_CONFIG_VARIABLE), must_be_file=True
-    )
-    if config_path is not None:
-        try:
-            return _nokv_authority_config_sha256(config_path)
-        except (OSError, ValueError):
-            return None
-    public = {
-        name: environ[name]
-        for name in NOKV_STACK_VARIABLES
-        if name not in NOKV_SECRET_VARIABLES and environ.get(name)
-    }
-    if len(public) != len(NOKV_STACK_VARIABLES) - len(NOKV_SECRET_VARIABLES):
-        return None
-    return sha256_hex(json.dumps(public, sort_keys=True, separators=(",", ":")))
-
-
-def _nokv_sdk_version() -> str | None:
-    for distribution in ("nokv", "nokv-python"):
-        try:
-            return metadata.version(distribution)
-        except metadata.PackageNotFoundError:
-            continue
-    return None
-
-
 def collect_bindings(environ: Mapping[str, str]) -> JsonObject:
     """Pin what the report was produced against; ``None`` means unknown."""
 
@@ -905,8 +597,6 @@ def collect_bindings(environ: Mapping[str, str]) -> JsonObject:
         "loopx_commit": commit.strip() if commit else None,
         "loopx_tree_dirty": bool(status.strip()) if status is not None else None,
         "probe_sha256": _probe_digests(),
-        "nokv_client_config_sha256": _nokv_client_config_digest(environ),
-        "nokv_sdk_version": _nokv_sdk_version(),
         "postgres_url_sha256_prefix": sha256_hex(postgres_url)[:12] if postgres_url else None,
         "pg_package_version": _pg_package_version(),
     }
@@ -1148,14 +838,6 @@ __all__ = [
     "GATES",
     "GATE_REQUIREMENTS",
     "LADDER_ROWS",
-    "LIVE_OPT_IN_FLAGS",
-    "NOKV_AUTHORITY_CONFIG_VARIABLE",
-    "NOKV_AUTHORITY_LIVE_FLAG",
-    "NOKV_AUTHORITY_PYTHON_VARIABLE",
-    "NOKV_AUTHORITY_VARIABLES",
-    "NOKV_AUTHORITY_WORKBENCH_VARIABLE",
-    "NOKV_LIVE_FLAG",
-    "NOKV_STACK_VARIABLES",
     "PENDING_ROWS",
     "POSTGRES_URL_VARIABLE",
     "PRODUCT_PATHS",

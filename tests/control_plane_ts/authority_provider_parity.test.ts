@@ -4,14 +4,6 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import test from "node:test";
 
-import type {
-  NoKVBlobCasRequest,
-  NoKVBlobCasResult,
-  NoKVBlobReadResult,
-  NoKVBlobTransport,
-  NoKVStoreIdentityResult,
-} from "../../loopx/control_plane/coordination/nokv_authority_store.ts";
-import {NoKVAuthorityStore} from "../../loopx/control_plane/coordination/nokv_authority_store.ts";
 import {FileAuthorityStore} from "../../loopx/control_plane/coordination/file_authority_store.ts";
 import {SqliteAuthorityStore} from "../../loopx/control_plane/coordination/sqlite_authority_store.ts";
 import type {AuthorityStore} from "../../loopx/control_plane/coordination/authority_store.ts";
@@ -22,33 +14,6 @@ import {PRODUCTION_SCALE_HISTORY, productionScaleCoordinationFixture,
   productionScaleHistoryProjection, productionScaleObservationStep} from
   "./production_scale_coordination_fixture.ts";
 import type {AuthorityProjectionSchema} from "./authority_projection_fixture.ts";
-
-interface BlobState {
-  identity: string;
-  generation: number;
-  bytes: Uint8Array | null;
-}
-
-class MemoryNoKVTransport implements NoKVBlobTransport {
-  private readonly state: BlobState;
-  constructor(state: BlobState) { this.state = state; }
-  async storeIdentity(_workbench: string): Promise<NoKVStoreIdentityResult> {
-    return {status: "available", store_identity: this.state.identity};
-  }
-  async readBlob(_workbench: string, _path: string): Promise<NoKVBlobReadResult> {
-    return this.state.bytes === null
-      ? {status: "missing"}
-      : {status: "loaded", bytes: this.state.bytes.slice(), generation: this.state.generation};
-  }
-  async casPublishBlob(request: NoKVBlobCasRequest): Promise<NoKVBlobCasResult> {
-    if ((this.state.bytes === null ? null : this.state.generation) !== request.expected_generation) {
-      return {status: "conflict", current_generation: this.state.bytes === null ? null : this.state.generation};
-    }
-    this.state.generation += 1;
-    this.state.bytes = request.bytes.slice();
-    return {status: "applied", generation: this.state.generation};
-  }
-}
 
 interface ProviderFixture {
   readonly name: string;
@@ -65,17 +30,9 @@ async function providers(t: test.TestContext): Promise<ProviderFixture[]> {
   });
   const file = new FileAuthorityStore(fileRoot, "parity-goal");
   const sqlite = new SqliteAuthorityStore(sqliteRoot, "parity-goal");
-  const state: BlobState = {identity: `nokv:parity-workbench:${"b".repeat(32)}`, generation: 0, bytes: null};
-  const nokvTransport = new MemoryNoKVTransport(state);
-  const nokv = new NoKVAuthorityStore(nokvTransport, {
-    tenant_id: "parity-tenant", goal_id: "parity-goal", workbench: "parity-workbench",
-  });
   return [
     {name: "file", store: file, contender: new FileAuthorityStore(fileRoot, "parity-goal"), close: async () => {}},
     {name: "sqlite", store: sqlite, contender: new SqliteAuthorityStore(sqliteRoot, "parity-goal"), close: async () => {}},
-    {name: "nokv", store: nokv, contender: new NoKVAuthorityStore(nokvTransport, {
-      tenant_id: "parity-tenant", goal_id: "parity-goal", workbench: "parity-workbench",
-    }), close: async () => {}},
   ];
 }
 

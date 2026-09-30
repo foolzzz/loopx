@@ -505,6 +505,7 @@ def main() -> int:
         tuple((marker, marker) for marker in (
             "OpenCode 1/2",
             "Pi",
+            "KunlunCode Goal Pro",
             "DeepSeek Harness",
             "Runtime Connector Catalog",
         )),

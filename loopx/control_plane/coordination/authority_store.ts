@@ -3,7 +3,7 @@ import type { JsonObject } from "../effect_program.ts";
 /**
  * Logical guarantees every promoted authority store must expose.
  *
- * These are LoopX persistence guarantees, not claims that file, NoKV, and
+ * These are LoopX persistence guarantees, not claims that file, SQLite, and
  * PostgreSQL have the same native primitives. The provider profile below
  * records how each backend can implement them and which qualifications remain.
  */
@@ -18,11 +18,10 @@ export const AUTHORITY_STORE_REQUIRED_GUARANTEES = [
 export type AuthorityStoreRequiredGuarantee =
   (typeof AUTHORITY_STORE_REQUIRED_GUARANTEES)[number];
 
-export type AuthorityStoreProviderKind = "file" | "nokv" | "postgresql" | "sqlite";
+export type AuthorityStoreProviderKind = "file" | "postgresql" | "sqlite";
 export type AuthorityStoreSourceAuthority = `${AuthorityStoreProviderKind}_v0`;
 export type AuthorityStoreProviderStage =
   | "stage1_implemented"
-  | "stage2a_candidate"
   | "stage2b_candidate";
 
 export interface AuthorityStoreProviderProfile {
@@ -59,21 +58,6 @@ export const AUTHORITY_STORE_PROVIDER_PROFILES = {
     qualification_holds: [
       "authority_source_promotion",
       "local_writer_fencing",
-    ],
-  },
-  nokv: {
-    stage: "stage2a_candidate",
-    revision_primitive: "path_generation_compare_and_publish",
-    atomic_commit_mapping: "single_cas_envelope",
-    receipt_and_cursor_mapping: "embedded_journal_pending_capacity_proof",
-    store_lineage_mapping: "workbench_workspace_incarnation_id",
-    trust_boundary: "loopx_authority_owned_nokv_credentials",
-    qualification_holds: [
-      "service_grade_contract_adapter",
-      "atomic_workspace_incarnation_publication_fence",
-      "restart_and_restore_recovery",
-      "capacity_and_receipt_retention",
-      "availability_and_ha",
     ],
   },
   postgresql: {

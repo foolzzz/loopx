@@ -40,7 +40,6 @@ from .authority_core import (
 from .head import (
     HeadMigrationRequired,
     HeadValidationError,
-    canonical_head_bytes,
     claim_snapshot_for_todo,
     evidence_contract_violation,
     validated_head,
@@ -1199,9 +1198,3 @@ class CoordinationAuthorityExecutor:
             "observed_authority_revision": head["authority_revision"],
             "provider_generation": provider_generation,
         }
-
-
-def deterministic_head_bytes(head: dict[str, Any]) -> bytes:
-    """Canonical bytes for providers that store raw bytes (NoKV adapter)."""
-
-    return canonical_head_bytes(head)
