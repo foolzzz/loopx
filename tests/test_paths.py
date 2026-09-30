@@ -119,24 +119,35 @@ def test_an_explicit_runtime_root_argument_wins_over_the_environment(
     assert fallback(str(explicit_root)) == explicit_root / "registry.global.json"
 
 
-def test_the_shell_spelling_applies_the_same_rule(
-    home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("value", [None, "", "absolute", "relative/root"])
+def test_the_shell_spelling_names_the_same_root_where_it_runs(
+    home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str | None
 ) -> None:
-    def shell_value(environ: dict[str, str]) -> str:
-        return subprocess.run(
-            ["sh", "-c", f'printf %s "{SHELL_DEFAULT_RUNTIME_ROOT}"'],
-            env=environ,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
+    """A rendered command and a CLI started in the same directory agree."""
 
-    environ = {key: value for key, value in os.environ.items() if key != RUNTIME_ROOT_ENV}
-    assert shell_value(environ) == str(default_runtime_root())
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)
+    environ = {key: item for key, item in os.environ.items() if key != RUNTIME_ROOT_ENV}
+    if value is not None:
+        text = str(tmp_path / "configured-root") if value == "absolute" else value
+        environ[RUNTIME_ROOT_ENV] = text
+        monkeypatch.setenv(RUNTIME_ROOT_ENV, text)
 
-    configured = tmp_path / "configured-root"
-    monkeypatch.setenv(RUNTIME_ROOT_ENV, str(configured))
-    assert shell_value({**environ, RUNTIME_ROOT_ENV: str(configured)}) == str(default_runtime_root())
+    rendered = subprocess.run(
+        ["sh", "-c", f'printf %s "{SHELL_DEFAULT_RUNTIME_ROOT}"'],
+        env=environ,
+        cwd=workdir,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    # The shell leaves a relative value relative; the path it names from the
+    # same working directory is the resolver's absolute root.
+    assert Path(os.path.abspath(workdir / rendered)) == default_runtime_root()
+    if not value:
+        assert Path(rendered) == home / ".loopx"
 
 
 def test_project_goal_state_lives_under_the_project_loopx_directory(tmp_path: Path) -> None:

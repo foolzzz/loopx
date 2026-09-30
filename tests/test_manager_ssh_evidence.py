@@ -84,6 +84,8 @@ def test_remote_source_is_discovered_and_read_without_local_host_metadata(remote
         argv[-2] == "research-host"
         and '"${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json"' in argv[-1]
     )
+    # The remote CLI resolves its runtime root itself.
+    assert "--runtime-root" not in argv[-1]
     assert "--manager-view todos" in argv[-1] and "--goal-id remote-goal" in argv[-1]
     assert "BatchMode=yes" in argv and opts["timeout"] == 45
     assert records[-1] == result

@@ -14,7 +14,7 @@ from typing import Any
 
 from . import POLICY_SCHEMA, _root, _read, _write
 from ...file_lock import exclusive_file_lock
-from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY, SHELL_DEFAULT_RUNTIME_ROOT
+from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY
 from ...control_plane.status.ssh_host_catalog import configured_ssh_host_aliases
 
 # --- The bounded turn-time source read ---------------------------------------
@@ -210,7 +210,9 @@ def read_remote(
     if args.get("include_stopped"):
         argv += ["--include-stopped"]
     command = (
-        f'exec "$HOME/.local/bin/loopx" --registry "{SHELL_DEFAULT_GLOBAL_REGISTRY}" --runtime-root "{SHELL_DEFAULT_RUNTIME_ROOT}" --format json '
+        # The remote CLI resolves its own runtime root (the registry's
+        # common_runtime_root, else its default); only the registry is named.
+        f'exec "$HOME/.local/bin/loopx" --registry "{SHELL_DEFAULT_GLOBAL_REGISTRY}" --format json '
         + shlex.join(argv)
     )
     ssh = [
