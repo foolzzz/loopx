@@ -13,6 +13,7 @@ from loopx.control_plane.todos.event_writeback import (
     complete_event_projected_goal_todo,
 )
 import loopx.control_plane.todos.mutation_authority as mutation_authority_module
+from loopx.control_plane.agents.runtime_model import RetiredAgentHierarchyError
 import loopx.control_plane.work_items.task_lease as task_lease_module
 from loopx.control_plane.work_items.task_lease import (
     TaskLeaseError,
@@ -106,6 +107,75 @@ def _write_fixture(
 
 def _lease_path(tmp_path: Path, todo_id: str) -> Path:
     return tmp_path / "runtime" / "goals" / GOAL_ID / "task-leases" / f"{todo_id}.json"
+
+
+@pytest.mark.parametrize("command", ["claim", "update", "supersede"])
+@pytest.mark.parametrize(
+    "legacy_coordination",
+    [
+        {"side_agent_handoff_agent": AUTHOR_AGENT},
+        {
+            "agent_profiles": {
+                AUTHOR_AGENT: {"worktree_policy": "clean-worktree"}
+            }
+        },
+        {
+            "agent_profiles": {
+                AUTHOR_AGENT: {"review_policy": {"can_self_merge": True}}
+            }
+        },
+        {
+            "completed_migrations": {
+                "peer_agent_runtime_v1": {"status": "completed"}
+            }
+        },
+    ],
+)
+def test_todo_mutation_authority_rejects_retired_hierarchy_before_decision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    legacy_coordination: dict[str, object],
+) -> None:
+    registry, _state = _write_fixture(tmp_path)
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["goals"][0]["coordination"].update(legacy_coordination)
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    def unexpected_decision(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("retired hierarchy reached authority decision")
+
+    monkeypatch.setattr(mutation_authority_module, "decide", unexpected_decision)
+    monkeypatch.setattr(
+        mutation_authority_module,
+        "effect_runtime_result",
+        unexpected_decision,
+    )
+
+    with pytest.raises(RetiredAgentHierarchyError):
+        mutation_authority_module.authorize_todo_lifecycle_mutation(
+            registry_path=registry,
+            goal_id=GOAL_ID,
+            command=command,
+            todo={
+                "todo_id": "todo-retired-hierarchy",
+                "role": "agent",
+                "status": "open",
+                "claimed_by": AUTHOR_AGENT,
+            },
+            actor_agent_id=AUTHOR_AGENT,
+            requested_claimed_by=AUTHOR_AGENT if command == "claim" else None,
+        )
+
+
+def test_todo_lifecycle_facts_reject_retired_hierarchy(tmp_path: Path) -> None:
+    registry, _state = _write_fixture(tmp_path)
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["goals"][0]["coordination"]["primary_agent"] = AUTHOR_AGENT
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(RetiredAgentHierarchyError):
+        mutation_authority_module.todo_lifecycle_facts(registry, GOAL_ID)
 
 
 def _agent_todo(state: Path, todo_id: str) -> dict:

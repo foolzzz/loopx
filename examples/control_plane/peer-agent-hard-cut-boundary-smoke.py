@@ -30,6 +30,7 @@ SCAN_FILES = (
 )
 ALLOWED_LEGACY_PATHS = {
     REPO_ROOT / "loopx" / "control_plane" / "agents" / "runtime_model.py",
+    REPO_ROOT / "loopx" / "control_plane" / "todos" / "completion_policy.ts",
     REPO_ROOT / "loopx" / "control_plane" / "todos" / "contract.py",
     REPO_ROOT / "loopx" / "control_plane" / "todos" / "legacy_continuation_policy_migration.ts",
     REPO_ROOT / "docs" / "reference" / "protocols" / "peer-agent-runtime-v1.md",
@@ -39,12 +40,18 @@ ALLOWED_LEGACY_PATHS = {
     REPO_ROOT / "docs" / "development" / "control-plane-course" / "05-work-graph-and-peers.md",
 }
 LEGACY_PATTERN = re.compile(
-    r"\bprimary_agent\b|\bprimary_review\b|\bside_agent\b|\bhandoff_agent\b|"
-    r"\bagent_profile_v0\b|\bprimary_checkout\b|"
+    r"\blegacy_hierarchy\b|\bprimary_agent\b|\bprimary_review\b|\bside_agent\b|"
+    r"\bside_agent_handoff_agent\b|\bhandoff_agent\b|\bagent_profile_v0\b|"
+    r"\back-automation-prompt-migration\b|"
+    r"control_plane[./]agents[./]legacy_migration(?:\.py)?|\bprimary_checkout\b|"
     r"\bprimary agent\b|\bside agent\b|\bside-agent\b|\bmain controller\b|"
     r"controller/sub-agent|controller-subagent|controller owns|"
     r'"role"\s*:\s*"(?:controller|subagent)"',
     re.IGNORECASE,
+)
+COMPLETED_MIGRATION_RECEIPT_PATTERN = re.compile(
+    r"completed_migrations.{0,240}peer_agent_runtime_v1",
+    re.DOTALL,
 )
 LEGACY_STABLE_IDENTIFIERS = ("showcase-side-agent-self-iteration",)
 
@@ -66,8 +73,12 @@ def main() -> int:
         "primary_agent",
         "primary_review",
         "side_agent",
+        "side_agent_handoff_agent",
         "handoff_agent",
         "agent_profile_v0",
+        "legacy_hierarchy",
+        "ack-automation-prompt-migration",
+        "control_plane.agents.legacy_migration",
         "primary_checkout",
     ):
         assert LEGACY_PATTERN.search(token), token
@@ -79,6 +90,10 @@ def main() -> int:
         if path in ALLOWED_LEGACY_PATHS:
             continue
         text = path.read_text(encoding="utf-8")
+        if COMPLETED_MIGRATION_RECEIPT_PATTERN.search(text):
+            violations.append(
+                f"{path.relative_to(REPO_ROOT)}: retired peer-agent migration receipt"
+            )
         for line_number, line in enumerate(text.splitlines(), start=1):
             scan_line = line
             for identifier in LEGACY_STABLE_IDENTIFIERS:

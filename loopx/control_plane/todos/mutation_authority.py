@@ -7,6 +7,7 @@ from ...agent_registry import (
     load_goal_from_registry,
     registered_agent_ids_for_goal,
 )
+from ..agents.runtime_model import reject_legacy_agent_hierarchy
 from ..coordination.authority_core import (
     CoordinationSnapshot,
     DecisionOutcome,
@@ -37,6 +38,7 @@ def todo_lifecycle_facts(
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """Project the existing registry owner for all canonical Todo mutations."""
     goal = load_goal_from_registry(registry_path, goal_id)
+    reject_legacy_agent_hierarchy(goal)
     registered = registered_agent_ids_for_goal(goal)
     coordination = goal.get("coordination") if isinstance(goal, Mapping) else None
     grants = normalize_todo_lifecycle_authority(
@@ -304,6 +306,7 @@ def authorize_todo_lifecycle_mutation(
     """Authorize one existing-todo lifecycle mutation before state changes."""
 
     goal = load_goal_from_registry(registry_path, goal_id)
+    reject_legacy_agent_hierarchy(goal)
     registered_agents = registered_agent_ids_for_goal(goal)
     normalized_actor = normalize_todo_claimed_by(actor_agent_id)
     core_todo = todo_snapshot_from_mapping(todo, infer_status_from_done=True)
