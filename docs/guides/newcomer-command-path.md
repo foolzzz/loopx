@@ -68,9 +68,8 @@ packet is the first task path: paste the generated transaction into Codex,
 Claude Code, or another compatible agent that can run shell commands from the
 project root. Replace `codex-cli-tui` with `codex-app-ssh`, `claude-code`, or
 `shell` when that is the actual host. Use `codex-app-ssh` for Codex App attached
-over SSH. When the host is unclear, omit
-the flag once and follow the returned read-only selection gate; that preview
-does not write project state.
+over SSH. When `--host-surface` is omitted, LoopX defaults to
+`codex-cli-tui`; pass every other host explicitly.
 
 ## Multi-Project Manager Commands
 

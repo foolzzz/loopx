@@ -156,9 +156,9 @@ canonical command list and fallback CLI shapes.
 
 Use `codex-cli-tui`, `codex-app-ssh`, `opencode`, or `opencode2` for the
 corresponding host. Use `codex-app-ssh` when the desktop app is attached to a
-remote workspace over SSH; LoopX will generate a visible `/goal` task. If the
-exact host is not known, omit `--host-surface` once: LoopX returns a read-only
-selection gate with exact rerun commands and does not write project state.
+remote workspace over SSH; LoopX will generate a visible `/goal` task. When
+`--host-surface` is omitted, LoopX defaults to `codex-cli-tui`; pass every
+other host explicitly.
 
 ## Local State Backup
 

@@ -81,12 +81,6 @@ loopx start-goal --guided --project . \
   --goal-id <goal-id> \
   --agent-id <agent-id> \
   --goal-text "<goal text>" \
-  --host-surface codex-app
-
-loopx start-goal --guided --project . \
-  --goal-id <goal-id> \
-  --agent-id <agent-id> \
-  --goal-text "<goal text>" \
   --host-surface codex-cli-tui
 ```
 

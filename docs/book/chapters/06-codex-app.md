@@ -1,5 +1,9 @@
 # 从 Codex App 启动
 
+!!! warning "已退役的宿主入口"
+    LoopX 已不再支持 Codex App onboarding 与 activation。本章暂时只保留 typed-core
+    清理所需的 scheduler 背景；可运行的接入方式请使用 Codex CLI 章节。
+
 Codex App 的职责是提供可见交互、Agent Turn 和 heartbeat automation。LoopX 的职责是从项目状态
 决定每次 heartbeat 是否应该工作、做什么，以及何时退避或停止。
 
@@ -138,7 +142,7 @@ loopx slash-commands --install
 ```bash
 loopx start-goal --guided --project . \
   --goal-text "<task>" \
-  --host-surface codex-app
+  --host-surface codex-cli-tui
 ```
 
 ### heartbeat 未建立
