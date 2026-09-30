@@ -122,7 +122,6 @@ def test_shared_project_readers_accept_strict_project_envelope(
         project,
         preferred_goal_id="goal-one",
         preferred_agent_id="agent-one",
-        require_preferred_binding=True,
     )
     indexed = registry_goal_by_id({"registry": str(registry_path)})
 

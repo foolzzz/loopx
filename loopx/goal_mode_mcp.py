@@ -287,7 +287,7 @@ def create_fastmcp_server(
         from mcp.server.fastmcp import FastMCP
     except Exception as exc:  # pragma: no cover - exercised by real adapter startup
         raise SystemExit(
-            "MCP SDK v1 is required. Install the adapter with loopx-kunluncode install.\n"
+            "MCP SDK v1 is required. Install it with: pip install 'mcp<2'\n"
             + str(exc)
         ) from exc
 

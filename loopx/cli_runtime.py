@@ -175,18 +175,6 @@ def resolve_cli_registry(
 	return registry_path, registry_was_configured
 
 
-def enforce_native_controller_guard(args: argparse.Namespace) -> int | None:
-	if os.environ.get("LOOPX_KUNLUNCODE_OUTER_CONTROLLER") != "1":
-		return None
-	from .kunluncode_goal_mode.guards import native_controller_cli_write_block
-
-	native_write_block = native_controller_cli_write_block(args)
-	if native_write_block is None:
-		return None
-	print(json.dumps(native_write_block, ensure_ascii=False, indent=2), file=sys.stderr)
-	return 2
-
-
 def _top_level_command(argv: list[str]) -> str | None:
 	index = 0
 	while index < len(argv):
@@ -348,9 +336,6 @@ def dispatch_common_command(
 
 def _dispatch_selected(args: argparse.Namespace, raw_argv: list[str]) -> int:
 	args.format = resolve_global_output_format(args)
-	guard_result = enforce_native_controller_guard(args)
-	if guard_result is not None:
-		return guard_result
 	registry_path, _registry_was_configured = resolve_cli_registry(args, raw_argv)
 	result = dispatch_common_command(
 		args,

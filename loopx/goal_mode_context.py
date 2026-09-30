@@ -57,13 +57,8 @@ def resolve_goal_context(
     *,
     preferred_goal_id: str | None = None,
     preferred_agent_id: str | None = None,
-    require_preferred_binding: bool = False,
 ) -> dict[str, Any] | None:
-    """Resolve one goal from the nearest registry and an optional host binding.
-
-    ``require_preferred_binding`` is used by hosts such as KunlunCode whose
-    identity must never fall back to another host's first registered agent.
-    """
+    """Resolve one goal from the nearest registry and an optional host binding."""
     registry = find_registry(cwd)
     if registry is None:
         return None
@@ -82,20 +77,13 @@ def resolve_goal_context(
             None,
         )
         preferred_goal_matched = chosen is not None
-        if chosen is None and require_preferred_binding:
-            return None
     if chosen is None:
         chosen = goals[0]
 
-    agents = registered_agent_ids(chosen)
     preferred_agent = str(preferred_agent_id or "").strip()
     if preferred_goal_id and not preferred_goal_matched:
         preferred_agent = ""
     agent_id = preferred_agent or first_registered_agent(chosen)
-    if require_preferred_binding and (
-        not preferred_agent_id or preferred_agent_id not in agents
-    ):
-        return None
 
     root = registry.parent.parent
     repo = chosen.get("repo")

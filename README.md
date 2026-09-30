@@ -361,7 +361,6 @@ and `.local/` ignored.
 | Codex App over SSH | `loopx agent-onboard --agent-type codex-app-ssh --project .` | The returned visible `/goal <task_body>` |
 | Codex CLI | Start `codex` in the project, ask it to connect and diagnose LoopX, then use `$loopx <complex task>` or `/skills`. | Visible `/goal <task_body>`; no hidden headless execution by default |
 | Claude Code | Install the opt-in adapter, then run `/loopx <task>` followed by `/loop`. | Native Claude Code `/loop` gated by LoopX |
-| KunlunCode | Run `loopx-kunluncode connect --project . --goal-id <goal-id> --agent-id <registered-agent-id>`, add a bounded todo, then run `loopx-kunluncode run --project .`. | Native Goal Pro through app-server; LoopX writes completion and quota only after strict verification |
 | OpenCode | Install the static command facade; opt in to `--with-goal-bridge` for recurring goals. | OpenCode command facade and explicit goal bridge |
 | Pi | Install the opt-in goal extension with `loopx slash-commands --install --surface pi`, then use `/loopx <task>` from a trusted Pi session. | Visible Pi goal extension gated by LoopX quota (`loopx_goal_activate` + `agent_settled` continuation) |
 | ZCode | Install the skill facade with `loopx slash-commands --install --surface zcode`, then invoke the `$loopx` skill (or `/loopx <complex task>`) from a ZCode session in the project. | The ZCode session's own turn loop; every continuation enters through `quota should-run` |
@@ -375,7 +374,6 @@ The exact, copy-ready setup messages and host recovery paths live in
 the [Codex App host command registry contract](docs/reference/protocols/codex-app-host-command-registry-v0.md),
 the [Codex CLI packaged install path](docs/product/runtimes/codex-cli/codex-cli-packaged-install.md),
 the [Claude Code adapter](loopx/claude_goal_mode/README.md), the
-[KunlunCode native Goal adapter](loopx/kunluncode_goal_mode/README.md), the
 [Kiro CLI goal-mode adapter](loopx/kiro_cli_goal_mode/README.md), or the
 [DeepSeek Harness turn adapter](loopx/dsh_goal_mode/README.md).
 
