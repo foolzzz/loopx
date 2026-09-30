@@ -157,18 +157,9 @@ task needs executor separation.
 Dashboards may render this projection. Writes still go through LoopX todo,
 gate, lease, quota, reward, and refresh commands.
 
-## Migration
+## Retired profile input
 
-The v0.1-to-peer migration treats `agent_profile_v0` as legacy input. After the
-host updates its installed automation and acknowledges the stable migration id,
-LoopX atomically:
-
-1. removes goal-level leader and default handoff fields;
-2. canonicalizes `registered_agents` to peer ids;
-3. upgrades profiles to `agent_profile_v1`;
-4. removes hierarchy roles plus identity-level workspace, review, and handoff
-   policy;
-5. records `completed_migrations.peer_agent_runtime_v1`.
-
-The completion command is idempotent. Once the marker is written, quota does
-not ask for that migration again.
+`agent_profile_v0` and profile-level main/side hierarchy policy are no longer
+migration inputs. LoopX reports the exact rejected field and requires the source
+registry to be updated to `agent_profile_v1` before work continues. Current
+profiles remain advisory and never grant authority.

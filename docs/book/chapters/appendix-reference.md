@@ -150,7 +150,7 @@ automation、Goal migration 或 Extension Provider 都已更新。
 
 - `loopx doctor`：wrapper、release manifest、Python import、skill delivery 与 Host integration；
 - `loopx slash-commands --install`：只更新 LoopX 管理的 command files，用户同名文件会被跳过；
-- `loopx quota should-run` / `loopx upgrade-plan`：检查 peer runtime 或 heartbeat prompt migration；
+- `loopx quota should-run --agent-id <registered-agent>`：检查 scoped runtime identity 与 heartbeat prompt 读回；
 - `loopx extension list` + executed `extension doctor`：每个 active revision 的 readiness；
 - `loopx status` / `history`：项目 registry、Goal、Todo 与 projection 未漂移。
 

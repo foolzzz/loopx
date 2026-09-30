@@ -71,7 +71,7 @@ Upstream LoopX has worker agents plan, decompose and self-claim work (`peer_v1`,
 43. Mechanical orchestrator bookkeeping (e.g. planning closeout after plan apply) is done by the system; orchestrator Turns receive a bounded precomputed state digest so they need few discovery steps. Approved by the user.
 
 ## Kernel seams (from code exploration)
-- **Registry roster:** `loopx/agent_registry.py`, `loopx/configure_goal.py`, `loopx/cli_commands/registry_admin.py`. The runtime model enum is in `loopx/control_plane/agents/runtime_model.py`; the anti-hierarchy rules are in `control_plane/agents/profile.py` and `legacy_migration.py`.
+- **Registry roster:** `loopx/agent_registry.py`, `loopx/configure_goal.py`, `loopx/cli_commands/registry_admin.py`. Runtime-model validation and retired hierarchy-field rejection are in `loopx/control_plane/agents/runtime_model.py`; current profile validation is in `control_plane/agents/profile.py`.
 - **Selection choke point:** `loopx/control_plane/todos/quota_selection.ts:121-183`, with its Python packer `quota_selection.py`.
 - **Replan routing** is currently hash-based: `goals/goal_frontier/__init__.py:~296` and `task_orchestration_admission.py:~112`.
 - **Todo contract:** `control_plane/coordination/coordination_state_contract_v0.json` plus the generator `scripts/generate_coordination_state_contract.py`. The status sets are hard-coded in about 11 places.

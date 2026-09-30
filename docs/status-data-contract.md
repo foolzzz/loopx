@@ -1229,16 +1229,10 @@ should treat this as a prompt-upgrade action, not as delivery permission, a
 quiet no-op, or a new operator gate. `should_run`, `normal_delivery_allowed`,
 and `interaction_contract.agent_channel.delivery_allowed` must stay `false`
 until the automation reruns `quota should-run` with a registered `--agent-id`.
-When v0.1 hierarchy fields are still present, the same object also carries a
-stable `migration_id`, `host_update_idempotency_key`, and `completion_command`.
-The host may retry regeneration and automation update with that same id; the
-registry cutover happens only after the host update succeeds and the completion
-command acknowledges that exact id. Completion removes the hierarchy fields,
-records `coordination.completed_migrations.peer_agent_runtime_v1`, and is an
-idempotent no-op when repeated with the completed id. Once that marker exists,
-`quota should-run` must never project this registry migration again. This is a
-stable, retryable migration until acknowledgment, not a recurring notification
-and not permission to update an automation more than once under different keys.
+Goals that retain v0.1 hierarchy fields fail before this prompt-upgrade
+projection. The error lists the rejected field paths and requires the source
+registry to be cleaned up; LoopX no longer emits a migration id or completion
+command for those fields.
 The selected identity is part of the turn envelope. Follow-up lifecycle
 commands that interpret or account for the same turn, including scoped
 `refresh-state` and `quota spend-slot`, should preserve the same `--agent-id`

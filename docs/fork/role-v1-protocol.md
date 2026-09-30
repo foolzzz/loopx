@@ -38,14 +38,15 @@ The following rules apply:
   requesting agent and `orchestrator_agent_id` for the goal. Both are present
   only under role_v1.
 
-## Removed anti-hierarchy rules
+## Profile labels and retired hierarchy fields
 
 - `agent_profiles.*.profile_role` is now a bounded, public-safe advisory label.
   Names such as `orchestrator`, `manager` and `worker` are allowed.
-- For role_v1 goals, the legacy (v0.1) hierarchy detector no longer treats
-  an `agent_profiles.*.role` key as a migration trigger. The other legacy
-  markers (`primary_agent`, `side_agent_handoff_agent`, `agent_profile_v0`)
-  are unchanged.
+- `agent_profiles.*.role` is accepted only for `role_v1` goals. Without an
+  explicit `role_v1` model it is rejected as retired v0.1 hierarchy input.
+- `primary_agent`, `side_agent_handoff_agent`, `agent_profile_v0`, and
+  profile-level hierarchy policy always fail fast with field-level cleanup
+  guidance. LoopX does not migrate them.
 
 ## Todo contract fields
 

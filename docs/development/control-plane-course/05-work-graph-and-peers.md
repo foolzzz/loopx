@@ -145,16 +145,16 @@ quota 可以同时返回：
 
 ## Equal Peer Runtime
 
-当前 live runtime model 是 `peer_v1`：
+当前 live runtime model 是 `role_v1` 或 `peer_v1`；在 `peer_v1` 中：
 
 - 所有 registered agents 是平等身份；
 - 没有永久的主执行者；
 - 没有永久的辅助执行者；
 - todo claim 和 continuation policy 决定当前工作归属；
 - task-scoped coordination 不授予 durable authority；
-- 旧 hierarchy 字段只允许存在于 exactly-once migration reader。
+- 旧 hierarchy 字段在进入 identity 或 routing 前直接拒绝。
 
-对应实现是 `loopx/control_plane/agents/runtime_model.py`。它只暴露 `AgentRuntimeModel.PEER_V1`。
+对应实现是 `loopx/control_plane/agents/runtime_model.py`。
 
 为什么这样设计？
 
@@ -743,25 +743,33 @@ def resolve_todo_continuation_policy(value, *, action_kind=None):
 
 默认 `independent_handoff` 是刻意的：完成者不会因为“刚做完上一项”就自动拥有下一项。只有 `same_agent_non_delivery` 这种明确的同 agent 连续工作才保留 owner。
 
-### 2. Live runtime model 只有 peer；旧 hierarchy 只是 migration input
+### 2. Live runtime model 不接受旧 hierarchy input
 
 `loopx/control_plane/agents/runtime_model.py` 是理解“没有 primary/side”最直接的代码：
 
 ```python
 class AgentRuntimeModel(str, Enum):
+    ROLE_V1 = "role_v1"
     PEER_V1 = "peer_v1"
 
 def agent_runtime_model_for_goal(goal):
+    reject_legacy_agent_hierarchy(goal)
     if isinstance(goal, Mapping):
         coordination = goal.get("coordination")
         raw = coordination.get("agent_model") if isinstance(coordination, Mapping) else None
         raw = raw or goal.get("agent_model")
-        if raw not in {None, "", "peer_v1", "legacy_hierarchy"}:
-            raise ValueError("coordination.agent_model must be peer_v1")
-    return AgentRuntimeModel.PEER_V1
+        if raw == "role_v1":
+            return AgentRuntimeModel.ROLE_V1
+        if raw == "peer_v1":
+            return AgentRuntimeModel.PEER_V1
+        if raw not in {None, ""}:
+            raise ValueError("coordination.agent_model must be role_v1 or peer_v1")
+    return AgentRuntimeModel.ROLE_V1
 ```
 
-`legacy_hierarchy` 被允许读入，是为了 exactly-once migration；函数返回值仍永远是 `peer_v1`。兼容 reader 的存在不能被解释为旧角色仍参与 live scheduling。
+`legacy_hierarchy`、`primary_agent`、`side_agent_handoff_agent`、
+`agent_profile_v0` 和 profile 中的旧层级 policy 会在身份与路由前被拒绝；
+错误会列出具体字段和清理步骤。LoopX 不再提供 v0.1 层级迁移。
 
 对于尚未 claim 的工作，稳定分配也不产生 leader：
 
