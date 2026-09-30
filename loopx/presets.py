@@ -230,12 +230,12 @@ def _preset_commands(
         "quota_guard": (
             f"{cli_bin} --format json quota should-run "
             f"--goal-id {_shell(goal_id)} --agent-id {_shell(agent_id)} "
-            "--runtime-profile codex_app_heartbeat"
+            "--runtime-profile codex_cli"
         ),
         "heartbeat_prompt": (
             f"{cli_bin} heartbeat-prompt --thin --goal-id {_shell(goal_id)} "
             f"--agent-id {_shell(agent_id)} --agent-scope {_shell(agent_scope)} "
-            "--runtime-profile codex_app_heartbeat"
+            "--runtime-profile codex_cli"
         ),
     }
 

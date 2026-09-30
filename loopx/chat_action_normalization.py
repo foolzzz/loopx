@@ -379,7 +379,6 @@ class ChatActionNormalizationMixin:
                     "agent_id",
                     "workspace_ref",
                     "permission",
-                    "heartbeat",
                     "stop_condition",
                     "initial_todos",
                 },
@@ -408,25 +407,6 @@ class ChatActionNormalizationMixin:
                     result[field] = _opaque(values[field], field=field)
             if result.get("agent_id"):
                 self._agent_eligibility(str(result["agent_id"]))
-            if values.get("heartbeat") is not None:
-                if not isinstance(values["heartbeat"], Mapping):
-                    raise ValueError("heartbeat must be an object")
-                heartbeat = self._allowed_parameters(
-                    values["heartbeat"], allowed={"enabled", "cadence", "timezone"}
-                )
-                enabled = heartbeat.get("enabled")
-                if not isinstance(enabled, bool):
-                    raise ValueError("heartbeat.enabled must be true or false")
-                normalized_heartbeat: dict[str, Any] = {"enabled": enabled}
-                if heartbeat.get("cadence"):
-                    normalized_heartbeat["cadence"] = _normalize_cadence(
-                        heartbeat["cadence"]
-                    )
-                if heartbeat.get("timezone"):
-                    normalized_heartbeat["timezone"] = _text(
-                        heartbeat["timezone"], field="heartbeat.timezone", limit=80
-                    )
-                result["heartbeat"] = normalized_heartbeat
             if values.get("initial_todos") is not None:
                 if not isinstance(values["initial_todos"], list):
                     raise ValueError("initial_todos must be a list")
@@ -470,56 +450,6 @@ class ChatActionNormalizationMixin:
                 "goal_id": goal_id,
                 "agent_id": agent_id,
             }
-        if action_kind == "heartbeat.bind":
-            values = self._allowed_parameters(
-                parameters,
-                allowed={
-                    "goal_id",
-                    "agent_id",
-                    "cadence",
-                    "timezone",
-                    "stop_condition",
-                    "notification_policy",
-                    "operation",
-                },
-            )
-            goal_id = _opaque(values.get("goal_id"), field="goal_id")
-            self._goal(goal_id)
-            operation = str(values.get("operation") or "bind").strip().lower()
-            if operation not in {"bind", "edit", "pause", "resume", "stop"}:
-                raise ValueError(
-                    "heartbeat operation must be bind, edit, pause, resume, or stop"
-                )
-            agent_id = _opaque(values.get("agent_id"), field="agent_id")
-            self._agent_eligibility(agent_id)
-            result: dict[str, Any] = {
-                "goal_id": goal_id,
-                "agent_id": agent_id,
-                "operation": operation,
-            }
-            if values.get("cadence"):
-                result["cadence"] = _normalize_cadence(values["cadence"])
-            if values.get("timezone"):
-                result["timezone"] = _text(
-                    values["timezone"], field="timezone", limit=80
-                )
-            if values.get("stop_condition"):
-                result["stop_condition"] = _text(
-                    values["stop_condition"], field="stop_condition", limit=160
-                ).lower()
-            if values.get("notification_policy"):
-                result["notification_policy"] = _opaque(
-                    values["notification_policy"], field="notification_policy"
-                )
-            if operation == "bind" and not all(
-                result.get(field) for field in ("cadence", "timezone", "stop_condition")
-            ):
-                raise ValueError(
-                    "heartbeat bind requires cadence, timezone, and stop_condition"
-                )
-            if operation == "edit" and len(result) == 3:
-                raise ValueError("heartbeat edit requires a configuration change")
-            return result
         if action_kind == "team.plan":
             from .control_plane.todos.contract import (
                 TODO_ACTION_KIND_ADVANCEMENT_VALUES,

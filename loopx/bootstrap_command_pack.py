@@ -69,10 +69,7 @@ HOST_SURFACE_SELECTION_SCHEMA_VERSION = "loopx_host_surface_selection_gate_v0"
 GOAL_CAPABILITY_ROUTE_SCHEMA_VERSION = "loopx_goal_capability_route_v0"
 START_GOAL_CAPABILITY_ROUTES = ("issue-fix",)
 START_GOAL_HOST_SURFACES = (
-    "codex-app",
-    "trae_app",
     "codex-app-ssh",
-    "codex-ide-plugin",
     "codex-cli-tui",
     "claude-code",
     "opencode",
@@ -358,10 +355,7 @@ def build_start_goal_host_surface_selection_packet(
     )
     normalized_goal_text = " ".join(goal_text.split())
     host_descriptions = {
-        "codex-app": "Codex desktop app with heartbeat automation support",
-        "trae_app": "Trae desktop app with heartbeat automation support",
         "codex-app-ssh": "Codex desktop app over SSH with visible /goal support",
-        "codex-ide-plugin": "Codex IDE plugin; activate its visible goal mode",
         "codex-cli-tui": "terminal Codex TUI with visible /goal support",
         "claude-code": "Claude Code with native /loop",
         "opencode": "OpenCode LoopX goal bridge",

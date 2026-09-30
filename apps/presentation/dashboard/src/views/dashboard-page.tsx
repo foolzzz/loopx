@@ -104,7 +104,6 @@ import {
   type WorkspaceOutput,
   type WorkspaceRun,
   type WorkspaceSchedule,
-  type WorkspaceScheduleKind,
   type WorkspaceSystemHealth,
   type WorkspaceTimelineItem,
   type WorkspaceWorker,

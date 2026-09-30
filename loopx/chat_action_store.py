@@ -26,7 +26,6 @@ ACTION_KINDS = {
     "todo.create",
     "todo.update",
     "agent.bind",
-    "heartbeat.bind",
     "monitor.create",
     "monitor.update",
     "gate.resolve",

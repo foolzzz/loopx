@@ -448,7 +448,7 @@ def _guided_scenario_packet(
         goal_id=goal_id,
         agent_id=agent_id,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text="Establish one public-safe quality contract.",
         available_capabilities=["network"],
         include_command_pack_detail=False,

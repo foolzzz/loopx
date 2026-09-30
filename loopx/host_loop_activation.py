@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-import shlex
 
 from .agent_registry import normalize_registered_agents
 from .agy_goal_mode import AGY_ACCEPTED_INPUTS
@@ -32,7 +31,6 @@ HOST_MANAGED_SKILL_AGENT_TYPES = frozenset(
     {
         "ark-managed-agent",
         "deepseek-harness-native",
-        "trae_app",
         "traex-cli",
         "other-agent",
     }
@@ -45,11 +43,8 @@ def scheduler_command_binding_for_agent_type(
     canonical = normalize_agent_type(agent_type)
     runtime_profile = {
         "ark-managed-agent": SchedulerRuntimeProfile.ARK_MANAGED_AGENT_GOAL,
-        "codex-app": SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT,
         "codex-app-ssh": SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE,
         "codex-cli": SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
-        "codex-ide-plugin": SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
-        "trae_app": SchedulerRuntimeProfile.TRAE_APP,
         "claude-code": SchedulerRuntimeProfile.CLAUDE_CODE_VISIBLE,
         "opencode": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "opencode2": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
@@ -74,11 +69,8 @@ def agent_type_uses_host_managed_skills(agent_type: str) -> bool:
 
 SUPPORTED_AGENT_TYPES = [
     "ark-managed-agent",
-    "codex-app",
     "codex-app-ssh",
-    "codex-ide-plugin",
     "codex-cli",
-    "trae_app",
     "claude-code",
     "opencode",
     "opencode2",
@@ -109,12 +101,6 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
             "managed agent",
         ],
     },
-    "codex-app": {
-        "display_name": "Codex App",
-        "host_loop": "Codex App heartbeat automation",
-        "entry": "$loopx <task> or the explicit LoopX skill from /skills",
-        "accepted_inputs": ["codex-app", "codex_app", "codex app", "codex-desktop", "codex desktop"],
-    },
     "codex-app-ssh": {
         "display_name": "Codex App over SSH",
         "host_loop": "visible Codex App /goal when host automation is unavailable over SSH",
@@ -140,33 +126,9 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
             "codex-cli-tui",
             "codex_cli_tui",
             "codex tui",
-        ],
-    },
-    "trae_app": {
-        "display_name": "Trae App",
-        "host_loop": "Trae App heartbeat automation",
-        "entry": "$loopx <task> or the explicit LoopX skill from /skills",
-        "accepted_inputs": [
-            "trae_app",
-        ],
-    },
-    "codex-ide-plugin": {
-        "display_name": "Codex IDE plugin",
-        "host_loop": "visible Codex IDE plugin /goal",
-        "entry": "$loopx <task> or the explicit LoopX skill from /skills",
-        "accepted_inputs": [
-            "codex-ide-plugin",
-            "codex_ide_plugin",
-            "codex ide plugin",
-            "codex-ide",
-            "codex_ide",
-            "codex ide",
-            "codex-ide-extension",
-            "codex ide extension",
-            "codex-vscode",
-            "codex vscode",
-            "vscode-codex",
-            "vscode codex",
+            "codex",
+            "openai-codex",
+            "openai codex",
         ],
     },
     "claude-code": {
@@ -307,9 +269,6 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
 }
 
 AMBIGUOUS_AGENT_TYPE_INPUTS: dict[str, list[str]] = {
-    "codex": ["codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-cli"],
-    "openai-codex": ["codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-cli"],
-    "openai codex": ["codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-cli"],
     "cli": ["codex-cli", "manual", "other-agent"],
 }
 
@@ -348,12 +307,7 @@ class AgentTypeError(ValueError):
 HOST_SURFACE_TO_AGENT_TYPE = {
     "ark-managed-agent": "ark-managed-agent",
     "ark_managed_agent": "ark-managed-agent",
-    "codex-app": "codex-app",
     "codex-app-ssh": "codex-app-ssh",
-    "chat-box": "codex-app",
-    "trae_app": "trae_app",
-    "codex-ide-plugin": "codex-ide-plugin",
-    "codex-ide": "codex-ide-plugin",
     "codex-cli-tui": "codex-cli",
     "claude-code": "claude-code",
     "opencode": "opencode",
@@ -486,7 +440,7 @@ def normalize_agent_type(value: str | None) -> str:
 
 
 def agent_type_for_host_surface(value: str | None) -> str:
-    key = (value or "codex-app").strip().lower()
+    key = (value or "codex-cli").strip().lower()
     if key in HOST_SURFACE_TO_AGENT_TYPE:
         return HOST_SURFACE_TO_AGENT_TYPE[key]
     return normalize_agent_type(key)
@@ -503,10 +457,7 @@ def _heartbeat_commands(
 ) -> dict[str, str]:
     scope_by_type = {
         "ark-managed-agent": "Ark Managed Agent one-shot Goal activation",
-        "codex-app": "Codex App heartbeat automation",
-        "trae_app": "Trae App heartbeat automation",
         "codex-app-ssh": "Codex App SSH /goal visible task loop",
-        "codex-ide-plugin": "Codex IDE plugin /goal visible task loop",
         "codex-cli": "Codex CLI /goal visible TUI loop",
         "claude-code": "Claude Code native /loop gated by LoopX",
         "opencode": "OpenCode visible goal loop gated by LoopX",
@@ -548,8 +499,7 @@ def _heartbeat_commands(
             **renderer_binding,
         ),
     }
-    if agent_type in {"codex-app", "trae_app", "codex-app-ssh", "codex-cli", "codex-ide-plugin",
-                      "ark-managed-agent"}:
+    if agent_type in {"codex-app-ssh", "codex-cli", "ark-managed-agent"}:
         commands = {key: command + " --bootstrap" for key, command in commands.items()}
     if renderer_binding:
         commands["visible_goal_prompt_json"] = commands["heartbeat_prompt_json"]
@@ -747,65 +697,6 @@ def _identity_state(
     )
 
 
-def _codex_app_activation(commands: dict[str, str]) -> dict[str, Any]:
-    return {
-        "host_surface": "codex_app_heartbeat_automation",
-        "entry_command_hint": "$loopx <task> or the explicit LoopX skill from /skills",
-        "activation_method": "create_or_update_codex_app_automation",
-        "activation_input_command": commands["heartbeat_prompt_json"],
-        "host_mutation": {
-            "owner": "Codex App host",
-            "preferred_tool": "automation_update",
-            "cli_can_mutate_directly": False,
-            "missing_host_tool_gate": (
-                "Codex App automation_update is unavailable; surface a pasteable "
-                "heartbeat task_body gate instead of claiming autonomous setup."
-            ),
-        },
-        "activation_steps": [
-            "Run the heartbeat-prompt JSON command after project state and todos are written.",
-            "Require ok=true; save the v2 bootstrap task_body through automation_update.",
-            "Read commands.automation_cadence_json before choosing a schedule; for an existing automation also read its automation-id scope.",
-            "New heartbeat: use max(3 minutes, configured minimum). Existing: preserve schedule unless it violates the configured minimum; preserve status, prompt and task binding.",
-            "Apply through automation_update, then view the automation and verify its actual RRULE. If the host rejects the required interval, hold the affected automation; never shorten the owner minimum.",
-            "On later ticks, follow quota should-run scheduler_hint for backoff and reset.",
-        ],
-        "success_criteria": [
-            "A Codex App heartbeat automation exists for this goal and uses the generated task_body.",
-            "The next wakeup starts from LoopX quota/status/state, not stale chat memory.",
-        ],
-    }
-
-
-def _trae_app_activation(commands: dict[str, str]) -> dict[str, Any]:
-    return {
-        "host_surface": "trae_app",
-        "entry_command_hint": "$loopx <task> or the explicit LoopX skill from /skills",
-        "activation_method": "create_or_update_trae_app_automation",
-        "activation_input_command": commands["heartbeat_prompt_json"],
-        "host_mutation": {
-            "owner": "Trae App host",
-            "preferred_tool": "automation_update",
-            "cli_can_mutate_directly": False,
-            "missing_host_tool_gate": (
-                "Trae App automation_update is unavailable; surface a pasteable "
-                "heartbeat task_body gate instead of claiming autonomous setup."
-            ),
-        },
-        "activation_steps": [
-            "Run the heartbeat-prompt JSON command after project state and todos are written.",
-            "Read task_body from the JSON payload.",
-            "Create or update a Trae App heartbeat automation starting at 3 minutes.",
-            "On later ticks, follow quota should-run scheduler_hint for backoff and reset.",
-        ],
-        "success_criteria": [
-            "A Trae App heartbeat automation exists for this goal and uses the generated task_body.",
-            "A settled non-terminal turn leaves the automation active for a fresh successor turn.",
-            "The next wakeup starts from LoopX quota/status/state, not stale chat memory.",
-        ],
-    }
-
-
 def _ark_managed_agent_activation(commands: dict[str, str]) -> dict[str, Any]:
     return {
         "host_surface": "ark_managed_agent_goal_mode",
@@ -889,14 +780,6 @@ def _codex_app_ssh_activation(commands: dict[str, str]) -> dict[str, Any]:
         "host Goal blocked; LoopX remains active until user /goal resume."
     )
     return activation
-
-
-def _codex_ide_activation(commands: dict[str, str]) -> dict[str, Any]:
-    return _codex_goal_activation(
-        commands,
-        host_label="Codex IDE plugin composer",
-        host_surface="codex_ide_visible_goal_mode",
-    )
 
 
 def _claude_code_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
@@ -1208,24 +1091,10 @@ def build_host_loop_activation_packet(
             "visible_goal_prompt_json": None,
         }
     )
-    if canonical == "codex-app" and activation_allowed:
-        cadence_args = [cli_bin, "--format", "json"]
-        if runtime_root:
-            cadence_args.extend(["--runtime-root", runtime_root])
-        cadence_args.extend(["automation-cadence", "--goal-id", goal_id])
-        if selected_agent_id:
-            cadence_args.extend(["--agent-id", str(selected_agent_id)])
-        commands["automation_cadence_json"] = shlex.join(cadence_args)
     if canonical == "ark-managed-agent":
         surface = _ark_managed_agent_activation(commands)
-    elif canonical == "codex-app":
-        surface = _codex_app_activation(commands)
-    elif canonical == "trae_app":
-        surface = _trae_app_activation(commands)
     elif canonical == "codex-app-ssh":
         surface = _codex_app_ssh_activation(commands)
-    elif canonical == "codex-ide-plugin":
-        surface = _codex_ide_activation(commands)
     elif canonical == "codex-cli":
         surface = _codex_cli_activation(commands)
     elif canonical == "claude-code":

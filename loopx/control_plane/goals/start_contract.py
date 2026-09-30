@@ -96,8 +96,6 @@ def build_goal_start_contract(
                 f"{cli_command_prefix} agent-onboard --list-agent-types"
             ),
             "host_surfaces": {
-                "codex-app": "Codex App heartbeat automation",
-                "trae_app": "Trae App heartbeat automation",
                 "codex-cli": "visible Codex CLI `/goal <task_body>`",
                 "claude-code": "Claude Code native `/loop` after `/loopx <task>` arms LoopX",
                 "opencode": "OpenCode `loopx_goal_activate`",
@@ -216,7 +214,7 @@ Rules:
 2. Capability: only `selected_capability_route`; run entry/admission and its later `capability show`; never infer from text/URLs. Capability state owns facts; generic Todos schedule.
 3. Todos: {todo_rule}.
 4. Writeback: current Todo evidence + next executable Todo, then `{refresh_command}` and quota readback. Chat/model summaries are not durable state.
-5. Host loop: after Todo write, activate missing/unknown/stale/type-changed Codex App heartbeat automation, CLI/TraeX `/goal`, Claude `/loop`, OpenCode bridge, Ark one-shot, or custom gate. Else surface the exact pasteable gate; never claim autonomy.
+5. Host loop: after Todo write, activate missing/unknown/stale/type-changed CLI/TraeX `/goal`, Claude `/loop`, OpenCode bridge, Ark one-shot, or custom gate. Else surface the exact pasteable gate; never claim autonomy.
 6. Run the returned typed `quota_guard`; finish one bounded segment with validation + LoopX writeback or an exact blocker. Setup/planning/claim is not delivery.
 7. Optional features: need, preview, explicit apply. Respect private data, credentials, destructive git, production authority, and review rules.{fine_rule}
 """

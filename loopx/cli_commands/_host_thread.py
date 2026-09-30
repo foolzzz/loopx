@@ -11,11 +11,8 @@ from ..kiro_cli_goal_mode import KIRO_CLI_AGENT_TYPE, KIRO_CLI_SESSION_ID_ENV
 # then resolves to no thread id instead of guessing from prose or reusing
 # another host's variable.
 HOST_THREAD_ID_ENV: dict[str, str] = {
-    "codex-app": "CODEX_THREAD_ID",
     "codex-app-ssh": "CODEX_THREAD_ID",
-    "codex-ide-plugin": "CODEX_THREAD_ID",
     "codex-cli-tui": "CODEX_THREAD_ID",
-    "trae_app": "TRAECLI_THREAD_ID",
     KIRO_CLI_AGENT_TYPE: KIRO_CLI_SESSION_ID_ENV,
 }
 

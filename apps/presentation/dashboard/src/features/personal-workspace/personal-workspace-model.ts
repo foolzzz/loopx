@@ -196,8 +196,6 @@ export type WorkspaceOutput = {
 export type WorkspaceChannel = "manager" | "attention" | "running" | "outputs";
 export type WorkspaceGoalTab = "overview" | "chat" | "tasks" | "roles" | "files";
 
-export type WorkspaceScheduleKind = "heartbeat" | "monitor";
-
 export type WorkspaceSchedule = {
   agentId?: string;
   executionHistory?: Array<{
@@ -213,7 +211,6 @@ export type WorkspaceSchedule = {
   previousRunAt?: string;
   schedule?: string;
   scheduleId?: string;
-  scheduleKind: WorkspaceScheduleKind;
   sessionId?: string;
   status?: "active" | "paused" | "draft" | "error";
   stopCondition?: string;
@@ -230,7 +227,6 @@ export type WorkspaceActionPreview = {
     | "todo.create"
     | "todo.update"
     | "agent.bind"
-    | "heartbeat.bind"
     | "monitor.create"
     | "monitor.update"
     | "gate.resolve"
@@ -432,7 +428,7 @@ export type PersonalWorkspaceCallbacks = {
   onRetryGoalArchive?: () => void | Promise<void>;
   onPreviewAction?: (request: WorkspaceActionPreviewRequest) => WorkspaceActionPreview | Promise<WorkspaceActionPreview>;
   onRequestGoalCreate?: () => WorkspaceActionPreview | Promise<WorkspaceActionPreview | void> | void;
-  onRequestScheduleConfig?: (kind: WorkspaceScheduleKind, goalId: string | null) => WorkspaceActionPreview | Promise<WorkspaceActionPreview | void> | void;
+  onRequestScheduleConfig?: (goalId: string | null) => WorkspaceActionPreview | Promise<WorkspaceActionPreview | void> | void;
   onRetryResumeRun?: (run: WorkspaceRun) => void | Promise<void>;
   onStartNewRunSession?: (run: WorkspaceRun) => void | Promise<void>;
   onUpdateSchedule?: (schedule: WorkspaceSchedule, operation: "edit" | "pause" | "resume" | "run_now" | "stop") => void | Promise<void>;

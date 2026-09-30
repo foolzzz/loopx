@@ -177,14 +177,13 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
             "argument_hint": "[--fine-grained] [--capability-route issue-fix] [task text]",
             "instructions": [
                 "Visible command arguments: `$ARGUMENTS`.",
-                "Identify the exact current host surface (codex-app, trae_app, codex-app-ssh, codex-ide-plugin, codex-cli-tui, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
+                "Identify the exact current host surface (codex-cli-tui, codex-app-ssh, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
                 _loopx_start_goal_arguments_instruction(
                     cli_bin=cli_bin,
                     host_surface=None,
                 ),
                 "Treat the returned `ordered_steps` and `goal_start_contract` as authoritative. Follow their identity, capability-route, Todo, writeback, host-loop, quota, and stop/gate rules before substantive work; do not reconstruct those rules from skill memory.",
                 "When the host explicitly supplies a `loopx_task_planning_v0` packet from `loopx todo plan` for a registered Goal/Agent, execute that bounded planning checkpoint instead of starting another Goal. Follow its shared planner and Todo delta, then return actual Todo ids for readback. Its caller-owned execution_handoff retains host activation and quota; do not create a planning Todo, execute task work, or claim delivery during the checkpoint.",
-                "For a Codex App heartbeat, run the returned activation command, require ok=true, and save its `LoopX managed heartbeat bootstrap v2` task_body through automation_update. The saved loader fetches the current thin contract on every wake; do not persist a raw thin/compact/full execution body. Preserve the current goal, registered agent, task binding and existing schedule; read back the automation through the same App.",
                 "If the packet exposes a goal-selection gate, rerun one exact choice before any mutation.",
                 "When authoring task Todos, treat `--action-kind` as the documented extensible public-safe token: choose a short task-relevant value such as `implement`, `test`, or `review`; do not search the LoopX source for an allowlist.",
                 "Consume the turn-start quota JSON packet exactly once: read the complete output directly or save it and query it with `jq`; never pipe it through `head` or `tail`, and never rerun the turn-start call to recover hidden fields. A host whose runtime mints Turn identity uses `--begin-turn`; every other host passes its own `--turn-instance-id`. When selection is required, choose the Todo and use `interaction_contract.cli_channel.selection_command` with the returned Turn identity before mutation.",
@@ -590,7 +589,7 @@ def _normalize_surfaces(surfaces: list[str] | None) -> list[str]:
             candidates = ["codex", "claude-code", "opencode"]
         elif surface == "codex":
             candidates = ["codex"]
-        elif surface in {"codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-ide", "codex-cli"}:
+        elif surface in {"codex-app-ssh", "codex-cli"}:
             candidates = ["codex"]
         elif surface in {"gemini-cli", "gemini-code"}:
             candidates = ["gemini"]
@@ -843,7 +842,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
                         "mechanism": "retired_codex_custom_prompt",
                         "command": spec["command"],
                         "path": str(prompt_path),
@@ -857,7 +856,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
                         "mechanism": "retired_codex_custom_prompt",
                         "command": spec["command"],
                         "path": str(prompt_path),
@@ -875,7 +874,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
                         "mechanism": "codex_explicit_skills",
                         "command": spec["command"],
                         "path": str(skill_path),
@@ -887,7 +886,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
                         "mechanism": "codex_skill_openai_metadata",
                         "command": spec["command"],
                         "path": str(metadata_path),
@@ -901,7 +900,7 @@ def install_slash_commands(
             installed.append(
                 {
                     "surface": "codex",
-                    "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                    "host_surfaces": ["codex-cli", "codex-app-ssh"],
                     "mechanism": "codex_explicit_skills",
                     "command": spec["command"],
                     "path": str(skill_path),
@@ -922,7 +921,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
                         "mechanism": "codex_skill_openai_metadata",
                         "command": spec["command"],
                         "path": str(metadata_path),
@@ -936,7 +935,7 @@ def install_slash_commands(
                     installed.append(
                         {
                             "surface": "codex",
-                            "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                            "host_surfaces": ["codex-cli", "codex-app-ssh"],
                             "mechanism": "retired_codex_command_metadata",
                             "command": spec["command"],
                             "path": str(metadata_path),
