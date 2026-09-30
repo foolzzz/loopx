@@ -1775,22 +1775,6 @@ def render_start_goal_guided_markdown(payload: dict[str, Any]) -> str:
             + "\n"
         )
     orphan_gate_lines = render_guided_lines(transaction)
-    host_gate = transaction.get("host_surface_selection_gate")
-    host_gate = host_gate if isinstance(host_gate, dict) else {}
-    host_gate_lines = ""
-    if host_gate:
-        choices = [
-            f"- `{choice.get('host_surface')}`: {choice.get('description')}  "
-            f"\n  `{choice.get('rerun_command')}`"
-            for choice in host_gate.get("choices") or []
-            if isinstance(choice, dict)
-        ]
-        host_gate_lines = (
-            "\n## Host Surface Gate\n\n"
-            f"{host_gate.get('reason')}\n\n"
-            + "\n".join(choices)
-            + "\n"
-        )
     return f"""# Guided Start Goal
 
 - project: `{payload.get("project")}`
@@ -1802,7 +1786,6 @@ Preview only; follow ordered commands to mutate.
 ## Ordered Transaction
 
 {chr(10).join(step_lines)}
-{host_gate_lines}
 {goal_gate_lines}
 {orphan_gate_lines}
 {identity_gate_lines}
