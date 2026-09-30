@@ -191,8 +191,11 @@ def test_revision_invalidates_prior_approval_and_effect_intent() -> None:
 
     assert item["state"] == "draft"
     assert item["revision"] == 2
+    assert item["content_digest"] == DIGEST_V2
     assert item["approval"] is None
     assert item["delivery_intent"] is None
+    assert item["delivery_receipt"] is None
+    assert item["readback_receipt"] is None
 
 
 def test_revoked_approval_returns_item_to_review() -> None:

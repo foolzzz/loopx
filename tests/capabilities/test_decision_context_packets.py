@@ -293,6 +293,7 @@ def test_proposal_is_advisory_and_references_evidence() -> None:
 
     assert proposal["schema_version"] == "decision_proposal_v0"
     assert proposal["evidence_packet_ref"] == evidence["packet_ref"]
+    assert proposal["objective_scores"][0]["score"] == 0.8
     assert proposal["capability"]["creates_authority"] is False
     assert proposal["authority_confirmation_required"] is True
     assert "changed_facts" not in proposal

@@ -35,6 +35,7 @@ def run_cli(*args: str) -> dict[str, object]:
 
 def main() -> int:
     architecture = build_reward_memory_architecture_packet()
+    assert architecture["status"] == "design_contract"
     classes = {item["class_id"]: item for item in architecture["memory_classes"]}
     assert set(classes) == {
         "run_bound_reward",

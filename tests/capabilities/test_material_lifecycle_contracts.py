@@ -321,6 +321,12 @@ def test_archive_and_reactivation_preserve_stable_references() -> None:
     )
 
     assert archived["source_reference_preserved"] is True
+    assert archived["transition_authority_ref"] == "decision-outcome:archive-1"
+    assert archived["from_state"] == "active"
+    assert archived["to_state"] == "archived"
+    assert reactivated["transition_authority_ref"] == "policy:reactivate-reviewed-archive"
+    assert reactivated["from_state"] == "archived"
+    assert reactivated["to_state"] == "active"
     assert reactivated["material_ref"] == archived["material_ref"]
     assert reactivated["archive_ref"] == archived["archive_ref"]
     assert reactivated["raw_content_captured"] is False
@@ -378,6 +384,7 @@ def test_rerank_proposal_is_bounded_and_decision_referenced() -> None:
 
     assert proposal["no_change"] is False
     assert proposal["apply_authorized"] is False
+    assert proposal["decision_evidence_ref"] == "decision-evidence-0123456789abcdef"
     assert proposal["constraints"]["max_moved_items"] == 3
     assert proposal["moves"][0]["material_ref"] == "material:42"
 
@@ -453,6 +460,9 @@ def test_apply_receipt_requires_owner_gate_validation_and_rollback() -> None:
     )
     assert applied["status"] == "applied"
     assert applied["raw_content_captured"] is False
+    assert applied["owner_gate_ref"] == "gate:rerank-1"
+    assert applied["validation_ref"] == "validation:rerank-1"
+    assert "cursor_commit_ref" not in applied
 
     with pytest.raises(ValueError, match="rollback_ref"):
         build_material_rerank_apply_receipt(
