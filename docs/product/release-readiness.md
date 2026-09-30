@@ -629,6 +629,15 @@ path, and canary route rather than as a user-facing release baseline.
   and Goal acceptance plus replan obligations retained their existing authority
   owners. The published package, desktop artifacts, signed update feed, and
   website were verified before `stable` fast-forwarded.
+- `v2.0.0` on 2026-09-29 13:51 -07:00: first release of this fork at the
+  matching `v2.0.0` tag (`1ef0ccbfa`). The fork branched from upstream `1.2.0`
+  at `71dbfd5e6` and no longer tracks upstream. It adds the `role_v1` runtime
+  model (orchestrator, developer and acceptor roles) as the default for new
+  goals, the resident `loopx dispatch serve` dispatcher, gate discussion and
+  plan cards, review before merge through `in_review`, multi-repo git
+  workspaces, push and goal-complete gates, per-Turn cost accounting with
+  optional budgets, and a dashboard role board. The fork's releases are
+  recorded in [CHANGELOG.md](../../CHANGELOG.md).
 
 When a new public release is promoted, add it here only after the matching tag,
 release note, stable ref, update path, and focused release canary agree.
