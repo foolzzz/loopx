@@ -233,6 +233,26 @@ def test_root_legacy_model_alias_is_rejected() -> None:
         build_quota_agent_identity(goal, agent_id=AGENT_ID)
 
 
+def test_root_role_v1_keeps_current_profile_roles() -> None:
+    goal = {
+        "agent_model": "role_v1",
+        "coordination": {
+            "registered_agents": [AGENT_ID],
+            "agent_profiles": {
+                AGENT_ID: {
+                    "schema_version": "agent_profile_v1",
+                    "role": "developer",
+                }
+            },
+        },
+    }
+
+    identity = build_quota_agent_identity(goal, agent_id=AGENT_ID)
+
+    assert identity is not None
+    assert identity["agent_model"] == "role_v1"
+
+
 @pytest.mark.parametrize("agent_id", [None, "../private-agent", "agent-beta"])
 def test_retired_hierarchy_precedes_identity_admission(agent_id: str | None) -> None:
     goal = {

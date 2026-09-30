@@ -115,11 +115,14 @@ def peer_delivery_workspace(
         AGENT_ROLE_DEVELOPER,
         AGENT_ROLE_ORCHESTRATOR,
         AgentRuntimeModel,
+        RetiredAgentHierarchyError,
         agent_runtime_model_for_goal,
     )
 
     try:
         role_v1 = agent_runtime_model_for_goal(goal) is AgentRuntimeModel.ROLE_V1
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         role_v1 = False
     role = agent_role_for_goal(dict(goal), agent_id) if role_v1 else None

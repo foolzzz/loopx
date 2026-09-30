@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from loopx.agent_registry import (
+    acceptor_agents_for_goal,
     agent_roles_for_goal,
     lifecycle_agent_for_owner_write,
     normalize_agent_roles,
@@ -25,8 +26,13 @@ from loopx.control_plane.agents.identity import build_quota_agent_identity
 from loopx.control_plane.agents.profile import normalize_agent_profile
 from loopx.control_plane.agents.runtime_model import (
     AgentRuntimeModel,
+    RetiredAgentHierarchyError,
     agent_runtime_model_for_goal,
+    goal_agent_runtime_model_or_none,
 )
+from loopx.dispatch.policy import goal_is_role_v1
+from loopx.gate_threads import require_user_gate_author
+from loopx.todo_acceptance import goal_uses_role_v1
 from loopx.control_plane.goals.goal_frontier import (
     autonomous_replan_scope_decision,
     select_autonomous_replan_obligation,
@@ -112,6 +118,36 @@ def test_new_goals_default_to_role_v1_and_peer_v1_stays_readable() -> None:
     ) is AgentRuntimeModel.ROLE_V1
     with pytest.raises(ValueError, match="role_v1 or peer_v1"):
         agent_runtime_model_for_goal({"coordination": {"agent_model": "flat"}})
+
+
+def test_retired_hierarchy_error_crosses_role_routing_helpers() -> None:
+    goal = _role_goal()
+    goal["coordination"]["side_agent_handoff_agent"] = ACC
+
+    for resolver in (
+        goal_agent_runtime_model_or_none,
+        goal_uses_role_v1,
+        goal_is_role_v1,
+        orchestrator_agent_for_goal,
+        acceptor_agents_for_goal,
+    ):
+        with pytest.raises(RetiredAgentHierarchyError):
+            resolver(goal)
+
+
+def test_retired_hierarchy_error_precedes_user_gate_author_routing(
+    tmp_path: Path,
+) -> None:
+    coordination = _role_goal()["coordination"]
+    coordination["side_agent_handoff_agent"] = ACC
+    registry = _registry(tmp_path, coordination)
+
+    with pytest.raises(RetiredAgentHierarchyError):
+        require_user_gate_author(
+            registry_path=registry,
+            goal_id=GOAL_ID,
+            actor_agent_id=DEV,
+        )
 
 
 # --- registration ------------------------------------------------------------

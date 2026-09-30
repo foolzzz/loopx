@@ -107,7 +107,10 @@ def legacy_agent_hierarchy_fields(
         )
     else:
         profile_items = ()
-    role_v1 = configured_model == AgentRuntimeModel.ROLE_V1.value
+    role_v1 = (
+        configured_model == AgentRuntimeModel.ROLE_V1.value
+        or goal.get("agent_model") == AgentRuntimeModel.ROLE_V1.value
+    )
     for prefix, profile in profile_items:
         if not isinstance(profile, Mapping):
             continue
@@ -158,6 +161,8 @@ def goal_agent_runtime_model_or_none(
         return None
     try:
         return agent_runtime_model_for_goal(goal)
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         return None
 
