@@ -43,8 +43,7 @@
       ],
       "consumer_sites": [
         "loopx/control_plane/turn_driver/executor.py::run_loopx_turn_once",
-        "loopx/dsh_goal_mode/turn_host_adapter.py::run_dsh_host",
-        "loopx/kunluncode_goal_mode/runtime.py::run_native_goal"
+        "loopx/dsh_goal_mode/turn_host_adapter.py::run_dsh_host"
       ],
       "effect_boundary": "loopx/control_plane/turn_driver/executor.py::run_loopx_turn_once",
       "authority_role": "host_execution_binding",

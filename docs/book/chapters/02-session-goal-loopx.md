@@ -233,7 +233,6 @@ LoopX 保留同一 control-plane contract，但不同 Host 的启动和唤醒机
 | Claude Code | `/loopx` + opt-in native `/loop` adapter | 仍走同一 quota/writeback |
 | OpenCode 1/2 | `/loopx` + opt-in Goal bridge / persistent worker | bridge 或 worker 保持 Host 可见性与停止语义 |
 | Pi | opt-in Goal extension + `/loopx` | 绑定保存在项目 `.loopx/`，不获得额外 authority |
-| KunlunCode Goal Pro | `loopx-kunluncode` adapter | 只在严格验证后写 completion 与 quota |
 | DeepSeek Harness | native skill + same-session Driver / `loopx turn run-once` | 每段 bounded execution 仍需独立 validation |
 | Shell / other Agent | guided packet + caller-owned runner | 无 runner hook 时由调用方唤醒 |
 

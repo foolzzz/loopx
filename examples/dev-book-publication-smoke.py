@@ -11,7 +11,9 @@ import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOK = REPO_ROOT / "docs" / "book"
-BOOK_RELEASE_ANCHOR_RE = re.compile(r"LoopX 发布锚点：`v(\d+\.\d+\.\d+)`")
+# The upstream release the book documents. It deliberately differs from the
+# package version; moving the book's baseline means editing this constant.
+BOOK_RELEASE_ANCHOR = "1.2.0"
 CONTROL_PLANE_COURSE = REPO_ROOT / "docs" / "development" / "control-plane-course"
 MKDOCS = REPO_ROOT / "mkdocs.yaml"
 MKDOCS_ZH = BOOK / "mkdocs.zh.yaml"
@@ -408,14 +410,11 @@ def main() -> int:
     assert "/loopx/docs/book/en/" in read(BOOK / "index.md")
     assert "/loopx/docs/book/" in read(BOOK / "en" / "index.md")
 
-    # The book is anchored to the upstream release it documents, not to the
-    # package version: the zh home page declares the anchor, every other locale
-    # and reading guide must repeat it, and it can never name a later release.
-    anchor = BOOK_RELEASE_ANCHOR_RE.search(read(BOOK / "index.md"))
-    assert anchor, "index.md: missing declared release anchor"
-    release_tag = f"v{anchor.group(1)}"
+    # Every locale's home page and reading guide must name the pinned anchor,
+    # which can never be a later release than the package itself.
+    release_tag = f"v{BOOK_RELEASE_ANCHOR}"
     project_version = tomllib.loads(read(REPO_ROOT / "pyproject.toml"))["project"]["version"]
-    assert _version_tuple(anchor.group(1)) <= _version_tuple(project_version), (
+    assert _version_tuple(BOOK_RELEASE_ANCHOR) <= _version_tuple(project_version), (
         f"book release anchor {release_tag} is newer than package version {project_version}"
     )
     # Historical migration milestones must not move with the package version.
@@ -506,7 +505,6 @@ def main() -> int:
         tuple((marker, marker) for marker in (
             "OpenCode 1/2",
             "Pi",
-            "KunlunCode Goal Pro",
             "DeepSeek Harness",
             "Runtime Connector Catalog",
         )),

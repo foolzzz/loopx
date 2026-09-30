@@ -209,7 +209,6 @@ from .cli_runtime import (
     add_subcommand_format,
     build_cli_parser,
     dispatch_common_command,
-    enforce_native_controller_guard,
     output_format,
     print_payload,
     resolve_cli_registry,
@@ -401,9 +400,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(raw_argv)
     args.format = resolve_global_output_format(args)
-    guard_result = enforce_native_controller_guard(args)
-    if guard_result is not None:
-        return guard_result
     registry_path, registry_was_configured = resolve_cli_registry(args, raw_argv)
 
     common_command_result = dispatch_common_command(

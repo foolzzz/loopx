@@ -19,7 +19,6 @@ class HostSurface(str, Enum):
     TRAE_APP = "trae_app"
     GENERIC_CLI = "generic_cli"
     CLAUDE_CODE = "claude_code"
-    KUNLUNCODE = "kunluncode"
     LOCAL_SCHEDULER = "local_scheduler"
 
 
@@ -44,7 +43,6 @@ class SchedulerRuntimeProfile(str, Enum):
     CODEX_CLI_VISIBLE = "codex_cli"
     TRAE_APP = "trae_app"
     CLAUDE_CODE_VISIBLE = "claude_code"
-    KUNLUNCODE_VISIBLE = "kunluncode"
     GENERIC_CLI_AGENT_LOOP = "generic_cli"
     GENERIC_CLI_OUTER_CONTROLLER = "outer_controller"
 
@@ -136,11 +134,6 @@ _SCHEDULER_RUNTIME_PROFILE_CONTEXTS = {
     ),
     SchedulerRuntimeProfile.CLAUDE_CODE_VISIBLE: (
         HostSurface.CLAUDE_CODE,
-        SchedulerOwner.AGENT_CLI_LOOP,
-        ExecutionMode.INTERACTIVE,
-    ),
-    SchedulerRuntimeProfile.KUNLUNCODE_VISIBLE: (
-        HostSurface.KUNLUNCODE,
         SchedulerOwner.AGENT_CLI_LOOP,
         ExecutionMode.INTERACTIVE,
     ),
@@ -246,7 +239,6 @@ def _validation_errors(context: SchedulerExecutionContext) -> list[str]:
         HostSurface.CODEX_CLI,
         HostSurface.GENERIC_CLI,
         HostSurface.CLAUDE_CODE,
-        HostSurface.KUNLUNCODE,
     }
     if context.host_surface in {HostSurface.CODEX_APP, HostSurface.TRAE_APP}:
         host_name = context.host_surface.value

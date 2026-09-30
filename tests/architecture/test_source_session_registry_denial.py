@@ -11,7 +11,6 @@ DIRECT_LOADER_ALLOWLIST = {
     "loopx/claude_goal_mode/scripts/connect.py",
     "loopx/configure_goal.py",
     "loopx/control_plane/projects/registry.py",
-    "loopx/kunluncode_goal_mode/cli.py",
     "loopx/state_migration.py",
 }
 

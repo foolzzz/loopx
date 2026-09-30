@@ -76,6 +76,16 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   follows the `turn run-once` process, not its host, and two goals that
   share a project directory are not kept apart.
 
+### Removed
+
+- **KunlunCode integration.** The `loopx-kunluncode` command and its
+  `loopx.kunluncode_goal_mode` package (native Goal Pro controller, managed
+  MCP server, outer-controller write guard) are gone, together with the
+  `kunluncode` agent type, the `kunluncode` scheduler runtime profile and
+  host surface, and the KunlunCode adapter guide. `LOOPX_KUNLUNCODE_OUTER_CONTROLLER`
+  no longer has any effect. A persisted scheduler context or `--runtime-profile`
+  that still names `kunluncode` is now reported as unsupported.
+
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 
 Covers the fork's first round, 2026-09-25 to 2026-09-28 (PRs #1 to #29,

@@ -10,8 +10,6 @@ Guides are task-oriented paths for people starting or operating LoopX.
 - [Minimal custom runtime example (中文)](minimal-custom-runtime-example.zh-CN.md)
 - [Custom Agent runner integration](custom-agent-runner-integration.md)
 - [Custom Agent runner integration (中文)](custom-agent-runner-integration.zh-CN.md)
-- [KunlunCode adapter guide (中文 Markdown)](kunluncode-adapter.zh-CN.md)
-- [KunlunCode adapter guide (中文 HTML)](kunluncode-adapter.zh-CN.html)
 - [Auto-research command path](../../demo/auto_research/README.md)
 - [Auto Research stop, takeover, and state-aware wake](auto-research-stop-takeover-wake-walkthrough.md)
 - [Multi-agent product recipe](multi-agent-product-recipe.md)

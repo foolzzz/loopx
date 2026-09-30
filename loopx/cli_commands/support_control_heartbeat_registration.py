@@ -111,7 +111,6 @@ def register_heartbeat_control_commands(
             "trae_app",
             "generic_cli",
             "claude_code",
-            "kunluncode",
             "local_scheduler",
         ],
         help="Host surface embedded in the generated quota guard.",

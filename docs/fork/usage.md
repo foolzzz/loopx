@@ -114,9 +114,9 @@ Not supported by the dispatcher:
 - `turn run-once` also has `dsh` and `generic-cli` hosts, but agent files
   accept only `claude-code` and `codex-cli`, so the dispatcher cannot launch
   them, and they record no usage.
-- Upstream host integrations (Codex App, Claude Code `/loop`, OpenCode,
-  KunlunCode and the other `/loopx` surfaces) run their own host-managed
-  loops or controllers. The role dispatcher does not launch them.
+- Upstream host integrations (Codex App, Claude Code `/loop`, OpenCode and
+  the other `/loopx` surfaces) run their own host-managed loops or
+  controllers. The role dispatcher does not launch them.
 
 ## 2. Install
 
