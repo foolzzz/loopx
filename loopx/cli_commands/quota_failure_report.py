@@ -18,6 +18,7 @@ from ..control_plane.coordination.legacy_writer_fence import (
 from ..control_plane.coordination.local_authority import (
     LocalCoordinationAuthorityUnavailable,
 )
+from ..control_plane.agents.runtime_model import RetiredAgentHierarchyError
 from ..control_plane.effect_runtime import EffectRuntimeStartupError
 from ..control_plane.quota.effective_action import EffectiveAction
 from ..control_plane.quota.error_codes import (
@@ -115,7 +116,12 @@ def quota_failure_payload(
         str(error)
         if isinstance(
             error,
-            (CloseoutQueryUnavailableError, HeartbeatReceiptIdentityConflictError, EffectRuntimeStartupError),
+            (
+                CloseoutQueryUnavailableError,
+                HeartbeatReceiptIdentityConflictError,
+                EffectRuntimeStartupError,
+                RetiredAgentHierarchyError,
+            ),
         )
         else "quota collection failed"
     )
@@ -197,6 +203,15 @@ def quota_failure_payload(
         )
         if error.agent_id is not None:
             payload["agent_id"] = error.agent_id
+    elif isinstance(error, RetiredAgentHierarchyError):
+        payload.update(
+            {
+                "status": "retired_agent_hierarchy",
+                "reason": str(error),
+                "legacy_fields": list(error.fields),
+                "recommended_action": error.recommended_action,
+            }
+        )
     elif isinstance(error, (LegacyCoordinationWriterFenced, LocalCoordinationAuthorityUnavailable)):
         payload.update(
             {

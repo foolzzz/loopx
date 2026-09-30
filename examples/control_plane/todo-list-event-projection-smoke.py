@@ -75,7 +75,6 @@ def write_fixture(root: Path) -> tuple[Path, Path, Path]:
             "coordination": {
                 "registered_agents": [PRIMARY_AGENT, SIDE_AGENT],
                 "agent_model": "peer_v1",
-                "side_agent_handoff_agent": SIDE_AGENT,
             }
         },
     )

@@ -700,18 +700,19 @@ def main() -> int:
         assert "checkpointed_boundary_authority" in authority_cleared["changed_fields"], authority_cleared
         assert "checkpointed_boundary_authority" not in goal_from_registry(registry_path)["coordination"], authority_cleared
 
-        invalid_profile = dict(agent_profile, profile_role="primary-agent")
-        invalid_profile_result = payload(run_cli(
+        advisory_profile = dict(agent_profile, profile_role="primary-agent")
+        advisory_profile_result = payload(run_cli(
             registry_path,
             "configure-goal",
             "--goal-id",
             GOAL_ID,
             "--agent-profile-json",
-            json.dumps(invalid_profile),
-            check=False,
+            json.dumps(advisory_profile),
         ))
-        assert invalid_profile_result["ok"] is False, invalid_profile_result
-        assert "hierarchy role" in invalid_profile_result["error"], invalid_profile_result
+        assert advisory_profile_result["ok"] is True, advisory_profile_result
+        assert advisory_profile_result["after"]["agent_profiles"][
+            "codex-side-bypass"
+        ]["profile_role"] == "primary-agent", advisory_profile_result
 
         private_profile = dict(
             agent_profile,

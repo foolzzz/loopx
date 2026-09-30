@@ -226,8 +226,7 @@ export function resolveTodoCompletionPolicy(
   if (
     request.agent_model !== null && request.agent_model !== "" &&
     request.agent_model !== "role_v1" &&
-    request.agent_model !== "peer_v1" &&
-    request.agent_model !== "legacy_hierarchy"
+    request.agent_model !== "peer_v1"
   ) {
     throw new EffectRuntimeRequestError(
       "coordination.agent_model must be role_v1 or peer_v1",

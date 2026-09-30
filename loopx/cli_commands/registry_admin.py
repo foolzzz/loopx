@@ -522,7 +522,6 @@ def handle_registry_admin_command(
                     args.clear_todo_lifecycle_authority
                 ),
                 agent_model=args.agent_model,
-                automation_prompt_migration_ack=args.ack_automation_prompt_migration,
                 supervisor_agent=args.supervisor_agent,
                 supervised_agents=args.supervised_agents,
                 clear_supervisor=bool(args.clear_supervisor),

@@ -1105,7 +1105,6 @@ def assert_goal_boundary_in_should_run() -> None:
                 ],
                 "registered_agents": ["codex-main-control", "codex-side-bypass", "codex-side-reviewer"],
                 "agent_model": "peer_v1",
-                "side_agent_handoff_agent": "codex-side-reviewer",
             },
             "spawn_policy": {
                 "mode": "multi_subagent",
@@ -1157,14 +1156,12 @@ def assert_goal_boundary_in_should_run() -> None:
     assert decision["automation_prompt_upgrade"]["blocks_should_run"] is True, decision
     commands = decision["automation_prompt_upgrade"]["agent_example_commands"]
     assert "--agent-id codex-main-control" in commands[0]["command"], decision
-    assert decision["automation_prompt_upgrade"]["migration_id"] in decision[
-        "automation_prompt_upgrade"
-    ]["completion_command"], decision
+    assert "migration_id" not in decision["automation_prompt_upgrade"], decision
     assert "- automation_prompt_upgrade: required=True blocks_should_run=True" in markdown, markdown
     assert peer_decision["agent_identity"]["agent_id"] == "codex-side-bypass", peer_decision
     assert peer_decision["agent_identity"]["agent_model"] == "peer_v1", peer_decision
     assert "role" not in peer_decision["agent_identity"], peer_decision
-    assert peer_decision["decision"] == "automation_prompt_upgrade", peer_decision
+    assert peer_decision["decision"] != "automation_prompt_upgrade", peer_decision
     assert "agent_identity: agent_id=codex-side-bypass agent_model=peer_v1" in peer_markdown, peer_markdown
     assert boundary["adapter"]["status"] == "connected-delivery", boundary
     assert boundary["write_scope"] == ["docs/design/**", "src/agent_harness/**", "tests/**"], boundary

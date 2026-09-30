@@ -6,7 +6,10 @@ from pathlib import Path
 import pytest
 
 from loopx.cli import main
-from loopx.control_plane.agents.identity import build_quota_agent_identity
+from loopx.control_plane.agents.identity import (
+    build_identity_aware_prompt_upgrade,
+    build_quota_agent_identity,
+)
 from loopx.control_plane.quota.error_codes import (
     QuotaIdentityPrecondition,
     QuotaIdentityPreconditionError,
@@ -142,3 +145,159 @@ def test_quota_identity_admission_uses_typed_public_preconditions(
     assert exc_info.value.precondition is precondition
     assert exc_info.value.error_code == error_code
     assert exc_info.value.agent_id == public_agent_id
+
+
+@pytest.mark.parametrize(
+    ("coordination", "legacy_field"),
+    [
+        ({"agent_model": "legacy_hierarchy"}, "coordination.agent_model"),
+        ({"primary_agent": AGENT_ID}, "coordination.primary_agent"),
+        (
+            {"side_agent_handoff_agent": AGENT_ID},
+            "coordination.side_agent_handoff_agent",
+        ),
+        (
+            {
+                "agent_profiles": {
+                    AGENT_ID: {"schema_version": "agent_profile_v0"}
+                }
+            },
+            f"coordination.agent_profiles.{AGENT_ID}.schema_version",
+        ),
+        (
+            {"agent_profiles": {AGENT_ID: {"primary_agent": "agent-beta"}}},
+            f"coordination.agent_profiles.{AGENT_ID}.primary_agent",
+        ),
+        (
+            {
+                "agent_profiles": {
+                    AGENT_ID: {"review_policy": {"handoff_agent": "agent-beta"}}
+                }
+            },
+            f"coordination.agent_profiles.{AGENT_ID}.review_policy.handoff_agent",
+        ),
+        (
+            {
+                "agent_profiles": {
+                    AGENT_ID: {
+                        "review_policy": {"reviews_side_agent_work": False}
+                    }
+                }
+            },
+            (
+                f"coordination.agent_profiles.{AGENT_ID}.review_policy."
+                "reviews_side_agent_work"
+            ),
+        ),
+        (
+            {"agent_profiles": {AGENT_ID: {"role": "side-agent"}}},
+            f"coordination.agent_profiles.{AGENT_ID}.role",
+        ),
+    ],
+)
+def test_retired_v01_hierarchy_fields_fail_fast_with_remediation(
+    coordination: dict[str, object],
+    legacy_field: str,
+) -> None:
+    goal = {
+        "coordination": {
+            "registered_agents": [AGENT_ID],
+            **coordination,
+        }
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        build_quota_agent_identity(goal, agent_id=AGENT_ID)
+
+    message = str(exc_info.value)
+    assert "retired v0.1 agent hierarchy" in message
+    assert legacy_field in message
+    assert "remove the listed fields" in message
+    assert "coordination.agent_model=role_v1 or peer_v1" in message
+
+
+def test_root_legacy_model_alias_is_rejected() -> None:
+    goal = {
+        "agent_model": "legacy_hierarchy",
+        "coordination": {
+            "agent_model": "role_v1",
+            "registered_agents": [AGENT_ID],
+        },
+    }
+
+    with pytest.raises(ValueError, match="retired v0.1.*agent_model"):
+        build_quota_agent_identity(goal, agent_id=AGENT_ID)
+
+
+def test_missing_agent_id_remains_blocked_for_current_agent_models() -> None:
+    goal = {
+        "coordination": {
+            "agent_model": "peer_v1",
+            "registered_agents": [AGENT_ID],
+        }
+    }
+
+    assert build_quota_agent_identity(goal, agent_id=None) is None
+    upgrade = build_identity_aware_prompt_upgrade(
+        goal,
+        goal_id=GOAL_ID,
+        agent_identity=None,
+    )
+
+    assert upgrade is not None
+    assert upgrade["blocks_should_run"] is True
+    assert "registry_migration_required" not in upgrade
+    assert "--agent-id" in upgrade["recommended_action"]
+
+
+def test_quota_cli_reports_retired_hierarchy_fields_without_agent_id(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    runtime_root = tmp_path / "runtime"
+    registry = project / ".loopx" / "registry.json"
+    _write_state(project)
+    write_fixture_registry(
+        project=project,
+        runtime_root=runtime_root,
+        registry_path=registry,
+        goal_id=GOAL_ID,
+        domain="retired-hierarchy",
+        adapter_kind="generic_project_goal_v0",
+        registered_agents=[AGENT_ID],
+        extra_goal_fields={
+            "coordination": {
+                "agent_model": "peer_v1",
+                "registered_agents": [AGENT_ID],
+                "side_agent_handoff_agent": AGENT_ID,
+            }
+        },
+    )
+
+    exit_code = main(
+        [
+            "--format",
+            "json",
+            "--registry",
+            str(registry),
+            "--runtime-root",
+            str(runtime_root),
+            "quota",
+            "should-run",
+            "--goal-id",
+            GOAL_ID,
+            "--scan-path",
+            str(project),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert payload["error_code"] == "retired_agent_hierarchy"
+    assert payload["status"] == "retired_agent_hierarchy"
+    assert payload["legacy_fields"] == [
+        "coordination.side_agent_handoff_agent"
+    ]
+    assert "remove the listed fields" in payload["recommended_action"]
+    assert "--agent-id" in payload["recommended_action"]

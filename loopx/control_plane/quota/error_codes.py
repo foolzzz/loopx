@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from enum import StrEnum
 
+from ..agents.runtime_model import RetiredAgentHierarchyError
+
 
 class CloseoutQueryUnavailableError(RuntimeError):
     """A read-only closeout query returned no verified result; no verdict exists."""
@@ -206,6 +208,8 @@ class QuotaActionSelectionConflictError(RuntimeError):
 
 
 def quota_error_code(exc: BaseException) -> str:
+    if isinstance(exc, RetiredAgentHierarchyError):
+        return exc.error_code
     if isinstance(exc, CloseoutQueryUnavailableError):
         return exc.error_code
     if isinstance(exc, json.JSONDecodeError):

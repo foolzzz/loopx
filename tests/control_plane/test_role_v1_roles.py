@@ -22,7 +22,6 @@ from loopx.agent_registry import (
 from loopx.cli import main
 from loopx.configure_goal import configure_goal
 from loopx.control_plane.agents.identity import build_quota_agent_identity
-from loopx.control_plane.agents.legacy_migration import legacy_agent_hierarchy_present
 from loopx.control_plane.agents.profile import normalize_agent_profile
 from loopx.control_plane.agents.runtime_model import (
     AgentRuntimeModel,
@@ -321,14 +320,15 @@ def test_profile_role_accepts_hierarchy_names(role: str) -> None:
     assert profile["profile_role"] == role
 
 
-def test_role_key_is_not_a_legacy_hierarchy_marker_for_role_v1() -> None:
+def test_role_key_is_current_only_for_role_v1() -> None:
     profiles = {ORCH: {"role": "orchestrator"}}
-    assert legacy_agent_hierarchy_present(
-        {"coordination": {"agent_profiles": profiles}}
-    )
-    assert not legacy_agent_hierarchy_present(
+    assert agent_runtime_model_for_goal(
         {"coordination": {"agent_model": "role_v1", "agent_profiles": profiles}}
-    )
+    ) is AgentRuntimeModel.ROLE_V1
+    with pytest.raises(ValueError, match="agent_profiles.*role"):
+        agent_runtime_model_for_goal(
+            {"coordination": {"agent_model": "peer_v1", "agent_profiles": profiles}}
+        )
 
 
 # --- todo contract fields ----------------------------------------------------

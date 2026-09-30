@@ -313,8 +313,8 @@ def resolve_canonical_primary_action(payload: dict[str, Any], *, mode: str) -> s
         return "create or switch to an independent worktree/branch, then rerun quota guard before file edits"
     if mode == "automation_prompt_upgrade":
         return (
-            "update the installed automation once using the stable migration id, "
-            "run its completion ack, then rerun quota guard"
+            "regenerate the installed automation with its registered --agent-id, "
+            "then rerun quota guard with the same identity"
         )
     if mode == "control_plane_self_repair":
         return "repair the bounded control-plane/status projection fault exposed by quota"

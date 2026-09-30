@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep hierarchy tokens confined to the explicit peer migration boundary."""
+"""Keep hierarchy tokens confined to explicit rejection and protocol boundaries."""
 
 from __future__ import annotations
 
@@ -29,12 +29,14 @@ SCAN_FILES = (
     REPO_ROOT / "examples" / "dashboard-home-browser-smoke.mjs",
 )
 ALLOWED_LEGACY_PATHS = {
-    REPO_ROOT / "loopx" / "control_plane" / "agents" / "legacy_migration.py",
+    REPO_ROOT / "loopx" / "control_plane" / "agents" / "runtime_model.py",
     REPO_ROOT / "loopx" / "control_plane" / "todos" / "contract.py",
     REPO_ROOT / "loopx" / "control_plane" / "todos" / "legacy_continuation_policy_migration.ts",
     REPO_ROOT / "docs" / "reference" / "protocols" / "peer-agent-runtime-v1.md",
     REPO_ROOT / "docs" / "project-agent-todo-contract.md",
     REPO_ROOT / "docs" / "product" / "foundations" / "agent-profile-contract.md",
+    REPO_ROOT / "docs" / "fork" / "role-v1-protocol.md",
+    REPO_ROOT / "docs" / "development" / "control-plane-course" / "05-work-graph-and-peers.md",
 }
 LEGACY_PATTERN = re.compile(
     r"\bprimary_agent\b|\bprimary_review\b|\bside_agent\b|\bhandoff_agent\b|"
@@ -83,7 +85,7 @@ def main() -> int:
                 scan_line = scan_line.replace(identifier, "")
             if LEGACY_PATTERN.search(scan_line):
                 violations.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
-    assert not violations, "legacy agent hierarchy escaped migration boundary:\n" + "\n".join(
+    assert not violations, "legacy agent hierarchy escaped rejection boundary:\n" + "\n".join(
         violations[:40]
     )
     print("peer-agent-hard-cut-boundary-smoke ok")

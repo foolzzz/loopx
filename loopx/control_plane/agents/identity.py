@@ -14,16 +14,12 @@ from ..quota.error_codes import (
     QuotaIdentityPreconditionError,
 )
 from ..todos.contract import normalize_todo_claimed_by
-from .legacy_migration import (
-    legacy_agent_hierarchy_present,
-    peer_agent_runtime_migration_completed,
-    peer_agent_runtime_migration_id,
-)
 from .profile import normalize_agent_profile
 from .runtime_model import (
     PEER_AGENT_IDENTITY_SCHEMA_VERSION,
     AgentRuntimeModel,
     agent_runtime_model_for_goal,
+    reject_legacy_agent_hierarchy,
 )
 from .work_mode import agent_work_mode_for_goal
 
@@ -97,61 +93,27 @@ def build_identity_aware_prompt_upgrade(
     goal_id: str,
     agent_identity: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
+    reject_legacy_agent_hierarchy(goal)
     registered_agents = quota_registered_agents(goal)
     if not registered_agents:
         return None
-    if peer_agent_runtime_migration_completed(goal):
-        return None
-    migration_required = legacy_agent_hierarchy_present(goal)
-    if agent_identity and not migration_required:
+    if agent_identity:
         return None
     runtime_model = agent_runtime_model_for_goal(goal)
-    migration_id = (
-        peer_agent_runtime_migration_id(goal_id, goal)
-        if migration_required
-        else None
-    )
     return {
         "contract": "peer_agent_heartbeat_prompt_v1",
         "required": True,
         "blocks_should_run": True,
         "reason": (
-            "v0.1 hierarchy fields are still present, so an installed automation may "
-            "still carry main/side instructions"
-            if migration_required
-            else "coordination.registered_agents is configured for peer_v1, but quota "
-            "should-run was called without --agent-id; the installed automation "
-            "prompt is stale or unscoped"
+            "coordination.registered_agents is configured, but quota should-run was "
+            "called without --agent-id; the installed automation prompt is stale or "
+            "unscoped"
         ),
         "agent_model": runtime_model.value,
         "registered_agents": registered_agents,
         "recommended_action": (
-            "Regenerate each installed heartbeat with its registered --agent-id; "
-            "update each host automation once using migration_id as its idempotency "
-            "key; then run completion_command and rerun quota."
-            if migration_required
-            else "Regenerate each installed heartbeat with its registered --agent-id, "
+            "Regenerate each installed heartbeat with its registered --agent-id, "
             "then rerun quota should-run with the same identity."
-        ),
-        "registry_migration_required": migration_required,
-        "migration_id": migration_id,
-        "host_update_idempotency_key": migration_id,
-        "delivery_semantics": (
-            "stable_idempotent_until_ack" if migration_required else None
-        ),
-        "registry_migration_command": (
-            "loopx configure-goal "
-            f"--goal-id {goal_id} "
-            f"--ack-automation-prompt-migration {migration_id} --execute"
-            if migration_required
-            else None
-        ),
-        "completion_command": (
-            "loopx configure-goal "
-            f"--goal-id {goal_id} "
-            f"--ack-automation-prompt-migration {migration_id} --execute"
-            if migration_required
-            else None
         ),
         "agent_example_commands": [
             {
