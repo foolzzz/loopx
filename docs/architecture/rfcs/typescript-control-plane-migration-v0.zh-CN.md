@@ -273,7 +273,7 @@ builder。它统一负责确定性的 Unicode 排序、read-model digest/field �
 或 archive 角色。
 
 File、SQLite 与 NoKV suite 现在会在两种 record shape 上执行同一组生产规模 terminal
-case。另有独立 parity harness，使用三个隔离 provider 重放同一条 seed、observation、
+case（历史说明：NoKV 已在本 fork 退役，File 与 SQLite suite 保留）。另有独立 parity harness，使用三个隔离 provider 重放同一条 seed、observation、
 lease 序列，并在忽略 provider-specific revision token 后比较 logical head 以及已提交
 的 event/projection/receipt trace。这是 conformance 证据，不是新的 authority writer、
 provider 默认值或 promotion 声明；PostgreSQL 仍受现有真实服务资格化 gate 约束。
@@ -488,7 +488,7 @@ Monitor poll 分别重复 envelope 匹配、结果投影和 CAS 后回读。
 Markdown 投递和默认 provider 保持兼容。完整生产规模 fixture 现在覆盖七种
 命令的正常提交、响应丢失、回读不可用、响应抛异常，以及插入其他提交后的
 历史重放。真实 File／SQLite／PostgreSQL 和 NoKV transport conformance
-共用该矩阵。三路只读源演练还在真实 File／PostgreSQL 归档提交后丢弃响应。
+共用该矩阵（历史说明：NoKV 已在本 fork 退役，File、SQLite、PostgreSQL 仍保留）。三路只读源演练还在真实 File／PostgreSQL 归档提交后丢弃响应。
 
 本次删除重复的 TS 事务权威，不宣称删除 Python 业务 writer；没有新增 bridge
 或 RPC，跨运行时调用数不变。T1 的 metadata／effect 闭合、T2 的带 lease
@@ -860,15 +860,15 @@ user role。历史节点不会进入活动工作或 lease lane。无法识别的
 
 保留 journal 的读取边界现由同一个 TS owner 负责扫描参数、checkpoint 范围、
 分页连续性、lookahead 和末行/head 一致性。File 与 NoKV 同时共用历史校验及
-append 构造，版本哈希、物理锁/CAS 和后端头字段仍归各 provider。这删除了重复
+append 构造（历史说明：NoKV 已在本 fork 退役，File 保留该共享 owner），版本哈希、物理锁/CAS 和后端头字段仍归各 provider。这删除了重复
 存储协议知识，没有新增 RPC、Python bridge、capability 或 provider；既有
-coordination 内部 owner 足够，File 内置及 NoKV/SQLite/PostgreSQL 可选部署边界不变。
+coordination 内部 owner 足够，File 内置及 SQLite/PostgreSQL 可选部署边界不变。
 
 明确修正：空存储上的正数 checkpoint 返回 `scan_cursor_out_of_range`，非字符串
 游标返回 `invalid_scan_request`；历史缺行、乱序或末行/head 矛盾不能返回成功分页。
 PostgreSQL 读取使用同一个 repeatable-read snapshot，并发提交在下一次调用可见，
 不会将较新的行混入较旧 head。扫描只证明请求区间，不审计 checkpoint 之前的全部
-历史。合法结果 schema、File/NoKV 持久字节、请求身份及版本算法保持兼容。这支持
+历史。合法结果 schema、File 持久字节、请求身份及版本算法保持兼容。这支持
 T3/D1 reader，未完成全部 Todo writer、retention/compaction 或 promotion。
 
 配额准入与结算消费者现在从统一 Todo reader 读取完整来源，在显示压缩前解析显式 Todo 选择。它删除直接追加 Markdown 候选的路径，保留 promote 前的事件适配；promote 后权威为空或不可读都不能复活展示行。结算进度由现有 TS 回执链归约，Python 负责完整身份命令及 JSON/Markdown 展示。现有幂等 writer 可补齐缺失的 spend 回执而不再次扣款。这关闭已复现的 T3 消费者缺口，不代表 D1–D3、provider promotion 或剩余 Python 事务适配已完成。操作语义见[结算进度契约](../../quota-allocation.md#receipt-backed-settlement-progress)。
@@ -910,7 +910,7 @@ codec；较大的完整事实快照通过私有临时文件和摘要绑定的引
 `tests/control_plane/canonical_authority_fixture.py` 和既有 provider conformance；
 先核验当前 schema，不能为过测试缩减复杂 fixture。运行
 `npm run typecheck:control-plane`、`npm run test:control-plane`、受影响公开 CLI
-测试和按风险选择的 canary。共享事务改动须覆盖受影响 File/NoKV 及真实隔离 PostgreSQL；
+测试和按风险选择的 canary。共享事务改动须覆盖受影响 File 及真实隔离 PostgreSQL；
 本地 store 声明须验证实际 backend，内存替身不能替代。
 
 移动代码前独立定义合法／非法行为；移动后分别报告 baseline/head parity、有意差异、

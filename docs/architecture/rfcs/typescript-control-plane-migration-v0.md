@@ -363,7 +363,8 @@ status ordering explicitly and validates its counts, so changing JSON key order
 cannot silently change which Todo receives a lease, successor, or archive role.
 
 The File, SQLite, and NoKV suites now execute the same production-scale terminal
-cases in both record shapes. A separate parity harness replays one seed,
+cases in both record shapes (historical: NoKV was retired in the fork; the File
+and SQLite suites remain). A separate parity harness replays one seed,
 observation, and lease sequence through all three isolated providers and compares
 the logical head plus committed event/projection/receipt trace while ignoring
 provider-specific revision tokens. This is conformance evidence, not a new
@@ -640,7 +641,8 @@ lease/grant checks, permanent Markdown delivery and provider defaults remain
 compatible. The production-scale fixture now drives all seven command operations
 through normal, lost-response, unreadable-readback and thrown-response cases,
 including replay after an intervening commit. Real File/SQLite/PostgreSQL and
-NoKV transport conformance share that matrix. The three-arm read-only source
+NoKV transport conformance share that matrix (historical: NoKV was retired in the
+fork; the File, SQLite and PostgreSQL arms remain). The three-arm read-only source
 rehearsal also loses archive responses on actual File/PostgreSQL commits.
 
 This removes duplicated TS transaction authority, not Python business writers:
@@ -1137,11 +1139,12 @@ import, provider qualification, soak, or D3 cutover requirements.
 
 The retained-journal read boundary now shares one TS owner for scan admission,
 checkpoint range, contiguous page coverage, lookahead and final-head agreement.
-File and NoKV also share retained-history validation and append construction;
+File and NoKV also share retained-history validation and append construction
+(historical: NoKV was retired in the fork; File keeps the shared owner);
 provider revision hashes, physical locks/CAS and backend headers remain local.
 This retires duplicated storage-protocol knowledge without a new RPC, Python
 bridge, capability or provider. The existing coordination internal owner is
-sufficient; built-in File and optional NoKV/SQLite/PostgreSQL implementations
+sufficient; built-in File and optional SQLite/PostgreSQL implementations
 retain their deployment boundaries.
 
 Intentional corrections: a positive checkpoint against an empty store is
@@ -1150,7 +1153,7 @@ a missing/reordered retained row or contradictory final head cannot produce a
 successful page. PostgreSQL read operations use one repeatable-read snapshot,
 so a concurrent commit appears on the next call instead of mixing newer rows
 with an older head. The scan proves its requested interval, not an audit of
-history before that checkpoint. Successful schemas, File/NoKV persisted bytes,
+history before that checkpoint. Successful schemas, File persisted bytes,
 request identity and revision algorithms remain compatible. This supports T3/D1
 readers but does not finish Todo writers, retention/compaction or promotion.
 
@@ -1230,7 +1233,7 @@ conformance suite when their semantic dimensions are affected. Verify their
 current schema before reuse; never silently shrink a complex fixture to pass.
 Run `npm run typecheck:control-plane`, `npm run test:control-plane`, the
 affected public CLI tests and risk-based canary coverage. Shared transaction
-changes require affected File/NoKV arms and an isolated real PostgreSQL run;
+changes require the affected File arm and an isolated real PostgreSQL run;
 new local-store claims require that actual backend, not an in-memory substitute.
 
 Before moving code, assert intended legal and illegal behavior independently.
