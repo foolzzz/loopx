@@ -101,6 +101,16 @@ def test_completion_rejects_unknown_runtime_model_before_write(
                 AGENT_ID: {"review_policy": {"handoff_agent": AGENT_ID}}
             }
         },
+        {
+            "agent_profiles": {
+                AGENT_ID: {"worktree_policy": "clean-worktree"}
+            }
+        },
+        {
+            "completed_migrations": {
+                "peer_agent_runtime_v1": {"status": "completed"}
+            }
+        },
     ],
 )
 def test_completion_request_rejects_full_legacy_goal_before_identity_projection(

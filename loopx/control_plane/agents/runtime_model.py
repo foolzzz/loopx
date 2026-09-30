@@ -107,10 +107,8 @@ def legacy_agent_hierarchy_fields(
         )
     else:
         profile_items = ()
-    role_v1 = (
-        configured_model == AgentRuntimeModel.ROLE_V1.value
-        or goal.get("agent_model") == AgentRuntimeModel.ROLE_V1.value
-    )
+    effective_model = configured_model or goal.get("agent_model")
+    role_v1 = effective_model in {None, "", AgentRuntimeModel.ROLE_V1.value}
     for prefix, profile in profile_items:
         if not isinstance(profile, Mapping):
             continue
@@ -120,11 +118,29 @@ def legacy_agent_hierarchy_fields(
             fields.append(f"{prefix}.role")
         if "primary_agent" in profile:
             fields.append(f"{prefix}.primary_agent")
+        if "worktree_policy" in profile:
+            fields.append(f"{prefix}.worktree_policy")
         review_policy = profile.get("review_policy")
-        if isinstance(review_policy, Mapping):
-            for field in ("handoff_agent", "reviews_side_agent_work"):
+        if "review_policy" in profile:
+            matched_review_policy_field = False
+            for field in (
+                "handoff_agent",
+                "reviews_side_agent_work",
+                "can_self_merge",
+            ):
+                if not isinstance(review_policy, Mapping):
+                    break
                 if field in review_policy:
                     fields.append(f"{prefix}.review_policy.{field}")
+                    matched_review_policy_field = True
+            if not matched_review_policy_field:
+                fields.append(f"{prefix}.review_policy")
+    completed_migrations = coordination.get("completed_migrations")
+    if (
+        isinstance(completed_migrations, Mapping)
+        and "peer_agent_runtime_v1" in completed_migrations
+    ):
+        fields.append("coordination.completed_migrations.peer_agent_runtime_v1")
     return tuple(fields)
 
 

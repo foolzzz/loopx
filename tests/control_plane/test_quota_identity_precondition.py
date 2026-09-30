@@ -11,6 +11,7 @@ from loopx.control_plane.agents.identity import (
     build_identity_aware_prompt_upgrade,
     build_quota_agent_identity,
 )
+from loopx.control_plane.agents.runtime_model import RetiredAgentHierarchyError
 from loopx.control_plane.quota.error_codes import (
     QuotaIdentityPrecondition,
     QuotaIdentityPreconditionError,
@@ -170,6 +171,10 @@ def test_quota_identity_admission_uses_typed_public_preconditions(
             f'coordination.agent_profiles["{AGENT_ID}"].primary_agent',
         ),
         (
+            {"agent_profiles": {AGENT_ID: {"worktree_policy": "clean-worktree"}}},
+            f'coordination.agent_profiles["{AGENT_ID}"].worktree_policy',
+        ),
+        (
             {
                 "agent_profiles": {
                     AGENT_ID: {"review_policy": {"handoff_agent": "agent-beta"}}
@@ -194,8 +199,27 @@ def test_quota_identity_admission_uses_typed_public_preconditions(
             ),
         ),
         (
-            {"agent_profiles": {AGENT_ID: {"role": "side-agent"}}},
+            {
+                "agent_model": "peer_v1",
+                "agent_profiles": {AGENT_ID: {"role": "side-agent"}},
+            },
             f'coordination.agent_profiles["{AGENT_ID}"].role',
+        ),
+        (
+            {
+                "agent_profiles": {
+                    AGENT_ID: {"review_policy": {"can_self_merge": True}}
+                }
+            },
+            f'coordination.agent_profiles["{AGENT_ID}"].review_policy.can_self_merge',
+        ),
+        (
+            {
+                "completed_migrations": {
+                    "peer_agent_runtime_v1": {"status": "completed"}
+                }
+            },
+            "coordination.completed_migrations.peer_agent_runtime_v1",
         ),
     ],
 )
@@ -251,6 +275,36 @@ def test_root_role_v1_keeps_current_profile_roles() -> None:
 
     assert identity is not None
     assert identity["agent_model"] == "role_v1"
+
+
+def test_default_role_v1_keeps_current_profile_roles() -> None:
+    goal = {
+        "coordination": {
+            "registered_agents": [AGENT_ID],
+            "agent_profiles": {AGENT_ID: {"role": "developer"}},
+        },
+    }
+
+    identity = build_quota_agent_identity(goal, agent_id=AGENT_ID)
+
+    assert identity is not None
+    assert identity["agent_model"] == "role_v1"
+
+
+def test_coordination_model_overrides_root_model_for_legacy_role_detection() -> None:
+    goal = {
+        "agent_model": "role_v1",
+        "coordination": {
+            "agent_model": "peer_v1",
+            "registered_agents": [AGENT_ID],
+            "agent_profiles": {AGENT_ID: {"role": "side-agent"}},
+        },
+    }
+
+    with pytest.raises(RetiredAgentHierarchyError) as exc_info:
+        build_quota_agent_identity(goal, agent_id=AGENT_ID)
+
+    assert f'coordination.agent_profiles["{AGENT_ID}"].role' in exc_info.value.fields
 
 
 @pytest.mark.parametrize("agent_id", [None, "../private-agent", "agent-beta"])
