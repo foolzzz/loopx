@@ -94,6 +94,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Removed
 
+- **v0.1 main/side hierarchy migration.** `configure-goal` no longer accepts
+  `--ack-automation-prompt-migration`, and the one-time migration module,
+  completion receipt, and migration smoke are removed. Goals that still carry
+  `legacy_hierarchy`, `primary_agent`, `side_agent_handoff_agent`,
+  `agent_profile_v0`, or profile-level hierarchy policy now fail before
+  identity or routing with the rejected field paths and cleanup instructions.
+  Current `role_v1` and `peer_v1` goals still require a registered `--agent-id`.
+
 - **KunlunCode integration.** The `loopx-kunluncode` command and its
   `loopx.kunluncode_goal_mode` package (native Goal Pro controller, managed
   MCP server, outer-controller write guard) are gone, together with the

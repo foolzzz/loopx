@@ -116,6 +116,57 @@ def test_saved_goal_bootstrap_reloads_changed_state_and_rejects_removed_agent(re
     assert not rejected.get("task_body")
 
 
+@pytest.mark.parametrize("with_agent_id", [False, True])
+@pytest.mark.parametrize(
+    ("legacy_coordination", "expected_field"),
+    [
+        (
+            {"agent_profiles": {"worker-a": {"schema_version": "agent_profile_v0"}}},
+            'coordination.agent_profiles["worker-a"].schema_version',
+        ),
+        (
+            {"agent_profiles": {"worker-a": {"review_policy": {"can_self_merge": True}}}},
+            'coordination.agent_profiles["worker-a"].review_policy.can_self_merge',
+        ),
+        (
+            {"completed_migrations": {"peer_agent_runtime_v1": {"status": "completed"}}},
+            "coordination.completed_migrations.peer_agent_runtime_v1",
+        ),
+    ],
+)
+def test_heartbeat_prompt_rejects_retired_hierarchy_before_profile_projection(
+    registry, legacy_coordination, expected_field, with_agent_id
+):
+    saved = json.loads(registry.read_text())
+    saved["goals"][0]["coordination"] = {
+        "registered_agents": ["worker-a"],
+        **legacy_coordination,
+    }
+    registry.write_text(json.dumps(saved))
+    arguments = [
+        sys.executable,
+        "-m",
+        "loopx.cli",
+        "--format",
+        "json",
+        "--registry",
+        str(registry),
+        "heartbeat-prompt",
+        "--goal-id",
+        "fixture-goal",
+    ]
+    if with_agent_id:
+        arguments.extend(["--agent-id", "worker-a"])
+
+    result = subprocess.run(arguments, capture_output=True, text=True, timeout=60)
+    payload = json.loads(result.stdout)
+
+    assert result.returncode != 0
+    assert payload["ok"] is False
+    assert expected_field in payload["error"]
+    assert "retired v0.1 agent hierarchy" in payload["error"]
+
+
 def test_bootstrap_rejects_persisted_turn_and_invalid_binding(registry):
     assert not cli(registry, "--bootstrap", "--codex-app", "--turn-instance-id", "fixed-turn")["ok"]
     assert not cli(registry, "--bootstrap", "--codex-app", "--runtime-profile", "codex_cli")["ok"]

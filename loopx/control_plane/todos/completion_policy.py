@@ -8,6 +8,7 @@ from ...agent_registry import (
     load_goal_from_registry,
     registered_agent_ids_for_goal,
 )
+from ..agents.runtime_model import reject_legacy_agent_hierarchy
 from .active_state_editing import find_todo_block
 from .contract import (
     normalize_todo_claimed_by,
@@ -107,6 +108,7 @@ def build_completion_policy_request(
 
     del next_action_kind
     goal = load_goal_from_registry(registry_path, goal_id)
+    reject_legacy_agent_hierarchy(goal)
     coordination = goal.get("coordination") if isinstance(goal, Mapping) else None
     agent_model = (
         coordination.get("agent_model") if isinstance(coordination, Mapping) else None

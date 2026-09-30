@@ -84,49 +84,20 @@ task bundle and selects one temporary coordinator. The resulting
   evidence;
 - does not make the coordinator a durable leader.
 
-## Migration
+## Retired v0.1 hierarchy input
 
-For an old registry, first let `quota should-run` project the
-stable migration id and per-peer heartbeat commands. Update each installed host
-automation idempotently with that migration id, then acknowledge the completed
-host update:
+LoopX no longer migrates the v0.1 main/side hierarchy. A goal that still
+contains `legacy_hierarchy`, `primary_agent`, `side_agent_handoff_agent`,
+`agent_profile_v0`, or profile-level hierarchy policy fails before identity or
+work routing. The diagnostic lists every rejected field. Remove those fields
+from the source registry, set `coordination.agent_model` to `role_v1` or
+`peer_v1`, retain the current `coordination.registered_agents` roster, and
+rerun the command. A subsequent `quota should-run` must use the registered
+`--agent-id`.
 
-```bash
-loopx configure-goal \
-  --goal-id <goal-id> \
-  --ack-automation-prompt-migration <migration-id> \
-  --execute
-```
-
-The acknowledgement validates the current migration id, creates a timestamped
-registry backup, atomically removes hierarchy authority fields, and records the
-completed migration. Repeating the same acknowledgement is a no-op, and future
-quota checks do not project the completed migration again.
-
-The completion marker is final for this migration version. If a stale v0.1
-writer later reintroduces a hierarchy field, peer runtime ignores that field
-and does not wake the user with the same automation migration again. Upgrade
-diagnostics may still expose the stale input for cleanup.
-
-Implementation boundary: legacy field names, detection, profile conversion,
-and completion bookkeeping live in the isolated `legacy_migration` module.
-`runtime_model` contains only the live `peer_v1` model and does not branch on
-primary/side identity concepts.
-
-Rollback restores the returned `backup_path`, then regenerates installed host
-loops from that restored registry. Registry restoration and host-loop
-regeneration are one operational rollback.
-
-## v0.2 Cutover Gate
-
-The peer runtime may land internally before the public v0.2 cutover so its
-migration can be validated against v0.1 state. v0.2 is not releasable until:
-
-- canonical fixtures and docs use `peer_v1`;
-- heartbeat, quota, status, completion, workspace, and orchestration runtime no
-  longer execute hierarchy branches;
-- old hierarchy fields are accepted only by migration/history readers;
-- the peer-agent canary profile and full smoke suite pass.
+Current goals with a registered roster still fail closed when `quota
+should-run` omits `--agent-id`; the identity-aware heartbeat prompt remains the
+repair path for that current-state error.
 
 An optional supervisor is an overlay on this peer model, not a replacement for
 it. See [Peer Supervisor v0](peer-supervisor-v0.md).

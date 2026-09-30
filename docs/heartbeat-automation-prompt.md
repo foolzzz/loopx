@@ -324,12 +324,10 @@ identity/scope upgrade command instead of returning a legacy unscoped prompt.
 `quota should-run` follows the same rule for executor safety: an unscoped call
 returns `automation_prompt_upgrade.required=true`,
 `blocks_should_run=true`, and `should_run=false` instead of allowing delivery.
-For a hierarchy-era registry, `quota should-run` returns one
-stable migration id, one heartbeat command per registered peer, and a completion
-command. The host update may be retried with that idempotency key; the completion
-command atomically records the migration once, and later quota checks do not
-project it again. A registry without `coordination.registered_agents` must first
-register the peer identity before a scoped prompt can be generated.
+Hierarchy-era registry fields now fail fast with the rejected field paths and
+cleanup instructions; LoopX does not migrate them. A registry without
+`coordination.registered_agents` must first register the agent identity before a
+scoped prompt can be generated.
 
 If even the compact body is too heavy for an installed automation, generate the
 brief body:

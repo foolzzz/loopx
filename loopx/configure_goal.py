@@ -34,13 +34,6 @@ from .configuration_catalog import (
     build_goal_configuration_catalog,
 )
 from .control_plane import compact_control_plane_policy, control_plane_policy_summary
-from .control_plane.agents.legacy_migration import (
-    completed_peer_agent_runtime_migration,
-    legacy_agent_hierarchy_present,
-    migrate_coordination_to_peer_v1,
-    peer_agent_runtime_migration_completed,
-    peer_agent_runtime_migration_id,
-)
 from .control_plane.agents.profile import normalize_agent_profile
 from .control_plane.agents.runtime_model import (
     DEFAULT_AGENT_RUNTIME_MODEL,
@@ -314,10 +307,6 @@ def _settings_summary(goal: dict[str, Any]) -> dict[str, Any]:
         "agent_roles": normalize_agent_roles_for_summary(coordination, registered_agents),
         "agent_model": agent_model.value,
         "configured_agent_model": coordination.get("agent_model"),
-        "legacy_hierarchy_present": legacy_agent_hierarchy_present(goal),
-        "peer_runtime_migration": deepcopy(
-            completed_peer_agent_runtime_migration(goal)
-        ),
         "supervisor": deepcopy(
             normalize_peer_supervisor(
                 coordination.get("supervisor"),
@@ -361,15 +350,12 @@ def _build_heartbeat_prompt_migration(
     goal_id: str,
     changed_fields: list[str],
     after: dict[str, Any],
-    migration_id: str | None = None,
-    migration_acknowledged: bool = False,
 ) -> dict[str, Any] | None:
-    if not migration_id and not any(
+    if not any(
         field in changed_fields
         for field in (
             "registered_agents",
             "configured_agent_model",
-            "legacy_hierarchy_present",
         )
     ):
         return None
@@ -398,29 +384,14 @@ def _build_heartbeat_prompt_migration(
     payload = {
         "schema_version": "heartbeat_prompt_migration_v1",
         "agent_model": agent_model,
-        "migration_id": migration_id,
-        "host_update_idempotency_key": migration_id,
-        "status": "completed" if migration_acknowledged else "required",
+        "status": "required",
         "reason": (
-            "the host automation update was acknowledged and the registry hard cut completed"
-            if migration_acknowledged
-            else "coordination agent identity changed; installed heartbeats should be "
+            "coordination agent identity changed; installed heartbeats should be "
             "regenerated with identity-aware prompt args"
         ),
-        "action": (
-            "none; this migration id is complete and will not be projected again"
-            if migration_acknowledged
-            else "update each installed host automation once using migration_id as the "
-            "idempotency key, then run completion_command"
-        ),
-        "commands": [] if migration_acknowledged else commands,
+        "action": "update each installed host automation with the rendered commands",
+        "commands": commands,
     }
-    if migration_id and not migration_acknowledged:
-        payload["completion_command"] = (
-            "loopx configure-goal "
-            f"--goal-id {shlex.quote(goal_id)} "
-            f"--ack-automation-prompt-migration {shlex.quote(migration_id)} --execute"
-        )
     return payload
 
 
@@ -504,7 +475,6 @@ def configure_goal(
     todo_lifecycle_authority: list[dict[str, Any]] | None = None,
     clear_todo_lifecycle_authority: list[str] | None = None,
     agent_model: str | None = None,
-    automation_prompt_migration_ack: str | None = None,
     supervisor_agent: str | None = None,
     supervised_agents: list[str] | None = None,
     clear_supervisor: bool = False,
@@ -569,17 +539,6 @@ def configure_goal(
         if agent_model not in AGENT_MODEL_CHOICES:
             raise ValueError(
                 "--agent-model must be one of: " + ", ".join(AGENT_MODEL_CHOICES)
-            )
-    if automation_prompt_migration_ack is not None:
-        automation_prompt_migration_ack = str(automation_prompt_migration_ack).strip()
-        if not automation_prompt_migration_ack:
-            raise ValueError(
-                "--ack-automation-prompt-migration requires a migration id"
-            )
-        if registered_agents is not None or clear_registered_agents:
-            raise ValueError(
-                "--ack-automation-prompt-migration cannot change registered agents; "
-                "complete the runtime cutover first, then update the peer set separately"
             )
     if clear_supervisor and (supervisor_agent or supervised_agents):
         raise ValueError(
@@ -858,47 +817,6 @@ def configure_goal(
         replan_after_completed_todos=execution_replan_after_todos,
         clear_replan_after_completed_todos=clear_execution_replan_after_todos,
     )
-    legacy_hierarchy_before = legacy_agent_hierarchy_present(before_goal)
-    expected_migration_id = peer_agent_runtime_migration_id(goal_id, before_goal)
-    completed_migration_before = completed_peer_agent_runtime_migration(before_goal)
-    migration_completed_before = peer_agent_runtime_migration_completed(before_goal)
-    migration_already_completed = bool(
-        completed_migration_before
-        and completed_migration_before.get("migration_id")
-        == automation_prompt_migration_ack
-        and migration_completed_before
-    )
-    if automation_prompt_migration_ack is not None:
-        if migration_already_completed:
-            pass
-        elif not legacy_hierarchy_before:
-            raise ValueError(
-                "no pending peer runtime automation migration matches this goal"
-            )
-        elif automation_prompt_migration_ack != expected_migration_id:
-            raise ValueError(
-                "automation prompt migration id does not match the current goal state; "
-                f"expected {expected_migration_id}"
-            )
-    elif (
-        execute
-        and legacy_hierarchy_before
-        and not migration_completed_before
-        and (
-            agent_model is not None
-            or registered_agents is not None
-            or peer_task_coordinator is not None
-            or clear_peer_task_coordinator
-            or clear_registered_agents
-        )
-    ):
-        raise ValueError(
-            "legacy agent hierarchy requires the one-time host automation migration first; "
-            "regenerate/update the installed peer heartbeat, then run "
-            f"`loopx configure-goal --goal-id {goal_id} "
-            f"--ack-automation-prompt-migration {expected_migration_id} --execute`"
-        )
-
     if quota_compute is not None or quota_window_hours is not None:
         quota = goal.get("quota") if isinstance(goal.get("quota"), dict) else {}
         if quota_compute is not None:
@@ -1085,7 +1003,6 @@ def configure_goal(
         or normalized_todo_lifecycle_authority
         or clear_todo_lifecycle_authority
         or agent_model is not None
-        or automation_prompt_migration_ack is not None
         or supervisor_agent is not None
         or supervised_agents is not None
         or clear_supervisor
@@ -1104,7 +1021,7 @@ def configure_goal(
             agent_model
             or (
                 AgentRuntimeModel.PEER_V1.value
-                if configured_model in {"peer_v1", "legacy_hierarchy"}
+                if configured_model == "peer_v1"
                 else configured_model
                 if configured_model in AGENT_MODEL_CHOICES
                 else DEFAULT_AGENT_RUNTIME_MODEL.value
@@ -1289,15 +1206,6 @@ def configure_goal(
                 )
             else:
                 coordination.pop("todo_lifecycle_authority", None)
-        if (
-            automation_prompt_migration_ack is not None
-            and not migration_already_completed
-        ):
-            coordination = migrate_coordination_to_peer_v1(
-                coordination,
-                migration_id=automation_prompt_migration_ack,
-                completed_at=_now_iso() if execute else None,
-            )
         if clear_supervisor:
             coordination.pop("supervisor", None)
         elif supervisor_agent is not None:
@@ -1360,9 +1268,7 @@ def configure_goal(
         ] or ["control_plane"]
     dry_run = not execute
     model_changed = bool(
-        before.get("legacy_hierarchy_present")
-        or before.get("agent_model") != after.get("agent_model")
-        or automation_prompt_migration_ack is not None
+        before.get("agent_model") != after.get("agent_model")
     )
     backup_path = None
 
@@ -1417,19 +1323,6 @@ def configure_goal(
         "after": after,
         "written": bool(execute and changed_fields),
         "reward_memory_enablement_preflight": deepcopy(reward_memory_plan["preflight"]),
-        "automation_prompt_migration": {
-            "migration_id": automation_prompt_migration_ack,
-            "status": (
-                "already_completed"
-                if migration_already_completed
-                else "completed"
-                if automation_prompt_migration_ack is not None
-                else "pending"
-                if legacy_hierarchy_before
-                else "not_required"
-            ),
-            "exactly_once_effect": True,
-        },
         "control_plane_summary": control_plane_policy_summary(
             after.get("control_plane")
         ),
@@ -1451,14 +1344,6 @@ def configure_goal(
             goal_id=goal_id,
             changed_fields=changed_fields,
             after=after,
-            migration_id=(
-                automation_prompt_migration_ack
-                if automation_prompt_migration_ack is not None
-                else expected_migration_id
-                if legacy_hierarchy_before and not migration_completed_before
-                else None
-            ),
-            migration_acknowledged=automation_prompt_migration_ack is not None,
         ),
         "supervisor_prompt": _build_supervisor_prompt_setup(
             goal_id=goal_id,

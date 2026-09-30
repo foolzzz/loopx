@@ -31,7 +31,7 @@
     },
     {
       "site": "loopx/agent_registry.py::<module>.load_goal_from_registry::codec_read:load_registry#1",
-      "line": 216,
+      "line": 222,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
@@ -823,7 +823,7 @@
     },
     {
       "site": "loopx/configure_goal.py::<module>.configure_goal::codec_transaction:project_registry_transaction#1",
-      "line": 542,
+      "line": 512,
       "column": 14,
       "kind": "codec_transaction",
       "api": "project_registry_transaction",
@@ -831,7 +831,7 @@
     },
     {
       "site": "loopx/configure_goal.py::<module>.configure_goal::codec_read:load_project_registry#1",
-      "line": 752,
+      "line": 711,
       "column": 14,
       "kind": "codec_read",
       "api": "load_project_registry",

@@ -1127,12 +1127,12 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "peer-agent-runtime",
-        "title": "Peer agent runtime and migration",
+        "title": "Peer agent runtime",
         "quality_risk": "high",
         "purpose": (
             "Check equal peer identity, deterministic task assignment, task-policy "
             "completion, symmetric workspace isolation, task-scoped coordination, "
-            "and atomic registry/heartbeat migration."
+            "and identity-aware host-loop prompts."
         ),
         "catalog_families": ["Work Routing", "State And Boundary", "Evidence Lifecycle"],
         "trigger_hints": (
@@ -1161,7 +1161,7 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             {
                 "command": "python3 examples/control_plane/peer-agent-runtime-v1-smoke.py",
                 "tier": "default",
-                "reason": "guards the complete peer identity, routing, completion, workspace, orchestration, migration, and host-loop contract",
+                "reason": "guards the complete peer identity, routing, completion, workspace, orchestration, and host-loop contract",
             },
             {
                 "command": "python3 examples/control_plane/agent-identity-readmodel-smoke.py",
@@ -1177,11 +1177,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/control_plane/todo-continuation-policy-smoke.py",
                 "tier": "deep",
                 "reason": "guards task-policy completion and independent review handoff",
-            },
-            {
-                "command": "python3 examples/control_plane/peer-agent-migration-smoke.py",
-                "tier": "deep",
-                "reason": "guards atomic registry backup/cutover and peer heartbeat prompts",
             },
             {
                 "command": "python3 examples/control_plane/peer-agent-workspace-guard-smoke.py",

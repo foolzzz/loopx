@@ -711,9 +711,10 @@ Smoke 的目的不是验证每个 incidental JSON 字段，而是守住 durable 
 
 Codex App、CLI、Claude Code 应共享 LoopX CLI/state kernel。host adapter 只做触发和能力执行，不 fork truth。
 
-### 把兼容 migration 当作当前模型
+### 把已退役 hierarchy 当作当前模型
 
-旧 hierarchy 字段可以保留 exactly-once migration reader，但当前 runtime model 只有 `peer_v1`。迁移逻辑的存在不表示 primary/side 仍是实时概念。
+旧 hierarchy 字段现在会被快速拒绝；当前 runtime model 只有 `role_v1` 和
+`peer_v1`。不要把历史 primary/side 字段重新接回实时 identity 或 routing。
 
 ### 只追加文档，不退休旧真相
 

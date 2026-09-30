@@ -89,7 +89,6 @@ def main() -> None:
                 "coordination": {
                     "agent_model": "peer_v1",
                     "registered_agents": ["codex-main-control", "codex-product-capability"],
-                    "side_agent_handoff_agent": "codex-product-capability",
                     "checkpointed_boundary_authority": [
                         {
                             "status": "active",

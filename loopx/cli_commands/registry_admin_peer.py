@@ -67,15 +67,6 @@ def register_peer_runtime_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Registered agent id whose role should be removed. Repeatable.",
     )
-    parser.add_argument(
-        "--ack-automation-prompt-migration",
-        metavar="MIGRATION_ID",
-        help=(
-            "Acknowledge that the installed host automation was updated for this stable "
-            "migration id, then atomically remove legacy hierarchy fields. Repeating the "
-            "same completed id is a no-op."
-        ),
-    )
 
 
 def register_peer_supervisor_arguments(parser: argparse.ArgumentParser) -> None:

@@ -10,6 +10,7 @@ from ..todos.contract import normalize_todo_claimed_by
 
 PEER_AGENT_IDENTITY_SCHEMA_VERSION = "peer_agent_identity_v1"
 PEER_AGENT_PROFILE_SCHEMA_VERSION = "agent_profile_v1"
+LEGACY_AGENT_PROFILE_SCHEMA_VERSION = "agent_profile_v0"
 
 
 class AgentRuntimeModel(str, Enum):
@@ -31,21 +32,136 @@ AGENT_ROLE_VALUES = (
 )
 
 
+class RetiredAgentHierarchyError(ValueError):
+    """Public-safe rejection for retired v0.1 main/side goal state."""
+
+    error_code = "retired_agent_hierarchy"
+
+    def __init__(self, fields: Iterable[str]) -> None:
+        self.fields = tuple(fields)
+        self.recommended_action = (
+            "remove the listed fields from the source registry, set "
+            "coordination.agent_model=role_v1 or peer_v1, keep the current "
+            "coordination.registered_agents roster, and rerun the command; "
+            "quota should-run must use a registered --agent-id"
+        )
+        super().__init__(
+            "goal contains retired v0.1 agent hierarchy fields: "
+            + ", ".join(self.fields)
+            + "; "
+            + self.recommended_action
+            + ". LoopX no longer migrates main/side hierarchy state."
+        )
+
+
 def normalize_agent_role(value: Any) -> str | None:
     candidate = str(value or "").strip().lower()
     return candidate if candidate in AGENT_ROLE_VALUES else None
 
 
+def _profile_mapping_path(agent_id: Any) -> str:
+    raw_agent_id = str(agent_id)
+    if normalize_todo_claimed_by(raw_agent_id) == raw_agent_id:
+        return f"coordination.agent_profiles[{json.dumps(raw_agent_id)}]"
+    fingerprint = hashlib.sha256(raw_agent_id.encode("utf-8")).hexdigest()[:12]
+    return f'coordination.agent_profiles["<invalid-agent-id:{fingerprint}>"]'
+
+
+def legacy_agent_hierarchy_fields(
+    goal: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    """Return retired v0.1 main/side fields still present in a goal."""
+
+    if not isinstance(goal, Mapping):
+        return ()
+    coordination = goal.get("coordination")
+    if not isinstance(coordination, Mapping):
+        coordination = {}
+    fields: list[str] = []
+    configured_model = coordination.get("agent_model")
+    if configured_model == "legacy_hierarchy":
+        fields.append("coordination.agent_model")
+    if goal.get("agent_model") == "legacy_hierarchy":
+        fields.append("agent_model")
+    for field in ("primary_agent", "side_agent_handoff_agent"):
+        if field in coordination:
+            fields.append(f"coordination.{field}")
+
+    profiles = coordination.get("agent_profiles")
+    if isinstance(profiles, Mapping):
+        profile_items = (
+            (
+                _profile_mapping_path(agent_id),
+                profile,
+            )
+            for agent_id, profile in profiles.items()
+        )
+    elif isinstance(profiles, list):
+        profile_items = (
+            (
+                f"coordination.agent_profiles[{index}]",
+                profile,
+            )
+            for index, profile in enumerate(profiles)
+            if isinstance(profile, Mapping)
+        )
+    else:
+        profile_items = ()
+    effective_model = configured_model or goal.get("agent_model")
+    role_v1 = effective_model == AgentRuntimeModel.ROLE_V1.value
+    for prefix, profile in profile_items:
+        if not isinstance(profile, Mapping):
+            continue
+        if profile.get("schema_version") == LEGACY_AGENT_PROFILE_SCHEMA_VERSION:
+            fields.append(f"{prefix}.schema_version")
+        if not role_v1 and "role" in profile:
+            fields.append(f"{prefix}.role")
+        if "primary_agent" in profile:
+            fields.append(f"{prefix}.primary_agent")
+        if "worktree_policy" in profile:
+            fields.append(f"{prefix}.worktree_policy")
+        review_policy = profile.get("review_policy")
+        if "review_policy" in profile:
+            matched_review_policy_field = False
+            for field in (
+                "handoff_agent",
+                "reviews_side_agent_work",
+                "can_self_merge",
+            ):
+                if not isinstance(review_policy, Mapping):
+                    break
+                if field in review_policy:
+                    fields.append(f"{prefix}.review_policy.{field}")
+                    matched_review_policy_field = True
+            if not matched_review_policy_field:
+                fields.append(f"{prefix}.review_policy")
+    completed_migrations = coordination.get("completed_migrations")
+    if (
+        isinstance(completed_migrations, Mapping)
+        and "peer_agent_runtime_v1" in completed_migrations
+    ):
+        fields.append("coordination.completed_migrations.peer_agent_runtime_v1")
+    return tuple(fields)
+
+
+def reject_legacy_agent_hierarchy(goal: Mapping[str, Any] | None) -> None:
+    fields = legacy_agent_hierarchy_fields(goal)
+    if not fields:
+        return
+    raise RetiredAgentHierarchyError(fields)
+
+
 def agent_runtime_model_for_goal(goal: Mapping[str, Any] | None) -> AgentRuntimeModel:
     """Return the goal's agent runtime model (role_v1 unless peer_v1 is recorded)."""
 
+    reject_legacy_agent_hierarchy(goal)
     if isinstance(goal, Mapping):
         coordination = goal.get("coordination")
         raw = coordination.get("agent_model") if isinstance(coordination, Mapping) else None
         raw = raw or goal.get("agent_model")
         if raw == AgentRuntimeModel.ROLE_V1.value:
             return AgentRuntimeModel.ROLE_V1
-        if raw in {AgentRuntimeModel.PEER_V1.value, "legacy_hierarchy"}:
+        if raw == AgentRuntimeModel.PEER_V1.value:
             return AgentRuntimeModel.PEER_V1
         if raw not in {None, ""}:
             raise ValueError("coordination.agent_model must be role_v1 or peer_v1")
@@ -61,6 +177,8 @@ def goal_agent_runtime_model_or_none(
         return None
     try:
         return agent_runtime_model_for_goal(goal)
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         return None
 

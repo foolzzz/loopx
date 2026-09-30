@@ -138,6 +138,13 @@ function decodeRequest(value: unknown): CompletionPolicyRequest {
       "Todo completion policy request schema mismatch",
     );
   }
+  const agentModel = optionalString(request.agent_model, "agent_model");
+  if (agentModel === "legacy_hierarchy") {
+    throw new EffectRuntimeRequestError(
+      "goal contains retired v0.1 agent hierarchy field coordination.agent_model; " +
+        "remove it from the source registry and select role_v1 or peer_v1",
+    );
+  }
   const registeredAgents = requireRegisteredAgents(request.registered_agents);
   if (!Array.isArray(request.next_excluded_agents)) {
     throw new EffectRuntimeRequestError(
@@ -146,7 +153,7 @@ function decodeRequest(value: unknown): CompletionPolicyRequest {
   }
   return {
     goal_id: requireNonEmptyString(request.goal_id, "goal_id"),
-    agent_model: optionalString(request.agent_model, "agent_model"),
+    agent_model: agentModel,
     claimed_by: request.claimed_by,
     registered_agents: registeredAgents,
     next_claimed_by: request.next_claimed_by,
@@ -213,6 +220,15 @@ export function resolveTodoCompletionPolicy(
   value: unknown,
 ): TodoCompletionPolicyResult {
   const request = decodeRequest(value);
+  if (
+    request.agent_model !== null && request.agent_model !== "" &&
+    request.agent_model !== "role_v1" &&
+    request.agent_model !== "peer_v1"
+  ) {
+    throw new EffectRuntimeRequestError(
+      "coordination.agent_model must be role_v1 or peer_v1",
+    );
+  }
   // Preserve Python bool(str) compatibility: null and the empty string mean
   // "not supplied", while a non-empty (including whitespace-only) string is a
   // caller-supplied work item. This matters for same-agent ownership and dependent
@@ -223,16 +239,6 @@ export function resolveTodoCompletionPolicy(
       request.claimed_by === undefined || request.claimed_by === ""
     ? null
     : requireRegisteredAgent(request.claimed_by, "claimed_by", request);
-  if (
-    request.agent_model !== null && request.agent_model !== "" &&
-    request.agent_model !== "role_v1" &&
-    request.agent_model !== "peer_v1" &&
-    request.agent_model !== "legacy_hierarchy"
-  ) {
-    throw new EffectRuntimeRequestError(
-      "coordination.agent_model must be role_v1 or peer_v1",
-    );
-  }
   let effectiveNextClaimedBy = request.next_claimed_by === null ||
       request.next_claimed_by === undefined || request.next_claimed_by === ""
     ? null

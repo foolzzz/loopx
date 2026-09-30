@@ -32,7 +32,11 @@ from .agent_registry import (
     orchestrator_agent_for_goal,
     registered_agent_ids_for_goal,
 )
-from .control_plane.agents.runtime_model import AgentRuntimeModel, agent_runtime_model_for_goal
+from .control_plane.agents.runtime_model import (
+    AgentRuntimeModel,
+    RetiredAgentHierarchyError,
+    agent_runtime_model_for_goal,
+)
 from .control_plane.todos.contract import (
     TODO_STATUS_IN_REVIEW,
     TODO_STATUS_OPEN,
@@ -66,6 +70,8 @@ def escalated_todo_id(escalation: Mapping[str, Any] | None) -> str | None:
 def goal_uses_role_v1(goal: Mapping[str, Any] | None) -> bool:
     try:
         return agent_runtime_model_for_goal(goal) is AgentRuntimeModel.ROLE_V1
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         return False
 

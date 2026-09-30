@@ -999,11 +999,10 @@ surface an upgrade error instead of silently running without identity or
 scope. Old goal registries without `coordination.registered_agents` also fail
 closed when a scoped heartbeat or todo claim names an agent; register the agent
 identity first instead of letting workers invent claim ids.
-For a hierarchy-era registry, the next `quota should-run` returns a stable peer-runtime migration id, one heartbeat command per registered
-peer, and a completion command. Update installed automations idempotently with
-that migration id, then run the completion command once. Repeating the same
-completion acknowledgement is a no-op, and later quota checks do not project
-the completed migration again.
+Hierarchy-era registry fields now fail before identity or routing. The error
+lists the rejected field paths; remove them from the source registry, select
+`role_v1` or `peer_v1`, retain the current registered-agent roster, and rerun
+the command. LoopX no longer emits a migration id or completion command.
 
 `register-agent` resolves the existing global entry's `source_registry`, writes
 the project-local source of truth, and then syncs the shared global projection.

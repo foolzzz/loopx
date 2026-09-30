@@ -532,8 +532,7 @@ def render_quota_should_run_markdown(payload: dict[str, Any]) -> str:
             "- automation_prompt_upgrade: "
             f"required={automation_prompt_upgrade.get('required')} "
             f"blocks_should_run={automation_prompt_upgrade.get('blocks_should_run')} "
-            f"contract={automation_prompt_upgrade.get('contract')} "
-            f"migration_id={automation_prompt_upgrade.get('migration_id')}"
+            f"contract={automation_prompt_upgrade.get('contract')}"
         )
         if automation_prompt_upgrade.get("recommended_action"):
             lines.append(f"- automation_prompt_upgrade_action: {automation_prompt_upgrade.get('recommended_action')}")
@@ -543,11 +542,6 @@ def render_quota_should_run_markdown(payload: dict[str, Any]) -> str:
                     f"- automation_prompt_upgrade_agent[{example.get('agent_id')}]: "
                     f"{example.get('command')}"
                 )
-        if automation_prompt_upgrade.get("completion_command"):
-            lines.append(
-                "- automation_prompt_upgrade_complete: "
-                f"{automation_prompt_upgrade.get('completion_command')}"
-            )
     capability_gate = as_dict(payload.get("capability_gate"))
     if capability_gate:
         lines.append(

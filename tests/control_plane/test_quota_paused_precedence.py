@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from loopx.configure_goal import configure_goal
+from loopx.control_plane.agents.runtime_model import RetiredAgentHierarchyError
 from loopx.control_plane.scheduler.execution_context import (
     GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT,
     SchedulerRuntimeProfile,
@@ -117,6 +118,25 @@ def test_paused_quota_preempts_capability_bridge_repair() -> None:
 
     _assert_authoritatively_paused(payload)
     assert "capability_gate" not in payload
+
+
+@pytest.mark.parametrize("goal_status", ["active", "stopped"])
+def test_paused_or_stopped_quota_does_not_hide_retired_hierarchy_without_agent_id(
+    goal_status: str,
+) -> None:
+    status_payload = _paused_status()
+    goal = status_payload["attention_queue"]["items"][0]
+    goal["status"] = goal_status
+    goal["coordination"][
+        "side_agent_handoff_agent"
+    ] = AGENT_ID
+
+    with pytest.raises(RetiredAgentHierarchyError):
+        build_quota_should_run(
+            status_payload,
+            goal_id=GOAL_ID,
+            scheduler_execution_context=GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT,
+        )
 
 
 def test_paused_quota_preempts_workspace_repair(

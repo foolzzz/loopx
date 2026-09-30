@@ -4,6 +4,10 @@ import json
 from dataclasses import fields
 from pathlib import Path
 
+import pytest
+
+from loopx.control_plane.agents.runtime_model import RetiredAgentHierarchyError
+from loopx.control_plane.todos.completion_policy import build_completion_policy_request
 from loopx.control_plane.todos.completion_policy import CompletionPolicy
 from loopx.control_plane.testing.canary_harness import (
     run_json_cli,
@@ -80,3 +84,62 @@ def test_completion_rejects_unknown_runtime_model_before_write(
     assert returncode == 1
     assert "coordination.agent_model must be role_v1 or peer_v1" in result["error"]
     assert state_file.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    "legacy_coordination",
+    [
+        {"primary_agent": AGENT_ID},
+        {"side_agent_handoff_agent": AGENT_ID},
+        {
+            "agent_profiles": {
+                AGENT_ID: {"schema_version": "agent_profile_v0"}
+            }
+        },
+        {
+            "agent_profiles": {
+                AGENT_ID: {"review_policy": {"handoff_agent": AGENT_ID}}
+            }
+        },
+        {
+            "agent_profiles": {
+                AGENT_ID: {"worktree_policy": "clean-worktree"}
+            }
+        },
+        {
+            "completed_migrations": {
+                "peer_agent_runtime_v1": {"status": "completed"}
+            }
+        },
+    ],
+)
+def test_completion_request_rejects_full_legacy_goal_before_identity_projection(
+    tmp_path: Path,
+    legacy_coordination: dict[str, object],
+) -> None:
+    project = tmp_path / "project"
+    runtime = tmp_path / "runtime"
+    registry_path = project / ".loopx" / "registry.json"
+    write_fixture_registry(
+        project=project,
+        runtime_root=runtime,
+        registry_path=registry_path,
+        goal_id=GOAL_ID,
+        domain="loopx-platform",
+        adapter_kind="harness_self_improvement",
+        registered_agents=[AGENT_ID],
+        extra_goal_fields={
+            "coordination": {
+                "agent_model": "role_v1",
+                "registered_agents": [AGENT_ID],
+                **legacy_coordination,
+            }
+        },
+    )
+
+    with pytest.raises(RetiredAgentHierarchyError):
+        build_completion_policy_request(
+            registry_path=registry_path,
+            goal_id=GOAL_ID,
+            claimed_by="../private-agent",
+        )

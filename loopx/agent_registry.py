@@ -123,12 +123,15 @@ def acceptor_agents_for_goal(goal: dict[str, Any] | None) -> list[str]:
 
     from .control_plane.agents.runtime_model import (
         AgentRuntimeModel,
+        RetiredAgentHierarchyError,
         agent_runtime_model_for_goal,
     )
 
     try:
         if agent_runtime_model_for_goal(goal) != AgentRuntimeModel.ROLE_V1:
             return []
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         return []
     return sorted(
@@ -142,12 +145,15 @@ def orchestrator_agent_for_goal(goal: dict[str, Any] | None) -> str | None:
     from .control_plane.agents.runtime_model import (
         AGENT_ROLE_ORCHESTRATOR,
         AgentRuntimeModel,
+        RetiredAgentHierarchyError,
         agent_runtime_model_for_goal,
     )
 
     try:
         if agent_runtime_model_for_goal(goal) != AgentRuntimeModel.ROLE_V1:
             return None
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         return None
     orchestrators = sorted(

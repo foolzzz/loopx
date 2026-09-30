@@ -156,7 +156,7 @@ Validate the surfaces you use:
 - `loopx doctor`: wrapper, release manifest, Python import, skill delivery, and Host integration;
 - `loopx slash-commands --install`: updates only LoopX-managed command files and skips user-owned
   collisions;
-- `loopx quota should-run` or `loopx upgrade-plan`: peer-runtime and heartbeat-prompt migrations;
+- `loopx quota should-run --agent-id <registered-agent>`: scoped runtime identity and heartbeat-prompt readback;
 - `loopx extension list` plus executed `extension doctor`: readiness for each active revision;
 - `loopx status` and `history`: registry, Goal, Todo, and projection continuity.
 

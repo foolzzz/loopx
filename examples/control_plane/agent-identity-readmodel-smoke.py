@@ -87,9 +87,11 @@ def assert_peer_identity_projects_only_valid_advisory_profile() -> None:
     goal["coordination"]["agent_profiles"][AGENTS[1]]["profile_role"] = (
         "primary-agent"
     )
-    invalid_identity = build_quota_agent_identity(goal, agent_id=AGENTS[1])
-    assert invalid_identity is not None
-    assert "agent_profile" not in invalid_identity, invalid_identity
+    advisory_identity = build_quota_agent_identity(goal, agent_id=AGENTS[1])
+    assert advisory_identity is not None
+    assert advisory_identity["agent_profile"]["profile_role"] == "primary-agent", (
+        advisory_identity
+    )
 
 
 def assert_long_lived_profile_requires_vision_by_default() -> None:
@@ -126,25 +128,22 @@ def assert_long_lived_profile_requires_vision_by_default() -> None:
         raise AssertionError("invalid vision requirement should fail closed")
 
 
-def assert_legacy_state_only_projects_migration() -> None:
+def assert_legacy_state_fails_fast() -> None:
     goal = legacy_goal()
-    identity = build_quota_agent_identity(goal, agent_id=AGENTS[1])
-    assert "role" not in identity, identity
-    upgrade = build_identity_aware_prompt_upgrade(
-        goal,
-        goal_id="sample-goal",
-        agent_identity=identity,
-    )
-    assert upgrade["contract"] == "peer_agent_heartbeat_prompt_v1", upgrade
-    assert upgrade["blocks_should_run"] is True, upgrade
-    assert upgrade["delivery_semantics"] == "stable_idempotent_until_ack", upgrade
-    assert upgrade["migration_id"] in upgrade["completion_command"], upgrade
-    assert "primary_example_command" not in upgrade, upgrade
+    try:
+        build_quota_agent_identity(goal, agent_id=AGENTS[1])
+    except ValueError as exc:
+        message = str(exc)
+        assert "retired v0.1 agent hierarchy" in message, message
+        assert "coordination.side_agent_handoff_agent" in message, message
+        assert "remove the listed fields" in message, message
+    else:
+        raise AssertionError("retired hierarchy state should fail before routing")
 
 
 def assert_assignment_is_deterministic() -> None:
     assert agent_runtime_model_for_goal(peer_goal()) == AgentRuntimeModel.PEER_V1
-    assert agent_runtime_model_for_goal({"coordination": {}}) == AgentRuntimeModel.PEER_V1
+    assert agent_runtime_model_for_goal({"coordination": {}}) == AgentRuntimeModel.ROLE_V1
     work_key = peer_work_key(
         {"todo_id": "todo_peer_assignment", "reason": "frontier_exhausted"},
         fallback="replan",
@@ -173,7 +172,7 @@ def assert_errors_are_actionable() -> None:
     try:
         build_quota_agent_identity(invalid, agent_id=AGENTS[0])
     except ValueError as exc:
-        assert "must be peer_v1" in str(exc), exc
+        assert "must be role_v1 or peer_v1" in str(exc), exc
     else:
         raise AssertionError("unsupported agent runtime model should fail")
 
@@ -182,7 +181,7 @@ def main() -> None:
     assert_peer_identity_has_no_rank()
     assert_peer_identity_projects_only_valid_advisory_profile()
     assert_long_lived_profile_requires_vision_by_default()
-    assert_legacy_state_only_projects_migration()
+    assert_legacy_state_fails_fast()
     assert_assignment_is_deterministic()
     assert_errors_are_actionable()
     print("agent-identity-readmodel-smoke ok")

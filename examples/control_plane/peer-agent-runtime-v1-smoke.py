@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the durable peer-agent runtime and migration contract suite."""
+"""Run the durable peer-agent runtime contract suite."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ CHECKS = (
     "examples/control_plane/peer-agent-hard-cut-boundary-smoke.py",
     "examples/control_plane/quota-replan-decision-plane-smoke.py",
     "examples/control_plane/todo-continuation-policy-smoke.py",
-    "examples/control_plane/peer-agent-migration-smoke.py",
     "examples/control_plane/peer-agent-workspace-guard-smoke.py",
     "examples/control_plane/quota-spend-workspace-causality-smoke.py",
     "examples/control_plane/peer-agent-continuation-state-machine-smoke.py",

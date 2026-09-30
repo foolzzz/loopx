@@ -506,6 +506,7 @@ def require_user_gate_author(
     from .control_plane.agents.runtime_model import (
         AGENT_ROLE_ORCHESTRATOR,
         AgentRuntimeModel,
+        RetiredAgentHierarchyError,
         agent_runtime_model_for_goal,
     )
 
@@ -515,6 +516,8 @@ def require_user_gate_author(
     try:
         if agent_runtime_model_for_goal(goal) != AgentRuntimeModel.ROLE_V1:
             return
+    except RetiredAgentHierarchyError:
+        raise
     except ValueError:
         return
     role = agent_role_for_goal(goal, actor_agent_id)

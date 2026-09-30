@@ -817,11 +817,6 @@ def interaction_next_cli_actions(
             for item in automation_prompt_upgrade.get("agent_example_commands") or []
             if isinstance(item, dict)
         ]
-        completion_command = str(
-            automation_prompt_upgrade.get("completion_command") or ""
-        ).strip()
-        if completion_command:
-            actions.append(completion_command)
         return [action for action in actions if action] or [
             f"{command_prefix} heartbeat-prompt --thin --goal-id {goal_id} --agent-id <registered-agent> --agent-scope '<scope>'",
         ]
