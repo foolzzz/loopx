@@ -11,7 +11,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from loopx import history, state_refresh
+from loopx import history, state_refresh  # noqa: E402
 
 
 GOAL_ID = "reserved-run-path-fixture"

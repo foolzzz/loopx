@@ -11,8 +11,14 @@ PROJECT_GOAL_STATE_ROOT = Path(LOOPX_STATE_DIRNAME) / "goals"
 ACTIVE_GOAL_STATE_FILENAME = "ACTIVE_GOAL_STATE.md"
 GLOBAL_REGISTRY_FILENAME = "registry.global.json"
 # default_runtime_root() spelled for a POSIX shell, for commands LoopX renders
-# for another shell to run (agent prompts, SSH commands); the shell that runs
-# the command applies the same rule.
+# for another shell to run (agent prompts, SSH commands). The shell that runs
+# the command expands it: an unset or empty LOOPX_RUNTIME_ROOT means ~/.loopx,
+# and a relative value names a path under that shell's working directory,
+# which is what default_runtime_root() yields in a process started there.
+# Unlike the Python resolver the shell does not trim whitespace. Rendered
+# commands only pass it where a plain path is read (--registry, mkdir), never
+# as --runtime-root, whose relative values resolve against the registry's
+# project instead.
 SHELL_DEFAULT_RUNTIME_ROOT = f"${{{RUNTIME_ROOT_ENV}:-$HOME/{LOOPX_STATE_DIRNAME}}}"
 SHELL_DEFAULT_GLOBAL_REGISTRY = f"{SHELL_DEFAULT_RUNTIME_ROOT}/{GLOBAL_REGISTRY_FILENAME}"
 

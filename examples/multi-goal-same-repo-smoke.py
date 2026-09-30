@@ -125,7 +125,7 @@ def assert_local_goal_map(root: Path, registry_path: Path, goal_id: str) -> None
     assert payload["project_map"]["goal_state_dir_exists"] is True, payload
     assert payload["project_map"]["active_state_file_exists"] is True, payload
     assert "project_local_goal_state_not_detected" not in payload["residual_risks"], payload
-    assert f"goal_state_dir 1/1" in payload["health_check"], payload
+    assert "goal_state_dir 1/1" in payload["health_check"], payload
 
 
 def main() -> int:

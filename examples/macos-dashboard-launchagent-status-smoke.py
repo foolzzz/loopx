@@ -29,6 +29,8 @@ def run_script(fake_bin: Path, home: Path, args: list[str], *, schema_version: i
         "LOOPX_STATUS_CONTRACT_MIN_VERSION": "2",
         "CODEX_HOME": "",
         "LOOPX_CHAT_CODEX_HOME": "",
+        "LOOPX_RUNTIME_ROOT": "",
+        "LOOPX_GLOBAL_REGISTRY": "",
         **(extra_env or {}),
     }
     return subprocess.run(
@@ -130,6 +132,32 @@ def main() -> int:
         assert "export LOOPX_PYTHON=" in default_chat_plist, default_chat_plist
         assert "/loopx --registry" in default_plist, default_plist
         assert "/loopx-canary" not in default_plist, default_plist
+        # The registry default comes from loopx.paths: ~/.loopx when
+        # LOOPX_RUNTIME_ROOT is unset, and nothing is exported to the services.
+        default_registry = home / ".loopx" / "registry.global.json"
+        assert f"--registry {default_registry} " in default_plist, default_plist
+        assert f"--registry {default_registry} " in default_chat_plist, default_chat_plist
+        assert "LOOPX_RUNTIME_ROOT" not in default_plist + default_chat_plist
+
+        # A blank value configures nothing, as in loopx.paths.
+        run_script(fake_bin, home, ["install"], schema_version=2, extra_env={"LOOPX_RUNTIME_ROOT": "   "})
+        assert f"--registry {default_registry} " in status_plist.read_text(encoding="utf-8")
+        assert "LOOPX_RUNTIME_ROOT" not in status_plist.read_text(encoding="utf-8")
+
+        # A relative value is made absolute against the install directory and
+        # exported to both services, so they resolve the same root.
+        configured_root = tmp / "configured-root"
+        run_script(
+            fake_bin,
+            home,
+            ["install"],
+            schema_version=2,
+            extra_env={"LOOPX_RUNTIME_ROOT": os.path.relpath(configured_root, REPO_ROOT)},
+        )
+        for plist in (status_plist, chat_plist):
+            text = plist.read_text(encoding="utf-8")
+            assert f"export LOOPX_RUNTIME_ROOT={configured_root};" in text, text
+            assert f"--registry {configured_root / 'registry.global.json'} " in text, text
         assert not (home / "Library" / "LaunchAgents" / "com.loopx.dashboard.plist").exists(), "retired dashboard LaunchAgent should not be installed"
 
         run_script(
