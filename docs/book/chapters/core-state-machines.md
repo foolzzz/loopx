@@ -431,6 +431,10 @@ autonomous replan obligation。它防止旧 Turn、其他 Agent 或其他工作�
 2. durable writeback 缺失或被拒绝时不能 spend；
 3. scheduler apply 没有 ACK 或 fail receipt 时不能假装 Host 已更新。
 
+这里的 receipt 是通用 Turn journal 契约，与 App cadence projection 分属不同边界。App
+automation 没有 scheduler ACK/failure follow-up 命令，也不持久化每 App scheduler state；
+每次无状态 proposal 只依据 Host 直接更新结果或 authoritative readback。
+
 失败不是删掉 transaction。`receipt_missing`、`identity_mismatch`、`writeback_rejected`、
 `quota_spend_rejected` 等失败种类会把控制权交给 repair/retry，并保留 effect identity 以实现幂等。
 如果 journal 留下 prepared provider effect，恢复器必须先按相同 `effect_ref` 做 provider readback：

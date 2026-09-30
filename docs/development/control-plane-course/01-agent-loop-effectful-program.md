@@ -114,8 +114,8 @@ CLI 动作与 scheduler cadence，由 host 或下一轮 automation 执行。
   effect 已经执行；
 - 可以 rewrite：`capability_gate` 把下一步改写成先补能力，`work_lane_contract`
   可以用 due monitor 或 Lark inbox 抢占普通 advancement；
-- 可以 settle：`scheduler_hint` 的 ACK / failure hint 告诉 host 如何提交成功或
-  失败，`unchanged_poll` 限制重复轮询。
+- 可以 settle：`cli_channel.next_cli_actions` 携带本轮的 writeback 与 spend，
+  `scheduler_hint` 只投影下次 cadence，`unchanged_poll` 限制重复轮询。
 
 失败、取消、权限和预算必须保持结构化，不能被一个通用 catch 吞掉。看一个
 around 决策时，问七件事：
@@ -126,14 +126,14 @@ around 决策时，问七件事：
 4. `next_effect` 在哪里被编码？
 5. 失败、取消、权限、预算是否仍然结构化可见？
 6. around layer 的先后顺序是否明确并有测试？
-7. host effect 之后，evidence、trace、budget 是否通过 writeback / ACK / spend
-   继续成立？
+7. host effect 之后，evidence、trace、budget 是否通过 writeback / spend
+   与适用的 durable receipt 继续成立？
 
 ## CLI 是更高密度的 effect
 
 单个 tool call 是 `ToolInput => F[ToolOutput]`。LoopX 的 CLI packet 是一条更高
 密度的 effect：一条命令可以把权限、预算、参数校验、外部执行、失败语义、scheduler
-ACK 和 writeback 都编码进同一个 request。模型仍然只提出 effect request，harness
+cadence 和 writeback 都编码进同一个 request。模型仍然只提出 effect request，harness
 负责解释并决定下一步执行什么。
 
 如果未来厂商 API 原生支持 serial tool calls 或 interleaved reasoning，对 LoopX
@@ -235,9 +235,11 @@ effect、稳定 identity、durable receipt、replay 要求，并且能删除重�
 truth 时，才值得接入。
 
 read model、projection、quota decision、vision/replan policy、gate selection 和 monitor
-routing 仍然适合普通纯函数或领域状态机。scheduler apply / ACK 是 host handoff，也不应
-为了“统一”被搬进 agent settlement。共享抽象要减少重复知识，不能只减少看起来相似的
-代码。
+routing 仍然适合普通纯函数或领域状态机。App scheduler cadence 是无状态
+host proposal，不应为了“统一”被搬进 agent settlement。隔离 turn driver 内部仍有
+`scheduler_apply -> scheduler_ack` journal phase，那是通用 Turn transaction receipt，不是已退役的
+App scheduler follow-up 命令或每 App 状态。共享抽象要减少重复知识，不能只减少
+看起来相似的代码。
 
 ## 代码领读顺序
 

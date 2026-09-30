@@ -1,4 +1,4 @@
-# 第 7 讲：Host、Heartbeat 与 Stateful Backoff
+# 第 7 讲：Host、Heartbeat 与 Cadence Projection
 
 > **本讲结论：** Host 拥有唤醒和外部 effect，LoopX 拥有 cadence proposal 与验证规则；
 > scheduler hint 只是 proposal，不能证明 host 已应用 RRULE。
@@ -11,7 +11,7 @@
 
 1. 区分 host trigger、heartbeat task body 和 LoopX decision kernel。
 2. 解释 thin prompt 为什么比项目专属大 prompt 更可靠。
-3. 读懂 scheduler hint、stateful backoff 和 reset policy。
+3. 区分 App 无状态 cadence projection 与 local scheduler 的 stateful backoff/reset policy。
 4. 区分 quiet skip、monitor poll、wait、run-now 和 terminal stop。
 5. 解释为什么 monitor-poll 的 before/after decision 必须共享同一 execution context。
 6. 设计一个不会重复 spend、不会无限刷盘的 host adapter。
@@ -20,7 +20,7 @@
 
 | 边界 | LoopX 中的答案 |
 | --- | --- |
-| Decision owner | LoopX 从 quota decision 投影 cadence、backoff 与 apply obligation |
+| Decision owner | LoopX 从 quota decision 投影 App 初始 cadence 与 apply obligation；local scheduler 独立维护 backoff |
 | Execution context | `host_surface + scheduler_owner + execution_mode` 共同限定 effect authority |
 | Effect owner | Host 创建 session、触发 turn、修改 RRULE 或调用外部 runtime |
 | Commit receipt | Scheduler cadence 没有 ACK receipt；Turn 由 validated writeback 与 spend 结算 |
@@ -140,14 +140,16 @@ Scheduler 根据已经解析的 lifecycle 状态决定下一次 cadence，不应
 
 具体值由当前 schema 和配置决定，上表用于理解类别，不应复制到另一个 hard-coded scheduler。
 
-## Stateful Backoff
+## Local Scheduler Stateful Backoff
 
 固定 2 分钟 heartbeat 会产生两个问题：
 
 - 有工作时可能太慢；
 - 等用户或外部证据时会反复空转、刷日志和占用模型。
 
-Stateful backoff 保存同一等待身份的连续轮次，逐步增加间隔。当状态变化时 reset。
+Local scheduler 的 stateful backoff 保存同一等待身份的连续轮次，逐步增加
+间隔。当状态变化时 reset。App scheduler 不持久化这个 progression，每轮使用
+当前 profile 的初始间隔。
 
 可以把 identity key 理解成：
 
@@ -435,8 +437,9 @@ base_identity_keys = [
 ### 3. App scheduler follow-up 已退役
 
 原生 ACK/failure follow-up、其 TypeScript transaction 与 App scheduler state 已移除。
-`scheduler/state_transition_rules.ts` 仍计算 `stateful_backoff`，但输入恒为空状态；
-`reset_token` 与 `identity_signature` 继续驱动 CLI host 的 unchanged-poll reset。
+`scheduler_hint.py` 直接从当前 profile 的初始 RRULE 构建 App cadence proposal，仅用
+observed Host RRULE 判断 `apply_needed`；它不调用旧 transition kernel，也不产生
+ACK/failure follow-up。Local scheduler 的 unchanged-poll progression/reset 仍由其自身状态路径管理。
 
 ### 4. Monitor writeback 用 result hash 区分观察与推进
 

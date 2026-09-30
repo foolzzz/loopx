@@ -252,12 +252,13 @@ fields instead of being swallowed by a catch-all wrapper:
 | Capability | `capability_gate` | `ask_owner`, `repair_bridge`, `unsupported` | Repair todo and CLI actions for the missing capability |
 | Interaction | `interaction_contract` | User channel `action_required`, `mode` | Primary action, protocol action, next CLI actions |
 | Work lane | `work_lane_contract` | Monitor or inbox preemption, `must_attempt_work=false` | Selected lane, obligation, `next_lane` |
-| Scheduler | `scheduler_hint` | Pause/delete heartbeat, no-spend quiet | RRULE, cadence class, stateful backoff |
+| Scheduler | `scheduler_hint` | Pause/delete heartbeat, no-spend quiet | Initial RRULE, cadence class, apply-needed projection |
 
 The order of these around layers is a contract, not an implementation detail.
 Changing the order changes which gate is observed first, which monitor can
-preempt ordinary work, and whether an ACK is still expected after a failed
-host update. Such changes need parity fixtures and focused tests.
+preempt ordinary work, and whether a stateless cadence proposal still needs a
+Host update after a failed attempt. Such changes need parity fixtures and
+focused tests.
 
 Review a LoopX around decision with the same questions the lecture asks of a
 middleware stack:
@@ -269,7 +270,7 @@ middleware stack:
 5. Are failure, cancellation, permission, and budget structured or swallowed?
 6. Is the around-layer order explicit and tested?
 7. Does evidence, trace, and budget continuity survive the host effect
-   through writeback, ACK, and spend?
+   through writeback, spend, and any applicable durable receipt?
 
 ### CLI Is a Higher-Density Effect
 
@@ -384,8 +385,10 @@ Stop or narrow M7 when any kill criterion holds:
   adapter binds validation to the existing atomic lease write while pure
   eligibility, conflict, file-lock, and CAS rules remain task-lease-owned
   (#3091, #3095).
-- Scheduler apply, ACK, failure writeback, and cadence remain data-encoded host
-  handoffs outside agent-owned settlement.
+- App scheduler cadence remains a stateless, data-encoded Host proposal outside
+  agent-owned settlement. It has no ACK/failure follow-up or per-App scheduler
+  state. The isolated turn driver's generic scheduler apply/ACK journal remains
+  turn-driver-owned and is a separate transaction contract.
 - `interpret_quota_should_run_packet` and `interpret_turn_result_packet` remain
   packet lenses, while `EffectProgram` and
   `effect_program_from_ordered_steps` still serve compatible ordered-step
@@ -444,7 +447,7 @@ new authority store; it does not certify terminal Todo or Goal acceptance.
 | Todo completion, `refresh-state`, quota spend | Bounded adoption | Ordinary completion stays Todo-owned; refresh/spend form the base settlement, and final `no_followup` is a conditional post-spend closeout |
 | Goal vision and replan checkpoints | Selective typed qualification | Causal evidence and completion-chain checkpoints are shared invariants; vision policy is not moved into the settlement executor |
 | Capability gates, user gates, monitor selection | Keep domain-local | These are decision state machines unless a future change proves duplicated external-effect settlement |
-| Scheduler apply, ACK, cadence, failure hint | Outside settlement | Host-owned effects stay data-encoded and are never hidden behind the agent executor |
+| App scheduler cadence proposal | Outside settlement | Host-owned effect stays data-encoded and stateless; no ACK/failure follow-up or per-App scheduler state |
 | Bootstrap and local scheduler command rendering | Read-model reuse only | `EffectProgram` may read ordered steps; no runtime migration without duplicate truth to remove |
 | Concurrent/racing settlement | Deferred | Add race/CAS behavior only with a real concurrent caller and authority boundary |
 
@@ -542,8 +545,9 @@ prove that a typed effect runtime removes one real orchestration split-brain.
 M7.0: inventory real multi-step runtime candidates. The selected core is
 normal-turn settlement from a stable quota decision through validated
 writeback and exactly-once spend. It has two real adapters: the default Codex
-App interaction path and the isolated turn driver. Scheduler apply and ACK
-remain delegated host handoffs. Guided bootstrap was not selected because some
+App interaction path and the isolated turn driver. App scheduler cadence remains
+a stateless delegated Host proposal; the isolated turn driver's generic
+scheduler apply/ACK phases remain owned by its journal. Guided bootstrap was not selected because some
 ordered steps belong to the model, user, or host; quota-to-host scheduling was
 not selected because LoopX cannot settle the external automation mutation
 itself.
@@ -571,8 +575,9 @@ or settlement truth. Raw mappings and free-form CLI commands may remain
 compatibility payloads, but they are not the semantic execution contract. The
 composition must satisfy the identity, associativity, short-circuit, replay,
 and ordering properties defined above, keep cancellation, permission denial,
-and budget rejection distinct, and leave scheduler apply or ACK outside the
-agent-owned settlement boundary.
+and budget rejection distinct, and leave the stateless App scheduler proposal
+outside the agent-owned settlement boundary. The generic turn-driver scheduler
+apply/ACK journal remains a separate internal transaction contract.
 
 M7.3: after both M7.2 adapters consume the proven plan and receipt semantics,
 compare their execution ownership. The 2026-08-21 cutover qualification found

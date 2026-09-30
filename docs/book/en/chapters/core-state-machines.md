@@ -442,8 +442,11 @@ stateDiagram-v2
   Validation --> Failed: invalid or missing receipt
   DurableWriteback --> QuotaSpend: writeback accepted
   DurableWriteback --> Failed: rejected / identity mismatch
-  QuotaSpend --> SchedulerProjection
-  SchedulerProjection --> [*]
+  QuotaSpend --> SchedulerApply
+  SchedulerApply --> SchedulerAck
+  SchedulerApply --> RetryHostUpdate: host update failed
+  RetryHostUpdate --> SchedulerApply
+  SchedulerAck --> [*]
   Failed --> RepairOrRetry
 ```
 
@@ -455,7 +458,11 @@ Three invariants must hold:
 
 1. no durable writeback without a validation receipt;
 2. no spend when durable writeback is missing or rejected;
-3. no claim that the Host changed without the direct update result or an authoritative readback.
+3. no claim that the Host changed without an ACK or failure receipt for scheduler apply.
+
+This generic Turn-journal receipt is separate from App cadence projection. App automation has no
+scheduler ACK/failure follow-up command and persists no per-App scheduler state; it relies on the direct
+Host update result or authoritative readback for each stateless proposal.
 
 A failure does not erase the transaction. Failure kinds such as `receipt_missing`, `identity_mismatch`,
 `writeback_rejected`, and `quota_spend_rejected` return control to repair or retry while preserving the
