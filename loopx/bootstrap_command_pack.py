@@ -550,13 +550,14 @@ def inspect_bootstrap_connection(
     """Inspect either the canonical project route or the caller's exact route."""
 
     input_project = _resolve_project(project)
+    explicit_runtime_root = None
     explicit_global_registry = None
     if runtime_root_arg:
         explicit_runtime_root = resolve_runtime_root(
             {},
             runtime_root_arg,
             registry_path=input_project / ".loopx" / "registry.json",
-        )
+        ).resolve()
         explicit_global_registry = global_registry_path(explicit_runtime_root)
     alias = (
         resolve_canonical_project_alias(
@@ -581,10 +582,13 @@ def inspect_bootstrap_connection(
     registry_exists = registry_path.exists()
     registry, registry_error = _read_registry(registry_path) if registry_exists else (None, None)
     inferred_goal_id = goal_id or default_goal_id(resolved_project)
-    effective_runtime_root = resolve_runtime_root(
-        registry or {},
-        runtime_root_arg,
-        registry_path=registry_path,
+    effective_runtime_root = (
+        explicit_runtime_root
+        if explicit_runtime_root is not None
+        else resolve_runtime_root(
+            registry or {},
+            registry_path=registry_path,
+        )
     )
     state_file = project_goal_state_file(
         resolved_project,
@@ -596,6 +600,7 @@ def inspect_bootstrap_connection(
         "project": str(resolved_project),
         "canonical_project_alias": alias,
         "registry": str(registry_path),
+        "runtime_root": str(effective_runtime_root),
     }
 
     if registry_error:
@@ -807,7 +812,9 @@ def build_loopx_bootstrap_command_pack(
     command_runtime_root, identity_runtime_root = _runtime_roots(
         registry_payload,
         registry_path=registry_path,
-        runtime_root_arg=runtime_root_arg,
+        runtime_root_arg=(
+            str(inspection["runtime_root"]) if runtime_root_arg else None
+        ),
     )
     issue_fix_hint_commands = build_issue_fix_goal_command_templates(
         cli_bin=cli_bin,
@@ -1164,7 +1171,9 @@ def _build_multi_goal_start_selection_packet(
     command_runtime_root, _ = _runtime_roots(
         registry,
         registry_path=registry_path,
-        runtime_root_arg=runtime_root_arg,
+        runtime_root_arg=(
+            str(inspection["runtime_root"]) if runtime_root_arg else None
+        ),
     )
     issue_fix_commands = build_issue_fix_goal_command_templates(
         cli_bin=cli_bin,

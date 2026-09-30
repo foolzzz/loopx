@@ -181,9 +181,11 @@ def test_project_registration_reuses_and_restores_legacy_recorded_state_path(
     assert not (project / ".loopx" / "project-goals" / GOAL_ID).exists()
 
 
+@pytest.mark.parametrize("relative_runtime_root", [False, True])
 def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    relative_runtime_root: bool,
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -212,6 +214,7 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         capture_output=True,
     )
     runtime_root = tmp_path / "explicit-runtime"
+    runtime_root_arg = "../explicit-runtime" if relative_runtime_root else str(runtime_root)
     registry_path = project / ".loopx" / "registry.json"
     state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
@@ -253,7 +256,7 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         agent_id=None,
         cli_bin="loopx",
         host_surface="shell",
-        runtime_root_arg=str(runtime_root),
+        runtime_root_arg=runtime_root_arg,
     )
 
     assert packet["project"] == str(project.resolve())
@@ -283,7 +286,7 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         agent_type="codex-cli",
         goal_id=GOAL_ID,
         agent_id="worker-a",
-        runtime_root_arg=str(runtime_root),
+        runtime_root_arg=runtime_root_arg,
     )
     assert onboard["project"] == str(project.resolve())
     onboarding_commands = onboard["commands"]
@@ -306,7 +309,7 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         project=worktree,
         agent_type="codex-cli",
         goal_id=GOAL_ID,
-        runtime_root_arg=str(runtime_root),
+        runtime_root_arg=runtime_root_arg,
     )
     fresh_registration = fresh_onboard["identity_selection_gate"][
         "fresh_agent_registration"

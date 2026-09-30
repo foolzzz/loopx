@@ -469,7 +469,7 @@ def build_agent_onboarding_packet(
 
     runtime_root = resolve_runtime_root(
         registry,
-        runtime_root_arg,
+        str(inspection["runtime_root"]) if runtime_root_arg else None,
         registry_path=registry_path,
     )
     command_runtime_root = str(runtime_root) if runtime_root_arg else None
