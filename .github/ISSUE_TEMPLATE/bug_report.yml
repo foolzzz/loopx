@@ -44,7 +44,6 @@ body:
     attributes:
       label: Host or runtime surface
       options:
-        - Codex App
         - Codex CLI
         - Claude Code
         - OpenCode

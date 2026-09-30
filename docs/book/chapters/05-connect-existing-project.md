@@ -251,7 +251,7 @@ loopx start-goal --guided --project . \
   --host-surface codex-cli-tui
 ```
 
-如果不确定 Host 类型，先省略 `--host-surface`。LoopX 会返回只读 selection gate，而不是猜测。
+省略 `--host-surface` 时，LoopX 默认使用可见的 Codex CLI TUI；其他 Host 必须传精确 surface。
 
 ## 5. 读取当前状态
 

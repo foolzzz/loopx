@@ -156,7 +156,7 @@ Treat LoopX Turn and a long-running host loop as separate layers:
 
 Do not add a sleep loop, cron implementation, recurring daemon, operator
 notification path, or multi-Turn replan loop inside `run-once`. Do not copy
-Codex App heartbeat prompt rules into a second scheduler. Reuse the existing
+host-loop prompt rules into a second scheduler. Reuse the existing
 interaction, scheduler, autonomous-replan, todo, and TurnEnvelope contracts;
 only the runtime-specific act of applying a wakeup belongs in a scheduler
 adapter.
@@ -169,7 +169,7 @@ that decision.
 
 Stage host-loop contributions in reviewable slices:
 
-1. characterize current Codex App and Turn behavior with independently derived
+1. characterize current host-loop and Turn behavior with independently derived
    fixtures;
 2. add a pure next-disposition decision table with no host or state effects;
 3. add one scheduler-owner adapter with a fake clock and fake host;

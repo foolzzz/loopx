@@ -29,7 +29,6 @@ body:
     attributes:
       label: Host surface
       options:
-        - Codex App
         - Codex CLI
         - Claude Code
         - OpenCode

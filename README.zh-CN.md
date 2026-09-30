@@ -543,7 +543,8 @@ preflight failure 和 dry-run preview 不消耗 quota。一个 lane 被 user gat
 平级 agent 在执行前使用 `loopx todo claim`，验证后使用 `loopx todo update`，
 让 ownership 与证据持续可见。
 
-Scheduler cadence 跟随 `quota should-run.scheduler_hint`。Collision recovery、monitor、
+Scheduler cadence 跟随 `quota should-run.scheduler_hint`；受支持的宿主循环直接消费
+返回的决策。Collision recovery、monitor、
 self-repair 和精确 operator 命令统一维护在
 [Getting Started](docs/guides/getting-started.md)、
 [Quota Allocation](docs/quota-allocation.md)和

@@ -120,7 +120,7 @@ Supported filters:
 The command must fail closed on missing `goal_id` or `agent_id`. A vague
 surface value such as `codex` should not silently fall into `other-agent`
 semantics; callers should pass a registered agent id and, when needed, a
-separate host surface such as `codex-app`, `codex-cli`, `opencode`, or `claude-code`.
+separate host surface such as `codex-cli`, `opencode`, or `claude-code`.
 
 ## Scoping Rules
 
@@ -223,7 +223,7 @@ context. Neither receipt is allowed to impersonate the other.
 
 The live behavior qualification tests that causal handoff through an actual
 function-tool conversation rather than a testing-only output field. A Doubao
-actor receives the shipped Codex App heartbeat body and chooses the quota
+actor receives the shipped host-loop task body and chooses the quota
 command against a hermetic public-safe Goal. The harness runs that command
 through the real LoopX CLI, returns its actual context/action packet, and asks
 the actor to choose the next real tool action. The actor independently qualifies

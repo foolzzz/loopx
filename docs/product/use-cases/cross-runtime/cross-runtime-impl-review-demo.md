@@ -23,8 +23,8 @@ The proposed cross-runtime pattern assigns these responsibilities:
 - LoopX owns todo claims, gates, evidence, quota, and the next handoff.
 
 The demo must not claim that LoopX is itself a universal executor. Runtime
-launch still belongs to the host surface: Claude Code `/loop`, Codex App
-heartbeat, Codex CLI TUI goal mode, or an explicit shell bridge.
+launch still belongs to the host surface: Claude Code `/loop`, Codex CLI TUI
+goal mode, or an explicit shell bridge.
 
 ## Current Public-Safe Flow
 
@@ -79,8 +79,8 @@ For Codex, the visible review entry remains one of the existing Codex surfaces:
 /loopx Review <implementation evidence>
 ```
 
-or a Codex App heartbeat whose `quota should-run --agent-id codex-review`
-selects the review todo.
+The Codex CLI goal loop uses `quota should-run --agent-id codex-review` to
+select the review todo.
 
 ## State Shape
 

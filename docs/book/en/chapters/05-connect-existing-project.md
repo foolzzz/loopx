@@ -264,8 +264,8 @@ loopx start-goal --guided --project . \
   --host-surface codex-cli-tui
 ```
 
-When the Host is unknown, omit `--host-surface`. LoopX should return a read-only selection Gate instead of
-guessing.
+When `--host-surface` is omitted, LoopX defaults to the visible Codex CLI TUI. Pass an exact surface for
+every other Host.
 
 ## 5. Read current state
 
