@@ -87,7 +87,7 @@ def test_attached_session_uses_existing_host_not_managed_adapter(tmp_path, monke
     session = runtime.store.create_session(
         goal_id="fixture", agent_id="codex", adapter_kind="codex_app_server",
         upstream_thread_id="fixture-attached", session_mode="attached_host",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
     )
     monkeypatch.setattr(runtime, "_start_adapter", lambda **kwargs: pytest.fail("attached must not spawn"))
     restored = runtime.resume_session(session_id=session["session_id"], work_dir=tmp_path, objective="fixture")

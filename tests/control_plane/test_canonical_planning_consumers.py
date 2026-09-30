@@ -659,7 +659,7 @@ def test_start_goal_packet_honors_runtime_override_and_canonical_frontier(
         goal_id="goal-a",
         agent_id="agent-a",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text="Continue bounded work",
         available_capabilities=["network"],
         runtime_root_arg=str(tmp_path / "runtime"),

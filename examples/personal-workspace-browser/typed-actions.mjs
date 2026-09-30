@@ -161,7 +161,6 @@ export const typedActionsScenario = {
         if (operationUi.api.actionPreviews.length !== previewsBeforeRecovery) throw new Error("Recovery created a replacement proposal");
         await page.getByRole("button", { name: /关闭详情/ }).click();
       }
-
       const pendingResult = page.locator(".personal-proposal-row", {
         hasText: "Simulation result awaiting card readback",
       });
@@ -470,7 +469,7 @@ export const typedActionsScenario = {
       const goalDrawerOrder = await page.locator(".personal-drawer-body").evaluate((element) => {
         const lark = element.querySelector(".personal-goal-notification");
         const session = element.querySelector(".personal-goal-session");
-        const actions = element.querySelector(".personal-drawer-action-grid");
+        const actions = [...element.querySelectorAll("button")].find((button) => button.textContent?.trim() === "添加定时检查");
         const subagents = element.querySelector(".personal-goal-subagents");
         const precedes = (earlier, later) => Boolean(earlier && later
           && (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING));
@@ -726,40 +725,7 @@ export const typedActionsScenario = {
       if (api.durableWriteCount !== writesBeforeEnglishPreviews) throw new Error("English write previews mutated durable state before confirmation");
       await page.getByRole("button", { name: "Close", exact: true }).click();
 
-      await page.getByRole("button", { name: "Overview", exact: true }).click();
-      await page.getByRole("button", { name: "Goal information", exact: true }).click();
-      await page.getByRole("button", { name: "Set up Heartbeat", exact: true }).click();
-      const englishHeartbeatDraft = await page.getByLabel("Send a message to LoopX").inputValue();
-      for (const field of ["Frequency: Daily", "Stop condition: Goal completes", "Notification: Only notify me when needed"]) {
-        if (!englishHeartbeatDraft.includes(field)) throw new Error("English Heartbeat draft missing " + field + ": " + englishHeartbeatDraft);
-      }
-      await page.locator(".personal-channel-composer > button").last().click();
-      await page.getByText("Confirm execution", { exact: true }).waitFor({ state: "visible" });
-      const englishHeartbeatPreview = api.actionPreviews.at(-1);
-      if (englishHeartbeatPreview?.action_kind !== "heartbeat.bind") throw new Error("English Heartbeat input did not create a heartbeat preview: " + JSON.stringify(englishHeartbeatPreview));
-      if (englishHeartbeatPreview.normalized_parameters.cadence !== "1d") throw new Error("English Heartbeat cadence drifted: " + JSON.stringify(englishHeartbeatPreview.normalized_parameters));
-      if (englishHeartbeatPreview.normalized_parameters.stop_condition !== "goal_complete") throw new Error("English Heartbeat stop condition drifted: " + JSON.stringify(englishHeartbeatPreview.normalized_parameters));
-      const writesBeforeEnglishHeartbeatApply = api.durableWriteCount;
-      api.allowNextHeartbeatApply = true;
-      await page.getByRole("button", { name: "Confirm and apply", exact: true }).click();
-      await page.getByText("Applied. LoopX state will refresh.", { exact: true }).waitFor({ state: "visible" });
-      if (api.durableWriteCount !== writesBeforeEnglishHeartbeatApply + 1) throw new Error("English Heartbeat apply did not produce exactly one durable write");
-      await page.getByRole("button", { name: "View updated Goal", exact: true }).click();
-      await page.getByRole("navigation", { name: "Goal view" }).getByRole("button", { name: /^(Chat|对话)$/, exact: true }).click();
-      const englishHeartbeatSchedule = page.locator(".personal-schedule-row", { hasText: "Goal Heartbeat" }).first();
-      await englishHeartbeatSchedule.waitFor({ state: "visible" });
-      const englishHeartbeatScheduleText = await englishHeartbeatSchedule.innerText();
-      if (!englishHeartbeatScheduleText.includes("1d")) throw new Error("Applied English Heartbeat lost cadence: " + englishHeartbeatScheduleText);
-      await englishHeartbeatSchedule.click();
-      const englishHeartbeatDrawer = page.locator('.personal-context-drawer[data-context-kind="schedule"]');
-      await englishHeartbeatDrawer.getByText("goal_complete", { exact: true }).waitFor({ state: "visible" });
-      await englishHeartbeatDrawer.getByText("Asia/Shanghai", { exact: true }).waitFor({ state: "visible" });
-      const englishHeartbeatReadback = await englishHeartbeatDrawer.innerText();
-      for (const forbidden of ["等待下次宿主唤醒", "仅在需要你时通知", "由 heartbeat-prompt 生命周期驱动", "Goal 完成或 owner 停止"]) {
-        if (englishHeartbeatReadback.includes(forbidden)) throw new Error("Applied English Heartbeat exposed Chinese fallback " + forbidden + ": " + englishHeartbeatReadback);
-      }
-      await page.getByRole("button", { name: /Close details/ }).click();
-      pass(20, "English Goal and monitor previews stay read-only until confirmation, and applied Heartbeat readback preserves typed schedule semantics.");
+      pass(20, "English Goal and monitor previews stay read-only until confirmation.");
 
       await page.locator('.personal-sidebar-utility[aria-label="Settings"]').click();
       await page.getByRole("button", { name: /Language/ }).click();
@@ -788,7 +754,7 @@ export const typedActionsScenario = {
       await page.locator(".personal-channel-composer > button").last().click();
       await page.getByText("确认执行").waitFor({ state: "visible" });
       const goalPreview = api.actionPreviews.at(-1);
-      for (const field of ["agent_id", "goal_id", "heartbeat", "initial_todos", "permission", "stop_condition", "workspace_ref"]) {
+      for (const field of ["agent_id", "goal_id", "initial_todos", "permission", "stop_condition", "workspace_ref"]) {
         if (!(field in (goalPreview?.normalized_parameters ?? {}))) throw new Error(`Goal preview missing ${field}`);
       }
       if (goalPreview?.normalized_parameters.title !== "整理我的每周工作复盘") throw new Error(`Structured Goal title drifted: ${JSON.stringify(goalPreview?.normalized_parameters)}`);
@@ -799,7 +765,7 @@ export const typedActionsScenario = {
       if (goalPreview?.normalized_parameters.permission !== "read_only") throw new Error(`Goal execution boundary did not remain read-only: ${JSON.stringify(goalPreview?.normalized_parameters)}`);
       if (JSON.stringify(goalPreview?.normalized_parameters.initial_todos).includes("推进首个可验证结果")) throw new Error(`Goal preview kept unrelated generic Todos: ${JSON.stringify(goalPreview?.normalized_parameters)}`);
       if (api.durableWriteCount !== writesBeforeGoalCreate) throw new Error("Goal preview wrote durable state before confirmation");
-      pass(7, "Goal preview includes Goal, Agent, workspace, permissions, Todos, heartbeat, and stop condition fields.");
+      pass(7, "Goal preview includes Goal, Agent, workspace, permissions, Todos, and stop condition fields.");
       await page.getByRole("button", { name: "创建 Goal 并开始首轮", exact: true }).click();
       try {
         await page.getByText(/已应用/).first().waitFor({ state: "visible" });
@@ -1685,18 +1651,19 @@ export const typedActionsScenario = {
       pass(5, "Run-detail correction used a recoverable Goal-scoped Agent Session.");
       await page.getByRole("button", { name: /关闭详情/ }).click();
 
-      const writesBeforeHeartbeat = api.durableWriteCount;
-      await composer.fill("每天推进这个 Goal，设置 heartbeat");
+      const continuationMessage = "每天推进这个 Goal，设置 heartbeat";
+      const continuationAnswer = "我会按目标边界继续推进，并在需要你决定时停下。";
+      const writesBeforeContinuation = api.durableWriteCount;
+      const previewsBeforeContinuation = api.actionPreviews.length;
+      api.answerForMessage = (message) => message === continuationMessage ? continuationAnswer : null;
+      await composer.fill(continuationMessage);
       await page.getByRole("button", { name: "发送", exact: true }).click();
-      await page.getByText("确认执行").waitFor({ state: "visible" });
-      await page.getByRole("button", { name: "确认并应用", exact: true }).click();
-      await page.getByText("需要宿主确认").waitFor({ state: "visible" });
-      if (api.durableWriteCount !== writesBeforeHeartbeat) throw new Error("Protected heartbeat gate wrote durable state");
+      await page.getByText(continuationAnswer, { exact: true }).last().waitFor({ state: "visible", timeout: 10_000 });
+      api.answerForMessage = null;
+      if (!api.turnRequests.some((turn) => turn.message === continuationMessage)) throw new Error("Goal continuation did not reach the Goal Chat Session");
+      if (api.actionPreviews.length !== previewsBeforeContinuation) throw new Error("Goal continuation created a typed preview");
+      if (api.durableWriteCount !== writesBeforeContinuation) throw new Error("Goal continuation wrote durable state");
       pass(8, "Agent semantic protected intent creates only a typed preview, while discussion and targetless requests remain conversational and all protected-gate paths perform zero durable writes before confirmation.");
-      pass(11, "Heartbeat apply surfaced an explicit host-activation gate.");
-      const heartbeatPreview = api.actionPreviews.find((preview) => preview.action_kind === "heartbeat.bind");
-      if (!heartbeatPreview) throw new Error("Continuation intent did not map to heartbeat.bind");
-      await page.getByRole("button", { name: "关闭", exact: true }).click();
 
       await page.getByRole("button", { name: "概览", exact: true }).click();
       await page.getByRole("button", { name: "Goal 信息", exact: true }).click();
@@ -1836,7 +1803,7 @@ export const typedActionsScenario = {
           await page.getByRole("button", { name: "关闭", exact: true }).click();
         }
       }
-      pass(10, "Continuation mapped to heartbeat.bind and bounded monitoring mapped to monitor.create/continuous_monitor UI.");
+      pass(10, "Goal continuation stayed in Agent chat without a typed preview, and bounded monitoring mapped to monitor.create/continuous_monitor UI.");
 
       const agentSelect = page.getByRole("combobox", { name: "选择聊天 Runtime" });
       await agentSelect.click();

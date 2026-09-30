@@ -11,7 +11,6 @@ from loopx.control_plane.scheduler.scheduler_hint import build_scheduler_hint
 from loopx.control_plane.scheduler.execution_context import (
     scheduler_execution_context_for_runtime_profile,
 )
-from loopx.host_loop_activation import build_host_loop_activation_packet
 
 
 def _payload(floor: int | None = None):
@@ -125,15 +124,3 @@ def test_policy_configured_by_real_cli_reaches_quota_app_hint(tmp_path: Path):
     )
     assert code == 0, guard
     assert guard["scheduler_hint"]["codex_app"]["recommended_interval_minutes"] >= 1440
-
-
-def test_activation_reads_owner_policy_before_selecting_schedule():
-    packet = build_host_loop_activation_packet(
-        agent_type="codex-app",
-        goal_id="fixture",
-        agent_id="agent",
-        registered_agents=["agent"],
-    )
-    assert "automation-cadence" in packet["commands"]["automation_cadence_json"]
-    assert any("configured minimum" in step for step in packet["activation_steps"])
-    assert any("verify its actual RRULE" in step for step in packet["activation_steps"])

@@ -338,7 +338,6 @@ class TestSkillDeliveryModes:
         assert HOST_MANAGED_SKILL_AGENT_TYPES == {
             "ark-managed-agent",
             "deepseek-harness-native",
-            "trae_app",
             "traex-cli",
             "other-agent",
         }

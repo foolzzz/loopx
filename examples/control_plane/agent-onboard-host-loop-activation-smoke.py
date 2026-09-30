@@ -74,10 +74,7 @@ def main() -> int:
     catalog = build_agent_type_catalog()
     agent_types = {item["agent_type"] for item in catalog["canonical_agent_types"]}
     assert {
-        "codex-app",
-        "trae_app",
         "codex-app-ssh",
-        "codex-ide-plugin",
         "codex-cli",
         "claude-code",
         "opencode",
@@ -87,18 +84,9 @@ def main() -> int:
         "other-agent",
     } <= agent_types
     ambiguous = {item["input"]: item["use_one_of"] for item in catalog["ambiguous_inputs"]}
-    assert ambiguous["codex"] == [
-        "codex-app",
-        "codex-app-ssh",
-        "codex-ide-plugin",
-        "codex-cli",
-    ], ambiguous
+    assert ambiguous == {"cli": ["codex-cli", "manual", "other-agent"]}, ambiguous
 
-    assert agent_type_for_host_surface("chat-box") == "codex-app"
-    assert agent_type_for_host_surface("trae_app") == "trae_app"
     assert agent_type_for_host_surface("codex-app-ssh") == "codex-app-ssh"
-    assert agent_type_for_host_surface("codex-ide-plugin") == "codex-ide-plugin"
-    assert agent_type_for_host_surface("codex-ide") == "codex-ide-plugin"
     assert agent_type_for_host_surface("codex-cli-tui") == "codex-cli"
     assert agent_type_for_host_surface("opencode") == "opencode"
     assert agent_type_for_host_surface("pi") == "pi"
@@ -109,13 +97,10 @@ def main() -> int:
     assert agent_type_for_host_surface("deepseek-harness") == "deepseek-harness"
     assert agent_type_for_host_surface("dsh") == "deepseek-harness"
 
-    codex_app = build_host_loop_activation_packet(agent_type="codex-app", goal_id="demo")
-    trae_app = build_host_loop_activation_packet(agent_type="trae_app", goal_id="demo")
     codex_app_ssh = build_host_loop_activation_packet(
         agent_type="codex-app-ssh",
         goal_id="demo",
     )
-    codex_ide = build_host_loop_activation_packet(agent_type="codex-ide-plugin", goal_id="demo")
     codex_cli = build_host_loop_activation_packet(agent_type="codex-cli", goal_id="demo")
     claude_code = build_host_loop_activation_packet(agent_type="claude-code", goal_id="demo")
     opencode = build_host_loop_activation_packet(agent_type="opencode", goal_id="demo")
@@ -126,16 +111,6 @@ def main() -> int:
     )
     traex_cli = build_host_loop_activation_packet(agent_type="traex-cli", goal_id="demo")
     dsh = build_host_loop_activation_packet(agent_type="deepseek-harness", goal_id="demo")
-    assert codex_app["activation_method"] == "create_or_update_codex_app_automation", codex_app
-    assert trae_app["activation_method"] == "create_or_update_trae_app_automation", trae_app
-    assert trae_app["host_mutation"]["preferred_tool"] == "automation_update", trae_app
-    assert "--trae_app" in trae_app["commands"]["heartbeat_prompt"], trae_app
-    trae_scheduler = scheduler_execution_context_for_runtime_profile(
-        "trae_app"
-    )
-    assert trae_scheduler.ok, trae_scheduler
-    assert trae_scheduler.projection()["host_surface"] == "trae_app"
-    assert trae_scheduler.projection()["scheduler_owner"] == "host_automation"
     settled = build_automation_liveness(
         {
             "effective_action": "heartbeat_settled_skip",
@@ -162,8 +137,7 @@ def main() -> int:
     assert app_ssh_scheduler.projection()["scheduler_owner"] == "agent_cli_loop"
     assert app_ssh_scheduler.projection()["execution_mode"] == "interactive"
     assert app_ssh_scheduler.projection()["codex_app_applicability"] == "not_applicable"
-    assert codex_ide["activation_method"] == "set_visible_goal", codex_ide
-    assert codex_ide["host_mutation"]["host_command"] == "/goal <task_body>", codex_ide
+    assert codex_cli["activation_method"] == "set_visible_goal", codex_cli
     assert codex_cli["host_mutation"]["host_command"] == "/goal <task_body>", codex_cli
     assert claude_code["host_mutation"]["host_command"] == "/loop", claude_code
     assert opencode["activation_method"] == "activate_loopx_opencode_goal_bridge", opencode
@@ -209,7 +183,7 @@ def main() -> int:
         str(traex_cli).lower(),
     ) is None, traex_cli
     gated_activation = build_host_loop_activation_packet(
-        agent_type="codex-app",
+        agent_type="codex-cli",
         goal_id="multi-agent-demo",
         registered_agents=["codex-main-control", "codex-product-capability"],
     )
@@ -218,7 +192,7 @@ def main() -> int:
     assert gated_activation["activation_input_command"] is None, gated_activation
     assert len(gated_activation["identity_selection_gate"]["choices"]) == 2, gated_activation
     peer_activation = build_host_loop_activation_packet(
-        agent_type="codex-app",
+        agent_type="codex-cli",
         goal_id="peer-agent-demo",
         registered_agents=["codex-alpha", "codex-beta"],
     )
@@ -229,7 +203,7 @@ def main() -> int:
         for choice in peer_activation["identity_selection_gate"]["choices"]
     ), peer_activation
     single_agent_activation = build_host_loop_activation_packet(
-        agent_type="codex-app",
+        agent_type="codex-cli",
         goal_id="single-agent-demo",
         registered_agents=["codex-main-control"],
     )
@@ -245,7 +219,7 @@ def main() -> int:
     ambiguous_result = run_cli(
         "agent-onboard",
         "--agent-type",
-        "codex",
+        "cli",
         "--project",
         ".",
         check=False,
@@ -254,10 +228,9 @@ def main() -> int:
     ambiguous_payload = json.loads(ambiguous_result.stdout)
     assert ambiguous_payload["ok"] is False, ambiguous_payload
     assert ambiguous_payload["suggestions"] == [
-        "codex-app",
-        "codex-app-ssh",
-        "codex-ide-plugin",
         "codex-cli",
+        "manual",
+        "other-agent",
     ], ambiguous_payload
 
     with tempfile.TemporaryDirectory(prefix="loopx-agent-onboard-smoke-") as tmp:
@@ -328,7 +301,7 @@ def main() -> int:
 
         onboarding_gate = build_agent_onboarding_packet(
             project=project,
-            agent_type="codex-app",
+            agent_type="codex-cli",
             goal_id="multi-agent-goal",
             cli_bin=cli_bin,
         )
@@ -370,7 +343,7 @@ def main() -> int:
             goal_id="multi-agent-goal",
             agent_id=None,
             cli_bin=cli_bin,
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="fix a public issue",
         )
         assert command_pack_gate["recommended_next_step"]["kind"] == "select_agent_identity"
@@ -383,7 +356,7 @@ def main() -> int:
             goal_id="multi-agent-goal",
             agent_id=None,
             cli_bin=cli_bin,
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="fix a public issue",
         )
         transaction = guided_gate["guided_transaction"]
@@ -395,7 +368,7 @@ def main() -> int:
             goal_id="multi-agent-goal",
             agent_id="codex-product-capability",
             cli_bin=cli_bin,
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="fix a public issue",
             available_capabilities=["network", "external_evidence_poll"],
         )
@@ -427,17 +400,17 @@ def main() -> int:
                 selected_pack["commands"],
             )
 
-        ide_onboarding = build_agent_onboarding_packet(
+        cli_onboarding = build_agent_onboarding_packet(
             project=project,
-            agent_type="codex-ide-plugin",
+            agent_type="codex-cli",
             goal_id="multi-agent-goal",
             agent_id="codex-product-capability",
             cli_bin=cli_bin,
         )
-        ide_bootstrap = ide_onboarding["commands"]["bootstrap_command_pack"]
-        assert "--host-surface codex-ide-plugin" in ide_bootstrap, ide_onboarding
-        assert "worker-bridge" not in ide_bootstrap, ide_onboarding
-        assert "visible IDE plugin" in ide_onboarding["recommended_start"], ide_onboarding
+        cli_bootstrap = cli_onboarding["commands"]["bootstrap_command_pack"]
+        assert "--host-surface codex-cli-tui" in cli_bootstrap, cli_onboarding
+        assert "worker-bridge" not in cli_bootstrap, cli_onboarding
+        assert "visible TUI" in cli_onboarding["recommended_start"], cli_onboarding
 
         app_ssh_onboarding = build_agent_onboarding_packet(
             project=project,
@@ -487,7 +460,7 @@ def main() -> int:
                 "quota_event": {"source": spend_args.source},
             }
         ) is False
-        assert "not a heartbeat automation" in app_ssh_prompt["task_body"], app_ssh_prompt
+        assert "no heartbeat/RRULE" in app_ssh_prompt["task_body"], app_ssh_prompt
         assert "host_action=" not in app_ssh_prompt["task_body"], app_ssh_prompt
         assert "automation_update stop" not in app_ssh_prompt["task_body"], app_ssh_prompt
         assert "call `update_goal` with `status=blocked`" in (
@@ -502,7 +475,10 @@ def main() -> int:
         app_ssh_quota_argv = shlex.split(app_ssh_prompt["quota_guard_command"])
         app_ssh_quota_argv[0] = cli_bin
         app_ssh_quota_argv = [
-            str(home) + arg[len("$HOME") :] if arg.startswith("$HOME/") else arg
+            arg.replace(
+                "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}",
+                str(home / ".loopx"),
+            )
             for arg in app_ssh_quota_argv
         ]
         app_ssh_quota_argv.extend(["--scan-root", str(project)])

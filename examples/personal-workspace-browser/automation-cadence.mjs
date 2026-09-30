@@ -73,8 +73,8 @@ export const automationCadenceScenario = {
       await target.getByText("Product Release", { exact: true }).waitFor();
       const panel = page.getByRole("region", { name: "自动执行间隔" });
       await panel.getByText("0 分钟", { exact: true }).first().waitFor();
-      if (!await panel.getByText("App 定时触发到启动前钩子的拦截尚未验证。", { exact: false }).count()) {
-        throw new Error("Cadence settings overstated App enforcement");
+      if (!await panel.getByText("不会自动修改宿主排程", { exact: false }).count()) {
+        throw new Error("Cadence settings omitted the host-schedule boundary");
       }
       await panel.getByLabel("最短间隔（分钟）").fill("60");
       await panel.getByLabel("所有者指令或原因").fill("Owner requested hourly automatic runs");

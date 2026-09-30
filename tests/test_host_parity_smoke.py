@@ -68,8 +68,6 @@ class TestAgentTypeCatalog:
         catalog = build_agent_type_catalog()
         assert catalog["ok"]
         types = {t["agent_type"] for t in catalog["canonical_agent_types"]}
-        assert "codex-app" in types
-        assert "trae_app" in types
         assert "codex-cli" in types
         assert "claude-code" in types
         assert "opencode" in types
@@ -83,13 +81,9 @@ class TestAgentTypeCatalog:
 
         ambiguous = {item["input"]: item["use_one_of"]
                      for item in catalog["ambiguous_inputs"]}
-        assert "codex" in ambiguous
-        assert ambiguous["codex"] == [
-            "codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-cli"]
+        assert ambiguous == {"cli": ["codex-cli", "manual", "other-agent"]}
 
     @pytest.mark.parametrize("surface,expected", [
-        ("chat-box", "codex-app"),
-        ("trae_app", "trae_app"),
         ("codex-cli-tui", "codex-cli"),
         ("claude-code", "claude-code"),
         ("opencode", "opencode"),
@@ -106,7 +100,7 @@ class TestAgentTypeCatalog:
         assert HOST_SURFACE_TO_AGENT_TYPE[surface] == expected
 
     def test_normalize_agent_type(self):
-        assert normalize_agent_type("codex-app") == "codex-app"
+        assert normalize_agent_type("codex") == "codex-cli"
         assert normalize_agent_type("pi") == "pi"
         assert normalize_agent_type("gemini") == "gemini-cli"
         assert normalize_agent_type("traex") == "traex-cli"
@@ -115,7 +109,6 @@ class TestAgentTypeCatalog:
         host = {
             "ark-managed-agent",
             "deepseek-harness-native",
-            "trae_app",
             "traex-cli",
             "other-agent",
         }

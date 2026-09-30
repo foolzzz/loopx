@@ -92,10 +92,10 @@ SPEND_MUST_HAVE = (
     "不要重复执行。",
 )
 HEARTBEAT_PROMPT_MUST_HAVE = (
-    "如果要给这个项目设置 recurring Codex App heartbeat",
-    "默认每 3 分钟一次",
+    "如果要给这个项目设置宿主循环（如 Codex CLI `/goal`）",
     "loopx heartbeat-prompt",
-    "再把输出复制进 automation",
+    "--active-state .loopx/goals/",
+    "再把输出交给宿主循环",
 )
 HANDOFF_MUST_HAVE = (
     "如果需要把当前 packet 或已批准命令交给项目 agent",

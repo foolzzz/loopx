@@ -358,7 +358,7 @@ def test_start_goal_guided_previews_transaction_without_mutation() -> None:
         assert selection["guided_transaction"]["blocked_by"] == "host_surface_selection"
         assert selection["safety_contract"]["writes_registry"] is False
 
-        payload = run_json(*start_args, "--host-surface", "codex-app")
+        payload = run_json(*start_args, "--host-surface", "codex-cli-tui")
 
         assert payload["schema_version"] == "loopx_start_goal_guided_v0"
         assert payload["read_only"] is True
@@ -450,7 +450,7 @@ def test_start_goal_guided_blocks_orphaned_goal_state() -> None:
             "--goal-id",
             goal_id,
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Continue the interrupted refactor",
         )
@@ -536,7 +536,7 @@ def test_start_goal_guided_fences_orphaned_state_for_every_absence_route() -> No
                 "--goal-id",
                 "reset-goal",
                 "--host-surface",
-                "codex-app",
+                "codex-cli-tui",
                 "--goal-text",
                 "Continue the interrupted refactor",
             )
@@ -579,7 +579,7 @@ def test_unparseable_registry_without_orphaned_state_keeps_onboarding() -> None:
             "--goal-id",
             "reset-goal",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Continue the interrupted refactor",
         )
@@ -615,7 +615,7 @@ def test_fenced_project_surfaces_offer_no_continuation() -> None:
             "--goal-id",
             "reset-goal",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Continue the interrupted refactor",
         )
@@ -626,7 +626,7 @@ def test_fenced_project_surfaces_offer_no_continuation() -> None:
             "--goal-id",
             "reset-goal",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
         )
 
         assert guided["project_connection"]["connection_state"] == "orphaned_goal_state"
@@ -676,7 +676,7 @@ def test_start_goal_guided_requires_explicit_goal_for_multi_goal_project() -> No
             "--project",
             str(project),
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Add a new meta agent without reusing an old lane",
         )
@@ -959,7 +959,7 @@ def test_start_goal_guided_derives_display_name_from_goal_text() -> None:
             "--agent-id",
             "codex-test-agent",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "修复 scheduler state path 覆盖问题",
             "--include-command-pack-detail",
@@ -998,7 +998,7 @@ def test_start_goal_guided_derives_display_name_from_goal_text() -> None:
             "--agent-id",
             "codex-test-agent",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "some objective",
             "--display-name",
@@ -1021,7 +1021,7 @@ def test_start_goal_guided_derives_display_name_from_goal_text() -> None:
             "--agent-id",
             "codex-test-agent",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "/private/secret/path should not leak",
             "--include-command-pack-detail",

@@ -104,7 +104,7 @@ def _guided(project: Path, goal_id: str = ORPHANED_GOAL_ID) -> dict[str, Any]:
         goal_id=goal_id,
         agent_id=None,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -116,7 +116,7 @@ def _command_pack(project: Path, goal_id: str = ORPHANED_GOAL_ID) -> dict[str, A
         goal_id=goal_id,
         agent_id=None,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
