@@ -190,8 +190,10 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    project = tmp_path / "project"
-    worktree = tmp_path / "worktree"
+    project = tmp_path / "canonical" / "project"
+    worktree = tmp_path / "checkout" / "worktree"
+    project.parent.mkdir()
+    worktree.parent.mkdir()
     subprocess.run(["git", "init", str(project)], check=True, capture_output=True)
     subprocess.run(
         ["git", "-C", str(project), "config", "user.email", "test@example.com"],
@@ -213,8 +215,10 @@ def test_command_pack_uses_explicit_runtime_registry_for_linked_worktree_alias(
         check=True,
         capture_output=True,
     )
-    runtime_root = tmp_path / "explicit-runtime"
+    runtime_root = worktree.parent / "explicit-runtime"
     runtime_root_arg = "../explicit-runtime" if relative_runtime_root else str(runtime_root)
+    if relative_runtime_root:
+        assert (project / runtime_root_arg).resolve() != runtime_root.resolve()
     registry_path = project / ".loopx" / "registry.json"
     state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
     state_file.parent.mkdir(parents=True)
@@ -512,6 +516,8 @@ def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
         cwd=tmp_path,
     )
     cli_packet = json.loads(completed.stdout)
+    cli_runtime_prefix = f"loopx --runtime-root {(project / 'runtime').resolve()}"
+    assert cli_runtime_prefix != runtime_prefix
     for key in (
         "connect_command",
         "quota_guard_command",
@@ -520,7 +526,7 @@ def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
         "progress_refresh_command",
         "quota_spend_command",
     ):
-        assert runtime_prefix in cli_packet[key]
+        assert cli_runtime_prefix in cli_packet[key]
 
     handoff = build_codex_cli_exec_handoff(
         project=project,
@@ -537,7 +543,12 @@ def test_codex_cli_bootstrap_message_preserves_explicit_runtime_root(
 def test_issue_fix_successor_commands_preserve_explicit_runtime_root(
     tmp_path: Path,
 ) -> None:
-    runtime_root = tmp_path / "runtime"
+    selected_project = tmp_path / "selected" / "project"
+    registry_path = selected_project / ".loopx" / "registry.json"
+    caller_cwd = tmp_path / "caller" / "cwd"
+    caller_cwd.mkdir(parents=True)
+    runtime_root = (selected_project / "../runtime").resolve()
+    assert (caller_cwd / "../runtime").resolve() != runtime_root
     runtime_prefix = f"loopx --runtime-root {runtime_root}"
 
     packet = build_issue_fix_workflow_plan_packet(runtime_root=str(runtime_root))
@@ -558,8 +569,10 @@ def test_issue_fix_successor_commands_preserve_explicit_runtime_root(
             sys.executable,
             "-m",
             "loopx.cli",
+            "--registry",
+            str(registry_path),
             "--runtime-root",
-            str(runtime_root),
+            "../runtime",
             "--format",
             "json",
             "issue-fix",
@@ -568,6 +581,7 @@ def test_issue_fix_successor_commands_preserve_explicit_runtime_root(
         check=True,
         text=True,
         capture_output=True,
+        cwd=caller_cwd,
     )
     cli_packet = json.loads(completed.stdout)
     assert cli_packet["feasibility_checkpoint_plan"][
@@ -576,6 +590,10 @@ def test_issue_fix_successor_commands_preserve_explicit_runtime_root(
     assert cli_packet["post_pr_lifecycle_monitor_plan"][
         "command_preview"
     ].startswith(runtime_prefix)
+    for todo in cli_packet["ordered_loopx_todo_writeback_preview"]:
+        assert todo["command_preview"].startswith(runtime_prefix)
+        if todo.get("next_command_preview"):
+            assert todo["next_command_preview"].startswith(runtime_prefix)
 
 
 def test_project_map_accepts_collocated_project_goal_root(tmp_path: Path) -> None:
