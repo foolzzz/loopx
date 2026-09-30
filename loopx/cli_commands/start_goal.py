@@ -148,7 +148,9 @@ def register_start_goal_command(subparsers: argparse._SubParsersAction) -> None:
         help=(
             "Explicit registered LoopX identity for an ongoing session or exact "
             "user-requested takeover. When omitted, a bound thread identity is reused "
-            "when available; otherwise new onboarding defaults to fresh registration."
+            "when available; an unbound thread must select an exact existing lane when "
+            "registered lanes exist. Fresh registration is available only when no lane "
+            "exists or --new-peer is explicit."
         ),
     )
     start_goal_parser.add_argument(

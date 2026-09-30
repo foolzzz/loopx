@@ -287,6 +287,36 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
     return specs
 
 
+def _command_prompt_specs_for_host(
+    *,
+    cli_bin: str,
+    include_legacy_aliases: bool,
+    host_surface: str,
+) -> list[dict[str, Any]]:
+    """Bind the generated ``loopx`` facade to its installation host."""
+
+    specs = _command_prompt_specs(
+        cli_bin=cli_bin,
+        include_legacy_aliases=include_legacy_aliases,
+    )
+    bound_specs: list[dict[str, Any]] = []
+    for spec in specs:
+        if spec["name"] != "loopx":
+            bound_specs.append(spec)
+            continue
+        instructions = list(spec["instructions"])
+        instructions[1] = (
+            "This entry skill is installed for the exact current host "
+            f"`{host_surface}`; do not infer or substitute another host surface."
+        )
+        instructions[2] = _loopx_start_goal_arguments_instruction(
+            cli_bin=cli_bin,
+            host_surface=host_surface,
+        )
+        bound_specs.append({**spec, "instructions": instructions})
+    return bound_specs
+
+
 def _command_skill_content(spec: dict[str, Any], *, surface: str) -> str:
     instructions = list(spec["instructions"])
     if surface == "codex-skills":
@@ -785,7 +815,6 @@ def install_slash_commands(
     pi_scope: str = "project",
     pi_user_home: str | None = None,
 ) -> dict[str, Any]:
-    specs = _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=include_legacy_aliases)
     effective_surfaces = _normalize_surfaces(surfaces)
     codex_root = _codex_home(codex_home)
     claude_root = _claude_home(claude_home)
@@ -975,7 +1004,12 @@ def install_slash_commands(
 
     if "claude-code" in effective_surfaces:
         skills_dir = claude_root / "skills"
-        for spec in specs:
+        claude_specs = _command_prompt_specs_for_host(
+            cli_bin=cli_bin,
+            include_legacy_aliases=include_legacy_aliases,
+            host_surface="claude-code",
+        )
+        for spec in claude_specs:
             path = skills_dir / str(spec["name"]) / "SKILL.md"
             if uninstall:
                 status = _retire_status(path, execute=execute)
@@ -1019,7 +1053,11 @@ def install_slash_commands(
         # status and the dry run that every other surface reports — and it would
         # need the `gemini` binary on PATH to install a file it already has.
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="gemini-cli",
+            ),
             installed=installed,
             skills_dir=gemini_root / "skills",
             surface="gemini",
@@ -1037,7 +1075,11 @@ def install_slash_commands(
         # and the root belongs to agy alone (Gemini CLI reads ~/.gemini/skills),
         # so the managed skill surfaces never collide across different hosts.
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="agy",
+            ),
             installed=installed,
             skills_dir=agy_root / "skills",
             surface="agy",
@@ -1058,7 +1100,11 @@ def install_slash_commands(
         # .kiro/prompts wins over a skill by Kiro's own resolution order; the
         # installer never touches the prompt directories.
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="kiro-cli",
+            ),
             installed=installed,
             skills_dir=kiro_root / "skills",
             surface="kiro-cli",
@@ -1074,7 +1120,11 @@ def install_slash_commands(
         # include .claude/skills and .codex/skills, but relying on another
         # host's directory would break the moment that host is uninstalled).
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="cursor-agent",
+            ),
             installed=installed,
             skills_dir=cursor_root / "skills",
             surface="cursor",
@@ -1102,7 +1152,11 @@ def install_slash_commands(
     if "zcode" in effective_surfaces:
         # ZCode discovers user skills from ZCODE_HOME/skills (default ~/.zcode/skills).
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="zcode",
+            ),
             installed=installed,
             skills_dir=zcode_root / "skills",
             surface="zcode",
@@ -1117,8 +1171,13 @@ def install_slash_commands(
         # OpenCode reads global skills from OPENCODE_CONFIG_DIR/skills. The
         # static command facade below stays as it is — a command is something
         # the user types, a skill is something the model can reach for itself.
+        opencode_specs = _command_prompt_specs_for_host(
+            cli_bin=cli_bin,
+            include_legacy_aliases=include_legacy_aliases,
+            host_surface="opencode",
+        )
         _install_skill_facade(
-            specs=specs,
+            specs=opencode_specs,
             installed=installed,
             skills_dir=opencode_root / "skills",
             surface="opencode",
@@ -1289,7 +1348,7 @@ def install_slash_commands(
                         )
 
         if not bridge_preflight_blocked:
-            for spec in specs:
+            for spec in opencode_specs:
                 path = commands_dir / f"{spec['name']}.md"
                 status = (
                     _retire_status(path, execute=execute)
