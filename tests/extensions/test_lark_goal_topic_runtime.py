@@ -1470,6 +1470,58 @@ def test_runtime_service_exposes_content_free_listener_health(tmp_path: Path) ->
     service.close()
 
 
+@pytest.mark.parametrize("configured", [False, True])
+def test_runtime_service_consumer_lease_stays_machine_scoped(
+    tmp_path: Path, monkeypatch: Any, configured: bool
+) -> None:
+    """The lease lives under the machine's default runtime root.
+
+    It follows LOOPX_RUNTIME_ROOT (else ~/.loopx) but not the runtime root one
+    Chat server resolved from --runtime-root or its registry, so servers with
+    different runtime roots still share one consumer per bot App.
+    """
+    import contextlib
+    import hashlib
+
+    import loopx.extensions.lark.goal_topic_runtime as runtime
+    import loopx.extensions.lark.goal_topic_runtime_service as service_module
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    machine_root = home / ".loopx"
+    if configured:
+        machine_root = tmp_path / "configured-root"
+        monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(machine_root))
+    else:
+        monkeypatch.delenv("LOOPX_RUNTIME_ROOT", raising=False)
+
+    leases: list[Path] = []
+
+    @contextlib.contextmanager
+    def record_lease(path: Path, *, operation: str):
+        assert operation == "lark_event_consumer"
+        leases.append(Path(path))
+        yield object()
+
+    stop = threading.Event()
+
+    def fake_stream(**kwargs: Any) -> dict[str, Any]:
+        stop.set()
+        return {"ok": True, "status": "stopped"}
+
+    monkeypatch.setattr(service_module, "try_exclusive_file_lock", record_lease)
+    monkeypatch.setattr(runtime, "stream_lark_goal_topic_profile", fake_stream)
+    service = runtime.LarkGoalTopicRuntimeService(
+        snapshot_provider=lambda: {"target_payload": {}, "binding_payloads": {}},
+        runtime_root=tmp_path / "server-runtime-root",
+        runtime_controller=object(),
+    )
+    service._poll_profile("mew", stop)
+
+    digest = hashlib.sha256(b"mew").hexdigest()[:32]
+    assert leases == [machine_root / "lark-consumers" / digest]
+
+
 def test_runtime_service_reconciles_manager_route_before_answer(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

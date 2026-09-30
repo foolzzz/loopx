@@ -23,7 +23,7 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   - The global runtime root moves from `~/.codex/loopx` to `~/.loopx`. It
     holds the global registry (`registry.global.json`), `providers.yaml`,
     `agents/`, `dispatch/`, `chat/`, per-goal runtime state under `goals/`,
-    backups, extension state and the Lark consumer leases.
+    backups and extension state.
   - Project goal state moves from `<project>/.codex/goals/<goal>/` to
     `<project>/.loopx/goals/<goal>/`, next to the project's `registry.json`
     and `agents/`. A project now only needs `.loopx/` (and `.local/`) ignored
@@ -35,15 +35,26 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
     `.loopx/goals/`. A registry entry whose `state_file` names an explicit
     path keeps using that path. Codex's own files (`~/.codex/config.toml`,
     `~/.codex/skills`, `CODEX_HOME`) are unchanged.
-- **`LOOPX_RUNTIME_ROOT` is honored everywhere.** It now sets the default
-  runtime root for every command, module and script, read when the root is
-  used (a relative value is made absolute). Before, only a few call sites
-  read it. `--runtime-root` and a registry's `common_runtime_root` still take
-  precedence. Commands that LoopX renders for another shell (agent prompts,
-  SSH commands) spell the global registry as
-  `"${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json"`, and the macOS
-  dashboard launch agents export `LOOPX_RUNTIME_ROOT` when it is set at
-  install time.
+- **`LOOPX_RUNTIME_ROOT` sets the default runtime root through one
+  resolver.** Before, only a few call sites read it. Now every LoopX command,
+  module and script that needs a runtime root and is given none reads it
+  through `loopx.paths.default_runtime_root()`, at the moment the root is
+  used. `--runtime-root` and a registry's `common_runtime_root` still take
+  precedence. An unset or blank value means `~/.loopx`. A relative value is
+  made absolute against the current directory.
+  - Commands that LoopX renders for another shell (agent prompts and SSH
+    commands) name the global registry as
+    `"${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json"`. The shell
+    that runs the command expands it, so a relative value resolves against
+    that shell's working directory, and whitespace is not trimmed.
+  - The macOS dashboard launch agents resolve the registry and runtime root
+    with the same resolver at install time. When `LOOPX_RUNTIME_ROOT` is set,
+    they export it to both services.
+  - Lark consumer leases are machine-scoped. They live under the default
+    runtime root (`LOOPX_RUNTIME_ROOT` or `~/.loopx`), whatever a service's
+    `--runtime-root`, so one bot App has one consumer per machine.
+  - Exceptions: the KunlunCode goal mode and the benchmark runner keep their
+    own path literals. Both are being removed.
 
 ### Fixed
 

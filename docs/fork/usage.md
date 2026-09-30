@@ -1002,6 +1002,15 @@ In the runtime root (default `~/.loopx`, or `LOOPX_RUNTIME_ROOT` when set):
     logs/                                launchd output
 ```
 
+Lark consumer leases are machine-scoped: they live under the default runtime
+root (`LOOPX_RUNTIME_ROOT` or `~/.loopx`) in `lark-consumers/`, whatever a
+service's `--runtime-root`, so one bot App has one consumer per machine.
+Commands that LoopX renders for another shell (agent prompts, SSH commands)
+spell the default as `${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}`. That shell
+resolves a relative value against its own working directory and does not
+trim whitespace, so set `LOOPX_RUNTIME_ROOT` to an absolute path when agents
+or remote hosts use it.
+
 In each code repo:
 
 - `loopx/<goal>/<todo>`: one todo branch.
