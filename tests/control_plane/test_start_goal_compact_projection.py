@@ -34,6 +34,19 @@ AGENT_ID = "codex-guided-projection"
 GOAL_TEXT = "Ship a bounded public issue triage workflow."
 
 
+def test_start_goal_help_matches_existing_lane_selection_contract(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args(["start-goal", "--help"])
+
+    assert exc_info.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "an unbound thread must select an exact existing lane" in help_text
+    assert "Fresh registration is available only when no lane exists" in help_text
+    assert "new onboarding defaults to fresh registration" not in help_text
+
+
 def _write_connected_project(root: Path) -> Path:
     project = root / "project"
     state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"

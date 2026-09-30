@@ -396,6 +396,9 @@ def main() -> int:
             "--delivery-outcome <ACTUAL_DELIVERY_OUTCOME>",
             "Never default or upgrade a smaller/preparatory turn",
             "do not infer scale/outcome from the classification name",
+            "never infer fresh registration merely from the new host session",
+            "If registered lanes exist",
+            "Fresh registration is available only when no registered lane exists",
         ):
             assert phrase in compact_skill_text, phrase
         assert "JSON output still keeps the full payload" not in compact_skill_text, compact_skill_text

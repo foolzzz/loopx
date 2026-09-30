@@ -920,6 +920,39 @@ def test_gemini_surface_writes_skill_files_gemini_cli_can_discover(tmp_path: Pat
     assert row["host_surfaces"] == ["gemini-cli"]
 
 
+@pytest.mark.parametrize(
+    ("surface", "home_argument", "skill_relative", "host_surface"),
+    [
+        ("claude-code", "claude_home", "skills/loopx/SKILL.md", "claude-code"),
+        ("gemini", "gemini_home", "skills/loopx/SKILL.md", "gemini-cli"),
+        ("agy", "agy_home", "skills/loopx.md", "agy"),
+        ("kiro-cli", "kiro_home", "skills/loopx/SKILL.md", "kiro-cli"),
+        ("cursor", "cursor_home", "skills/loopx/SKILL.md", "cursor-agent"),
+        ("zcode", "zcode_home", "skills/loopx/SKILL.md", "zcode"),
+        ("opencode", "opencode_home", "skills/loopx/SKILL.md", "opencode"),
+    ],
+)
+def test_installed_loopx_skill_binds_its_exact_host_surface(
+    tmp_path: Path,
+    surface: str,
+    home_argument: str,
+    skill_relative: str,
+    host_surface: str,
+) -> None:
+    host_home = tmp_path / surface
+    install_slash_commands(
+        execute=True,
+        surfaces=[surface],
+        **{home_argument: str(host_home)},
+    )
+
+    body = (host_home / skill_relative).read_text(encoding="utf-8")
+    assert f"exact current host `{host_surface}`" in body
+    assert f"--host-surface {host_surface}" in body
+    if host_surface != "codex-cli-tui":
+        assert "--host-surface codex-cli-tui" not in body
+
+
 def test_gemini_uninstall_keeps_user_files(tmp_path: Path) -> None:
     """Uninstall removes only what LoopX manages — a skill the user wrote
     under the same name must survive."""
