@@ -112,12 +112,12 @@ and mainline promotion decisions remain with the lead maintainer.
 ## Shared Goal Authority And Cross-Host Coordination
 
 This direction is intentionally not called a "shared metadata database."
-NoKV is an unpromoted optional provider candidate behind LoopX authority, not
-the authority itself. Agents do not connect directly to NoKV. Run history,
+A storage provider is an optional candidate behind LoopX authority, not the
+authority itself. Agents do not connect directly to a provider. Run history,
 status, quota, scheduler state, host sessions, and evidence retain their
 existing owners.
 
-Provider-neutral stores, File/SQLite candidates, PostgreSQL conformance and in-process service admission/identity rotation already exist. Next are roadmap R5 local D1–D3 durability qualification and R6 authenticated real cross-host service, distributed budgets and recovery. Do not repeat the initial `claim_work` extraction or treat a service seam as a deployment. NoKV and other provider promotions retain their real-backend, compatibility, retention and explicit-approval gates.
+Provider-neutral stores, File/SQLite candidates, PostgreSQL conformance and in-process service admission/identity rotation already exist. Next are roadmap R5 local D1–D3 durability qualification and R6 authenticated real cross-host service, distributed budgets and recovery. Do not repeat the initial `claim_work` extraction or treat a service seam as a deployment. Provider promotions retain their real-backend, compatibility, retention and explicit-approval gates.
 
 ## Architecture And Research Incubator
 

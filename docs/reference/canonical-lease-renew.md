@@ -272,8 +272,7 @@ retaining its mixed status, decision and historical-lease population. Every
 AuthorityStore conformance arm covers native/imported records, negative
 admission, a live scope holder beyond display limits, stale senders, response loss, CAS competition, no-op sealing and
 historical replay. Real File/SQLite CLI and killed-process tests cover the host
-boundary; PostgreSQL uses an isolated real server. NoKV coverage uses its
-existing test transport and is not service qualification.
+boundary; PostgreSQL uses an isolated real server.
 
 For a read-only Goal snapshot, compare an immutable clean legacy checkout with
 File, SQLite and real PostgreSQL through the native public lifecycle entrypoint:
@@ -359,7 +358,7 @@ runtime 不识别新 acquire schema。fence、provider、注册源变化和 CAS 
 读取 canonical state，完成后经原 projection outbox 重建，旧路径仍要求源文件。
 
 PostgreSQL 使用已有 service-owned scoped factory 和 incarnation 检查，无新凭据
-参数或自动启用。四臂演练使用相同公共 native 入口；NoKV 仍只经过测试 transport。
+参数或自动启用。四臂演练使用相同公共 native 入口。
 L3/R5 的独立领取/接管及维护由此可用，跨外部 effect 的 executor holder/terminal
 锁和自动结果返回仍需各自验收。D2 soak、D3、默认 profile、活动 Goal 迁移和跨主机
 部署没有改变。回滚保留 canonical state/receipt/fence 并恢复兼容代码，不得复活旧

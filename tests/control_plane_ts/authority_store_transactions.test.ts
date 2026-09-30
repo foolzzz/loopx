@@ -12,14 +12,6 @@ import {
   FileAuthorityStore,
 } from "../../loopx/control_plane/coordination/file_authority_store.ts";
 import {
-  NoKVAuthorityStore,
-  type NoKVBlobCasRequest,
-  type NoKVBlobCasResult,
-  type NoKVBlobReadResult,
-  type NoKVBlobTransport,
-  type NoKVStoreIdentityResult,
-} from "../../loopx/control_plane/coordination/nokv_authority_store.ts";
-import {
   decodeAuthorityTransaction,
   transactionForRevision,
 } from "../../loopx/control_plane/coordination/authority_store_transactions.ts";
@@ -126,43 +118,6 @@ interface FixtureProvider {
   cleanup(): Promise<void>;
 }
 
-interface FixtureNoKVBackend {
-  identity: string;
-  blob: { bytes: Uint8Array; generation: number } | null;
-}
-
-class FixtureNoKVTransport implements NoKVBlobTransport {
-  readonly backend: FixtureNoKVBackend;
-
-  constructor(backend: FixtureNoKVBackend) {
-    this.backend = backend;
-  }
-
-  async storeIdentity(_workbench: string): Promise<NoKVStoreIdentityResult> {
-    return { status: "available", store_identity: this.backend.identity };
-  }
-
-  async readBlob(_workbench: string, _path: string): Promise<NoKVBlobReadResult> {
-    return this.backend.blob
-      ? {
-        status: "loaded",
-        bytes: this.backend.blob.bytes.slice(),
-        generation: this.backend.blob.generation,
-      }
-      : { status: "missing" };
-  }
-
-  async casPublishBlob(request: NoKVBlobCasRequest): Promise<NoKVBlobCasResult> {
-    const currentGeneration = this.backend.blob?.generation ?? null;
-    if (currentGeneration !== request.expected_generation) {
-      return { status: "conflict", current_generation: currentGeneration };
-    }
-    const generation = (currentGeneration ?? 0) + 1;
-    this.backend.blob = { bytes: request.bytes.slice(), generation };
-    return { status: "applied", generation };
-  }
-}
-
 async function seed(store: AuthorityStore): Promise<void> {
   const result = await store.commitAuthority(seedCommit);
   assert.equal(result.status, "applied", JSON.stringify(result));
@@ -185,38 +140,8 @@ async function createFileProvider(): Promise<FixtureProvider> {
   };
 }
 
-async function createNoKVProvider(): Promise<FixtureProvider> {
-  const backend: FixtureNoKVBackend = {
-    identity: `nokv:authority-workbench:${"a".repeat(32)}`,
-    blob: null,
-  };
-  const store = new NoKVAuthorityStore(new FixtureNoKVTransport(backend), {
-    tenant_id: "tenant-a",
-    goal_id: "goal-a",
-    workbench: "authority-workbench",
-  });
-  await seed(store);
-  return {
-    name: "NoKV",
-    store,
-    async readDocument() {
-      assert.ok(backend.blob);
-      return JSON.parse(new TextDecoder().decode(backend.blob.bytes)) as MutableRecord;
-    },
-    async writeDocument(document) {
-      assert.ok(backend.blob);
-      backend.blob = {
-        generation: backend.blob.generation,
-        bytes: new TextEncoder().encode(JSON.stringify(document)),
-      };
-    },
-    async cleanup() {},
-  };
-}
-
 const providerFactories: readonly [string, () => Promise<FixtureProvider>][] = [
   ["file", createFileProvider],
-  ["NoKV", createNoKVProvider],
 ];
 
 test("shared decoder enforces the complex transaction fixture", () => {
@@ -232,7 +157,7 @@ test("shared decoder enforces the complex transaction fixture", () => {
   }
 });
 
-test("file and NoKV providers share fixture acceptance and revision projection", async (t) => {
+test("retained-journal providers share fixture acceptance and revision projection", async (t) => {
   for (const fixture of transactionFixtures) {
     await t.test(fixture.name, async () => {
       for (const [, createProvider] of providerFactories) {
@@ -263,7 +188,7 @@ test("file and NoKV providers share fixture acceptance and revision projection",
   }
 });
 
-test("file and NoKV scan results are isolated clones", async (t) => {
+test("retained-journal scan results are isolated clones", async (t) => {
   for (const [name, createProvider] of providerFactories) {
     await t.test(name, async () => {
       const provider = await createProvider();

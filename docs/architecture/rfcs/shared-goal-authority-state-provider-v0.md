@@ -22,6 +22,11 @@
 - Language note: the
   [Chinese version](./shared-goal-authority-state-provider-v0.zh-CN.md) and this
   English version are semantic mirrors. A difference between them is a defect.
+- Fork note (2026-09-29): this fork retired the NoKV provider candidate. The
+  NoKV `AuthorityStore` adapter, JSONL transport and helper, the Stage 2A
+  qualification harness and the NoKV ladder rows were removed (see
+  [CHANGELOG](../../../CHANGELOG.md)). The NoKV sections below are kept as the
+  historical design record
 
 ## Current delivery frontier (2026-09-25)
 

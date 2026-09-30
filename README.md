@@ -642,8 +642,8 @@ artifacts, and stable reference contracts remain the source of shipped truth.
   qualification, with `@maxliux5` as implementation lead.
   [Direction tracker](https://github.com/loopx-project/loopx/issues/3244)
 - **Shared Goal Authority and Cross-host Coordination:** provider-neutral
-  coordination for explicitly shared goals, with NoKV as an unpromoted
-  provider candidate rather than a new control-plane authority.
+  coordination for explicitly shared goals, with storage providers as
+  unpromoted candidates rather than a new control-plane authority.
   [Direction tracker](https://github.com/loopx-project/loopx/issues/3245)
 - **Architecture and Research Incubator:** Effect Program hardening,
   TypeScript parity migration, hierarchical stride, research exploration,

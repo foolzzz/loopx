@@ -356,7 +356,7 @@ def test_receipts_are_retained_and_version_domains_are_distinct() -> None:
 
 
 def test_lease_acquire_rule_is_owned_by_the_native_decision(monkeypatch) -> None:
-    """The NoKV executor and local file transaction share one acquire rule."""
+    """The coordination executor and local file transaction share one acquire rule."""
 
     calls = []
 

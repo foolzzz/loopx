@@ -38,8 +38,8 @@ export function transactionForRevision(value: AuthorityStoreCommittedTransaction
   };
 }
 
-/** File and NoKV retain the whole journal in one envelope. Their wire headers,
- * physical CAS, and revision algorithms remain provider-owned. */
+/** The file store retains the whole journal in one envelope. Its wire header,
+ * physical CAS, and revision algorithm remain provider-owned. */
 export interface RetainedAuthorityJournal {
   provider_revision: string;
   cursor: string;

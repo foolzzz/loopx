@@ -109,15 +109,15 @@ changes.
   - **Delivery on `main`:** Foundation, provider-contract, and local promotion
     preparation slices implemented.
   - **Current boundary:** Recoverable shared-authority foundations, the
-    file-backed reference path, NoKV shadow/recovery evidence, the TypeScript
-    store contract, PostgreSQL candidate/conformance coverage, and the
+    file-backed reference path, the TypeScript store contract, PostgreSQL
+    candidate/conformance coverage, and the
     default-off local shadow/cutover foundations are on `main`
     ([#3529](https://github.com/huangruiteng/loopx/pull/3529),
     [#3669](https://github.com/huangruiteng/loopx/pull/3669),
     [#3798](https://github.com/huangruiteng/loopx/pull/3798)). In-process PostgreSQL
     service admission and identity rotation also exist;
     deployed authenticated remote service and provider promotion remain distinct
-    qualification gates.
+    qualification gates. This fork retired the NoKV provider candidate.
 - [Shared Goal Alignment and Governed Amendment Protocol v0](shared-goal-alignment-and-governed-amendment-v0.md)
   ([中文版](shared-goal-alignment-and-governed-amendment-v0.zh-CN.md))
   - **RFC status:** Draft, under maintainer review.

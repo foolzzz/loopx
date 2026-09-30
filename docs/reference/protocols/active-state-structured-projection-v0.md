@@ -11,7 +11,7 @@ current active-state Markdown and does not grant write permission.
 The machine-owned Todo read subset is versioned separately in
 `coordination_state_contract_v0.json`. That provider-neutral contract is shared
 by Python and TypeScript. It declares the legacy consumer record and a separate
-native domain record for file, NoKV, or PostgreSQL authority heads.
+native domain record for file, SQLite, or PostgreSQL authority heads.
 `archive_state` is durable task state: archival changes handoff and succession
 eligibility independently of completion. `source_section` and optional `index`
 belong to the Markdown compatibility projection, not native creation inputs.

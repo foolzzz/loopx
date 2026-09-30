@@ -19,6 +19,10 @@
   实测 capacity/retention profile 与 authority promotion 仍未由这些接缝证明
 - 语言说明：[英文版](./shared-goal-authority-state-provider-v0.md)与本中文版互为
   语义镜像；两者不一致属于缺陷
+- Fork 说明（2026-09-29）：本 fork 已退役 NoKV provider candidate。NoKV
+  `AuthorityStore` adapter、JSONL transport 与 helper、Stage 2A 资格验证
+  harness 以及 NoKV ladder 行均已删除（见 [CHANGELOG](../../../CHANGELOG.md)）。
+  下文的 NoKV 章节保留为历史设计记录
 
 ## 当前交付边界（2026-09-25）
 

@@ -103,12 +103,12 @@ matched baseline（或显式标为更弱的 baseline）、acceptance criteria、
 
 ## Shared Goal Authority 与跨 Host 协作
 
-本方向刻意不叫“共享元信息数据库”。NoKV 是位于 LoopX authority 之后、尚未晋级
-的可选 provider candidate，而不是 authority 本身。Agent 不直接连接 NoKV。
+本方向刻意不叫“共享元信息数据库”。存储 provider 是位于 LoopX authority 之后
+的可选 candidate，而不是 authority 本身。Agent 不直接连接 provider。
 Run history、status、quota、scheduler state、host session 与 evidence 继续由原有
 边界负责。
 
-当前已有 provider-neutral store、File/SQLite 候选、PostgreSQL conformance 与 in-process service admission/identity rotation 基础。下一阶段是总纲 R5 的本地持久化 D1–D3 资格，以及 R6 的真实认证跨 host 服务、分布式预算与恢复；不重做已交付的初始 `claim_work` 提取，也不把 service seam 当作已部署服务。NoKV 或其他 provider 的晋升继续服从各自真实 backend、兼容、保留与明确批准门槛。
+当前已有 provider-neutral store、File/SQLite 候选、PostgreSQL conformance 与 in-process service admission/identity rotation 基础。下一阶段是总纲 R5 的本地持久化 D1–D3 资格，以及 R6 的真实认证跨 host 服务、分布式预算与恢复；不重做已交付的初始 `claim_work` 提取，也不把 service seam 当作已部署服务。Provider 的晋升继续服从各自真实 backend、兼容、保留与明确批准门槛。
 
 ## 架构与研究孵化器
 

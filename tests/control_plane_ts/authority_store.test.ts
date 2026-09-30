@@ -43,22 +43,9 @@ test("file provider persists object keys in deterministic Unicode order", async 
 test("provider profiles map one logical contract onto different backend primitives", () => {
   assert.equal(AUTHORITY_STORE_REQUIRED_GUARANTEES.length, 6);
   assert.deepEqual(Object.keys(AUTHORITY_STORE_PROVIDER_PROFILES), [
-    "sqlite", "file", "nokv", "postgresql",
+    "sqlite", "file", "postgresql",
   ]);
   assert.equal(AUTHORITY_STORE_PROVIDER_PROFILES.file.stage, "stage1_implemented");
-  assert.equal(
-    AUTHORITY_STORE_PROVIDER_PROFILES.nokv.revision_primitive,
-    "path_generation_compare_and_publish",
-  );
-  assert.equal(
-    AUTHORITY_STORE_PROVIDER_PROFILES.nokv.store_lineage_mapping,
-    "workbench_workspace_incarnation_id",
-  );
-  assert.ok(
-    AUTHORITY_STORE_PROVIDER_PROFILES.nokv.qualification_holds.includes(
-      "capacity_and_receipt_retention",
-    ),
-  );
   assert.equal(
     AUTHORITY_STORE_PROVIDER_PROFILES.postgresql.atomic_commit_mapping,
     "one_sql_transaction_over_head_events_and_receipts",
@@ -82,7 +69,7 @@ test("provider profiles map one logical contract onto different backend primitiv
   );
   assert.notDeepEqual(
     AUTHORITY_STORE_PROVIDER_PROFILES.file,
-    AUTHORITY_STORE_PROVIDER_PROFILES.nokv,
+    AUTHORITY_STORE_PROVIDER_PROFILES.sqlite,
   );
 });
 

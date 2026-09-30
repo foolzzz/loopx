@@ -32,10 +32,8 @@ and the transaction-bound outbox instead of requiring a second writable history.
 
 | Row | Stage | Path | Gate | Asserts |
 | --- | --- | --- | --- | --- |
-| `s0.file_matrix_twelve_rows` | 0 | store_direct | deterministic | `examples/nokv-shadow-provider/live_e2e.py` reports exactly the twelve known file-provider scenario rows, all true |
-| `s0.nokv_live_matrix` | 0 | store_direct | env:nokv_legacy | the same twelve rows plus `restored_lineage_fails_closed` are true on a live NoKV stack and file/NoKV outcomes are identical |
+| `s0.file_matrix_twelve_rows` | 0 | store_direct | deterministic | `loopx/control_plane/testing/authority_e2e_file_matrix.py` runs exactly the twelve known file-provider scenario rows against the production executor, all true |
 | `s1.cli_document_decodes_through_ts_store` | 1 | real_cli | deterministic | Explicit bootstrap plus three CLI writes load at cursor `4`; paged `scanCommitted` returns four distinct transactions in source order and `readReceipt` finds the first source write |
-| `s2a.nokv_live_qualification` | 2a | store_direct | env:nokv_authority | runs the merged `examples/nokv-authority-store/live-qualification.ts --execute-live` against an existing workbench with a fresh tenant/goal pair; requires `ok=true`, the single-node store-conformance scope, every check `passed`, NoKV SDK `0.11.1` / API `1`, the two stale-incarnation fence checks (`stale_incarnation_fence_rejected`, `stale_incarnation_fence_left_generation_unchanged`), and no promotion or availability claim; evidence carries check ids, counts, and config and workbench digest prefixes, never a configuration value or the workbench name |
 | `s2b.postgresql_conformance_live` | 2b | store_direct | env:postgresql | `postgresql_authority_store.integration.test.ts` under node's TAP reporter: `# pass >= 9`, `# fail 0`, `# skipped 0` |
 | `s2c1.retired_observation_upgrade` | 2c1 | real_cli | deterministic | Old enable rejects without writes; retained settings create no history; explicit clear/configure/bootstrap captures the next source transaction |
 | `s2c2.outbox_prepared_then_committed_entries` | 2c2 | real_cli | deterministic | with the maintenance lock held, `todo add` (Python) and `task-lease acquire` (TypeScript) report `drain_deferred/drain_lock_busy`, `status` shows one `committed_pending` entry per partition with one prepared record and one committed marker on disk; one `drain` delivers both (`delivered=2`), history holds the bootstrap plus two committed receipts from both writer runtimes, and the next write delivers inline at cursor `4` |
@@ -79,8 +77,6 @@ TypeScript store read.
 | --- | --- | --- |
 | `deterministic` | none (needs `node` on `PATH` for the CLI's TypeScript runtime and the read-back probe) | `node_missing` when the probe cannot run |
 | `env:postgresql` | `LOOPX_TEST_POSTGRES_URL` plus `node_modules/pg` (`npm ci`) | `postgres_url_missing`, `pg_dependency_missing`, `node_missing` |
-| `env:nokv_legacy` | `NOKV_COORDINATION_LIVE=1` and `NOKV_ETCD`, `NOKV_ETCD_PREFIX`, `NOKV_ROOT_ID`, `NOKV_BUCKET`, `NOKV_OBJECT_ENDPOINT`, `NOKV_OBJECT_ROOT`, `NOKV_OBJECT_KEY`, `NOKV_OBJECT_SECRET`; the `nokv` SDK importable | `nokv_live_env_missing`, `nokv_coordination_live_not_enabled`, `nokv_sdk_missing` |
-| `env:nokv_authority` | `LOOPX_NOKV_AUTHORITY_LIVE=1` (the probe writes durable test data), `LOOPX_NOKV_AUTHORITY_CONFIG_JSON` (absolute path to the ignored NoKV client configuration), `LOOPX_NOKV_AUTHORITY_PYTHON` (absolute path to the Python executable that resolves NoKV SDK 0.11.1), `LOOPX_NOKV_AUTHORITY_WORKBENCH` (an existing workbench); `node` on `PATH` | `nokv_authority_env_missing`, `loopx_nokv_authority_live_not_enabled`, `nokv_authority_config_missing`, `nokv_authority_python_missing`, `node_missing` |
 
 POSIX-only rows report `unverified/posix_only` on Windows.
 
@@ -90,8 +86,7 @@ The report schema is `loopx_shared_goal_authority_e2e_report_v0`:
 `rows[]` (`status in {pass, fail, unverified}`, `reason_code`, public-safe
 `evidence`, `duration_ms`), `pending[]`, `summary{pass, fail, unverified,
 pending, executed, privacy_violations}`, `bindings{loopx_commit, loopx_tree_dirty, probe_sha256[],
-nokv_client_config_sha256, nokv_sdk_version, postgres_url_sha256_prefix,
-pg_package_version}` (`null` when unknown), and `exit_policy`.
+postgres_url_sha256_prefix, pg_package_version}` (`null` when unknown), and `exit_policy`.
 
 Exit code is `0` iff `fail == 0` and `privacy_violations == 0` and
 (`unverified == 0` or `--allow-unverified`) and (`pending == 0` or
@@ -101,8 +96,7 @@ obligation, so `--row s2c2.sustained_parity_soak` exits 1 with zero executions, 
 mixed selection exits 1 even when its executable rows pass. `--list` only
 prints the registry and never claims verification. A privacy scan runs over
 the finished report: any occurrence of a temporary root, the home directory,
-the repository path, the PostgreSQL URL, a NoKV configuration value, or a NoKV
-authority input path rewrites that row to `fail/privacy_violation`; a leak
+the repository path, or the PostgreSQL URL rewrites that row to `fail/privacy_violation`; a leak
 confined to the `bindings` block nulls every binding, marks
 `bindings.privacy_violation`, and still exits `1` through
 `summary.privacy_violations`, which no flag relaxes. Evidence therefore

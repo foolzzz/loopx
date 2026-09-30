@@ -64,7 +64,7 @@ def _build_authority_boundary_table() -> list[dict[str, Any]]:
             "shipped_equivalent": (
                 "Native task-lease acquire is owned by the TypeScript default "
                 "path. The coordination head codec + recoverable execution "
-                "reference executor + file/NoKV candidates exercise v1 behind "
+                "reference executor + file candidate exercise v1 behind "
                 "one CAS seam as coverage-only modules, not the runtime "
                 "source of truth. PostgreSQL remains an RFC workstream."
             ),

@@ -12,8 +12,6 @@ TEST_ROOT = Path("tests/control_plane_ts")
 # only balance shards: every file is selected by exactly one shard, and a stale
 # or missing weight (default 1) can unbalance but never skip a file.
 WEIGHTS = {
-    "nokv_jsonl_transport.test.ts": 409,
-    "nokv_authority_store.test.ts": 361,
     "sqlite_authority_store.test.ts": 342,
     "authority_store.test.ts": 250,
     "leased_continuation.test.ts": 87,
