@@ -112,6 +112,15 @@ def _archive_state_directory(
             "action": "state-dir-missing",
             "archived": False,
         }
+    if not state_file.exists():
+        return {
+            "goal_id": goal_id,
+            "state_file": str(state_file),
+            "state_dir": str(state_dir),
+            "action": "state-file-missing",
+            "archived": False,
+            "warning": "recorded active state file is missing; kept its directory in place",
+        }
     destination = _unique_destination(archive_root / timestamp / "goals" / goal_id)
     runtime_goals_root = (runtime_root / "goals").resolve()
     try:

@@ -545,6 +545,7 @@ def inspect_bootstrap_connection(
     *,
     goal_id: str | None = None,
     resolve_linked_worktree_alias: bool = True,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     """Inspect either the canonical project route or the caller's exact route."""
 
@@ -568,7 +569,16 @@ def inspect_bootstrap_connection(
     registry_exists = registry_path.exists()
     registry, registry_error = _read_registry(registry_path) if registry_exists else (None, None)
     inferred_goal_id = goal_id or default_goal_id(resolved_project)
-    state_file = project_goal_state_file(resolved_project, inferred_goal_id)
+    effective_runtime_root = resolve_runtime_root(
+        registry or {},
+        runtime_root_arg,
+        registry_path=registry_path,
+    )
+    state_file = project_goal_state_file(
+        resolved_project,
+        inferred_goal_id,
+        runtime_root=effective_runtime_root,
+    )
     base_connection = {
         "input_project": str(input_project),
         "project": str(resolved_project),
@@ -599,7 +609,11 @@ def inspect_bootstrap_connection(
     goals = registry_goals(registry)
     selected_goal_id, selected_goal = _select_goal(goals, goal_id)
     resolved_goal_id = selected_goal_id or inferred_goal_id
-    fallback_state_file = project_goal_state_file(resolved_project, resolved_goal_id)
+    fallback_state_file = project_goal_state_file(
+        resolved_project,
+        resolved_goal_id,
+        runtime_root=effective_runtime_root,
+    )
     goal_state_file = (
         resolve_state_file(resolved_project, str(selected_goal.get("state_file")))
         if selected_goal and selected_goal.get("state_file")
@@ -757,6 +771,7 @@ def build_loopx_bootstrap_command_pack(
         project,
         goal_id=goal_id,
         resolve_linked_worktree_alias=resolve_linked_worktree_alias,
+        runtime_root_arg=runtime_root_arg,
     )
     resolved_project = str(inspection["project"])
     resolved_goal_id = str(inspection["goal_id"])
@@ -1115,6 +1130,7 @@ def _build_multi_goal_start_selection_packet(
     inspection = inspect_bootstrap_connection(
         project,
         resolve_linked_worktree_alias=False,
+        runtime_root_arg=runtime_root_arg,
     )
     registry_path = Path(str(inspection.get("registry") or ""))
     registry, registry_error = _read_registry(registry_path)

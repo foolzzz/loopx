@@ -923,7 +923,12 @@ def render_prompt_text(
         )
     allowed_domains_text = ", ".join(allowed_domains) if allowed_domains else "(none)"
     write_scope_text = ", ".join(write_scope) if write_scope else "(none)"
-    state_file = project_goal_state_file(Path(), goal_id).as_posix()
+    project_path = Path(project)
+    state_path = project_goal_state_file(project_path, goal_id)
+    try:
+        state_file = state_path.relative_to(project_path).as_posix()
+    except ValueError:
+        state_file = state_path.as_posix()
     return f"""我有一个新项目要接入 LoopX。
 
 项目文件夹：
