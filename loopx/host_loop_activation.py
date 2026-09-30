@@ -359,10 +359,8 @@ def build_agent_type_catalog() -> dict[str, Any]:
             for value, choices in AMBIGUOUS_AGENT_TYPE_INPUTS.items()
         ],
         "selection_rule": (
-            "Agents should pass a canonical agent_type. Ambiguous values such as "
-            "`codex` are rejected because Codex App automation, Codex App over SSH, "
-            "the Codex IDE plugin, and Codex CLI have different "
-            "host-loop activation paths."
+            "Agents should pass a canonical agent_type. `codex` resolves to "
+            "`codex-cli`; use an exact canonical type for every other host runtime."
         ),
     }
 

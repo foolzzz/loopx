@@ -65,7 +65,6 @@ PACKET_MEASUREMENT_SCHEMA_VERSION = "loopx_packet_duplication_measurement_v0"
 GUIDED_COMMAND_PACK_PROJECTION_SCHEMA_VERSION = (
     "loopx_guided_command_pack_projection_v0"
 )
-HOST_SURFACE_SELECTION_SCHEMA_VERSION = "loopx_host_surface_selection_gate_v0"
 GOAL_CAPABILITY_ROUTE_SCHEMA_VERSION = "loopx_goal_capability_route_v0"
 START_GOAL_CAPABILITY_ROUTES = ("issue-fix",)
 START_GOAL_HOST_SURFACES = (
@@ -325,163 +324,6 @@ def _guided_command_pack_projection(
         compact_projection_default=True,
     )
     return projection
-
-
-def build_start_goal_host_surface_selection_packet(
-    *,
-    project: Path,
-    goal_id: str | None,
-    agent_id: str | None,
-    cli_bin: str,
-    goal_text: str,
-    thread_id: str | None = None,
-    new_peer: bool = False,
-    available_capabilities: list[str] | None = None,
-    capability_route: str | None = None,
-    fine_grained: bool = False,
-    include_command_pack_detail: bool = False,
-    display_name: str | None = None,
-    runtime_root_arg: str | None = None,
-) -> dict[str, Any]:
-    """Fail closed when the caller has not identified the current Codex host."""
-
-    resolved_project = str(_resolve_project(project))
-    registry_path = Path(resolved_project) / ".loopx" / "registry.json"
-    registry_payload, _registry_error = _read_registry(registry_path)
-    command_runtime_root, _ = _runtime_roots(
-        registry_payload,
-        registry_path=registry_path,
-        runtime_root_arg=runtime_root_arg,
-    )
-    normalized_goal_text = " ".join(goal_text.split())
-    host_descriptions = {
-        "codex-app-ssh": "Codex desktop app over SSH with visible /goal support",
-        "codex-cli-tui": "terminal Codex TUI with visible /goal support",
-        "claude-code": "Claude Code with native /loop",
-        "opencode": "OpenCode LoopX goal bridge",
-        "opencode2": "OpenCode 2 session driven by the LoopX goal worker",
-        "traex-cli": "terminal TraeX TUI with visible /goal support (needs [features] goals = true)",
-        "pi": "Pi LoopX goal extension",
-        "gemini-cli": "Gemini CLI driving its own loop through the LoopX skill facade",
-        "cursor-agent": "cursor-agent driving its own loop through the LoopX skill facade and MCP server",
-        "zcode": "ZCode loop via the LoopX skill facade",
-        "agy": "agy session loop via the LoopX skill facade; native /goal + schedule wakes while the session lives",
-        "kiro-cli": "Kiro CLI loop via the LoopX skill facade; native /goal iteration budget",
-        "deepseek-harness": "DeepSeek Harness automation loop through loopx.dsh_goal_mode (compat: scripts/dsh_turn_host_adapter.py)",
-        "deepseek-harness-native": "DeepSeek Harness same-session LoopX skill and plugin driver",
-        "ark-managed-agent": "Ark Managed Agent with one-shot Goal submission",
-        "shell": "manual shell or an explicitly configured external scheduler",
-        "other-agent": "custom agent host using the returned activation contract",
-    }
-    choices: list[dict[str, Any]] = []
-    for host_surface in START_GOAL_HOST_SURFACES:
-        rerun_command = (
-            f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
-            f"start-goal --guided "
-            f"--project {shell_arg(resolved_project)}"
-            + (f" --goal-id {shell_arg(goal_id)}" if goal_id else "")
-            + (f" --agent-id {shell_arg(agent_id)}" if agent_id else "")
-            + (f" --thread-id {shell_arg(thread_id)}" if thread_id else "")
-            + (" --new-peer" if new_peer else "")
-            + f" --host-surface {shell_arg(host_surface)}"
-            + render_available_capability_args(available_capabilities)
-            + (" --fine-grained" if fine_grained else "")
-            + (
-                f" --capability-route {shell_arg(capability_route)}"
-                if capability_route
-                else ""
-            )
-            + f" --goal-text {shell_arg(normalized_goal_text)}"
-            + render_optional_cli_arg("--display-name", display_name)
-            + (" --include-command-pack-detail" if include_command_pack_detail else "")
-        )
-        choices.append(
-            {
-                "host_surface": host_surface,
-                "description": host_descriptions[host_surface],
-                "rerun_command": rerun_command,
-            }
-        )
-    reason = (
-        "host surface is required because Codex App automation, Codex App over SSH, "
-        "the Codex IDE plugin, Codex CLI, and Ark Managed Agent "
-        "have different continuation contracts"
-    )
-    gate = {
-        "schema_version": HOST_SURFACE_SELECTION_SCHEMA_VERSION,
-        "state": "selection_required",
-        "action_required": True,
-        "reason": reason,
-        "required_cli_arg": "--host-surface <exact-host-surface>",
-        "choices": choices,
-    }
-    transaction = {
-        "schema_version": GUIDED_START_SCHEMA_VERSION,
-        "mode": "dry_run_preview",
-        "writes_now": False,
-        "spends_quota_now": False,
-        "goal_text": normalized_goal_text,
-        "display_name": display_name,
-        "blocked_by": "host_surface_selection",
-        "host_surface_selection_gate": gate,
-        "ordered_steps": [
-            {
-                "id": "select_host_surface",
-                "kind": "host_surface_selection_gate",
-                "choices": choices,
-                "purpose": "select the current host before planning, mutation, or loop activation",
-            }
-        ],
-        "idempotency_policy": {"safe_to_rerun_preview": True},
-        "preserve_todos_policy": {
-            "force_bootstrap_default": "forbidden_in_guided_flow",
-            "before_destructive_reconnect": "select a host before any mutation",
-            "preferred_scope_change": "select a host before any mutation",
-        },
-    }
-    payload: dict[str, Any] = {
-        "ok": True,
-        "schema_version": GUIDED_START_SCHEMA_VERSION,
-        "read_only": True,
-        "guided": True,
-        "project": resolved_project,
-        "goal_id": goal_id,
-        "agent_id": agent_id,
-        "thread_id": normalize_thread_id(thread_id),
-        "new_peer": new_peer,
-        "host_surface": None,
-        "goal_text": normalized_goal_text,
-        "display_name": display_name,
-        "host_surface_selection_gate": gate,
-        "recommended_next_step": {
-            "kind": "select_host_surface",
-            "requires_user_confirmation": False,
-            "requires_host_surface_selection": True,
-            "summary": reason,
-        },
-        "guided_transaction": transaction,
-        "command_pack_detail_included": include_command_pack_detail,
-        "safety_contract": {
-            "writes_registry": False,
-            "writes_state_file": False,
-            "creates_heartbeat": False,
-            "spends_quota": False,
-            "mutation_commands_are_previewed": False,
-            "force_bootstrap_allowed": False,
-        },
-    }
-    payload["message"] = render_start_goal_guided_markdown(payload)
-    payload["packet_summary"] = _build_packet_summary(
-        payload,
-        packet_kind="guided_start_host_surface_selection",
-        detail_refs={
-            "host_surface_selection_gate": "#/host_surface_selection_gate",
-            "guided_transaction": "#/guided_transaction",
-            "safety_contract": "#/safety_contract",
-            "compatibility_message": "#/message",
-        },
-    )
-    return payload
 
 
 def _resolve_project(project: Path) -> Path:
@@ -2110,8 +1952,8 @@ Host loop activation is part of setup, not a nice-to-have:
 
 If the host loop is already proven current, skip the mutation. If it is missing,
 unknown, or stale, use the command above to obtain `task_body` and activate the
-right host loop: Codex App automation, Codex CLI `/goal <task_body>`, Claude
-Code `/loop`, OpenCode bridge, or the custom host-loop gate.
+right host loop: Codex CLI `/goal <task_body>`, Claude Code `/loop`, OpenCode
+bridge, or the custom host-loop gate.
 If this session cannot mutate that
 host surface, report the exact gate; do not claim autonomous setup complete.
 Use `{commands.get("goal_start_agent_onboard_recheck", "")}` only when

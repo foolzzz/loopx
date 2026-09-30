@@ -824,12 +824,10 @@ heartbeat prompt. Complete the setup in order: install or repair LoopX
 if needed; probe whether this goal already exists in the shared global
 registry; only bootstrap/connect this project when the goal is absent; then
 configure the current loop surface from the generated thin heartbeat prompt.
-For Codex CLI, set the current TUI goal to `/goal ` plus the thin `task_body`.
-For Codex App, set or refresh the heartbeat automation to start at 3 minutes
-with that same thin `task_body`, then follow quota `scheduler_hint` for
-backoff. If the current surface cannot be mutated from this session, show the
-exact pasteable `/goal` or automation body and report that as a concrete user
-gate; do not claim setup success.
+Set the current Codex CLI TUI goal to `/goal ` plus the thin `task_body`, then
+follow quota `scheduler_hint`. If the current surface cannot be mutated from
+this session, show the exact pasteable `/goal` body and report that as a
+concrete user gate; do not claim setup success.
 
 Project: `{project}`
 Goal id: `{goal_id}`
@@ -892,10 +890,9 @@ hand-write or copy an old heartbeat body:
 
 Read `task_body` from the JSON result. Then configure the current surface:
 - Codex CLI TUI: set the current goal to `/goal ` followed by that `task_body`.
-- Codex App: create or update the heartbeat automation to start at 3 minutes
-  with that `task_body`, then follow quota `scheduler_hint`. If this session
-  cannot mutate Codex App automations, report that exact gate and do not say
-  LoopX automation is enabled.
+- Follow quota `scheduler_hint` for subsequent loop decisions. If this session
+  cannot set the visible Goal, report that exact gate and do not say the LoopX
+  loop is enabled.
 
 For review, the Markdown form is:
 
@@ -1209,8 +1206,7 @@ def render_codex_cli_bootstrap_message_markdown(payload: dict[str, Any]) -> str:
         goal_mode_note = (
             "\nThe generated block is a setup message, not the reusable heartbeat body. "
             "After install/bootstrap, it tells the agent to set Codex CLI goal mode "
-            "to `/goal <thin task_body>` or Codex App automation starting at 3 minutes "
-            "with `<thin task_body>`.\n"
+            "to `/goal <thin task_body>` and follow quota `scheduler_hint`.\n"
         )
     return f"""# Codex CLI LoopX Bootstrap Message
 

@@ -88,7 +88,7 @@ def _loopx_start_goal_arguments_instruction(
     cli_bin: str,
     host_surface: str | None,
 ) -> str:
-    selected_host = host_surface or "<exact-current-host>"
+    selected_host = host_surface or "codex-cli-tui"
     instruction = (
         "If arguments are present and the current host already has a verified "
         "active LoopX Goal/Agent binding, preserve that exact identity when the "
@@ -107,8 +107,8 @@ def _loopx_start_goal_arguments_instruction(
     )
     if host_surface is None:
         instruction += (
-            " If the host is unclear, omit the host flag once and follow the "
-            "returned host-surface selection gate."
+            " This unbound entry defaults to Codex CLI TUI; every other host "
+            "must pass its exact host surface."
         )
     return instruction
 
