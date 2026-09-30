@@ -987,6 +987,40 @@ def test_legacy_plan_selector_returns_extension_migration_packet(
     assert migration["truth_contract"]["legacy_connector_executes_finance"] is False
 
 
+@pytest.mark.parametrize(
+    ("legacy_command", "selector"),
+    [("source-map", "--connector"), ("install-check", "--connector"), ("plan", "--connector-id")],
+)
+def test_legacy_connector_commands_answer_through_the_cli_process(
+    legacy_command: str, selector: str, tmp_path: Path
+) -> None:
+    completed = subprocess.run(
+        [sys.executable, "-m", "loopx.cli", "--format", "json", "value-connectors", legacy_command,
+         selector, "finance_market_snapshot"],
+        cwd=ROOT,
+        env={**os.environ, "HOME": str(tmp_path), "LOOPX_RUNTIME_ROOT": str(tmp_path / "runtime")},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    packet = json.loads(completed.stdout)
+    item = {
+        "source-map": lambda: packet["source_profiles"][0],
+        "install-check": lambda: packet["checks"][0],
+        "plan": lambda: packet,
+    }[legacy_command]()
+    migration = item.get("migration", item)
+    assert item["status"] == "migrated_to_extension"
+    assert migration["replacement_extension_id"] == "loopx-finance-value-discovery"
+    assert migration["replacement_capability_id"] is None
+    assert migration["truth_contract"]["legacy_connector_executes_finance"] is False
+
+
 def test_group_wide_derating_or_missing_controls_cannot_advance() -> None:
     group_wide = _example()
     group_wide["cards"][0]["relative_signal"] = "group_wide"

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import threading
+from collections.abc import Iterator
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -223,6 +227,53 @@ def test_http_readback_retries_then_persists_verified_receipt(tmp_path: Path) ->
         events[-1]["receipt_url"]
         == "https://example.github.io/project/.loopx-static-site-receipt.json"
     )
+
+
+class _QuietHandler(SimpleHTTPRequestHandler):
+    def log_message(self, _format: str, *_args: object) -> None:
+        return None
+
+
+@pytest.fixture
+def served_directory(tmp_path: Path) -> Iterator[tuple[Path, str]]:
+    """Serve a directory over a real loopback HTTP server."""
+
+    root = tmp_path / "publish"
+    root.mkdir()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(_QuietHandler, directory=str(root)))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield root, f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+
+def test_http_readback_reads_the_receipt_from_a_real_local_server(
+    tmp_path: Path, served_directory: tuple[Path, str]
+) -> None:
+    output, base = served_directory
+    site = _site(tmp_path)
+    state = tmp_path / "state"
+    _package(site, output, state, revision="rev-a")
+    (site / "index.html").write_text("<html><body>second</body></html>\n", encoding="utf-8")
+    _package(site, output, state, revision="rev-b")
+    rollback = rollback_static_site(output_dir=output, state_dir=state, execute=True)
+    assert rollback["active_revision"] == "rev-a"
+
+    verified = verify_static_site_readback(
+        output_dir=output,
+        state_dir=state,
+        receipt_url=f"{base}/{RECEIPT_FILE}",
+        retry_delay_seconds=0,
+        execute=True,
+    )
+
+    assert verified["verified"] is True
+    assert verified["revision"] == "rev-a"
+    assert verified["attempts"] == 1
 
 
 def test_cli_package_preview_is_read_only_and_exposes_publisher_as_first_class_parameter(

@@ -5,9 +5,13 @@ import json
 import pytest
 
 from loopx.experiments.planner_worker.contract import (
+    MAX_PLANNER_WORKER_STEPS,
     PLANNER_WORKER_PLAN_SCHEMA_VERSION,
     PLANNER_WORKER_STEP_SCHEMA_VERSION,
+    build_planner_prompt,
+    build_worker_step_prompt,
     parse_planner_worker_plan_text,
+    planner_worker_plan_json_skeleton,
     resolve_planner_worker_executor,
     select_next_executable_step,
 )
@@ -198,3 +202,55 @@ def test_selector_skips_ineligible_step_for_later_independent_work() -> None:
 
     assert selection["status"] == "selected"
     assert selection["step"]["step_id"] == "independent-ready-step"
+
+
+def _skeleton_plan() -> dict:
+    plan = planner_worker_plan_json_skeleton()
+    plan["plan_id"] = "contract-skeleton"
+    plan["objective"] = "Update one fixture."
+    step = plan["steps"][0]
+    step["step_id"] = "update-fixture"
+    step["target_files"] = ["fixture.txt"]
+    step["instruction"] = "Write expected to fixture.txt."
+    return plan
+
+
+def test_the_skeleton_the_planner_is_shown_parses_selects_and_routes() -> None:
+    parsed = parse_planner_worker_plan_text(json.dumps(_skeleton_plan()))
+    selection = select_next_executable_step(parsed, completed_step_ids=[])
+
+    assert selection["status"] == "selected"
+    assert selection["step"]["step_id"] == "update-fixture"
+    route = resolve_planner_worker_executor(
+        selection["step"],
+        model_routes={"cheap_worker": {"model": "deepseek-v4-flash", "effort": "medium"}},
+    )
+    assert route["model"] == "deepseek-v4-flash"
+
+
+@pytest.mark.parametrize("max_steps", [0, MAX_PLANNER_WORKER_STEPS + 1])
+def test_skeleton_rejects_step_budgets_outside_the_contract(max_steps: int) -> None:
+    with pytest.raises(ValueError, match="max_steps must be between 1 and"):
+        planner_worker_plan_json_skeleton(max_steps=max_steps)
+
+
+def test_planner_prompt_demands_strict_json_in_the_skeleton_schema() -> None:
+    prompt = build_planner_prompt(objective="Update one fixture.", task_instruction="Return a bounded plan.")
+
+    assert "Do not edit files. Return one worker-ready plan as strict JSON." in prompt
+    assert "Every step must name exact target files" in prompt
+    assert json.dumps(planner_worker_plan_json_skeleton(), ensure_ascii=False, indent=2) in prompt
+    assert prompt.endswith("Objective:\nUpdate one fixture.\n\nTask instruction:\nReturn a bounded plan.")
+    with pytest.raises(ValueError):
+        build_planner_prompt(objective=" ", task_instruction="Return a bounded plan.")
+
+
+def test_worker_prompt_scopes_execution_to_the_selected_step() -> None:
+    plan = parse_planner_worker_plan_text(json.dumps(_skeleton_plan()))
+    prompt = build_worker_step_prompt(plan=plan, step=plan["steps"][0])
+
+    assert "Execute only this selected plan step. Do not re-plan the whole task." in prompt
+    assert "Target files: fixture.txt" in prompt
+    assert "- python3 -m pytest -q tests/test_target.py" in prompt
+    with pytest.raises(ValueError, match="step_id not found in plan"):
+        build_worker_step_prompt(plan=plan, step={"step_id": "unknown-step"})
