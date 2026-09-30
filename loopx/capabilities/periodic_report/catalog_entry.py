@@ -173,12 +173,9 @@ PERIODIC_REPORT_CATALOG_ENTRY: dict[str, Any] = {
         },
     ],
     "smokes": [
-        "python3 examples/periodic-report-smoke.py",
-        "python3 examples/periodic-report-adapters-smoke.py",
+        "python -m pytest tests/capabilities/test_periodic_report.py tests/capabilities/test_periodic_report_triggers.py tests/capabilities/test_periodic_report_adapters.py tests/capabilities/test_periodic_report_profile.py tests/capabilities/test_periodic_report_runtime_producer.py tests/extensions/test_openviking_periodic_report.py -q",
         "python3 examples/periodic-report-html-smoke.py",
         "python3 examples/periodic-report-bindings-smoke.py",
-        "python3 examples/openviking-periodic-report-extension-smoke.py",
-        "python3 examples/periodic-report-profile-smoke.py",
     ],
     "docs": [
         "loopx/capabilities/periodic_report/README.md",

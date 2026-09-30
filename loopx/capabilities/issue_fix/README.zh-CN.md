@@ -1161,7 +1161,6 @@ loopx issue-fix outcome \
 ## Validation
 
 ```bash
-python3 examples/issue-fix-capability-guide-smoke.py
 python3 examples/issue-fix-reviewer-recommendation-smoke.py
 python3 examples/issue-fix-reviewer-request-smoke.py
 python3 examples/issue-fix-reviewer-notification-sink-smoke.py

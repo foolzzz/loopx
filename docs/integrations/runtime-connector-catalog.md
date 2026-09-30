@@ -151,7 +151,6 @@ Operator guide (provider-neutral fake runtime):
 Public checks:
 
 ```bash
-python3 examples/experiments/planner_worker/contract-smoke.py
 python3 examples/experiments/planner_worker/runtime-smoke.py
 ```
 

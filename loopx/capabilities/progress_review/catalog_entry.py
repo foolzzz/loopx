@@ -85,7 +85,7 @@ PROGRESS_REVIEW_CATALOG_ENTRY: dict[str, Any] = {
             "doc": "loopx/capabilities/progress_review/README.md",
         },
     ],
-    "smokes": ["python3 examples/progress-review-sentinel-smoke.py"],
+    "smokes": ["python -m pytest packages/loopx-jev/tests/test_sentinel.py -q"],
     "docs": [
         "loopx/capabilities/progress_review/README.md",
         "loopx/capabilities/progress_review/README.zh-CN.md",

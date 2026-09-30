@@ -8,7 +8,7 @@ presentation, and destinations to profiles and adapters.
 | --- | --- |
 | CLI | `loopx periodic-report inspect-profile --preset weekly`, `request`, `consume-pending`, custom `--profile-json <path>`, `evaluate-trigger`, `evaluate-runtime-trigger`, `compose-run`, and optional `archive-openviking` |
 | Protocol | [`periodic_report_v0`](../../../docs/reference/protocols/periodic-report-v0.md) |
-| Smokes | `python3 examples/periodic-report-smoke.py`, `periodic-report-profile-smoke.py`, `periodic-report-html-smoke.py`, `periodic-report-bindings-smoke.py`, and `openviking-periodic-report-extension-smoke.py` |
+| Checks | `python -m pytest tests/capabilities/test_periodic_report*.py tests/extensions/test_openviking_periodic_report.py -q`, `python3 examples/periodic-report-html-smoke.py`, and `periodic-report-bindings-smoke.py` |
 
 ## Generate this week's report
 

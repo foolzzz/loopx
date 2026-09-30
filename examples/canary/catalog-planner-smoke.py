@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Smoke-test catalog-informed canary profile planning.
 
-Selection is checked as a table from (changed files, surfaces) to the domain
-profile ids that must or must not be selected, plus invariants that hold for
-every profile: each planned command names a script that exists, and deep checks
-appear only on explicit request. Individual smoke paths are not pinned here, so
-retiring or replacing a smoke only touches the planner catalog.
+Selection is checked as a table from (changed files, surfaces) to the exact
+domain profile ids the plan selects. A second table pins the scripts each
+profile must keep scheduling, by tier. Invariants hold for every profile: each
+planned command names a script that exists, and deep checks appear only on
+explicit request.
 """
 
 from __future__ import annotations
@@ -33,116 +33,146 @@ from loopx.cli_commands.canary import collect_git_diff_changed_files  # noqa: E4
 
 SCRIPT_TOKEN = re.compile(r"^[\w./-]+\.(?:py|mjs|js|ts|sh)$")
 
-# (label, plan inputs, profile ids that must be selected, ids that must not be)
-SELECTION_CASES: tuple[tuple[str, dict[str, object], frozenset[str], frozenset[str]], ...] = (
+# (label, plan inputs, the exact domain profile ids the plan selects)
+SELECTION_CASES: tuple[tuple[str, dict[str, object], tuple[str, ...]], ...] = (
     ("pr review", {"changed_files": ["loopx/pr_review.py", "skills/loopx-pr-review/SKILL.md"],
                    "surfaces": ["pr-review public PR metadata"]},
-     frozenset({"pr-review-and-merge"}), frozenset()),
+     ("pr-review-and-merge", "repo-architecture-budget")),
     ("release", {"changed_files": ["docs/product/release-readiness.md"],
                  "surfaces": ["release promotion install update"]},
-     frozenset({"release-promotion", "install-update"}), frozenset()),
+     ("install-update", "release-promotion", "state-write-correctness")),
     ("install", {"changed_files": ["scripts/install-local.sh", "loopx/self_update.py"],
                  "surfaces": ["install update rollback"]},
-     frozenset({"install-update"}), frozenset()),
+     ("install-update", "repo-architecture-budget")),
     ("install without release", {"changed_files": ["loopx/doctor.py", "examples/install-local-smoke.py"]},
-     frozenset({"install-update"}), frozenset({"release-promotion"})),
+     ("install-update", "repo-architecture-budget")),
     ("refactor", {"changed_files": ["loopx/quota.py", "loopx/status.py"],
                   "surfaces": ["control-plane refactor scheduler hint"]},
-     frozenset({"control-plane-refactor", "repo-architecture-budget"}), frozenset()),
+     ("agent-facing-cli-output-budget", "control-plane-refactor", "monitor-scheduler", "repo-architecture-budget", "status-read-path")),
     ("scheduler ack", {"changed_files": ["loopx/control_plane/scheduler/ack.py"],
                        "surfaces": ["scheduler ACK route binding"]},
-     frozenset({"scheduler-ack-route"}), frozenset()),
+     ("monitor-scheduler", "repo-architecture-budget", "scheduler-ack-route")),
     ("state machine", {"changed_files": ["examples/control_plane/control-plane-integrated-canary-smoke.py"],
                        "surfaces": ["complex control-plane state-machine interaction_contract "
                                     "scheduler_hint work_lane_contract goal_frontier"]},
-     frozenset({"control-plane-state-machine"}), frozenset()),
+     ("auto-research-demo", "control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route")),
     ("frontier rules", {"changed_files": ["loopx/control_plane/goals/goal_frontier/replan_rules.py"],
                         "surfaces": ["ordered goal frontier replan policy"]},
-     frozenset({"goal-frontier-replan-rules"}), frozenset()),
+     ("auto-research-demo", "control-plane-state-machine", "goal-frontier-replan-rules", "repo-architecture-budget")),
     ("interaction contract", {"changed_files": ["loopx/control_plane/work_items/interaction_contract.py"],
                               "surfaces": ["interaction_contract protocol_action_packet state-machine"]},
-     frozenset({"control-plane-refactor", "control-plane-state-machine"}), frozenset()),
+     ("control-plane-refactor", "control-plane-state-machine", "repo-architecture-budget")),
     ("interaction smoke", {"changed_files": ["examples/control_plane/interaction-contract-state-machine-smoke.py"]},
-     frozenset({"control-plane-state-machine"}), frozenset()),
+     ("control-plane-state-machine", "repo-architecture-budget")),
     ("bounded context", {"changed_files": ["loopx/control_plane/work_items/work_lane.py"],
                          "surfaces": ["bounded-context work_lane_contract state-machine interaction_contract"]},
-     frozenset({"control-plane-refactor", "control-plane-state-machine"}), frozenset()),
+     ("control-plane-refactor", "control-plane-state-machine", "repo-architecture-budget")),
     ("work-lane policy", {"changed_files": ["loopx/control_plane/scheduler/monitor_todo.py"],
                           "surfaces": ["resume_when resume_ready work-lane policy seam"]},
-     frozenset({"control-plane-refactor"}), frozenset()),
+     ("control-plane-refactor", "monitor-scheduler", "repo-architecture-budget")),
     ("monitor target", {"changed_files": ["loopx/control_plane/quota/monitor_poll_commit.ts"],
                         "surfaces": ["monitor_target monitor-poll scheduler_hint state-machine"]},
-     frozenset({"control-plane-refactor", "control-plane-state-machine"}), frozenset()),
+     ("control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route")),
     ("monitor writeback", {"changed_files": ["loopx/control_plane/scheduler/monitor_poll_writeback.py"],
                            "surfaces": ["monitor_poll_writeback scheduler_hint state-machine"]},
-     frozenset({"control-plane-refactor", "control-plane-state-machine"}), frozenset()),
+     ("control-plane-refactor", "control-plane-state-machine", "monitor-scheduler", "repo-architecture-budget", "runtime-connector-catalog", "scheduler-ack-route")),
     ("status", {"changed_files": ["loopx/status.py"], "surfaces": ["status --goal-id read-path"]},
-     frozenset({"status-read-path"}), frozenset()),
+     ("agent-facing-cli-output-budget", "control-plane-refactor", "repo-architecture-budget", "status-read-path")),
     ("status cache", {"changed_files": ["loopx/control_plane/runtime/status_projection_cache.py"],
                       "surfaces": ["status_projection_cache projection-cache read-path"]},
-     frozenset({"status-projection-cache"}), frozenset()),
+     ("repo-architecture-budget", "status-projection-cache", "status-read-path")),
     ("runtime handoff", {"changed_files": ["loopx/control_plane/handoff/project_handoff.py"],
                          "surfaces": ["runtime handoff post_handoff_run status read-path"]},
-     frozenset({"status-read-path"}), frozenset()),
+     ("control-plane-refactor", "repo-architecture-budget", "status-read-path")),
     ("review packet", {"changed_files": ["loopx/review_packet.py", "loopx/cli_commands/status.py"],
                        "surfaces": ["review-packet handoff-only operator packet read-path"]},
-     frozenset({"review-packet-read-path"}), frozenset()),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path")),
     ("event read", {"changed_files": ["loopx/event_sourced_state.py", "loopx/rollout_event_log.py"],
                     "surfaces": ["event projection downstream read event-store read-path"]},
-     frozenset({"event-sourced-read-path"}), frozenset()),
+     ("event-sourced-read-path", "frontstage-rollout", "repo-architecture-budget", "status-read-path")),
     ("cli", {"changed_files": ["loopx/cli.py", "loopx/cli_commands/version.py"],
              "surfaces": ["cli command modularization"]},
-     frozenset({"cli-command-contract"}), frozenset()),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "repo-architecture-budget")),
     ("cli output budget", {"changed_files": ["loopx/cli_commands/status.py", "loopx/help_surface.py"],
                            "surfaces": ["agent-facing CLI output qualification"]},
-     frozenset({"agent-facing-cli-output-budget"}), frozenset()),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path")),
     ("todo", {"changed_files": ["loopx/todos.py", "loopx/control_plane/todos/contract.py"],
               "surfaces": ["todo lifecycle todo claim todo list"]},
-     frozenset({"todo-lifecycle"}), frozenset()),
+     ("agent-facing-cli-output-budget", "repo-architecture-budget", "todo-lifecycle")),
     ("product entry", {"changed_files": ["README.md", "loopx/capabilities/issue_fix/README.md",
                                          "docs/update-notes/README.md",
                                          "loopx/capabilities/content_ops/surface.py",
                                          "scripts/update_notes_release_job.py"],
                        "surfaces": ["product-entry issue-fix content-ops update-note cross-runtime demo"]},
-     frozenset({"product-entry-workflows", "issue-fix-reviewer-routing"}), frozenset({"install-update"})),
+     ("cross-runtime-impl-review-demo", "issue-fix-reviewer-routing", "product-entry-workflows", "release-promotion", "repo-architecture-budget", "state-write-correctness")),
     ("issue-fix outcome", {"changed_files": ["loopx/capabilities/issue_fix/repository_memory_provider.py",
                                              "examples/issue-fix-validated-memory-writeback-smoke.py"],
                            "surfaces": ["issue-fix outcome validated memory writeback"]},
-     frozenset({"issue-fix-outcome-visibility"}), frozenset()),
+     ("issue-fix-outcome-visibility", "product-entry-workflows", "repo-architecture-budget")),
     ("cross runtime", {"changed_files": ["loopx/control_plane/handoff/cross_runtime_impl_review.py",
                                          "loopx/cli_commands/starter.py",
                                          "docs/product/use-cases/cross-runtime/cross-runtime-impl-review-demo.md"],
                        "surfaces": ["loopx demo impl-review claude implements codex reviews "
                                     "cross_runtime_impl_review_demo_packet_v0"]},
-     frozenset({"cross-runtime-impl-review-demo"}), frozenset()),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "cross-runtime-impl-review-demo", "product-entry-workflows", "repo-architecture-budget")),
     ("host command", {"changed_files": ["loopx/cli_commands/slash_commands.py",
                                         "docs/reference/protocols/codex-app-host-command-registry-v0.md",
                                         "docs/reference/protocols/global-manager-command-v0.md"],
                       "surfaces": ["slash-commands /loopx-global-summary host command registry"]},
-     frozenset({"host-command-entry"}), frozenset()),
+     ("agent-facing-cli-output-budget", "cli-command-contract", "host-command-entry", "repo-architecture-budget")),
     ("first connect", {"changed_files": ["loopx/bootstrap.py", "loopx/bootstrap_command_pack.py", "loopx/contract.py"],
                        "surfaces": ["new user onboarding first connect contract state projection gap start-goal"]},
-     frozenset({"first-connect-contract"}), frozenset()),
+     ("first-connect-contract", "repo-architecture-budget")),
     ("runtime connector", {"changed_files": ["docs/integrations/runtime-connector-catalog.md"],
                            "surfaces": ["runtime connector catalog codex app heartbeat codex cli tui claude code "
                                         "loop worker bridge scheduler_hint scoped identity"]},
-     frozenset({"runtime-connector-catalog"}), frozenset()),
+     ("control-plane-state-machine", "monitor-scheduler", "runtime-connector-catalog", "scheduler-ack-route")),
     ("auto research", {"changed_files": ["demo/auto_research/core.py"],
                        "surfaces": ["auto-research demo frontier visible launcher"]},
-     frozenset({"auto-research-demo"}), frozenset()),
+     ("auto-research-demo",)),
     ("explore", {"changed_files": ["loopx/capabilities/explore/harness_runtime.py", "loopx/configure_goal.py"],
                  "surfaces": ["explore harness resume configure-goal"]},
-     frozenset({"explore-harness"}), frozenset()),
+     ("explore-harness", "peer-agent-runtime", "repo-architecture-budget")),
     ("configure sync", {"changed_files": ["loopx/control_plane/goals/configure_goal_service.py"],
                         "surfaces": ["configure-goal authoritative shared runtime sync readback"]},
-     frozenset({"peer-agent-runtime"}), frozenset()),
+     ("peer-agent-runtime", "repo-architecture-budget")),
     ("benchmark toolkit", {"changed_files": ["loopx/capabilities/benchmark_toolkit/integrity.py"],
                            "surfaces": ["benchmark toolkit integrity no-submit boundary"]},
-     frozenset({"benchmark-toolkit-boundary"}), frozenset()),
+     ("benchmark-toolkit-boundary", "repo-architecture-budget")),
     ("catalog canary", {"changed_files": ["loopx/canary/planner.py", "loopx/canary/runner.py"],
                         "surfaces": ["catalog canary runner"]},
-     frozenset({"catalog-canary-contract"}), frozenset({"benchmark-toolkit-boundary"})),
+     ("catalog-canary-contract", "repo-architecture-budget")),
 )
+
+
+# Scripts each profile must keep scheduling, by tier, relative to examples/.
+# Retiring one of these is a deliberate edit here, not a silent catalog drift.
+REQUIRED_PROFILE_SCRIPTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "auto-research-demo": (("auto-research-minimal-kernel-smoke.py", "decentralized-auto-research-frontier-smoke.py"), ()),
+    "benchmark-toolkit-boundary": (("benchmark-run-permission-policy-smoke.py",), ()),
+    "catalog-canary-contract": (("canary/catalog-planner-smoke.py", "canary/catalog-run-e2e-smoke.py", "canary/smoke-suite-runner-smoke.py"), ("canary/pytest-smoke-suite-facade-smoke.py",)),
+    "cli-command-contract": (("cli-version-command-modularization-smoke.py",), ()),
+    "control-plane-refactor": (("control_plane/bounded-context-namespace-smoke.py", "control_plane/quota-cleared-blocker-successor-gate-smoke.py", "control_plane/quota-resume-gated-open-todo-smoke.py"), ()),
+    "control-plane-state-machine": (("control_plane/heartbeat-quota-flow-smoke.py", "control_plane/interaction-contract-state-machine-smoke.py", "control_plane/peer-agent-continuation-state-machine-smoke.py", "control_plane/quota-scheduler-state-ack-smoke.py"), ("control_plane/control-plane-integrated-canary-smoke.py",)),
+    "cross-runtime-impl-review-demo": (("cross-runtime-impl-review-demo-smoke.py", "public_entry/readme-demo-surface-smoke.py"), ()),
+    "event-sourced-read-path": (("control_plane/event-sourced-downstream-read-path-smoke.py", "control_plane/event-sourced-state-api-smoke.py", "control_plane/event-sourced-status-read-path-smoke.py"), ()),
+    "explore-harness": (("explore-configure-goal-smoke.py", "explore-harness-runtime-resume-smoke.py", "explore-worker-plan-gate-smoke.py"), ()),
+    "goal-frontier-replan-rules": (("control_plane/goal-frontier-replan-rules-smoke.py",), ()),
+    "host-command-entry": (("codex-app-host-command-registry-smoke.py", "slash-command-catalog-smoke.py"), ()),
+    "install-update": (("install-local-smoke.py", "loopx-update-smoke.py"), ("release/local-install-promotion-boundary-smoke.py",)),
+    "issue-fix-outcome-visibility": (("issue-fix-outcome-projection-smoke.py", "issue-fix-validated-memory-writeback-smoke.py"), ()),
+    "peer-agent-runtime": (("project/configure-goal-global-sync-smoke.py",), ()),
+    "product-entry-workflows": (("content-ops-issue-fix-intake-smoke.py", "issue-fix-feasibility-smoke.py", "issue-fix-pr-lifecycle-smoke.py", "issue-fix-repository-context-smoke.py", "issue-fix-workflow-contract-smoke.py", "public_entry/readme-demo-surface-smoke.py", "update-notes-archive-smoke.py"), ()),
+    "release-promotion": (("canary/canary-promotion-readiness-boundary-smoke.py", "control_plane/promotion-readiness-readmodel-smoke.py"), ("canary/canary-promotion-readiness-smoke.py",)),
+    "repo-architecture-budget": (("control_plane/control-plane-maintainability-ratchet-smoke.py",), ()),
+    "review-packet-read-path": (("control_plane/review-packet-cli-smoke.py",), ()),
+    "runtime-connector-catalog": (("claude-goalmode-lifecycle-smoke.py", "codex-cli-tui-bootstrap-smoke-bundle-smoke.py", "control_plane/heartbeat-prompt-smoke.py"), ()),
+    "scheduler-ack-route": (("control_plane/monitor-scheduler-contract-smoke.py", "control_plane/quota-scheduler-registry-route-smoke.py", "control_plane/quota-scheduler-state-ack-smoke.py"), ()),
+    "state-write-correctness": (("control_plane/task-lease-runtime-smoke.py", "control_plane/todo-write-correctness-smoke.py"), ()),
+    "status-projection-cache": (("control_plane/status-projection-cache-smoke.py",), ()),
+    "status-read-path": (("control_plane/goal-channel-readmodel-smoke.py", "control_plane/runtime-handoff-status-read-path-smoke.py", "control_plane/status-goal-filter-smoke.py", "control_plane/status-quota-review-packet-parity-smoke.py"), ()),
+    "todo-lifecycle": (("control_plane/todo-lifecycle-cli-smoke.py",), ()),
+}
 
 
 def _domain_profiles(payload: dict[str, object]) -> dict[str, dict[str, object]]:
@@ -173,7 +203,7 @@ def assert_profiles_come_from_catalog_matrix() -> None:
     for profile in payload["domain_profiles"]:
         assert profile["checks"], profile
         assert all(check["reason"] for check in profile["checks"]), profile
-    selected_ids = set().union(*(required for _, _, required, _ in SELECTION_CASES))
+    selected_ids = set().union(*(expected for _, _, expected in SELECTION_CASES))
     assert selected_ids <= set(_all_domain_profile_ids()), selected_ids - set(_all_domain_profile_ids())
 
 
@@ -231,17 +261,31 @@ def assert_plan_selects_minimal_profiles_from_changed_surfaces() -> None:
 
 
 def assert_changed_surfaces_select_expected_profiles() -> None:
-    for label, inputs, required, forbidden in SELECTION_CASES:
+    for label, inputs, expected in SELECTION_CASES:
         payload = build_catalog_canary_plan(**inputs)  # type: ignore[arg-type]
-        selected = set(_domain_profiles(payload))
-        assert required <= selected, (label, sorted(required - selected), sorted(selected))
-        assert not (forbidden & selected), (label, sorted(forbidden & selected))
+        selected = sorted(_domain_profiles(payload))
+        assert selected == sorted(expected), (label, selected)
         for profile in payload["domain_profiles"]:
             assert profile["checks"], (label, profile)
             assert all(check["tier"] == "default" for check in profile["checks"]), (label, profile)
             assert profile["deep_checks_included"] is False, (label, profile)
         assert payload["commands"] == [check["command"] for check in payload["suggested_checks"]], label
         assert payload["executes_checks"] is False, label
+
+
+def assert_profiles_keep_their_required_scripts() -> None:
+    profile_ids = _all_domain_profile_ids()
+    assert set(REQUIRED_PROFILE_SCRIPTS) <= set(profile_ids), set(REQUIRED_PROFILE_SCRIPTS) - set(profile_ids)
+    plan = build_catalog_canary_plan(
+        profiles=sorted(REQUIRED_PROFILE_SCRIPTS), include_deep_checks=True, max_checks_per_profile=1000
+    )
+    for profile_id, profile in _domain_profiles(plan).items():
+        tiers = {check["command"]: check["tier"] for check in profile["checks"]}
+        default, deep = REQUIRED_PROFILE_SCRIPTS[profile_id]
+        for tier, scripts in (("default", default), ("deep", deep)):
+            for script in scripts:
+                command = f"python3 examples/{script}"
+                assert tiers.get(command) == tier, (profile_id, command, tiers.get(command), tier)
 
 
 def assert_deep_checks_are_opt_in_for_every_profile() -> None:
@@ -530,6 +574,7 @@ def main() -> int:
     assert_every_planned_command_names_an_existing_script()
     assert_plan_selects_minimal_profiles_from_changed_surfaces()
     assert_changed_surfaces_select_expected_profiles()
+    assert_profiles_keep_their_required_scripts()
     assert_deep_checks_are_opt_in_for_every_profile()
     assert_explicit_catalog_profile_id_selects_family_profile()
     assert_coverage_audit_tracks_p0_p1_patterns()

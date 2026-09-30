@@ -481,7 +481,7 @@ Run one focused smoke while developing, then let the canary planner select the
 smallest cross-surface set from the Git diff:
 
 ```bash
-python examples/control_plane/interaction-scheduler-authority-smoke.py
+python -m pytest tests/control_plane/test_public_safe_decision_replay.py -q
 loopx canary premerge --from-git-diff
 ```
 

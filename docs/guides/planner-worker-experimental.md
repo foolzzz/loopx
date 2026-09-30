@@ -23,7 +23,6 @@ without a live model provider. TraeX is only one optional extension provider.
 ## Fake runtime walkthrough
 
 ```bash
-python3 examples/experiments/planner_worker/contract-smoke.py
 python3 examples/experiments/planner_worker/runtime-smoke.py
 ```
 

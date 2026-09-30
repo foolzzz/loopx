@@ -163,7 +163,7 @@ repeat fuse would fire (never, within the sequence, for self-declared
 advancement), the first round at which each receipt signal flags drift, and the
 false flags on sequences whose gold label is on-goal. Without `--live` it
 replays committed provider responses, so the numbers reproduce in CI without a
-key. `python3 examples/progress-review-sentinel-smoke.py` runs the same replay.
+key. `python -m pytest packages/loopx-jev/tests/test_sentinel.py -q` runs the same replay.
 
 ## Recorded differential
 

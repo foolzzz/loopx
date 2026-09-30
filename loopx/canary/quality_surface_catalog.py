@@ -115,7 +115,7 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
                 "tests/control_plane/test_public_safe_decision_replay.py",
             ),
             "durable_smoke": _covered(
-                "examples/control_plane/interaction-scheduler-authority-smoke.py"
+                "examples/control_plane/interaction-contract-state-machine-smoke.py"
             ),
             "catalog_canary": _covered("control-plane-state-machine"),
             "host_upgrade": _not_applicable(

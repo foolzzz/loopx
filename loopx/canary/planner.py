@@ -262,11 +262,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "reason": "guards existing loopx executable overwrite and directory-conflict safety",
             },
             {
-                "command": "python3 examples/protocol/rollback-packet-protocol-smoke.py",
-                "tier": "deep",
-                "reason": "validates the public rollback packet protocol and fixture boundary",
-            },
-            {
                 "command": "python3 examples/project/project-uninstall-smoke.py",
                 "tier": "deep",
                 "reason": "samples project-local uninstall safety with isolated fixture registries",
@@ -498,11 +493,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "reason": "guards CLI-visible review-packet and handoff-only JSON contracts",
             },
             {
-                "command": "python3 examples/control_plane/review-packet-smoke.py",
-                "tier": "default",
-                "reason": "checks dashboard/operator packet copy and public-safe handoff text",
-            },
-            {
                 "command": "python3 examples/control_plane/task-graph-projection-fixture-smoke.py",
                 "tier": "default",
                 "reason": "guards task-graph lineage consumed by review packets without private sources",
@@ -551,11 +541,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/control_plane/event-sourced-downstream-read-path-smoke.py",
                 "tier": "default",
                 "reason": "checks downstream read surfaces consume event projection without private state",
-            },
-            {
-                "command": "python3 examples/control_plane/event-store-migration-bridge-smoke.py",
-                "tier": "deep",
-                "reason": "samples the migration bridge gates before bounded event read-path canaries",
             },
             {
                 "command": "python3 examples/control_plane/event-sourced-replay-compaction-smoke.py",
@@ -638,11 +623,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "tier": "deep",
                 "reason": "samples lock behavior for concurrent todo writes",
             },
-            {
-                "command": "python3 examples/control_plane/todo-detail-cold-path-contract-smoke.py",
-                "tier": "deep",
-                "reason": "checks the cold-path todo detail contract when detail surfaces are promoted",
-            },
         ],
     },
     {
@@ -681,11 +661,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/control_plane/task-lease-runtime-smoke.py",
                 "tier": "default",
                 "reason": "guards shipped task_lease_v0 CLI/runtime ownership, TTL, conflict, transfer, and release behavior",
-            },
-            {
-                "command": "python3 examples/control_plane/local-state-write-correctness-contract-smoke.py",
-                "tier": "default",
-                "reason": "checks local state write correctness contract fixtures",
             },
             {
                 "command": "python3 examples/control_plane/refresh-state-write-correctness-smoke.py",
@@ -808,7 +783,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             "issue_fix_reviewer_notification",
             "loopx/capabilities/issue_fix/README",
             "loopx/capabilities/issue_fix/docs/protocols/issue-fix-reviewer-recommendation",
-            "examples/issue-fix-capability-guide-smoke.py",
             "examples/issue-fix-reviewer-recommendation-smoke.py",
             "examples/issue-fix-reviewer-request-smoke.py",
             "examples/issue-fix-json-input-boundary-smoke.py",
@@ -823,11 +797,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/issue-fix-json-input-boundary-smoke.py",
                 "tier": "default",
                 "reason": "guards bounded inline issue-fix JSON inputs and compact errors that never echo raw payloads",
-            },
-            {
-                "command": "python3 examples/issue-fix-capability-guide-smoke.py",
-                "tier": "default",
-                "reason": "guards the bilingual issue-fix product entry, README links, reviewer protocol, and public-safe roadmap surface",
             },
             {
                 "command": "python3 examples/issue-fix-reviewer-recommendation-smoke.py",
@@ -959,11 +928,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "tier": "default",
                 "reason": "guards Codex App host command routing and fail-closed slash-command help",
             },
-            {
-                "command": "python3 examples/project/global-manager-command-protocol-smoke.py",
-                "tier": "default",
-                "reason": "checks read-only global manager command protocol and aliases",
-            },
         ],
     },
     {
@@ -1054,11 +1018,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "tier": "default",
                 "reason": "checks the computer_use_runtime_v0 provider boundary: gate-before-write, unknown-modal handling, raw-evidence stripping, and rejection of provider-authored writeback",
             },
-            {
-                "command": "python3 examples/host-integration-surface-smoke.py",
-                "tier": "deep",
-                "reason": "samples the broader host integration surface when connector catalog changes are promoted",
-            },
         ],
     },
     {
@@ -1068,11 +1027,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
         "catalog_families": ["State And Boundary", "Evidence Lifecycle", "Human Decision"],
         "trigger_hints": ("frontstage", "showcase", "rollout", "dashboard", "visual"),
         "checks": [
-            {
-                "command": "python3 examples/frontstage-rollout-projections-fixture-smoke.py",
-                "tier": "default",
-                "reason": "checks reusable frontstage rollout projection fixtures",
-            },
             {
                 "command": "python3 examples/showcase-animation-prototype-smoke.py",
                 "tier": "default",

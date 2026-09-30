@@ -656,7 +656,6 @@ App tick
 
 - `examples/control_plane/heartbeat-quota-flow-smoke.py`
 - `examples/control_plane/quota-scheduler-state-ack-smoke.py`
-- `examples/control_plane/interaction-scheduler-authority-smoke.py`
 - `examples/control_plane/monitor-scheduler-contract-smoke.py`
 - `examples/control_plane/monitor-poll-writeback-smoke.py`
 - `examples/control_plane/quota-terminal-no-followup-smoke.py`
