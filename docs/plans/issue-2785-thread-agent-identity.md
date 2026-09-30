@@ -22,9 +22,10 @@ must not create a new peer by itself.
 - Identity resolution prefers a verified thread binding. An exact agent from
   the current host task's active interaction contract is a valid initial
   selection and must then be bound before Todo writeback.
-- A stable unbound thread is a new host session and defaults to fresh
-  registration. Registry order and a single registered lane are not identity
-  evidence for takeover.
+- A stable unbound thread never reuses a lane implicitly. When registered lanes
+  exist, it requires an explicit existing-lane selection; fresh registration is
+  available only when no lane exists or `--new-peer` is explicit. Registry
+  order and a single registered lane are not identity evidence for takeover.
 - A missing thread ID or conflicting binding fails closed. `--new-peer` carries
   explicit fresh-session intent when the host cannot provide a stable ID; task
   text, a new Todo, or a worktree never implies it.
@@ -52,8 +53,8 @@ Out of scope:
 For an unbound Codex CLI thread:
 
 1. inspect the connected goal and registered lanes;
-2. default to fresh registration, or select an existing lane only for explicit
-   takeover;
+2. require an exact authorized lane selection when registered lanes exist, or
+   use fresh registration when no lane exists or `--new-peer` is explicit;
 3. register the fresh identity when selected, then execute
    `bind-agent-thread --execute`;
 4. require `ok=true`, `global_sync.ok=true`, and
@@ -72,8 +73,9 @@ Focused validation must cover:
 - ambient Codex CLI thread-ID resolution;
 - an ordered bind/readback step before Todo writeback;
 - a real first-call bind followed by a second call without `--agent-id`;
-- a stable unbound thread that defaults to fresh registration while preserving
-  explicit existing-lane takeover;
+- a stable unbound thread that requires explicit existing-lane selection when
+  lanes exist and permits fresh registration only with no lanes or explicit
+  `--new-peer`;
 - a missing thread ID that stays fail closed unless `--agent-id` or
   `--new-peer` is explicit;
 - generated Skill text that reuses active task identity and never treats a
