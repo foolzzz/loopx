@@ -17,11 +17,16 @@ HOST_THREAD_ID_ENV: dict[str, str] = {
 }
 
 
-def current_host_thread_id(args: argparse.Namespace) -> str | None:
+def current_host_thread_id(
+    args: argparse.Namespace,
+    *,
+    host_surface: str | None = None,
+) -> str | None:
     explicit = getattr(args, "thread_id", None)
     if explicit:
         return str(explicit)
-    variable = HOST_THREAD_ID_ENV.get(str(getattr(args, "host_surface", None) or ""))
+    resolved_surface = host_surface or getattr(args, "host_surface", None)
+    variable = HOST_THREAD_ID_ENV.get(str(resolved_surface or ""))
     if not variable:
         return None
     return os.environ.get(variable) or None

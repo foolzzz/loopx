@@ -318,7 +318,7 @@ def handle_start_goal_command(
             project=Path(args.project),
             goal_id=args.goal_id,
             agent_id=args.agent_id,
-            thread_id=current_host_thread_id(args),
+            thread_id=current_host_thread_id(args, host_surface=host_surface),
             new_peer=bool(getattr(args, "new_peer", False)),
             cli_bin=args.cli_bin,
             host_surface=host_surface,
