@@ -79,8 +79,9 @@ def build_goal_start_contract(
             "storage_contract": "Todo index is same-priority rank; no extra field",
         },
         "execution_invariants": (
-            "identity: fresh public-safe agent after verified/active; explicit takeover; "
-            "bind/readback before Todo; no peer inference; unknown: "
+            "identity: existing lanes require exact selection; fresh public-safe agent only "
+            "with no registered lane or explicit --new-peer; bind/readback before Todo; "
+            "no peer inference; unknown: "
             f"{cli_command_prefix} agent-onboard --list-agent-types | route: selected_capability_route only; "
             "never infer from text/URLs; #/activation+#/stop_conditions; review/pasteable "
             "gates | Todo/writeback: Agent advancement_task; User owner/private; business Todo "
@@ -210,7 +211,7 @@ def build_goal_start_prompt(
 Goal id: {goal_id}.{agent_clause}
 
 Rules:
-1. Identity: use verified binding/active contract; a stable unbound host gets a fresh public-safe agent. Existing lanes require explicit takeover plus bind/readback before Todo; never infer peers from Todo/worktree/arguments. Unknown host: `{cli_command_prefix} agent-onboard --list-agent-types`.
+1. Identity: use verified binding/active contract. An unbound host with existing lanes requires exact lane selection; fresh public-safe agent registration is allowed only with no registered lane or explicit `--new-peer`. Bind/readback before Todo; never infer peers from Todo/worktree/arguments. Unknown host: `{cli_command_prefix} agent-onboard --list-agent-types`.
 2. Capability: only `selected_capability_route`; run entry/admission and its later `capability show`; never infer from text/URLs. Capability state owns facts; generic Todos schedule.
 3. Todos: {todo_rule}.
 4. Writeback: current Todo evidence + next executable Todo, then `{refresh_command}` and quota readback. Chat/model summaries are not durable state.

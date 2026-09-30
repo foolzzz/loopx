@@ -817,7 +817,6 @@ def build_codex_cli_one_message_loop_pilot(
             "loop_activation": {
                 "source_command": bootstrap.get("heartbeat_prompt_json_command"),
                 "codex_cli": "/goal <thin task_body>",
-                "codex_app": "<thin task_body> heartbeat automation",
             },
             "stop_only_for": [
                 "concrete_user_gate",
