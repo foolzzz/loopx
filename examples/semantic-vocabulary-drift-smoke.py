@@ -234,8 +234,8 @@ TWIN_BUDGET_ANCHOR = 43
 BUDGET_ANCHOR = {
     "same_runtime_forks": 17,
     "same_runtime_fork_definitions": 39,
-    "conflicting_values": 16,
-    "conflicting_definitions": 55,
+    "conflicting_values": 14,
+    "conflicting_definitions": 51,
     "schema_version_same_runtime_forks": 7,
     "multi_value_twins": 13,
     "multi_value_forks": 2,
