@@ -424,7 +424,7 @@ python3 -m pytest -q tests/capabilities/test_decision_context_capture.py
 ```
 
 The contract smoke covers Decision Context packet and architecture readback.
-The walkthrough smoke feeds revision-bound evidence into a Material Lifecycle
-rerank preview, keeps stale/conflicting evidence visible, omits source bodies
-and private locators, and leaves apply/cursor commits as separate owner-gated
-actions.
+`tests/capabilities/test_material_lifecycle_decision_planning.py` feeds
+revision-bound evidence into a Material Lifecycle rerank preview, rejects
+tampered, cross-goal and raw-query input, and leaves apply/cursor commits as
+separate owner-gated actions.
