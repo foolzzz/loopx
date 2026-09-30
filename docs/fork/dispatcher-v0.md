@@ -29,7 +29,7 @@ loopx dispatch serve --goal-id G [--goal-id G2 ...] [--project P] \
   [--backoff-base-seconds 60] [--validation-command-json '["make","test"]'] \
   [--idle-heartbeat-seconds 900]
 
-loopx dispatch status            # running Turns, per-agent slots, cooldowns, gates
+loopx dispatch status            # running Turns, per-agent slots, cooldowns, gates, project-directory waits
 loopx dispatch launchd-plist --goal-id G > ~/Library/LaunchAgents/com.loopx.dispatch.plist
 launchctl load ~/Library/LaunchAgents/com.loopx.dispatch.plist   # you install it; the command only prints
 ```
@@ -138,6 +138,31 @@ After an upgrade, render and load the plist again. Its logs go to
      second executor for it as well. When the selected todo is in flight or
      cooling down for this agent, the next open (or in_review) todo from the
      same should-run lane runs instead, pinned with `--todo-id`.
+   - **One project-directory Turn per goal.** A developer or acceptor Turn on a
+     todo without `task_repositories` gets no workspace (step 6): it works in
+     the goal's project directory, where no worktree, review checkout, merge
+     or rollback separates it from another such Turn. So per goal at most one
+     of them runs at a time (`policy.TurnWorkspace`; each run records
+     `workspace`: `project_directory` or `todo_workspace`). While one runs, a
+     free developer or acceptor slot takes the lane's next todo that names
+     repos, pinned with `--todo-id`, or skips with
+     `project_directory_turn_running` (with `running_run_id` and
+     `running_todo_id`). The classification reads the todo records, not
+     should-run's compacted items. Orchestrator Turns, Turns on todos with
+     repos, and settlement resumes (which run no host) are not affected.
+     `dispatch status` shows the running Turn as in the project directory and
+     the last pass's waits (`last_pass.project_directory_waits`). Every run is
+     recorded in `state.json` before its child starts and gets its pid right
+     after, so a dispatcher that dies in between leaves a known run, which the
+     next reap settles as a crash. `serve` and `serve --once` re-read
+     `state.json` once they hold the lock, before their first reap, so they
+     never reap from a snapshot older than another dispatcher's last write.
+     Known limits: the slot follows the
+     recorded `turn run-once` process, not its host, so a killed run-once
+     whose host keeps running in its own session, or a death in the instant
+     before the pid is recorded, frees it early (a lock held for the host's
+     lifetime is the follow-up); and the rule is per goal, so two goals that
+     share a project directory are not kept apart (not supported).
    - Before the agents, every pass reopens deferred plan todos whose plan
      dependencies are all done (`plan_cards.resume_ready_plan_todos`, an
      ordinary Todo update). A released todo whose branch was cut earlier and
@@ -193,6 +218,8 @@ After an upgrade, render and load the plist again. Its logs go to
 6. **Workspace.** When the selected todo has `task_repositories`, the dispatcher
    prepares a workspace for developer and acceptor Turns with S5
    `git_workspace.prepare` (one worktree per repo on branch `loopx/<goal>/<todo>`).
+   A todo that names none runs in the goal's project directory and delivers
+   from there ([workspaces-v0](workspaces-v0.md#delivery-identity-decision-29)).
    - The Turn's cwd and `--project` are the worktree for a single repo, or the
      workspace root for several repos.
    - The Turn is pinned with `--todo-id`.

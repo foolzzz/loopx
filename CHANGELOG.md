@@ -45,6 +45,37 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   dashboard launch agents export `LOOPX_RUNTIME_ROOT` when it is set at
   install time.
 
+### Fixed
+
+- **Goals without a code repository.** A goal created with `loopx goal
+  create` and no `--repo` now runs under the dispatcher. Before, every
+  developer and acceptor Turn on a todo without `task_repositories` failed
+  its writeback ("accountable peer delivery must be refreshed from the
+  independent git worktree"), in a git project directory or not, and the
+  `goal_complete` gate never opened for a project directory that is not a
+  git repository.
+  - One typed rule decides where a delivery must come from, for both
+    refresh-state and the `quota should-run` workspace guard. Under role_v1,
+    a developer or acceptor todo that names no repository delivers from the
+    goal's project directory. A todo that names a repo is still refused
+    there.
+  - Because nothing isolates them, the dispatcher runs at most one developer
+    or acceptor Turn on such todos per goal. The others skip with
+    `project_directory_turn_running`, shown in the pass and in `loopx
+    dispatch status`. Orchestrator Turns and Turns on todos with repos are
+    unaffected.
+  - Push planning reports the implicit repo as `not_a_git_repo` when the
+    project directory is not a git repository, or `no_commits` when it has
+    no commit yet, skipped like a repo without a remote. The `goal_complete`
+    gate uses the same classification, so it lists the directory as local
+    only.
+
+  See [Goals without a code repository](docs/fork/usage.md#goals-without-a-code-repository)
+  for what works and the limits: no isolation, no delivery snapshot, no
+  merge, no rollback and no push gate. Known limitation: the one-Turn slot
+  follows the `turn run-once` process, not its host, and two goals that
+  share a project directory are not kept apart.
+
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 
 Covers the fork's first round, 2026-09-25 to 2026-09-28 (PRs #1 to #29,

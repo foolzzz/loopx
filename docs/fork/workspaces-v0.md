@@ -14,7 +14,10 @@ loopx configure-goal --goal-id G \
 `--repo` upserts by name; `--clear-repos` removes the list. Entry shape:
 `{name, path, default_branch, merge_target: main|task_branch, task_branch?}`.
 Without a `repos` list, the legacy `repo` path acts as one repo named `main`
-(`loopx.workspace.goal_repos`). If `default_branch` is unset, it resolves to
+(`loopx.workspace.goal_repos`). `loopx goal create` without `--repo` sets it to
+the project directory, which need not be a git repository; see
+[Goals without a code repository](usage.md#goals-without-a-code-repository).
+If `default_branch` is unset, it resolves to
 `origin/HEAD`, then `main`, then `master`. With `merge_target=task_branch` and no
 `task_branch`, the target is `loopx-task/<goal>`.
 
@@ -103,6 +106,26 @@ workspace. It accepts this root only when all of the following hold:
 
 The root of another todo, a repo off the todo branch (detached or on another
 branch), or a worktree of an undeclared repository is rejected, as before.
+
+**Todos without repos.** One typed rule decides where a delivery must come
+from (`peer_delivery_workspace` in
+`loopx/control_plane/agents/workspace_guard.py`): refresh-state and the
+`quota should-run` workspace guard both ask it. Under role_v1, a developer or
+acceptor todo that names no repository (neither `task_repositories` nor
+`task_repository`) has no per-todo workspace by design, so its delivery
+source is the goal's project directory: the registered `repo` path, which a
+caller's `--project` never replaces. Refresh then accepts that directory, or
+anything below it: a plain directory binds to the local goal identity, a git
+directory to its repository identity. An independent worktree still
+qualifies. The role_v1 orchestrator is exempt on such a todo only. A todo
+that names a repo keeps the independent-worktree requirement for every role,
+and so does an unknown todo: refresh reads every persisted record of the
+todo (the canonical one once promoted, else both the Markdown block and the
+event projection), and one it cannot read, none, or records that disagree
+about the repos count as unknown. A peer_v1 goal or an agent without a role
+also keeps the requirement, and
+`workspace_guard_policy.peer_independent_worktree_required: true` keeps it
+for every peer.
 Quota for the Turn is then spent only from the same root with the same repos.
 The `quota should-run` workspace guard accepts the same root. For a one-repo
 todo it also accepts that repo's worktree inside the root.
@@ -186,8 +209,12 @@ ref.
 
 **Which remote.** The target branch's upstream remote (`branch.<b>.remote`),
 else `origin`. A repo with neither is local-only (G3): it is listed as
-skipped with a note and never pushed. A goal whose repos are all local-only
-opens no gate.
+skipped with a note and never pushed. So is the implicit repo `main` when the
+project directory is not a git repository (`not_a_git_repo`) or has no commit
+yet (`no_commits`); a declared repo in either state stays an error. A goal whose repos are all
+local-only opens no gate, and its `goal_complete` gate lists them as local
+only: one set of local-only plan statuses (`PUSH_LOCAL_ONLY_STATUSES`) serves
+both gates.
 
 **Decisions** (`loopx gate resolve --decision ...`, `loopx todo complete --role
 user --decision-outcome ...`, or the dashboard `gate.resolve`):

@@ -55,6 +55,11 @@ PUSH_REASON_REQUESTED = "requested"
 PUSH_REASON_RETRY = "push_failed"
 # Branch namespaces LoopX owns; any other branch must be the configured target.
 PUSH_OWNED_BRANCH_PREFIXES = ("loopx-task/", "loopx/")
+# Plan statuses of a local-only repo: skipped, never pushed, never pending.
+PUSH_STATUS_NO_REMOTE = "no_remote"
+PUSH_STATUS_NOT_A_GIT_REPO = "not_a_git_repo"
+PUSH_STATUS_NO_COMMITS = "no_commits"
+PUSH_LOCAL_ONLY_STATUSES = frozenset({PUSH_STATUS_NO_REMOTE, PUSH_STATUS_NOT_A_GIT_REPO, PUSH_STATUS_NO_COMMITS})
 
 _ABSOLUTE_PATH = re.compile(r"(?:file://)?(?<![\w.~-])/[^\s'\"]+")
 
@@ -159,8 +164,11 @@ def _goal_trailer_pattern(goal_id: str) -> str:
 def repo_push_plan(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: str) -> dict[str, Any]:
     """What pushing one repo's merge target would send, without touching the network.
 
-    ``status`` is ``ready`` (commits to push), ``up_to_date``, ``no_remote``
-    (local-only, skipped), ``no_branch`` or ``error``.
+    ``status`` is ``ready`` (commits to push), ``up_to_date``, a local-only
+    status (skipped: ``no_remote``; for the implicit repo of a goal created
+    without ``--repo``, ``not_a_git_repo`` or ``no_commits`` when its project
+    directory is no git repository or has no commit yet), ``no_branch`` or
+    ``error``.
     """
 
     from .workspace.git_workspace import WorkspaceError, _resolve_repo
@@ -169,6 +177,15 @@ def repo_push_plan(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: st
     try:
         resolved = _resolve_repo(repo, goal_id=goal_id)
     except WorkspaceError as exc:
+        # A goal created without --repo names its project directory as the
+        # implicit repo; a plain directory, or a repo with no commit yet (an
+        # unborn HEAD), has nothing to push. A declared repo stays an error.
+        if repo.get("legacy") and exc.code == "not_a_git_repo":
+            return {"name": name, "status": PUSH_STATUS_NOT_A_GIT_REPO,
+                    "note": "the project directory is not a git repository; nothing to push"}
+        if repo.get("legacy") and exc.code == "default_branch_unresolved" and _rev(str(repo["path"]), "HEAD") is None:
+            return {"name": name, "status": PUSH_STATUS_NO_COMMITS,
+                    "note": "the project directory has no commit yet; nothing to push"}
         return {"name": name, "status": "error", "error": exc.reason}
     path = resolved["path"]
     branch = str(resolved["target_branch"])
@@ -179,7 +196,7 @@ def repo_push_plan(goal: Mapping[str, Any], repo: Mapping[str, Any], goal_id: st
     plan["head"] = head
     remote = _remote_for(path, branch)
     if remote is None:
-        return {**plan, "status": "no_remote", "remote": None,
+        return {**plan, "status": PUSH_STATUS_NO_REMOTE, "remote": None,
                 "note": "no remote configured (local-only repo); not pushed"}
     plan["remote"] = remote
     exclude = ("--not", f"--remotes={remote}")
@@ -252,7 +269,8 @@ def _gate_text(goal_id: str, repos: Sequence[Mapping[str, Any]], reason: str,
                previous_errors: Sequence[Mapping[str, Any]]) -> str:
     lead = (f"push again after a failed push of {goal_id}'s merged work? "
             if reason == PUSH_REASON_RETRY else f"push {goal_id}'s merged work to its remotes? ")
-    parts = [_repo_summary(repo) for repo in repos if repo.get("status") in {"ready", "no_remote"}]
+    parts = [_repo_summary(repo) for repo in repos
+             if repo.get("status") == "ready" or repo.get("status") in PUSH_LOCAL_ONLY_STATUSES]
     text = PUSH_GATE_TEXT_PREFIX + lead + "; ".join(parts) + "."
     if previous_errors:
         text += " Last push failed: " + "; ".join(
@@ -319,7 +337,7 @@ def request_push(
         if respect_declined and declined.get("heads") == heads:
             return {**base, "reason": "declined_until_new_merges", "declined_gate": declined.get("gate_todo_id"),
                     "repos": repos}
-        shown = ready + [repo for repo in repos if repo.get("status") == "no_remote"]
+        shown = ready + [repo for repo in repos if repo.get("status") in PUSH_LOCAL_ONLY_STATUSES]
         text = _gate_text(goal_id, shown, reason, previous_errors)
         if dry_run:
             return {**base, "reason": reason, "gate_text": text, "repos": shown}
@@ -472,7 +490,7 @@ def settle_push_gate(
         results = [_push_repo(goal, goal_id, repo) for repo in approved_repos]
         skipped = [
             {"name": repo.get("name"), "status": "skipped", "note": repo.get("note")}
-            for repo in entry.get("push_repos") or [] if repo.get("status") == "no_remote"
+            for repo in entry.get("push_repos") or [] if repo.get("status") in PUSH_LOCAL_ONLY_STATUSES
         ]
         outcome["repos"] = results + skipped
         outcome["pushed"] = any(item["status"] == "ok" for item in results)

@@ -181,6 +181,54 @@ def _completion_validation_source_drift_failure(
     }
 
 
+def _projected_todo_item(
+    fields: Mapping[str, Any], normalized_todo_id: str, roles: list[str],
+) -> tuple[str, dict[str, Any]] | None:
+    for item_role in roles:
+        if item_role not in TODO_SECTION_HEADINGS:
+            continue
+        summary = fields.get(f"{item_role}_todos")
+        items = summary.get("items") if isinstance(summary, dict) else []
+        for item in items if isinstance(items, list) else []:
+            if isinstance(item, dict) and normalize_todo_id(item.get("todo_id")) == normalized_todo_id:
+                return item_role, dict(item)
+    return None
+
+
+def event_projection_todo_record(
+    *, registry_path: Path, goal_id: str, state_path: Path, todo_id: str,
+) -> dict[str, Any] | None:
+    """The goal's event projection record of one Todo, if it has one.
+
+    ``None`` when the goal has no event log or its projection lacks the Todo.
+    An event log that exists but cannot be read raises ``StateEventError``:
+    the projection read turns that failure into a warning and falls back to
+    the Markdown state, which a caller that must not be relaxed by one source
+    has to tell apart from an absent record.
+    """
+
+    goal = _registry_goal(registry_path, goal_id)
+    if not goal:
+        return None
+    fields = active_state_event_projection_fields(
+        goal,
+        state_path=state_path,
+        resolve_goal_local_path=resolve_goal_local_path,
+        parse_active_state_todos=parse_active_state_todos,
+        item_limit=None,
+    )
+    if not fields.get("state_event_projection"):
+        warning = fields.get("state_event_projection_warning")
+        if isinstance(warning, Mapping):
+            raise StateEventError(
+                f"the goal's event log {warning.get('event_log')} could not be read ({warning.get('reason')})"
+            )
+        return None
+    normalized_todo_id = normalize_todo_id(todo_id)
+    matched = _projected_todo_item(fields, normalized_todo_id, ["user", "agent"]) if normalized_todo_id else None
+    return matched[1] if matched is not None else None
+
+
 def event_projection_todo_context(
     *,
     registry_path: Path,
@@ -205,24 +253,10 @@ def event_projection_todo_context(
     if not normalized_todo_id:
         return None
     roles = [role] if role else ["user", "agent"]
-    matched_role: str | None = None
-    matched_item: dict[str, Any] | None = None
-    for item_role in roles:
-        if item_role not in TODO_SECTION_HEADINGS:
-            continue
-        summary = fields.get(f"{item_role}_todos")
-        items = summary.get("items") if isinstance(summary, dict) else []
-        for item in items if isinstance(items, list) else []:
-            if not isinstance(item, dict):
-                continue
-            if normalize_todo_id(item.get("todo_id")) == normalized_todo_id:
-                matched_role = item_role
-                matched_item = dict(item)
-                break
-        if matched_item:
-            break
-    if not matched_item or matched_role is None:
+    matched = _projected_todo_item(fields, normalized_todo_id, roles)
+    if matched is None:
         return None
+    matched_role, matched_item = matched
     projection_authority = fields.get("state_event_projection")
     source = _canonical_event_projection_source(
         goal=goal,
