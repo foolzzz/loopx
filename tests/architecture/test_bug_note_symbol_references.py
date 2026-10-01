@@ -13,4 +13,6 @@ def test_settlement_inference_bug_note_references_current_helper() -> None:
 
     assert "`slot_accounting._latest_unspent_turn_settlement_run`" in note
     assert "_latest_unspent_accountable_delivery_run" not in note
+    assert "typed blocked `outcome_gap`" in note
+    assert "`quota_slot_spent` 不是候选" in note
     assert callable(slot_accounting._latest_unspent_turn_settlement_run)
