@@ -18,7 +18,11 @@ from loopx.capabilities.benchmark_toolkit.native_codex_profile import (
     native_codex_profile_environment,
     render_native_codex_goal_prompt,
 )
-from loopx.canary.path_scope import is_excluded_from_active_canary_scans
+from loopx.canary.path_scope import (
+    is_excluded_from_active_canary_scans,
+    partition_active_canary_paths,
+)
+from loopx.canary.planner import build_catalog_canary_plan
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -100,14 +104,73 @@ def test_frozen_benchmark_source_is_excluded_from_current_cli_scans(
     assert is_excluded_from_active_canary_scans(relative_path)
 
 
-def test_frozen_benchmark_scan_exclusion_is_path_scoped() -> None:
-    assert is_excluded_from_active_canary_scans("benchmark/deepswe-gptxhigh-v1")
-    assert not is_excluded_from_active_canary_scans(
-        "benchmark/deepswe-gptxhigh-v1-revised/loopx_native_codex.py"
-    )
-    assert not is_excluded_from_active_canary_scans(
-        "benchmark/deepswe-gptxhigh-v1/../../loopx/quota.py"
-    )
+@pytest.mark.parametrize(
+    ("candidate", "excluded"),
+    (
+        ("benchmark/deepswe-gptxhigh-v1", True),
+        ("benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py", True),
+        ("benchmark/deepswe-gptxhigh-v1-revised/loopx_native_codex.py", False),
+        ("/checkout/benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py", False),
+        ("benchmark/deepswe-gptxhigh-v1/../../loopx/quota.py", False),
+        (
+            "benchmark/deepswe-gptxhigh-v1/../deepswe-gptxhigh-v1/"
+            "loopx_native_codex.py",
+            False,
+        ),
+    ),
+)
+def test_frozen_benchmark_scan_exclusion_is_path_scoped(
+    candidate: str,
+    excluded: bool,
+) -> None:
+    assert is_excluded_from_active_canary_scans(candidate) is excluded
+
+
+def test_frozen_benchmark_partition_preserves_mixed_active_and_archive_paths() -> None:
+    paths = [
+        "loopx/quota.py",
+        "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py",
+        "benchmark/deepswe-gptxhigh-v1-revised/preflight_loopx_rerun.py",
+        "benchmark/deepswe-gptxhigh-v1/preflight_loopx_rerun.py",
+    ]
+
+    active, excluded = partition_active_canary_paths(paths)
+
+    assert active == [paths[0], paths[2]]
+    assert excluded == [paths[1], paths[3]]
+
+
+@pytest.mark.parametrize(
+    ("selector", "expected_catalog_profiles", "expected_domain_profiles"),
+    (
+        (
+            {"profiles": ["benchmark-toolkit-boundary"]},
+            set(),
+            {"benchmark-toolkit-boundary"},
+        ),
+        ({"families": ["Evidence Lifecycle"]}, {"evidence-lifecycle"}, set()),
+        (
+            {"surfaces": ["benchmark toolkit integrity no-submit boundary"]},
+            {"evidence-lifecycle", "state-and-boundary"},
+            {"benchmark-toolkit-boundary"},
+        ),
+    ),
+)
+def test_explicit_selector_overrides_archive_only_auto_planning(
+    selector: dict[str, list[str]],
+    expected_catalog_profiles: set[str],
+    expected_domain_profiles: set[str],
+) -> None:
+    archive_path = "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py"
+
+    plan = build_catalog_canary_plan(changed_files=[archive_path], **selector)
+
+    assert plan["selection_inputs"]["active_scan_changed_files"] == []
+    assert plan["selection_inputs"]["excluded_changed_files"] == [archive_path]
+    assert {profile["id"] for profile in plan["profiles"]} == expected_catalog_profiles
+    assert {
+        profile["id"] for profile in plan["domain_profiles"]
+    } == expected_domain_profiles
 
 
 def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfile:
