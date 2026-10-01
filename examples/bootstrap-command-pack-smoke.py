@@ -251,7 +251,12 @@ def test_goal_text_invocation_plans_ranked_todos_before_activation() -> None:
         assert isinstance(commands, dict)
         plan_prompt = str(commands["goal_start_plan_prompt"])
         assert "returned `ordered_steps` + `goal_start_contract` are authoritative" in plan_prompt
-        assert "stable unbound host gets a fresh public-safe agent" in plan_prompt
+        assert "existing lanes requires exact lane selection" in plan_prompt
+        assert (
+            "fresh public-safe agent registration is allowed only with no registered lane "
+            "or explicit `--new-peer`"
+            in plan_prompt
+        )
         assert "`loopx agent-onboard --list-agent-types`" in plan_prompt
         assert "only `selected_capability_route`" in plan_prompt
         assert "`capability show`" in plan_prompt
