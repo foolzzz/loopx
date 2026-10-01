@@ -789,7 +789,7 @@ ACTIVE_GOAL_STATE.md prose
 `loopx/control_plane/quota/slot_accounting.py` 不直接消费“最近一次 run”，而是找最新未 spend 的 accountable delivery run，并验证其 workspace snapshot：
 
 ```python
-delivery_completion_run = _latest_unspent_accountable_delivery_run(
+delivery_completion_run = _latest_unspent_turn_settlement_run(
     runtime_root,
     goal_id,
     agent_id=requested_agent_id,
