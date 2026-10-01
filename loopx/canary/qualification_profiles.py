@@ -243,6 +243,7 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
             "agent-facing cli",
             "cli output budget",
             "cli output qualification",
+            "loopx/bootstrap_packet_summary.py",
             "loopx/cli.py",
             "loopx/help_surface.py",
             "loopx/cli_commands/",
