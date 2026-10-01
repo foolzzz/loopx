@@ -242,7 +242,6 @@ class LoopxNativeCodex(GoalCodex):
                 f"--project {shlex.quote(_PROJECT)} "
                 f"--goal-id {_GOAL_ID} --agent-id {_AGENT_ID} "
                 f"--runtime-profile {runtime_profile} "
-                f"--codex-app-heartbeat {'yes' if mode == 'ssh-goal' else 'no'} "
                 f"--goal-doc-file {shlex.quote(_GOAL_DOC_FILE)} "
                 f"--task-file {shlex.quote(f'{_REMOTE_DIR}/task.txt')} "
                 f"--objective-out {shlex.quote(_OBJECTIVE_FILE)} "
@@ -375,7 +374,6 @@ p.add_argument("--agent-id", required=True)
 p.add_argument("--goal-doc-file", required=True)
 p.add_argument("--task-file", required=True)
 p.add_argument("--runtime-profile", required=True)
-p.add_argument("--codex-app-heartbeat", choices=("yes", "no"), required=True)
 p.add_argument("--objective-out", required=True)
 p.add_argument("--receipt-out", required=True)
 a = p.parse_args()
@@ -424,18 +422,7 @@ bootstrap_args = [
     "--adapter-status", "connected-read-only",
 ]
 if os.environ.get("LOOPX_WEN_COMPAT", "1") not in ("", "0"):
-    bootstrap_args += [
-        # Benchmark admission supplies one frozen task. Project-map onboarding
-        # todos otherwise outrank it and measure repository housekeeping rather
-        # than the requested software-engineering task.
-        "--no-onboarding-scan",
-        "--begin-autonomous-advance",
-        "--codex-app-heartbeat",
-        a.codex_app_heartbeat,
-        "--write-scope", a.project,
-    ]
-else:
-    bootstrap_args += ["--no-onboarding-scan", "--codex-app-heartbeat", "ask"]
+    bootstrap_args += ["--write-scope", a.project]
 run("bootstrap", bootstrap_args)
 run("configure_goal", ["configure-goal", "--goal-id", a.goal_id,
                        "--registered-agent", a.agent_id, "--execute"])
