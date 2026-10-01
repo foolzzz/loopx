@@ -133,7 +133,7 @@ the runner's mount namespace.
 
 The treatment also needs three independent product-path proofs:
 
-1. a Goal body generated for the `codex_app_ssh_goal` profile;
+1. a Goal body generated for the `codex_cli` profile;
 2. LoopX skills installed into the exact `CODEX_HOME` used by app-server;
 3. the LoopX release-snapshot CLI named by that Goal body.
 

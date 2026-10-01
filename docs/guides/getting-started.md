@@ -154,9 +154,7 @@ integrations that need the lower-level handoff packet can use
 manager or PR review commands, use `loopx slash-commands` to print the current
 canonical command list and fallback CLI shapes.
 
-Use `codex-cli-tui`, `codex-app-ssh`, `opencode`, or `opencode2` for the
-corresponding host. Use `codex-app-ssh` when the desktop app is attached to a
-remote workspace over SSH; LoopX will generate a visible `/goal` task. When
+Use `codex-cli-tui`, `opencode`, or `opencode2` for the corresponding host. When
 `--host-surface` is omitted, LoopX defaults to `codex-cli-tui`; pass every
 other host explicitly.
 

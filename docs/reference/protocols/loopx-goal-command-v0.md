@@ -21,12 +21,6 @@ When the user provides text after `/loopx`, the host should:
 4. Write planned todos in exact plan order.
 5. Run `refresh-state`.
 6. Activate the host loop if it is missing, unknown, or stale:
-   - `codex-app-ssh`: when Codex App is attached to a remote workspace over SSH,
-     set the current visible task to
-     `/goal <task_body>` using the generated `codex_app_ssh_goal` profile. After
-     its typed unchanged-poll limit and final quota check, use native
-     `update_goal(status=blocked)` to block only that host Goal; keep the
-     registered LoopX goal active and resume the host with `/goal resume`.
    - `codex-cli`: set the visible Codex CLI TUI to `/goal <task_body>`.
    - `ark-managed-agent`: submit the generated `<task_body>` once as a native
      Goal. The Goal runtime owns continuation and terminal evaluation; do not
@@ -58,31 +52,22 @@ New hosts should discover exact agent types with:
 loopx agent-onboard --list-agent-types
 ```
 
-The bare `codex` / `openai-codex` inputs resolve to `codex-cli`; choose
-`codex-app-ssh` explicitly for Codex App over SSH. The bare `cli` input stays
-ambiguous and fails closed.
+The bare `codex` / `openai-codex` inputs resolve to `codex-cli`. The bare `cli`
+input stays ambiguous and fails closed.
 
-Codex App SSH, Codex CLI, and Ark Managed Agent form one native Goal host
-family. They share the stable `loopx_goal_prompt_v0` body, the 4,000-character
+Codex CLI and Ark Managed Agent form one native Goal host family. They share the
+stable `loopx_goal_prompt_v0` body, the 4,000-character
 host budget, per-continuation `quota should-run` packets, durable LoopX
 writeback, and non-heartbeat quota accounting. Their continuation owner remains
 an explicit host contract:
 
 | Native Goal host | Activation | Continuation and blocked-state owner |
 | --- | --- | --- |
-| Codex App SSH / Codex CLI | Set a visible `/goal <task_body>`. | Native Codex Goal; after the unchanged limit it may call `update_goal(status=blocked)`, and only user `/goal resume` reactivates it. |
+| Codex CLI | Set a visible `/goal <task_body>`. | Native Codex Goal; after the unchanged limit it may call `update_goal(status=blocked)`, and only user `/goal resume` reactivates it. |
 | Ark Managed Agent | Submit the same prompt family once. | Managed Agent Goal runtime and its durable journal; LoopX must not emulate `/goal resume` or blindly resubmit. |
 
 This family is a prompt, quota, and state-boundary abstraction, not a claim that
 all hosts have the same transport or lifecycle API.
-
-The `codex-app-ssh` task body is an interactive Goal contract, not a scheduled
-heartbeat. It must fit the Codex `/goal` text limit, call `quota should-run`
-with `--begin-turn` so the CLI mints the identity required for exact Todo
-selection, and must not instruct the host to invoke `automation_update`, apply
-an RRULE, or synthesize `LOOPX_TURN`. This CLI-owned selection receipt does not
-turn the Goal into heartbeat automation or a Turn-bound settlement flow; after
-validated writeback, the Goal still spends once with `--source visible-goal`.
 
 Visible Goal activation captures the capabilities observed when the task body
 is generated, but that initial list is not exhaustive for a long-running

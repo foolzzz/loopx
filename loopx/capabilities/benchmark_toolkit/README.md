@@ -254,12 +254,13 @@ skill roots into the supplied isolated directory. It uses the fixed installer pa
 including its generated `$loopx` entry skill and packaged workflow-skill readback;
 unrelated interactive slash-command surfaces are disabled for this non-interactive
 worker. Inspection verifies a release-snapshot CLI, exact source revision, clean
-source by default, skill-tree digests, and `doctor --agent-type codex-app-ssh`.
+source by default, skill-tree digests, and `doctor --agent-type codex-cli`.
 
 `render_native_codex_goal_prompt` calls `heartbeat-prompt --thin` through the
-release-snapshot CLI, requires the `codex_app_ssh_goal` profile and interface budget,
+release-snapshot CLI, requires the `codex_cli` profile and interface budget,
 and proves that the returned body names that installed CLI. For an isolated case it
-also replaces the generic global-registry token with the explicit case registry.
+also verifies the explicit runtime root, or rebinds the generic global-registry
+token when an older prompt shape still emits one.
 Keep app-server on `native_codex_profile_environment`; it supplies only the
 formal profile's `HOME`, `CODEX_HOME`, and `PATH`. The upstream provider value
 must remain in `serve_runner_owned_provider_gateway`, while app-server receives

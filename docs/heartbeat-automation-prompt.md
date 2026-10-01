@@ -107,7 +107,7 @@ Thin's ceiling is 2,500 characters (previously 1,900), and compact's is 6,500
 Turn/guard block rather than omitting identities or static obligations.
 
 The automation lifecycle is the reference for shared execution, not a wrapper
-around native Goal behavior. Thin automation and Codex CLI/SSH, TraeX and Ark
+around native Goal behavior. Thin automation and Codex CLI, TraeX and Ark
 Managed Agent Goal bodies share quota dispatch: selection/re-entry, admitted work
 and validation, then the current writeback/settlement instructions. They do not
 share scheduler ownership, host completion, or blocked/resume rules.
@@ -135,10 +135,10 @@ An unbound Codex CLI or Ark Goal with selected Todo/replan work now receives a
 quota re-entry template with `--turn-instance-id`. Fill it with one public-safe
 unique work-iteration id and reuse that id on retries. The next packet supplies
 the same ordered settlement machinery used by automation, with `visible-goal`
-attribution. SSH Goal continues to use its existing `--begin-turn` path. This
-fixes the previous unbound native refresh/spend projection: those commands could
-not satisfy the existing settlement identity guard. It does not turn CLI/Ark
-Goals into App heartbeat receipts or move scheduler ownership into LoopX.
+attribution. This fixes the previous unbound native refresh/spend projection:
+those commands could not satisfy the existing settlement identity guard. It
+does not turn CLI/Ark Goals into App heartbeat receipts or move scheduler
+ownership into LoopX.
 
 The bootstrap retains work-sizing guidance and the distinction between progress
 and Goal completion. A new Todo is not a new host Goal; quiet/blocked states are
