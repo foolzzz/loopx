@@ -1320,12 +1320,16 @@ def test_guided_state_commands_share_explicit_runtime_root(
     for step_id, command_key in (
         ("write_ordered_todos", "command_template"),
         ("refresh_state", "command"),
-        ("quota_guard", "command"),
     ):
         step = next(step for step in ordered_steps if step["id"] == step_id)
         command = step[command_key]
         assert command is not None
         assert_runtime(command)
+    assert_runtime(
+        payload["guided_transaction"]["host_turn_identity_contract"][
+            "command_template"
+        ]
+    )
 
 
 def test_dsh_native_start_goal_binds_the_exact_same_session_lane(

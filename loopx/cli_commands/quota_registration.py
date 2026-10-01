@@ -181,13 +181,6 @@ def register_quota_command(
         ),
     )
     quota_parser.add_argument(
-        "--scheduler-host-facts-chunk",
-        dest="scheduler_host_facts_chunks",
-        action="append",
-        default=[],
-        help=argparse.SUPPRESS,
-    )
-    quota_parser.add_argument(
         "--replan-obligation-id",
         help=(
             "Typed autonomous replan obligation binding for `quota spend-slot`. "

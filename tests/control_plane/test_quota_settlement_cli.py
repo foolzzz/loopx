@@ -2721,7 +2721,7 @@ def test_agent_selects_one_bounded_action_before_delivery_receipt_binding(
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
 
 
-@pytest.mark.parametrize("host_surface", ["codex-app"])
+@pytest.mark.parametrize("host_surface", ["codex-app", "trae_app"])
 def test_guided_start_uses_host_turn_and_executes_returned_selection(
     tmp_path: Path,
     host_surface: str,
@@ -2736,14 +2736,22 @@ def test_guided_start_uses_host_turn_and_executes_returned_selection(
         host_surface=host_surface,
         goal_text="Start one accountable delivery turn.",
     )
-    guard_command = next(
-        step["command"]
+    guard_step = next(
+        step
         for step in packet["guided_transaction"]["ordered_steps"]
         if step["id"] == "quota_guard"
     )
-
-    assert "<unique-work-iteration-id-reuse-on-retry>" in guard_command
-    guard_command = guard_command.replace(
+    identity_contract = packet["guided_transaction"][
+        "host_turn_identity_contract"
+    ]
+    assert guard_step["kind"] == "host_materialized_guard"
+    assert "command" not in guard_step
+    assert identity_contract["owner"] == "host"
+    assert identity_contract["retry_policy"] == "reuse_exact_same_turn_instance_id"
+    normalized_message = " ".join(packet["message"].split())
+    assert "The template is not executable until materialized" in normalized_message
+    assert "reuse that exact id for every retry" in normalized_message
+    guard_command = identity_contract["command_template"].replace(
         "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
     )
     first_rc, first = _run_generated_cli(
@@ -2755,6 +2763,13 @@ def test_guided_start_uses_host_turn_and_executes_returned_selection(
     assert first["interaction_contract"]["cli_channel"]["selection_required"] is True
     turn_instance_id = first["heartbeat_receipt"]["turn_instance_id"]
     assert turn_instance_id == TURN_ID
+    retry_rc, retry = _run_generated_cli(
+        guard_command,
+        registry_path=registry_path,
+    )
+    assert retry_rc == 0, retry
+    assert retry["heartbeat_receipt"]["turn_instance_id"] == TURN_ID
+    assert _heartbeat_receipt_count(runtime, turn_instance_id) == 1
     selection = first["interaction_contract"]["cli_channel"]["selection_command"]
     assert (
         f"--turn-instance-id {turn_instance_id}" in selection["command_args_template"]
@@ -2909,7 +2924,7 @@ def test_visible_goal_capability_reentry_preserves_turn_through_selection(
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
 
 
-@pytest.mark.parametrize("host_surface", ["codex-app"])
+@pytest.mark.parametrize("host_surface", ["codex-app", "trae_app"])
 def test_single_todo_guided_start_keeps_direct_delivery_semantics(
     tmp_path: Path,
     host_surface: str,
@@ -2923,13 +2938,16 @@ def test_single_todo_guided_start_keeps_direct_delivery_semantics(
         host_surface=host_surface,
         goal_text="Start one accountable delivery turn.",
     )
-    guard_command = next(
-        step["command"]
+    guard_step = next(
+        step
         for step in packet["guided_transaction"]["ordered_steps"]
         if step["id"] == "quota_guard"
     )
-    assert "<unique-work-iteration-id-reuse-on-retry>" in guard_command
-    guard_command = guard_command.replace(
+    assert guard_step["kind"] == "host_materialized_guard"
+    identity_contract = packet["guided_transaction"][
+        "host_turn_identity_contract"
+    ]
+    guard_command = identity_contract["command_template"].replace(
         "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
     )
 

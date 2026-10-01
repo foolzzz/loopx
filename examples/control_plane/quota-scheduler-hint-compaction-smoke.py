@@ -32,7 +32,6 @@ RUNTIME_KEYS = (
     "claude_code_loop",
 )
 BASE_RUNTIME_KEYS = RUNTIME_KEYS
-SCHEDULER_HOST_FACTS_CHUNK_FLAG = "--scheduler-host-facts-chunk"
 APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
     SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
 )
