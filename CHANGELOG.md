@@ -63,6 +63,10 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Fixed
 
+- **Native Codex benchmark receipt identity.** Installed-profile receipts now
+  report the LoopX runtime profile separately from the execution host, so the
+  historical `ssh-goal` arm records `codex_cli` and `codex-app-server` without
+  conflating the two surfaces.
 - **HOME-rooted Goal state no longer overlaps machine runtime state.** When a
   project root and runtime root would both use `<home>/.loopx/goals`, newly
   bootstrapped Goals store their project-owned state under

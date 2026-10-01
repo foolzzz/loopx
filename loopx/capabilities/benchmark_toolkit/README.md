@@ -277,7 +277,9 @@ as Pier; they must not fall back to ambient native execution. Setting
 app-server `skills/list` surface before `thread/start`;
 missing skills, discovery errors, or a wrong cwd fail before any model turn. The
 path-free profile, prompt, and Goal receipts can then prove all three inputs without
-publishing installation paths, prompt text, or skill bodies.
+publishing installation paths, prompt text, or skill bodies. Profile receipts record
+the LoopX `runtime_profile` separately from the actual benchmark `execution_host`, so
+an app-server transport using the `codex_cli` contract is not mislabeled as a CLI host.
 
 Run the formal installer plus no-model readback smoke with:
 
