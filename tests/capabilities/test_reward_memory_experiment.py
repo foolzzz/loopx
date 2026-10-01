@@ -722,9 +722,7 @@ def test_split_runtime_quota_and_status_use_v1_config_readback(
         "automatic_recall": "connected",
         "automatic_ingest": "connected_post_settlement",
     }
-    assert host_coverage["codex_app_quota"]["automatic_ingest"] == (
-        "connected_refresh_spend_post_settlement"
-    )
+    assert "codex_app_quota" not in host_coverage
     assert host_coverage["lark"]["automatic_ingest"] == "uncovered"
 
     attach_agent_lane_next_actions(status_payload, agent_id="pilot")

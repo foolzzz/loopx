@@ -27,8 +27,8 @@ GOAL_ID = "agent-scoped-user-gate-fixture"
 PRIMARY_AGENT = "codex-main-control"
 PRODUCT_AGENT = "codex-product-capability"
 VALUE_AGENT = "codex-value-explorer"
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -759,7 +759,7 @@ def assert_scoped_gate_rejects_capability_ineligible_only_fallback() -> None:
         capability_ineligible_only_fallback_status_payload(),
         goal_id=GOAL_ID,
         agent_id="codex-main-control",
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     capability_gate = payload["capability_gate"]
     assert capability_gate["action"] == "repair_bridge", capability_gate
@@ -778,9 +778,8 @@ def assert_scoped_gate_rejects_capability_ineligible_only_fallback() -> None:
     scheduler = payload["scheduler_hint"]
     assert scheduler["action"] == "backoff_waiting_for_user", scheduler
     assert scheduler["cadence_class"] == "human_gate", scheduler
-    assert "example_progression_minutes" not in scheduler["codex_app"], scheduler
-    assert scheduler["codex_app"]["max_interval_minutes"] == 60, scheduler
-    assert scheduler["codex_app"]["recommended_interval_minutes"] == 30, scheduler
+    assert scheduler["reset_policy"]["local_scheduler_initial_interval_minutes"] == 30, scheduler
+    assert "codex_app" not in scheduler, scheduler
 
 
 def assert_exact_todo_gate_survives_decision_scope_migration() -> None:
@@ -974,7 +973,7 @@ def assert_agent_without_advancement_candidate_and_only_monitor_work_stays_quiet
         scoped_no_candidate_status_payload(),
         goal_id=GOAL_ID,
         agent_id="codex-product-capability",
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert payload["decision"] == "skip", payload
     assert payload["effective_action"] == "monitor_quiet_skip", payload
@@ -1001,9 +1000,8 @@ def assert_agent_without_advancement_candidate_and_only_monitor_work_stays_quiet
     scheduler = payload["scheduler_hint"]
     assert scheduler["schema_version"] == "scheduler_hint_v0", scheduler
     assert scheduler["action"] == "backoff_until_material_transition", scheduler
-    assert scheduler["codex_app"]["recommended_interval_minutes"] == 15, scheduler
-    assert scheduler["codex_app"]["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=15", scheduler
-    assert "example_progression_minutes" not in scheduler["codex_app"], scheduler
+    assert scheduler["reset_policy"]["local_scheduler_initial_interval_minutes"] == 15, scheduler
+    assert "codex_app" not in scheduler, scheduler
     assert scheduler["unchanged_poll"]["limits"]["codex_cli_tui"] == 3, scheduler
     assert scheduler["unchanged_poll"]["final_quota_replan_check_enabled"] is True, scheduler
     assert scheduler["unchanged_poll"]["after_limits"]["claude_code_loop"] == "stop_loop", scheduler
@@ -1015,9 +1013,7 @@ def assert_agent_without_advancement_candidate_and_only_monitor_work_stays_quiet
     reset = scheduler["reset_policy"]
     assert isinstance(reset["reset_token"], str) and len(reset["reset_token"]) == 16, reset
     assert "host_state_key" not in reset, reset
-    assert reset["app_automation_initial_interval_minutes"] == 15, reset
-    assert reset["app_automation_initial_rrule"] == "FREQ=MINUTELY;INTERVAL=15", reset
-    assert scheduler["codex_app"]["max_interval_minutes"] == 60, scheduler
+    assert reset["local_scheduler_initial_interval_minutes"] == 15, reset
     assert len(reset["identity_signature"]) == 12, reset
     assert "identity_snapshot" not in reset, reset
     assert "profile_snapshot" not in reset, reset

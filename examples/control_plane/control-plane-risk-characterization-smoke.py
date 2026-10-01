@@ -29,8 +29,8 @@ from loopx.control_plane.testing.quota_fixtures import (  # noqa: E402
 )
 
 
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -88,7 +88,7 @@ def assert_agent_lane_delivery() -> None:
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota["decision"] == "run", quota
     assert quota["effective_action"] == "normal_run", quota
@@ -132,7 +132,7 @@ def assert_scoped_operator_gate_safe_bypass() -> None:
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota["should_run"] is True, quota
     assert quota["effective_action"] == "normal_run", quota
@@ -165,7 +165,7 @@ def assert_due_monitor_context_does_not_steal_advancement() -> None:
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     contract = quota["work_lane_contract"]
     assert contract["lane"] == "advancement_task", contract
@@ -202,7 +202,7 @@ def assert_current_agent_claimed_advancement_beats_other_agent_frontier() -> Non
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota["decision"] == "run", quota
     assert quota["effective_action"] == "normal_run", quota
@@ -241,7 +241,7 @@ def assert_current_agent_claimed_advancement_beats_other_agent_frontier() -> Non
         payload,
         goal_id=GOAL_ID,
         agent_id=PRIMARY_AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert primary_quota["agent_lane_next_action"]["todo_id"] == (
         "todo_primary_first"
@@ -285,7 +285,7 @@ def assert_higher_priority_due_monitor_preempts_advancement() -> None:
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     contract = quota["work_lane_contract"]
     assert contract["lane"] == "continuous_monitor", contract
@@ -313,7 +313,7 @@ def assert_future_monitor_frontier_waits_without_delta() -> None:
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota["decision"] == "skip", quota
     assert quota["should_run"] is False, quota
@@ -385,7 +385,7 @@ def assert_standing_monitor_gate_does_not_quiet_skip_gated_advancement() -> None
         status_payload([], agent_todos=agent_todos),
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota["decision"] == "run", quota
     assert quota["should_run"] is True, quota
@@ -426,7 +426,7 @@ def assert_reassignment_scheduler_contract() -> None:
         payload,
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota["decision"] == "reassignment_required", quota
     assert quota["should_run"] is False, quota
@@ -450,12 +450,8 @@ def assert_reassignment_scheduler_contract() -> None:
     scheduler = quota["scheduler_hint"]
     assert scheduler["action"] == "backoff_until_reassigned", scheduler
     assert scheduler["cadence_class"] == "agent_scope_wait", scheduler
-    assert scheduler["codex_app"]["recommended_rrule"] == (
-        "FREQ=MINUTELY;INTERVAL=10"
-    ), scheduler
-    assert scheduler["codex_app"]["recommended_interval_minutes"] == 10, scheduler
-    assert scheduler["codex_app"]["stateful_backoff"]["apply_needed"] is True, scheduler
-    assert scheduler["codex_app"]["no_spend_for_cadence_change"] is True, scheduler
+    assert scheduler["reset_policy"]["local_scheduler_initial_interval_minutes"] == 10, scheduler
+    assert "codex_app" not in scheduler, scheduler
 
     packet = build_review_packet(payload, goal_id=GOAL_ID)
     assert packet["ok"] is True, packet

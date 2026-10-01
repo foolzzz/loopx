@@ -22,8 +22,8 @@ FIXTURE = (
     / "control_plane"
     / "goal_outcome_continuity_characterization_v0.json"
 )
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 _BANNED_KEYS = {
     "credential",
@@ -175,7 +175,7 @@ def _replay_current_path(case: dict[str, Any]) -> dict[str, Any]:
         status,
         goal_id=case["case_id"],
         agent_id=agent_id,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     selected_todo = decision.get("selected_todo")
     return {

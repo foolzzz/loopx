@@ -12,7 +12,7 @@ from test_quota_settlement_cli import AGENT_ID, GOAL_ID, _run_cli, _write_fixtur
 def test_real_cli_and_host_use_structured_contracts_without_packet(tmp_path: Path) -> None:
     project, runtime, registry = _write_fixture(tmp_path)
     guard = (
-        "quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+        "quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
         "--agent-id", AGENT_ID, "--turn-instance-id", "packet-retirement-cli",
         "--scan-path", str(project),
     )

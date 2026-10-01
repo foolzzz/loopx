@@ -26,8 +26,8 @@ from loopx.control_plane.todos.handoff_gate import (  # noqa: E402
 GOAL_ID = "cleared-blocker-successor-gate-fixture"
 BLOCKED_AGENT = "codex-value-explorer"
 PRIMARY_AGENT = "codex-main-control"
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -296,7 +296,7 @@ def assert_cleared_blocker_requires_successor_replan() -> None:
         ),
         goal_id=GOAL_ID,
         agent_id=BLOCKED_AGENT,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert payload["decision"] == "successor_replan_required", payload
     assert payload["should_run"] is True, payload
@@ -337,10 +337,9 @@ def assert_cleared_blocker_requires_successor_replan() -> None:
     scheduler = payload["scheduler_hint"]
     assert scheduler["action"] == "run_now", scheduler
     assert scheduler["cadence_class"] == "active_work", scheduler
-    assert scheduler["codex_app"]["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=3", scheduler
-    assert scheduler["codex_app"]["recommended_interval_minutes"] == 3, scheduler
-    assert scheduler["codex_app"]["stateful_backoff"]["apply_needed"] is True, scheduler
-    assert scheduler["codex_app"]["no_spend_for_cadence_change"] is True, scheduler
+    assert scheduler["reset_policy"]["local_scheduler_initial_interval_minutes"] == 3, scheduler
+    assert "codex_app" not in scheduler, scheduler
+    assert "app_automation" not in scheduler, scheduler
 
 
 def assert_stale_handoff_closeout_stays_with_its_executor() -> None:

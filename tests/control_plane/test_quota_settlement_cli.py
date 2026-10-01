@@ -659,7 +659,7 @@ def test_gitless_goal_refresh_and_quota_spend_settle_end_to_end(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         *binding,
@@ -727,7 +727,7 @@ def test_gitless_goal_refresh_and_quota_spend_settle_end_to_end(
     assert _spend_run_count(runtime) == 1
 
 
-def test_codex_app_refresh_stages_validated_memory_and_spend_finalizes_hook(
+def test_generic_cli_refresh_stages_validated_memory_and_spend_finalizes_hook(
     tmp_path: Path,
 ) -> None:
     project, runtime, registry_path = _write_fixture(tmp_path)
@@ -810,7 +810,7 @@ def test_codex_app_refresh_stages_validated_memory_and_spend_finalizes_hook(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         *binding,
@@ -916,7 +916,7 @@ def test_typed_outcome_gap_settles_exact_turn_without_becoming_progress(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         *binding,
@@ -1093,7 +1093,7 @@ def test_typed_outcome_gap_settles_exact_turn_without_becoming_progress(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1121,7 +1121,7 @@ def test_typed_blocked_retry_without_successor_defers_the_only_todo(
         "--turn-instance-id", turn_id,
     )
     guard_rc, guard = _run_cli(
-        registry_path, runtime, "quota", "should-run", "--codex-app",
+        registry_path, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", GOAL_ID, *binding, "--scan-path", str(project), cwd=project,
     )
     assert guard_rc == 0, guard
@@ -1157,7 +1157,7 @@ def test_typed_blocked_retry_without_successor_defers_the_only_todo(
     assert _spend_run_count(runtime) == 0
 
     next_rc, next_turn = _run_cli(
-        registry_path, runtime, "quota", "should-run", "--codex-app",
+        registry_path, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
         "--turn-instance-id", "turn-after-only-todo-blocked",
         "--scan-path", str(project), cwd=project,
@@ -1213,14 +1213,14 @@ def test_typed_blocked_retry_with_peer_hard_lease(
         "--turn-instance-id", turn_id,
     )
     guard_rc, guard = _run_cli(
-        registry_path, runtime, "quota", "should-run", "--codex-app",
+        registry_path, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", GOAL_ID, *binding, "--scan-path", str(project),
         "--write-projection-cache", cwd=project,
     )
     assert guard_rc == 0, guard
     assert guard["heartbeat_receipt"]["settlement_identity"]["todo_id"] == TODO_ID
     cached_rc, cached_guard = _run_cli(
-        registry_path, runtime, "quota", "should-run", "--codex-app",
+        registry_path, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", GOAL_ID, *binding, "--scan-path", str(project),
         "--use-projection-cache", cwd=project,
     )
@@ -1286,7 +1286,7 @@ def test_typed_blocked_retry_with_peer_hard_lease(
     assert original["completion_validation_sha256"]
 
     next_rc, next_turn = _run_cli(
-        registry_path, runtime, "quota", "should-run", "--codex-app",
+        registry_path, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
         "--turn-instance-id", f"turn-after-hard-lease-blocker-{provider}",
         "--scan-path", str(project), "--use-projection-cache", cwd=project,
@@ -1307,7 +1307,7 @@ def test_in_flight_progress_preserves_todo_across_heartbeat_settlements(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1381,7 +1381,7 @@ def test_in_flight_progress_preserves_todo_across_heartbeat_settlements(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1451,7 +1451,7 @@ def test_in_flight_progress_settles_while_completion_validation_todo_is_open(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1607,7 +1607,7 @@ def test_recovery_does_not_bind_current_replan_and_reenters_same_turn(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1642,7 +1642,7 @@ def test_recovery_does_not_bind_current_replan_and_reenters_same_turn(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1718,7 +1718,7 @@ def test_recovery_does_not_bind_current_replan_and_reenters_same_turn(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1762,7 +1762,7 @@ def test_recovery_guard_accepts_the_todo_it_must_settle(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1782,7 +1782,7 @@ def test_recovery_guard_accepts_the_todo_it_must_settle(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1811,7 +1811,7 @@ def test_prior_turn_with_several_receipts_recovers_once(tmp_path: Path) -> None:
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1868,7 +1868,7 @@ def test_prior_turn_with_several_receipts_recovers_once(tmp_path: Path) -> None:
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -1910,7 +1910,7 @@ def test_prior_host_closeout_survives_hidden_todo_lifecycle(
     guard = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2021,7 +2021,7 @@ def test_prior_host_closeout_reads_archived_exact_todo(
     guard = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2133,7 +2133,7 @@ def test_prior_host_closeout_reads_archived_exact_todo(
     assert observed["quota"]["spent_slots"] == prior["quota"]["spent_slots"]
 
 
-def test_standard_codex_app_settlement_is_receipted_and_idempotent(
+def test_standard_generic_cli_settlement_is_receipted_and_idempotent(
     tmp_path: Path,
 ) -> None:
     project, runtime, registry_path = _write_fixture(tmp_path)
@@ -2152,7 +2152,7 @@ def test_standard_codex_app_settlement_is_receipted_and_idempotent(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2248,7 +2248,7 @@ def test_standard_codex_app_settlement_is_receipted_and_idempotent(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2291,7 +2291,7 @@ def test_standard_codex_app_settlement_is_receipted_and_idempotent(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2317,7 +2317,7 @@ def test_standard_codex_app_settlement_is_receipted_and_idempotent(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2355,7 +2355,7 @@ def _assert_material_monitor_writeback_can_add_workspace_before_spend(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2522,7 +2522,7 @@ def test_same_turn_identityless_guard_upgrades_and_settles_full_chain(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2615,7 +2615,7 @@ def test_same_turn_identityless_guard_upgrades_and_settles_full_chain(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2663,7 +2663,7 @@ def test_agent_selects_one_bounded_action_before_delivery_receipt_binding(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -2994,7 +2994,7 @@ def test_legacy_todo_guard_keeps_current_replan_gate_strict(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3237,7 +3237,7 @@ def test_agent_can_select_eligible_todo_outside_bounded_suggestions(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3303,7 +3303,7 @@ def test_agent_can_select_an_owned_todo_outside_every_bounded_lane(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3360,7 +3360,7 @@ def test_same_turn_can_select_eligible_todo_created_after_unbound_receipt(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3421,7 +3421,7 @@ def test_agent_selection_rejects_unprojected_todo(tmp_path: Path) -> None:
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3478,7 +3478,7 @@ def test_unsuggested_selection_revalidates_current_capability_readiness(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3519,7 +3519,7 @@ def test_first_call_rejected_selection_does_not_commit_a_false_receipt(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3557,7 +3557,7 @@ def test_first_call_agent_selection_is_qualified_before_receipt_commit(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3588,7 +3588,7 @@ def test_ready_deferred_priority_is_not_an_eligible_alternative(
     _configure_ready_deferred_priority_preemption(project)
     turn_instance_id = "turn-ready-deferred-priority-selection"
     guard_args = (
-        "quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+        "quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
         "--agent-id", AGENT_ID, "--turn-instance-id", turn_instance_id,
         "--scan-path", str(project),
     )
@@ -3603,7 +3603,7 @@ def test_ready_deferred_priority_is_not_an_eligible_alternative(
     _configure_selectable_alternative(project)
     _configure_ready_deferred_priority_preemption(project)
     selection_args = (
-        "quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+        "quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
         "--agent-id", AGENT_ID,
         "--turn-instance-id", "turn-ready-deferred-explicit-selection",
         "--scan-path", str(project),
@@ -3643,7 +3643,7 @@ def test_pending_deferred_p0_allows_independent_p1_selection(
     rc, payload = _run_cli(
         registry_path,
         runtime,
-        "quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+        "quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
         "--agent-id", AGENT_ID,
         "--turn-instance-id", "turn-pending-deferred-p0-p1-fallback",
         "--scan-path", str(project), "--todo-id", ALTERNATIVE_TODO_ID,
@@ -3694,7 +3694,7 @@ def test_same_turn_bound_p0_does_not_project_p1_after_p0_becomes_deferred(
         )
     turn_id = "turn-bound-p0-then-deferred"
     guard = (
-        "quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+        "quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
         "--agent-id", AGENT_ID, "--turn-instance-id", turn_id,
         "--scan-path", str(project),
     )
@@ -3757,7 +3757,7 @@ def test_same_turn_bound_p0_does_not_project_p1_after_p0_becomes_deferred(
 
     next_rc, next_turn = _run_cli(
         registry_path, runtime,
-        "quota", "should-run", "--codex-app",
+        "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
         "--turn-instance-id", "turn-after-bound-p0-deferred",
         "--scan-path", str(project), "--todo-id", ALTERNATIVE_TODO_ID,
@@ -3800,7 +3800,7 @@ def test_pending_selection_preserves_workspace_repair_then_reenters_same_turn(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3879,7 +3879,7 @@ def test_boundary_projection_repair_keeps_same_turn_alternative_selectable(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -3959,7 +3959,7 @@ def test_selection_added_after_pending_guard_reports_final_boundary(
         GOAL_ID,
         "--agent-id",
         AGENT_ID,
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--turn-instance-id",
         turn_instance_id,
         "--scan-path",
@@ -4050,7 +4050,7 @@ def test_pending_action_selection_does_not_preempt_newly_due_monitor(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4102,7 +4102,7 @@ def test_pending_action_selection_reports_autonomous_replan_preemption(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4158,7 +4158,7 @@ def test_due_monitor_auxiliary_context_has_typed_selection_rejection(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4212,7 +4212,7 @@ def test_pending_action_selection_can_bind_exact_newly_due_monitor(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4252,7 +4252,7 @@ def test_pending_action_selection_can_bind_exact_newly_due_monitor(
     poll_args = (
         "quota",
         "monitor-poll",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4313,7 +4313,7 @@ def test_prior_monitor_turn_accepts_exact_committed_receipt(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4388,7 +4388,7 @@ def test_prior_monitor_turn_recovery_rejects_wrong_identity_receipt(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4417,7 +4417,7 @@ def test_prior_monitor_turn_recovery_rejects_wrong_identity_receipt(
         runtime,
         "quota",
         "monitor-poll",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4494,7 +4494,7 @@ def test_receipt_bound_advancement_turn_records_multiple_due_monitors(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4529,7 +4529,7 @@ def test_receipt_bound_advancement_turn_records_multiple_due_monitors(
         args = (
             "quota",
             "monitor-poll",
-            "--codex-app",
+            "--runtime-profile", "generic_cli",
             "--goal-id",
             GOAL_ID,
             "--agent-id",
@@ -4618,7 +4618,7 @@ def test_pending_action_selection_does_not_commit_after_new_user_gate(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4681,7 +4681,7 @@ def test_todoless_autonomous_replan_settles_quota_refresh_spend_chain(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4776,7 +4776,7 @@ def test_todoless_autonomous_replan_settles_quota_refresh_spend_chain(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4805,7 +4805,7 @@ def test_todoless_autonomous_replan_settles_quota_refresh_spend_chain(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4848,7 +4848,7 @@ def test_todoless_blocked_replan_settles_read_only_external_evidence_without_wor
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -4943,7 +4943,7 @@ def test_todoless_blocked_replan_settles_read_only_external_evidence_without_wor
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5040,7 +5040,7 @@ def test_autonomous_replan_semantic_delta_keeps_accountable_receipt_chain(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5134,7 +5134,7 @@ def test_autonomous_replan_semantic_delta_keeps_accountable_receipt_chain(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5163,7 +5163,7 @@ def test_open_replan_rejects_missing_semantic_delta_before_durable_write(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5220,7 +5220,7 @@ def test_runtime_capability_reentry_preserves_receipt_bound_todo_and_rejects_exp
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5285,7 +5285,7 @@ def test_runtime_capability_reentry_preserves_receipt_bound_autonomous_replan(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5381,7 +5381,7 @@ def test_peer_refresh_rejects_implicit_canonical_workspace_before_writeback(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5476,7 +5476,7 @@ def test_same_turn_receipt_replay_defers_newly_due_higher_priority_monitor(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5526,7 +5526,7 @@ def test_same_turn_receipt_replay_defers_newly_due_higher_priority_monitor(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5633,7 +5633,7 @@ def test_same_turn_receipt_replay_defers_newly_due_higher_priority_monitor(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5687,7 +5687,7 @@ def test_read_only_settlement_omits_non_causal_delivery_workspace(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5911,7 +5911,7 @@ def test_same_turn_terminal_receipt_replay_preempts_autonomous_replan(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -6020,7 +6020,7 @@ def test_settled_turn_defers_prior_unsettled_history_to_fresh_turn(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -6132,7 +6132,7 @@ def test_settled_turn_defers_prior_unsettled_history_to_fresh_turn(
     fresh_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -6173,7 +6173,7 @@ def test_legacy_read_only_workspace_mismatch_fails_then_corrects_from_todo_contr
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",

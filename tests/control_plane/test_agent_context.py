@@ -75,7 +75,6 @@ def test_live_decision_provides_planning_context_with_one_todo(tmp_path, enabled
         agent_id=SCOPE["agent_id"],
         available_capabilities=["shell", "subagent_spawn"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         scheduler_execution_context={
@@ -120,9 +119,10 @@ def test_large_envelope_keeps_signed_context_reference_and_read_instruction():
     assert "read capability context before planning" in reference["instruction"]
     assert envelope["compaction"]["within_budget"] is True
     assert envelope["action_signature"]["matches"] is True
-    decision["interaction_contract"]["agent_context"]["contributions"][0][
+    guidance = decision["interaction_contract"]["agent_context"]["contributions"][0][
         "guidance"
-    ] = ["Changed"]
+    ]
+    guidance[0] += " Changed."
     assert (
         build_turn_envelope(decision)["agent_context"]["content_hash"]
         != reference["content_hash"]

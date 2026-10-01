@@ -1,4 +1,4 @@
-"""Real CLI policy readback and App scheduling projections; no live automation mutation."""
+"""Real CLI cadence-policy readback and generic scheduler projections."""
 
 from pathlib import Path
 
@@ -9,6 +9,7 @@ from examples.control_plane.quota_plan_fixtures import (
 from loopx.control_plane.testing.canary_harness import run_json_cli_result
 from loopx.control_plane.scheduler.scheduler_hint import build_scheduler_hint
 from loopx.control_plane.scheduler.execution_context import (
+    SchedulerRuntimeProfile,
     scheduler_execution_context_for_runtime_profile,
 )
 
@@ -31,46 +32,36 @@ def _payload(floor: int | None = None):
     return result
 
 
-def test_codex_app_daily_floor_survives_reset_and_retains_honest_guarantee():
+def test_generic_scheduler_daily_floor_survives_reset():
     for action in ("normal_run", "monitor_quiet_skip", "user_gate_blocked"):
         source = _payload(1440)
         source["effective_action"] = action
         hint = build_scheduler_hint(
             source,
             scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-                "codex_app_heartbeat"
+                SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
             ),
             include_detail=True,
-            codex_app_current_rrule="FREQ=MINUTELY;INTERVAL=3",
         )
-        app = hint["codex_app"]
-        assert app["recommended_interval_minutes"] >= 1440
-        assert app["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=1440"
-        assert app["stateful_backoff"]["apply_needed"] is True
-        assert hint["reset_policy"]["app_automation_initial_interval_minutes"] >= 1440
-        assert app["guarantee"]["pre_model_atomic_admission"] == "not_qualified"
-        assert app["guarantee"]["model_wakeup_tokens_prevented"] is False
-        assert "fallback_hint" not in app
-    off = build_scheduler_hint(
+        assert hint["reset_policy"]["local_scheduler_initial_interval_minutes"] >= 1440
+        assert hint["cold_path_detail"]["local_scheduler"][
+            "recommended_interval_minutes"
+        ] >= 1440
+        assert "codex_app" not in hint
+        assert "app_automation" not in hint
+    without_floor = build_scheduler_hint(
         _payload(),
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            "codex_app_heartbeat"
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
         include_detail=True,
-    )["codex_app"]
-    assert "execution_interval_policy" not in off
-    assert "guarantee" not in off
-    matched = build_scheduler_hint(
-        _payload(1440),
-        scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            "codex_app_heartbeat"
-        ),
-        codex_app_current_rrule="FREQ=MINUTELY;INTERVAL=1440",
-    )["codex_app"]
-    assert matched["stateful_backoff"]["apply_needed"] is False
+    )
+    assert without_floor["reset_policy"][
+        "local_scheduler_initial_interval_minutes"
+    ] < 1440
 
 
-def test_policy_configured_by_real_cli_reaches_quota_app_hint(tmp_path: Path):
+def test_policy_configured_by_real_cli_reaches_generic_scheduler_hint(tmp_path: Path):
     registry, runtime, project = write_cli_fixture(
         tmp_path / "fixture", scoped_agents=True
     )
@@ -117,10 +108,14 @@ def test_policy_configured_by_real_cli_reaches_quota_app_hint(tmp_path: Path):
         "needs-operator",
         "--agent-id",
         SCOPED_AGENT_ID,
-        "--codex-app",
+        "--runtime-profile",
+        "generic_cli",
         "--turn-instance-id",
         "cadence-fixture",
         **kwargs,
     )
     assert code == 0, guard
-    assert guard["scheduler_hint"]["codex_app"]["recommended_interval_minutes"] >= 1440
+    assert guard["scheduler_hint"]["reset_policy"][
+        "local_scheduler_initial_interval_minutes"
+    ] >= 1440
+    assert "codex_app" not in guard["scheduler_hint"]

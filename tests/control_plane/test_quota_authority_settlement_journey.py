@@ -48,7 +48,7 @@ def _source(root: Path, *, provider: str, status: str = "open", extra: str = "",
 
 def _guard(project: Path, runtime: Path, registry: Path, *, turn_id: str = cli.TURN_ID):
     return cli._run_cli(
-        registry, runtime, "quota", "should-run", "--codex-app",
+        registry, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
         "--goal-id", cli.GOAL_ID, "--agent-id", cli.AGENT_ID,
         "--todo-id", cli.TODO_ID, "--turn-instance-id", turn_id,
         "--scan-path", str(project), cwd=project,

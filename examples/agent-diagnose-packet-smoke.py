@@ -70,24 +70,27 @@ def assert_selected_agent_todo_preferred() -> None:
     )
 
 
-def assert_diagnose_preserves_app_scheduler_identity() -> None:
-    legacy = {
-        "codex_app": {"apply": "none"},
-        "reset_policy": {"codex_app_initial_rrule": "FREQ=MINUTELY;INTERVAL=3"},
-    }
-    trae = {
-        "app_automation": {"apply": "none", "host_surface": "trae_app"},
-        "reset_policy": {
-            "app_automation_initial_rrule": "FREQ=MINUTELY;INTERVAL=3"
+def assert_diagnose_preserves_scheduler_execution_context() -> None:
+    hint = {
+        "action": "run_now",
+        "execution_context": {
+            "host_surface": "generic_cli",
+            "scheduler_owner": "agent_cli_loop",
+            "execution_mode": "interactive",
+        },
+        "execution_phase": {
+            "disposition": "context_only",
+            "completed": True,
+            "apply_needed": False,
         },
     }
 
-    legacy_compact = _compact_scheduler_hint(legacy)
-    trae_compact = _compact_scheduler_hint(trae)
-    assert "codex_app" in legacy_compact and "app_automation" not in legacy_compact
-    assert "app_automation" in trae_compact and "codex_app" not in trae_compact
-    assert "codex_app_apply=none" in (_scheduler_hint_line(legacy) or "")
-    assert "app_automation_apply=none" in (_scheduler_hint_line(trae) or "")
+    compact = _compact_scheduler_hint(hint)
+    assert compact["execution_context"]["host_surface"] == "generic_cli"
+    assert compact["execution_phase"]["completed"] is True
+    line = _scheduler_hint_line(hint) or ""
+    assert "host_surface=generic_cli" in line
+    assert "execution_completed=True" in line
 
 
 def assert_diagnose_markdown_separates_status_and_packet_goal_counts() -> None:
@@ -108,12 +111,14 @@ def assert_diagnose_markdown_separates_status_and_packet_goal_counts() -> None:
                     "scheduler_hint": {
                         "action": "run_now",
                         "cadence_class": "active_work",
-                        "codex_app": {
-                            "apply": "update_rrule",
-                            "apply_needed": True,
-                            "recommended_rrule": "FREQ=MINUTELY;INTERVAL=3",
-                            "current_rrule": "FREQ=MINUTELY;INTERVAL=10",
-                            "no_spend_for_cadence_change": True,
+                        "execution_context": {
+                            "host_surface": "generic_cli",
+                            "scheduler_owner": "agent_cli_loop",
+                            "execution_mode": "interactive",
+                        },
+                        "execution_phase": {
+                            "completed": True,
+                            "apply_needed": False,
                         },
                         "unchanged_poll": {
                             "final_quota_replan_check_enabled": True,
@@ -140,7 +145,7 @@ def assert_diagnose_markdown_separates_status_and_packet_goal_counts() -> None:
     assert "- goal_packets: `1`" in markdown, markdown
     assert "- goals: `24`" not in markdown, markdown
     assert "- scheduler_hint: action=run_now cadence=active_work" in markdown, markdown
-    assert "apply_needed=True" in markdown, markdown
+    assert "apply_needed=False" in markdown, markdown
     assert "final_replan_check=True" in markdown, markdown
     assert "Status Contract Signals" in markdown, markdown
     assert "duplicate index rows raw=2 unique=1 unexpected=1" in markdown, markdown
@@ -307,7 +312,7 @@ def write_capability_scoped_registry(root: Path, runtime: Path) -> Path:
 
 def main() -> int:
     assert_selected_agent_todo_preferred()
-    assert_diagnose_preserves_app_scheduler_identity()
+    assert_diagnose_preserves_scheduler_execution_context()
     assert_diagnose_markdown_separates_status_and_packet_goal_counts()
     with tempfile.TemporaryDirectory(prefix="loopx-agent-diagnose-smoke-") as tmp:
         root = Path(tmp)
@@ -352,8 +357,9 @@ def main() -> int:
         )
         scheduler_hint = selected["quota_signals"]["scheduler_hint"]
         assert scheduler_hint["schema_version"] == "diagnose_scheduler_hint_summary_v0", selected
-        assert "local_scheduler" not in str(scheduler_hint), scheduler_hint
-        assert scheduler_hint["codex_app"]["no_spend_for_cadence_change"] is True, scheduler_hint
+        assert "codex_app" not in str(scheduler_hint), scheduler_hint
+        assert "app_automation" not in str(scheduler_hint), scheduler_hint
+        assert scheduler_hint["execution_context"]["host_surface"] == "generic_cli", scheduler_hint
         assert selected["agent_reasoning_checklist"], selected
         assert any(
             " diagnose " in command and f"--goal-id {GOAL_ID}" in command
@@ -374,7 +380,8 @@ def main() -> int:
         assert "current_agent_advancement=0" in markdown, markdown
         assert "unclaimed_advancement=1" in markdown, markdown
         assert "scheduler_hint: action=" in markdown, markdown
-        assert "no_spend_for_cadence_change=True" in markdown, markdown
+        assert "host_surface=generic_cli" in markdown, markdown
+        assert "apply_needed=False" in markdown, markdown
 
         gated_project = write_project(root, "gated-project")
         gated_goal_id = "diagnose-smoke-gated"

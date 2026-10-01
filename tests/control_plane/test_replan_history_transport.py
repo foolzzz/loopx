@@ -29,7 +29,7 @@ def test_large_history_refresh_replay_and_spend_once(tmp_path):
         assert result["ok"] is True, result
         return result
 
-    guard = call("quota", "should-run", "--codex-app", *binding,
+    guard = call("quota", "should-run", "--runtime-profile", "generic_cli", *binding,
                  "--scan-path", str(project))
     assert guard["should_run"] is True
     refresh = ("refresh-state", *binding, "--classification", "validated_change",

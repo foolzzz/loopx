@@ -504,80 +504,38 @@ def assert_contributor_task_board_is_current() -> None:
 
 
 def assert_retired_app_scheduler_contracts_are_current() -> None:
-    authority = compact(
-        read("docs/architecture/rfcs/shared-goal-authority-state-provider-v0.md")
-    )
-    authority_zh = compact(
-        read(
-            "docs/architecture/rfcs/"
-            "shared-goal-authority-state-provider-v0.zh-CN.md"
-        )
-    )
-    stride = compact(
-        read("docs/architecture/rfcs/hierarchical-agent-stride-control-v0.md")
-    )
-    stride_zh = compact(
-        read(
-            "docs/architecture/rfcs/"
-            "hierarchical-agent-stride-control-v0.zh-CN.md"
-        )
-    )
-    tasks = compact(read("docs/development/contributor-tasks.md"))
     operations = compact(read("docs/operations/automation-minimum-interval.md"))
+    quota = compact(read("docs/quota-allocation.md"))
+    status = compact(read("docs/status-data-contract.md"))
 
     for document, required in (
         (
-            authority,
-            "App cadence is projected from the current heartbeat without "
-            "per-App persisted scheduler state or scheduler ACK/failure feedback",
-        ),
-        (
-            authority_zh,
-            "App cadence 从当前 heartbeat 投影，不再持久化 per-App scheduler "
-            "state，也不再接收 scheduler ACK/failure feedback",
-        ),
-        (
-            stride,
-            "The former per-App scheduler-ACK suppression experiment ended when "
-            "App cadence became stateless",
-        ),
-        (
-            stride_zh,
-            "原 per-App scheduler-ACK suppression 实验已随 App cadence 无状态化而结束",
-        ),
-        (
-            tasks,
-            "Qualify parity for stateless App cadence and adaptive child admission",
+            operations,
+            "The typed `scheduler_hint.reset_policy` exposes the local initial "
+            "interval and reset token",
         ),
         (
             operations,
-            "There is no scheduler ACK command or persisted per-App apply state",
+            "LoopX does not project or mutate host-specific automation schedules",
         ),
         (
-            operations,
-            "apply the desired schedule once with the App's `automation_update` tool",
+            quota,
+            "Host-specific scheduler mutation remains provider-owned",
         ),
         (
-            operations,
-            "view that same automation and compare its actual schedule",
-        ),
-        (
-            operations,
-            "Pass the observed RRULE to the next normal `quota should-run` call with "
-            "`--app-automation-current-rrule`",
-        ),
-        (
-            operations,
-            "an exact match produces `apply_needed=false` and skips a no-op update",
+            status,
+            "Host-specific scheduler mutation remains provider-owned",
         ),
     ):
         assert required in document, required
 
     for retired_instruction in (
-        "apply/ACK state",
-        "before running the returned ACK command",
+        "scheduler_hint.app_automation",
+        "--app-automation-current-rrule",
+        "recommended_rrule",
     ):
-        assert retired_instruction not in operations, retired_instruction
+        for document in (operations, quota, status):
+            assert retired_instruction not in document, retired_instruction
 
 
 def assert_contributor_task_links_are_current() -> None:

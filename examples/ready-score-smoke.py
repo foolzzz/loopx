@@ -11,7 +11,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from loopx.ready_score import build_ready_score_report, render_ready_score_markdown
+from loopx.ready_score import (  # noqa: E402
+    build_ready_score_report,
+    render_ready_score_markdown,
+)
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -66,7 +69,15 @@ def fixture_payload() -> dict[str, object]:
         "normal_delivery_allowed": True,
         "recommended_action": "continue demo todo",
         "quota": {"state": "eligible"},
-        "scheduler_hint": {"codex_app": {"stateful_backoff": {"apply_needed": False}}},
+        "scheduler_hint": {
+            "action": "run_now",
+            "execution_context": {
+                "host_surface": "generic_cli",
+                "scheduler_owner": "agent_cli_loop",
+                "execution_mode": "interactive",
+            },
+            "execution_phase": {"apply_needed": False},
+        },
     }
     return build_ready_score_report(
         doctor_payload=doctor,

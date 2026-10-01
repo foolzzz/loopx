@@ -224,7 +224,7 @@ def test_quota_uses_cadence_without_bypassing_a_goal_pause(threshold, paused):
         goal_id="example",
         agent_id="agent-a",
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            "codex_app_heartbeat"
+            "generic_cli"
         ),
     )
     if paused:

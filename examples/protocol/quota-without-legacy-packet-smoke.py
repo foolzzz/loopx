@@ -34,13 +34,13 @@ FULL_AIRLINE_ACTION = (
     "source-heldout vector-aware scorer gate."
 )
 USER_TODO = "[P1] Decide whether to approve a no-submit setup check."
-CODEX_APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+GENERIC_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
 )
 
 
 def build_quota_should_run(*args, **kwargs):
-    kwargs.setdefault("scheduler_execution_context", CODEX_APP_SCHEDULER_CONTEXT)
+    kwargs.setdefault("scheduler_execution_context", GENERIC_SCHEDULER_CONTEXT)
     guard = _build_quota_should_run(*args, **kwargs)
     assert "protocol_action_packet" not in guard, guard
     return guard

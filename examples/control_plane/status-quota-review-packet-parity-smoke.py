@@ -169,11 +169,11 @@ def assert_quota_parity(payload: dict) -> None:
     scheduler = payload["scheduler_hint"]
     assert scheduler["action"] == "run_now", scheduler
     assert scheduler["cadence_class"] == "active_work", scheduler
-    codex_app = scheduler["codex_app"]
-    assert codex_app["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=3", scheduler
-    assert codex_app["recommended_interval_minutes"] == 3, scheduler
-    assert codex_app["no_spend_for_cadence_change"] is True, scheduler
-    assert scheduler["reset_policy"]["app_automation_initial_rrule"] == "FREQ=MINUTELY;INTERVAL=3", scheduler
+    assert scheduler["reset_policy"][
+        "local_scheduler_initial_interval_minutes"
+    ] == 3, scheduler
+    assert "codex_app" not in scheduler, scheduler
+    assert "app_automation" not in scheduler, scheduler
 
 
 def assert_handoff_parity(payload: dict) -> None:
@@ -225,7 +225,7 @@ def main() -> int:
             AGENT_ID,
             "--available-capability",
             "material_lifecycle",
-            "--codex-app",
+            "--runtime-profile", "generic_cli",
             "--scan-path",
             str(project / "PUBLIC.md"),
         )

@@ -138,7 +138,7 @@ def test_mcp_should_run_prefers_profile_and_falls_back_for_old_cli():
                 2,
                 "",
                 "loopx: error: argument --runtime-profile: invalid choice: "
-                "'claude_code' (choose from 'codex_app_heartbeat')",
+                "'claude_code' (choose from 'generic_cli')",
             )
         return subprocess.CompletedProcess(command, 0, '{"should_run": true}', "")
 

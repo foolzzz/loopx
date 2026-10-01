@@ -36,21 +36,6 @@ def _nested_value(payload: dict, path: str):
     return current
 
 
-def scheduler_reset_profile_snapshot(scheduler: dict) -> dict:
-    codex_app = scheduler["codex_app"]
-    unchanged_poll = scheduler["unchanged_poll"]
-    limits = unchanged_poll["limits"]
-    return {
-        "cadence_class": scheduler["cadence_class"],
-        "codex_app_initial_interval_minutes": codex_app["recommended_interval_minutes"],
-        "codex_app_initial_rrule": codex_app["recommended_rrule"],
-        "codex_app_max_interval_minutes": codex_app["max_interval_minutes"],
-        "unchanged_poll_backoff_multiplier": codex_app["unchanged_poll_backoff_multiplier"],
-        "local_scheduler_unchanged_poll_limit": limits["local_scheduler"],
-        "claude_code_loop_unchanged_poll_limit": limits["claude_code_loop"],
-    }
-
-
 def _short_hash(value: dict, length: int) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -60,20 +45,6 @@ def _short_hash(value: dict, length: int) -> str:
             default=str,
         ).encode("utf-8")
     ).hexdigest()[:length]
-
-
-def expected_scheduler_reset_token(scheduler: dict, payload: dict) -> str:
-    identity_snapshot = {
-        key: _nested_value(payload, key)
-        for key in scheduler["unchanged_identity_keys"]
-    }
-    profile_snapshot = scheduler_reset_profile_snapshot(scheduler)
-    token_payload = {
-        "action": scheduler["action"],
-        "identity_snapshot": identity_snapshot,
-        "profile_snapshot": profile_snapshot,
-    }
-    return _short_hash(token_payload, 16)
 
 
 def goal(

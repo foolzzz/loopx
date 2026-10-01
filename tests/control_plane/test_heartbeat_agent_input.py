@@ -16,7 +16,7 @@ def test_thin_agent_input_excludes_generator_and_embedded_command_duplicates() -
         thin=True,
         agent_id="agent-a",
         registered_agents=["agent-a", "agent-b"],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
 
     projected = project_heartbeat_agent_input(generated)
@@ -66,7 +66,7 @@ def test_thin_agent_input_keeps_exact_turn_and_bootstrap_identity_when_present()
         thin=True,
         agent_id="agent-a",
         registered_agents=["agent-a"],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
         turn_instance_id="turn-2026-09-12",
     )
     generated["bootstrap"] = True

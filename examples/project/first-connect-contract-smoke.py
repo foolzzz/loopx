@@ -112,7 +112,7 @@ def connect_generic(root: Path, runtime: Path) -> tuple[Path, Path, str]:
         "onboarding_todos_written",
         "onboarding_connection_validation",
         "accept_candidate_commands",
-        "codex_app_heartbeat",
+        "generic_cli",
     ):
         assert removed_field not in connected, (removed_field, connected)
     state_text = state_path(project, GENERIC_GOAL_ID).read_text(encoding="utf-8")

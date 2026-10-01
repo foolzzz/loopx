@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 import pytest
 
 from loopx.control_plane.todos.user_gate import apply_scoped_user_gate_fallback_projection
@@ -9,11 +7,9 @@ from loopx.control_plane.quota.stall_repair import (
     build_runtime_capability_user_gate_repair_hint,
 )
 from loopx.control_plane.quota.turn_envelope import build_turn_envelope
-from loopx.control_plane.scheduler import scheduler_hint as scheduler_hint_module
 from loopx.control_plane.scheduler.execution_context import (
     scheduler_execution_context_for_runtime_profile,
 )
-from loopx.control_plane.scheduler.scheduler_hint import build_scheduler_hint
 from loopx.control_plane.testing.quota_fixtures import (
     quota_status_payload,
     quota_todo_item,
@@ -23,8 +19,8 @@ from loopx.quota import build_quota_should_run
 
 GOAL_ID = "user-gate-lane-progress-fixture"
 AGENT_ID = "codex-main-control"
-APP_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -135,7 +131,7 @@ def test_unrelated_user_gate_allows_ready_deferred_successor_replan() -> None:
         _status_payload(gate_action_kind="approve_product_first_screen"),
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
 
     fallback = payload["scoped_user_gate_fallback"]
@@ -206,7 +202,7 @@ def test_consumed_review_gate_exposes_quality_vision_replan() -> None:
             status,
             goal_id=GOAL_ID,
             agent_id=AGENT_ID,
-            scheduler_execution_context=APP_CONTEXT,
+            scheduler_execution_context=GENERIC_CONTEXT,
         )
 
     waiting = decide("open")
@@ -227,7 +223,7 @@ def test_blocking_user_gate_backs_off_instead_of_polling_as_active_work() -> Non
         _status_payload(gate_action_kind="refine_benchmark_treatment", blocks_deferred=True),
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
 
     assert "scoped_user_gate_fallback" not in payload
@@ -248,7 +244,9 @@ def test_blocking_user_gate_backs_off_instead_of_polling_as_active_work() -> Non
         "turn_envelope_action_dimensions_v1"
     )
     assert payload["scheduler_hint"]["cadence_class"] == "human_gate"
-    assert payload["scheduler_hint"]["codex_app"]["recommended_interval_minutes"] == 30
+    assert payload["scheduler_hint"]["reset_policy"][
+        "local_scheduler_initial_interval_minutes"
+    ] == 30
     assert payload["long_task_cadence_hint"] == {
         "schema_version": "cadence_hint_v0",
         "signal": "blocked",
@@ -258,20 +256,6 @@ def test_blocking_user_gate_backs_off_instead_of_polling_as_active_work() -> Non
             "open_user_todos_visible",
         ],
     }
-
-    initial_backoff = payload["scheduler_hint"]["codex_app"]["stateful_backoff"]
-    next_hint = build_scheduler_hint(
-        payload,
-        user_action_required=True,
-        codex_app_current_rrule=initial_backoff["current_rrule"],
-        scheduler_execution_context=APP_CONTEXT,
-    )
-
-    assert next_hint["cadence_class"] == "human_gate"
-    assert next_hint["codex_app"]["recommended_interval_minutes"] == 30
-    assert next_hint["codex_app"]["stateful_backoff"]["apply_needed"] is False
-    assert "recommended_rrule" not in next_hint["codex_app"]
-
 
 def _runtime_recovery_gate_status(
     *,
@@ -331,7 +315,7 @@ def test_capability_runnable_runtime_recovery_gate_routes_to_agent_repair() -> N
             "network",
             "benchmark_runner",
         ],
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
 
     repair = payload["stall_self_repair"]
@@ -385,7 +369,7 @@ def test_runtime_recovery_gate_with_decision_scope_remains_owner_gate() -> None:
             "network",
             "benchmark_runner",
         ],
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
 
     assert "stall_self_repair" not in payload
@@ -402,51 +386,9 @@ def test_runtime_recovery_gate_with_owner_capability_remains_owner_gate() -> Non
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
         available_capabilities=["credentials"],
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
 
     assert "stall_self_repair" not in payload
     assert payload["interaction_contract"]["mode"] == "user_gate"
     assert payload["interaction_contract"]["user_channel"]["action_required"] is True
-
-
-def test_matched_human_gate_ignores_unpersisted_historical_host_failure(
-    monkeypatch,
-) -> None:
-    now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr(scheduler_hint_module, "now_utc", lambda: now)
-    payload = build_quota_should_run(
-        _status_payload(gate_action_kind="refine_benchmark_treatment", blocks_deferred=True),
-        goal_id=GOAL_ID,
-        agent_id=AGENT_ID,
-        scheduler_execution_context=APP_CONTEXT,
-    )
-    first_rrule = payload["scheduler_hint"]["codex_app"]["stateful_backoff"][
-        "current_rrule"
-    ]
-    host_matched = build_scheduler_hint(
-        payload,
-        user_action_required=True,
-        codex_app_current_rrule=first_rrule,
-        scheduler_execution_context=APP_CONTEXT,
-    )
-    matched_app = host_matched["codex_app"]
-    assert matched_app["stateful_backoff"]["apply_needed"] is False
-    assert "ack_needed" not in matched_app["stateful_backoff"]
-
-    elapsed = now + timedelta(minutes=30)
-    monkeypatch.setattr(scheduler_hint_module, "now_utc", lambda: elapsed)
-    next_hint = build_scheduler_hint(
-        payload,
-        user_action_required=True,
-        codex_app_current_rrule=first_rrule,
-        scheduler_execution_context=APP_CONTEXT,
-    )
-
-    next_app = next_hint["codex_app"]
-    assert next_app["recommended_interval_minutes"] == 30
-    assert next_app["stateful_backoff"]["apply_needed"] is False
-    assert next_app["stateful_backoff"]["state_policy"] == (
-        "ephemeral_no_app_scheduler_state"
-    )
-    assert "recommended_rrule" not in next_app

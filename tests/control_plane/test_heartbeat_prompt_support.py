@@ -84,7 +84,7 @@ def test_heartbeat_envelope_and_body_overflow_are_both_rejected() -> None:
     check = smoke["assert_surface"]
     payload = build_heartbeat_prompt(
         goal_id="interface-budget-goal", thin=True,
-        runtime_profile="codex_app_heartbeat", agent_id="worker-a",
+        runtime_profile="generic_cli", agent_id="worker-a",
         agent_scopes=["implementation", "review"],
     )
     check("heartbeat_prompt_json", payload)
@@ -180,13 +180,13 @@ def test_reward_memory_prompt_headroom_is_fixed_and_feature_scoped(
 ) -> None:
     enabled = build_heartbeat_prompt(
         goal_id="reward-memory-budget-fixture",
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
         **{mode: True},
         reward_memory_enabled=True,
     )
     disabled = build_heartbeat_prompt(
         goal_id="reward-memory-budget-fixture",
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
         **{mode: True},
         reward_memory_enabled=False,
     )
@@ -221,7 +221,7 @@ def test_reward_memory_outcome_gate_survives_app_prompt_compaction(mode: str) ->
         goal_id="reward-memory-app-fixture",
         agent_id="agent-a",
         registered_agents=["agent-a"],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
         **{mode: True},
     )
     body = payload["task_body"]

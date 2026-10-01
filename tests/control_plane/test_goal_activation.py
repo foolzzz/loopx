@@ -455,9 +455,8 @@ def test_stopped_goal_and_zero_compute_keep_distinct_resume_authority() -> None:
     stopped = build_quota_should_run(
         stopped_status,
         goal_id="goal-one",
-        codex_app_current_rrule="FREQ=MINUTELY;INTERVAL=30",
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
     )
 
@@ -468,10 +467,8 @@ def test_stopped_goal_and_zero_compute_keep_distinct_resume_authority() -> None:
     assert stopped["heartbeat_recommendation"]["recommended_mode"] == "goal_stopped"
     assert stopped["automation_liveness"]["automation_action"] == "stop_goal_stopped"
     assert stopped["scheduler_hint"]["reason_code"] == "goal_stopped"
-    assert (
-        stopped["scheduler_hint"]["codex_app"]["resume_trigger"]
-        == "explicit Goal lifecycle resume"
-    )
+    assert stopped["scheduler_hint"]["execution_phase"]["completed"] is True
+    assert "codex_app" not in stopped["scheduler_hint"]
 
     zero_compute = quota_status(
         {"id": "goal-one", "quota": {"compute": 0}},

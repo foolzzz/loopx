@@ -183,7 +183,6 @@ def test_live_interaction_contract_carries_hook_projection(tmp_path: Path) -> No
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         scheduler_execution_context={
@@ -216,7 +215,6 @@ def test_live_packet_exposes_only_bounded_hook_failure_diagnostic(
         agent_id=None,
         available_capabilities=[],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         interaction_projection_hooks=[_hook(raises=True)],

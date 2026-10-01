@@ -97,14 +97,14 @@ const reentry = (fields: JsonObject = {}) => evaluateCapabilityGate({
   gate: project([row("p0", ["network"], [], 0), row("fallback", ["shell"], [], 1)]),
   available: ["shell"], selection_required: true, selected_todo_id: "fallback", receipt_todo_id: null,
   command_prefix: ["loopx", "--format", "json", "quota", "should-run", "--goal-id", "fixture", "--turn-instance-id", "same-turn"],
-  scheduler_args: ["--codex-app"], ...fields,
+  scheduler_args: ["--runtime-profile", "generic_cli"], ...fields,
 }).result as JsonObject | null;
 
 test("an advisory fallback cannot hide the blocked runtime check; bound work cannot switch", () => {
   const plan = reentry()!;
   const candidate = (plan.candidates as JsonObject[])[0]!;
   assert.equal((candidate.verification_target as JsonObject).todo_id, "p0");
-  assert.deepEqual((candidate.command_argv as string[]).slice(-5), ["--available-capability", "shell", "--available-capability", "network", "--codex-app"]);
+  assert.deepEqual((candidate.command_argv as string[]).slice(-6), ["--available-capability", "shell", "--available-capability", "network", "--runtime-profile", "generic_cli"]);
   assert.ok((candidate.command_argv as string[]).includes("same-turn"));
   assert.equal(reentry({selection_required: false}), null);
   assert.equal(reentry({receipt_todo_id: "fallback"}), null);

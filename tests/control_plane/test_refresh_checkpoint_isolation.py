@@ -124,7 +124,7 @@ def test_stdout_recovery_requires_confirmation_to_resume_external_delivery(
              "--no-global-sync", "--suppress-external-sinks"])
     binding = ["--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
                "--todo-id", TODO_ID, "--turn-instance-id", TURN_ID]
-    guard = run([*prefix, "quota", "should-run", "--codex-app", *binding,
+    guard = run([*prefix, "quota", "should-run", "--runtime-profile", "generic_cli", *binding,
                  "--scan-path", str(project)])
     assert guard["decision"] == "run", guard
     _append_blocking_user_gate(project)

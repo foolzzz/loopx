@@ -299,8 +299,8 @@ def main() -> int:
     assert_no_project_specific_prompt_leaks("thin", str(thin_payload["task_body"]))
     for prompt_payload in (payload, default_payload, compact_payload, brief_payload, thin_payload):
         task_body = str(prompt_payload["task_body"])
-        assert "host_action=pause_or_delete_current_heartbeat" in task_body, task_body
-        assert "automation_update" in task_body and "stop" in task_body, task_body
+        assert "Scheduler hint" in task_body or "`scheduler_hint`" in task_body, task_body
+        assert "typed owner/context" in task_body or "typed execution context" in task_body, task_body
         assert (
             "`agent_read_required`" in task_body or "lark_event_inbox" in task_body
         ), task_body
@@ -599,8 +599,6 @@ def main() -> int:
         "Missing NOTIFY action:",
         "user Todo unprojected",
         "Observed capabilities -> `--available-capability`; never user gates",
-        "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend)",
-        "else RRULE once",
         "no-change=surface_only/no spend",
         "unchanged->truthful --vision-unchanged-reason",
         "guard; 2 stalls->replan",
@@ -611,6 +609,7 @@ def main() -> int:
         "Destructive Git/production requires explicit authorization",
     ):
         assert phrase in live_peer_task, phrase
+    assert "Scheduler hint: no spend; obey typed owner/context" in live_peer_task, live_peer_task
     for phrase in (
         "Agent identity and scope",
         "model: peer_v1",
@@ -701,8 +700,7 @@ def main() -> int:
         "Due/peer work is not a user prompt",
         "Missing NOTIFY action:",
         "user Todo unprojected",
-        "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend)",
-        "else RRULE once",
+        "Scheduler hint: no spend; obey typed owner/context",
         "no-change=surface_only/no spend",
         "unchanged->truthful --vision-unchanged-reason",
         "guard; 2 stalls->replan",
@@ -1013,8 +1011,7 @@ def main() -> int:
     assert "loopx heartbeat-prompt" in readme, readme
     assert "quota should-run.scheduler_hint" in readme, readme
     assert "loopx quota spend-slot" in readme, readme
-    assert "Generate a guarded Codex App heartbeat body" in getting_started, getting_started
-    assert "3-minute bootstrap cadence" in getting_started, getting_started
+    assert "Generate the guarded task body for the selected host loop" in getting_started, getting_started
     assert "scheduler_hint" in getting_started, getting_started
     assert "loopx heartbeat-prompt --thin" in getting_started, getting_started
     assert "loopx heartbeat-prompt --compact" in getting_started, getting_started
@@ -1024,18 +1021,11 @@ def main() -> int:
     assert "safe-bypass or self-repair hints" in getting_started, getting_started
     assert "../heartbeat-automation-prompt.md" in getting_started, getting_started
     assert "execution_obligation" in doc, doc
-    assert "Create a heartbeat automation starting at 3 minutes" in doc, doc
+    assert "scheduler owner" in doc, doc
     assert "quota should-run.scheduler_hint" in doc, doc
-    assert "automation_update" in doc, doc
-    assert "scheduler_hint.app_automation.stateful_backoff" in doc, doc
-    assert "scheduler_hint.action=stop_until_explicit_resume" in doc, doc
-    assert "host_action=pause_or_delete_current_heartbeat" in doc, doc
-    assert "apply_needed=true" in doc, doc
-    assert "recommended_rrule" in doc, doc
+    assert "reset_policy" in doc and "unchanged-poll" in doc, doc
     normalized_doc = normalized(doc)
-    assert "Attempt the host update at most once per hint and turn" in normalized_doc, doc
-    assert "do not retry" in normalized_doc, doc
-    assert "no scheduler ACK or failure follow-up" in normalized_doc, doc
+    assert "Host-specific scheduler mutation" in normalized_doc, doc
     assert "must_attempt_work=true" in doc, doc
     assert "not an execution gate" in normalized(doc), doc
     assert "loopx heartbeat-prompt" in doc, doc
@@ -1060,15 +1050,12 @@ def main() -> int:
     assert "public commit, push, and PR creation as autonomous" in normalized(integration_doc), integration_doc
     assert "Two Prompt Layers" in doc, doc
     assert "Visible goal text" in doc, doc
-    assert "heartbeat automation task body" in doc, doc
+    assert "persisted task body" in doc, doc
     assert "LoopX is not an autonomous production controller" in readme, readme
     assert "loopx heartbeat-prompt" in project_skill, project_skill
-    assert "--bootstrap --thin --codex-app" in project_skill, project_skill
-    assert "thin/compact/brief/full execution body" in project_skill, project_skill
     assert "goal_boundary" in project_skill, project_skill
     assert "smoke" in project_skill and "contract" in project_skill, project_skill
     assert "Set Up Recurring Heartbeats" in project_skill, project_skill
-    assert "visible goal text short" in project_skill, project_skill
     assert "refresh-state" in project_skill and "spend" in project_skill, project_skill
     assert "--classification <PUBLIC_SAFE_PROGRESS_CLASSIFICATION>" in project_skill, project_skill
     assert "--delivery-batch-scale <ACTUAL_DELIVERY_BATCH_SCALE>" in project_skill, project_skill
@@ -1078,7 +1065,7 @@ def main() -> int:
     assert "no-progress self-repair guard" in project_skill, project_skill
     assert "2 consecutive stalled turns" in normalized(project_skill), project_skill
     assert "one idempotent receipt on every heartbeat" in normalized(project_skill), project_skill
-    assert "retry with the same turn id" in normalized(project_skill), project_skill
+    assert "same-heartbeat retries" in normalized(project_skill), project_skill
     assert "unchanged monitor-only polls are liveness-preserving no-ops" in normalized(project_skill), project_skill
     assert "Routine public repo publication is a boundary decision" in project_skill, project_skill
     assert "Do not reintroduce a user gate for public-safe publication itself" in project_skill, project_skill
@@ -1090,16 +1077,8 @@ def main() -> int:
     assert "heartbeat_recommendation" in project_skill, project_skill
     assert "execution_obligation" in project_skill, project_skill
     assert "scheduler_hint" in project_skill, project_skill
-    assert "automation_update" in project_skill, project_skill
-    assert "scheduler_hint.app_automation.stateful_backoff" in project_skill, project_skill
-    assert "scheduler_hint.action=stop_until_explicit_resume" in project_skill, project_skill
-    assert "host_action=pause_or_delete_current_heartbeat" in project_skill, project_skill
-    assert "apply_needed=true" in project_skill, project_skill
-    assert "recommended_rrule" in project_skill, project_skill
     normalized_project_skill = normalized(project_skill)
-    assert "Attempt the host update at most once per hint and turn" in normalized_project_skill, project_skill
-    assert "do not retry" in normalized_project_skill, project_skill
-    assert "no scheduler ACK or failure follow-up" in normalized_project_skill, project_skill
+    assert "Host-specific scheduler mutation" in normalized_project_skill, project_skill
     assert "must_attempt_work=true" in project_skill, project_skill
     assert "not an execution gate" in normalized(project_skill), project_skill
     assert "mapped_noop_if_unchanged" in project_skill, project_skill
@@ -1746,8 +1725,8 @@ def main() -> int:
         capture_output=True,
         text=True,
     ).stdout
-    assert "# Heartbeat Automation Prompt" in cli_markdown, cli_markdown
-    assert "Copy this thin task body into a Codex App heartbeat automation." in cli_markdown, cli_markdown
+    assert "# Heartbeat Host Prompt" in cli_markdown, cli_markdown
+    assert "Use this thin task body in the configured host loop." in cli_markdown, cli_markdown
     assert str(ACTIVE_STATE) in cli_markdown, cli_markdown
     print("heartbeat-prompt-smoke ok")
     return 0

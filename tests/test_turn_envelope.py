@@ -163,17 +163,16 @@ def _full_decision() -> dict[str, object]:
             "action": "run_now",
             "cadence_class": "active_work",
             "spend_policy": "spend after validated writeback",
-            "codex_app": {
-                "apply": "update_automation_cadence_if_possible",
-                "host_action": "update_current_heartbeat_rrule",
-                "recommended_rrule": "FREQ=MINUTELY;INTERVAL=3",
-                "no_spend_for_cadence_change": True,
-                "stateful_backoff": {
-                    "reset_token": "reset-1",
-                    "current_rrule": "FREQ=MINUTELY;INTERVAL=60",
-                    "apply_needed": True,
-                    "state_policy": "ephemeral_no_app_scheduler_state",
-                },
+            "execution_context": {
+                "host_surface": "generic_cli",
+                "scheduler_owner": "agent_cli_loop",
+                "execution_mode": "interactive",
+                "valid": True,
+            },
+            "execution_phase": {
+                "disposition": "context_only",
+                "apply_needed": False,
+                "completed": True,
             },
         },
         "work_lane_contract": {
@@ -380,9 +379,7 @@ def test_turn_envelope_derives_canonical_slots_through_effect_turn() -> None:
     assert envelope["execution_policy"]["normal_delivery_allowed"] is True
     assert envelope["execution_policy"]["safe_bypass_allowed"] is False
     assert envelope["writeback"]["spend_after_validation"] is True
-    assert (
-        envelope["scheduler"]["codex_app"]["stateful_backoff"]["apply_needed"] is True
-    )
+    assert envelope["scheduler"]["execution_phase"]["completed"] is True
     assert (
         envelope["contract_capsule"]["work_lane_contract"]["lane"] == "advancement_task"
     )
@@ -540,17 +537,17 @@ def test_three_long_child_briefs_stay_within_turn_envelope_budget() -> None:
     assert envelope["compaction"]["within_budget"] is True
 
 
-def test_turn_envelope_full_decision_preserves_codex_app_profile() -> None:
+def test_turn_envelope_full_decision_preserves_generic_cli_profile() -> None:
     envelope = build_turn_envelope(
         _full_decision(),
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
     )
 
     assert envelope["detail_ref"]["full_decision"] == (
         "loopx --format json quota should-run --goal-id fixture-goal "
-        "--agent-id codex-fixture --codex-app"
+        "--agent-id codex-fixture --runtime-profile generic_cli"
     )
 
 
@@ -798,7 +795,7 @@ def test_signed_host_action_preserves_a_long_complete_command(
     command = (
         "loopx quota should-run --registry /"
         + "project/" * path_segments
-        + " --codex-app"
+        + " --runtime-profile generic_cli"
     )
     assert len(command) > 1_200
     source["interaction_contract"]["agent_channel"]["primary_action"] = command
@@ -1026,21 +1023,6 @@ def test_contract_capsule_stays_bounded_with_replan_and_vision_contracts() -> No
     assert envelope["contract_capsule"]["vision_continuation_audit"]["required"] is True
     assert envelope["compaction"]["within_budget"] is True
     assert envelope["compaction"]["envelope_json_bytes"] < TURN_ENVELOPE_BUDGET_BYTES
-
-
-def test_turn_envelope_retains_configured_cadence_floor_and_host_boundary() -> None:
-    source = _full_decision()
-    app = source["scheduler_hint"]["codex_app"]
-    policy = {"min_interval_minutes": 1440, "configuration_revision": 3,
-              "enforcement": "scheduler_recommendation"}
-    guarantee = {"pre_model_atomic_admission": "not_qualified",
-                 "model_wakeup_tokens_prevented": False}
-    app["execution_interval_policy"] = policy
-    app["guarantee"] = guarantee
-    envelope = build_turn_envelope(source)
-    projected = envelope["scheduler"]["codex_app"]
-    assert projected["execution_interval_policy"] == policy
-    assert projected["guarantee"] == guarantee
 
 
 def test_turn_envelope_carries_the_role_v1_acceptance_context() -> None:

@@ -200,7 +200,6 @@ def test_repeated_live_quota_planning_never_reads_operation_inventory(
         "agent_id": "coordinator",
         "available_capabilities": ["shell", "subagent_spawn"],
         "include_scheduler_detail": False,
-        "codex_app_current_rrule": None,
         "registry_path": registry,
         "runtime_root": runtime,
         "scheduler_execution_context": {

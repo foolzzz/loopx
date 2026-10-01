@@ -165,7 +165,6 @@ def test_live_quota_decision_maps_to_effect_turn(tmp_path: Path) -> None:
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         scheduler_execution_context={
@@ -259,7 +258,6 @@ def test_managed_turn_projects_prior_unsettled_heartbeat_recovery(
         agent_id=agent_id,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=runtime_root,
         turn_start_hook_dispatch=_turn_start_dispatch(required=reads),
@@ -338,7 +336,6 @@ def test_settled_turn_defers_prior_turn_recovery_to_a_fresh_turn(
         agent_id="codex-fixture",
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=registry_path,
         runtime_root=runtime_root,
         route_source="loopx_turn_plan",
@@ -464,7 +461,6 @@ def test_managed_turn_accepts_exact_material_monitor_poll_closeout(
         agent_id=agent_id,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=registry_path,
         runtime_root=runtime_root,
         route_source="loopx_turn_plan",
@@ -560,7 +556,6 @@ def test_recovery_reads_lifecycle_when_status_summary_omits_bound_todo(
         agent_id=agent_id,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=registry_path,
         runtime_root=runtime_root,
         route_source="loopx_turn_plan",
@@ -607,7 +602,6 @@ def test_turn_start_read_is_required_before_ordinary_work(tmp_path: Path) -> Non
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
     )
@@ -617,7 +611,6 @@ def test_turn_start_read_is_required_before_ordinary_work(tmp_path: Path) -> Non
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         turn_start_hook_dispatch=_turn_start_dispatch(
@@ -674,7 +667,6 @@ def test_fresh_turn_start_read_notifies_without_preempting_selected_work(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
     )
@@ -684,7 +676,6 @@ def test_fresh_turn_start_read_notifies_without_preempting_selected_work(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         operator_inbox_urgency_projector=_material_review_urgency,
@@ -716,7 +707,6 @@ def test_unsettled_inbox_material_preempts_on_following_turn(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         operator_inbox_urgency_projector=_material_review_urgency,
@@ -745,7 +735,6 @@ def test_fresh_direct_reply_still_preempts_selected_work(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         operator_inbox_urgency_projector=(
@@ -776,7 +765,6 @@ def test_fresh_read_does_not_hide_older_unsettled_material(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         operator_inbox_urgency_projector=(
@@ -831,7 +819,6 @@ def test_non_inbox_hook_observations_do_not_mask_unsettled_inbox_material(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         operator_inbox_urgency_projector=(
@@ -874,7 +861,6 @@ def test_turn_start_read_is_not_projected_for_empty_or_failed_dispatch(
             agent_id=None,
             available_capabilities=["shell"],
             include_scheduler_detail=False,
-            codex_app_current_rrule=None,
             registry_path=tmp_path / "registry.json",
             runtime_root=tmp_path / "runtime",
             turn_start_hook_dispatch=dispatch,
@@ -895,7 +881,6 @@ def test_duplicate_required_inbox_routes_project_one_public_safe_read(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         turn_start_hook_dispatch=dispatch,
@@ -993,7 +978,6 @@ def test_prior_closeout_identity_conflict_fails_closed(
             agent_id=agent_id,
             available_capabilities=["shell"],
             include_scheduler_detail=False,
-            codex_app_current_rrule=None,
             registry_path=registry_path,
             runtime_root=runtime_root,
             route_source="loopx_turn_plan",
@@ -1028,7 +1012,7 @@ def test_current_quota_outputs_retire_packet_without_losing_signed_actions(
     )
     payload = build_live_quota_should_run_decision(
         status, goal_id=GOAL_ID, agent_id=None, available_capabilities=["shell"],
-        include_scheduler_detail=False, codex_app_current_rrule=None,
+        include_scheduler_detail=False,
         registry_path=tmp_path / "registry.json", runtime_root=tmp_path / "runtime",
         turn_start_hook_dispatch=_turn_start_dispatch(required=required_reads),
     )
@@ -1076,7 +1060,7 @@ def test_packet_retirement_preserves_reads_and_independent_capability_command(tm
     payload = build_live_quota_should_run_decision(
         _ordinary_status_payload(), goal_id=GOAL_ID, agent_id=None,
         available_capabilities=["shell"], include_scheduler_detail=False,
-        codex_app_current_rrule=None, registry_path=tmp_path / "registry.json",
+        registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime", interaction_projection_hooks=[hook],
         turn_start_hook_dispatch=_turn_start_dispatch(),
     )
@@ -1127,7 +1111,6 @@ def test_retained_selection_reentry_stays_packet_free_and_signed(
         agent_id=None,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         retained_action_selection_todo_id="todo_retained_explicit",
@@ -1247,7 +1230,6 @@ def test_retained_selection_reentry_refreshes_provider_todos_before_replan(
         agent_id=agent_id,
         available_capabilities=["shell"],
         include_scheduler_detail=False,
-        codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json",
         runtime_root=tmp_path / "runtime",
         retained_action_selection_todo_id=selected_todo_id,

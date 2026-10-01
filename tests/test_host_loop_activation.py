@@ -195,7 +195,6 @@ def test_first_class_hosts_bind_one_runtime_profile(
     (
         ("ark_managed_agent_goal", True),
         ("codex_cli", True),
-        ("codex_app_heartbeat", False),
         ("claude_code", False),
     ),
 )
@@ -414,7 +413,7 @@ def test_goal_hosts_reuse_thin_dispatch_and_stay_compact() -> None:
     }
     generic = build_heartbeat_prompt(
         **common,
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
     goal_hosts = [
         build_heartbeat_prompt(**common, runtime_profile="codex_cli"),
@@ -584,15 +583,15 @@ def test_explicit_identity_preserves_existing_agent_continuation() -> None:
     assert packet["identity_selection_gate"] is None
 
 
-def test_codex_app_thin_prompt_embeds_profile_only_in_quota_command() -> None:
+def test_generic_cli_thin_prompt_embeds_profile_only_in_quota_command() -> None:
     prompt = build_heartbeat_prompt(
         goal_id="fixture-goal",
         thin=True,
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
 
-    assert "--codex-app" in prompt["quota_guard_command"]
-    assert "--codex-app" in prompt["task_body"]
+    assert "--runtime-profile generic_cli" in prompt["quota_guard_command"]
+    assert "--runtime-profile generic_cli" in prompt["task_body"]
     assert "host_surface" not in prompt["task_body"]
     assert "scheduler_owner" not in prompt["task_body"]
     assert (

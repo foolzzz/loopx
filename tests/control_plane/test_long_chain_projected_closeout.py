@@ -45,7 +45,7 @@ def test_managed_turn_counts_advancement_without_monitor_backlog(
     # free of a long-chain duty introduced solely by independent monitors.
     for _ in range(2):
         rc, result = _run_cli(
-            registry, runtime, "quota", "should-run", "--codex-app",
+            registry, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
             "--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
             "--turn-instance-id", TURN_ID, "--scan-path", str(project), cwd=project,
         )
@@ -86,7 +86,7 @@ def test_projected_vision_replan_settles_without_a_meta_successor(tmp_path: Path
         return result
 
     def guard(turn):
-        return call("quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+        return call("quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
                     "--agent-id", AGENT_ID, "--turn-instance-id", turn,
                     "--scan-path", str(project))
 
