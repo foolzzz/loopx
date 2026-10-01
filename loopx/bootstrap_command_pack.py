@@ -624,7 +624,14 @@ def build_loopx_bootstrap_command_pack(
         if activation_allowed
         else None
     )
-    goal_start_quota_should_run = quota_guard_command
+    host_turn_identity_contract = (
+        turn_identity.host_turn_identity_materialization_contract(
+            quota_guard_command
+        )
+    )
+    executable_quota_guard_command = (
+        None if host_turn_identity_contract else quota_guard_command
+    )
     command_prefix = render_cli_command_prefix(
         cli_bin=cli_bin,
         runtime_root=command_runtime_root,
@@ -756,10 +763,11 @@ def build_loopx_bootstrap_command_pack(
             fine_grained=fine_grained,
             cli_command_prefix=command_prefix,
         ),
+        "host_turn_identity_contract": host_turn_identity_contract,
         "commands": {
             "doctor": f"{command_prefix} doctor",
             "status": status_command,
-            "quota_guard": quota_guard_command,
+            "quota_guard": executable_quota_guard_command,
             "heartbeat_prompt": heartbeat_prompt_command,
             "heartbeat_prompt_json": heartbeat_prompt_json_command,
             "bootstrap_dry_run_preview": bootstrap_preview_command,
@@ -804,7 +812,7 @@ def build_loopx_bootstrap_command_pack(
                 )
                 + render_available_capability_args(available_capabilities)
             ),
-            "goal_start_quota_should_run": goal_start_quota_should_run,
+            "goal_start_quota_should_run": executable_quota_guard_command,
             "identity_selection_choices": (
                 identity_selection_gate.get("choices")
                 if isinstance(identity_selection_gate, dict)
@@ -1050,16 +1058,12 @@ def _build_multi_goal_start_selection_packet(
             "compatibility_message": "#/message",
         },
     )
-    host_turn = turn_identity.host_turn_guided_projection(
-        commands.get("goal_start_quota_should_run")
-    )
     guided_transaction = {
         "schema_version": GUIDED_START_SCHEMA_VERSION,
         "mode": "dry_run_preview",
         "writes_now": False,
         "spends_quota_now": False,
         "command_cwd_source": "#/project",
-        **host_turn["transaction_fields"],
         "goal_text": normalized_goal_text,
         "blocked_by": "goal_selection",
         "goal_selection_gate": goal_selection_gate,
@@ -1304,12 +1308,21 @@ def build_start_goal_guided_packet(
         and not isinstance(identity_selection_gate, dict)
         else None
     )
+    host_turn_contract = command_pack.get("host_turn_identity_contract")
+    host_turn_contract = (
+        host_turn_contract if isinstance(host_turn_contract, dict) else {}
+    )
+    host_turn = turn_identity.host_turn_guided_projection(
+        host_turn_contract.get("command_template")
+        or commands.get("goal_start_quota_should_run")
+    )
     guided_transaction = {
         "schema_version": GUIDED_START_SCHEMA_VERSION,
         "mode": "dry_run_preview",
         "writes_now": False,
         "spends_quota_now": False,
         "command_cwd_source": "#/project",
+        **host_turn["transaction_fields"],
         **(
             {
                 "checkpoint_policy": {
@@ -1790,7 +1803,10 @@ Rerun `{payload.get("canonical_cli_command")} --agent-id <registered-agent-id>`
 with the selected identity before continuing."""
     elif goal_text:
         quota_guard_instructions = (
-            turn_identity.render_quota_guard_materialization_markdown(
+            turn_identity.render_host_turn_identity_materialization_markdown(
+                payload.get("host_turn_identity_contract")
+            )
+            or turn_identity.render_quota_guard_materialization_markdown(
                 commands.get("goal_start_quota_should_run")
             )
         )

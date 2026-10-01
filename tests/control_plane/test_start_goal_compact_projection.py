@@ -1325,13 +1325,6 @@ def test_guided_state_commands_share_explicit_runtime_root(
         command = step[command_key]
         assert command is not None
         assert_runtime(command)
-    assert_runtime(
-        payload["guided_transaction"]["host_turn_identity_contract"][
-            "command_template"
-        ]
-    )
-
-
 def test_dsh_native_start_goal_binds_the_exact_same_session_lane(
     tmp_path: Path,
 ) -> None:

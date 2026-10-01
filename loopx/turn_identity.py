@@ -75,7 +75,11 @@ def host_turn_quota_guard_step(
         "id": "quota_guard",
         "kind": "host_materialized_guard" if contract else "guard",
         **(
-            {"materialization_contract_ref": "#/host_turn_identity_contract"}
+            {
+                "materialization_contract_ref": (
+                    "#/guided_transaction/host_turn_identity_contract"
+                )
+            }
             if contract
             else {"command": str(command or "")}
         ),
