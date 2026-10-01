@@ -107,8 +107,8 @@ loopx new-project-prompt \
    active state/todo，必须同时加 `--preserve-todos`。
 
 3. 确认 `.loopx/registry.json` 和 goal 记录的 `state_file` 已创建或更新。项目状态
-   默认位于 `.loopx/goals/<STABLE_GOAL_ID>/ACTIVE_GOAL_STATE.md`；项目根目录和
-   runtime 根目录重合时位于
+   默认位于 `.loopx/goals/<STABLE_GOAL_ID>/ACTIVE_GOAL_STATE.md`；当
+   `<project>/.loopx/goals` 与 `<runtime-root>/goals` 解析为同一个物理路径时位于
    `.loopx/project-goals/<STABLE_GOAL_ID>/ACTIVE_GOAL_STATE.md`。以 registry 的
    `state_file` 为准，不要自行拼接路径。
    接入输出里不再有 onboarding 扫描、候选 todo 或自主推进选择项；首连之后状态里
@@ -201,7 +201,8 @@ loopx new-project-prompt \
    ```
 
    已连接的 goal 不要传 `--active-state`；命令会读取 registry 的 `state_file`，
-   包括项目根目录和 runtime 根目录重合时使用的 `.loopx/project-goals/` 路径。
+   包括 `<project>/.loopx/goals` 与 `<runtime-root>/goals` 解析为同一个物理路径时
+   使用的 `.loopx/project-goals/` 路径。
 
 7. 生成一个 read-only project map 或 first pre-tick run。不要启动线上任务、
    不同步外部系统、不要写生产状态，除非目标文档明确授权。通用接入优先跑：

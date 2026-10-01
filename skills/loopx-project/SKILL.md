@@ -16,8 +16,9 @@ LoopX has two layers:
 
 - **Project-local state**: each repo owns `.loopx/registry.json` and the goal's
   recorded `state_file`: `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md` by
-  default, or `.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md` when project
-  and runtime roots overlap.
+  default, or `.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md` when
+  `<project>/.loopx/goals` and `<runtime-root>/goals` resolve to the same
+  physical path.
 - **Shared local control plane**: `~/.loopx` (or `LOOPX_RUNTIME_ROOT` when
   set) stores run history and `registry.global.json` for multi-project status.
 
@@ -558,8 +559,9 @@ never freeze a turn id in the saved bootstrap.
 Keep project-specific behavior out of the automation prompt. Encode local
 differences in the project registry and its authoritative `state_file`
 (`.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md` by default, or
-`.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md` when project and runtime
-roots overlap), adapter output, or narrow public/private boundary rules. If a lifecycle rule is
+`.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md` when
+`<project>/.loopx/goals` and `<runtime-root>/goals` resolve to the same physical
+path), adapter output, or narrow public/private boundary rules. If a lifecycle rule is
 useful across projects, update `loopx heartbeat-prompt` and its smoke
 contract rather than hand-editing one heartbeat automation.
 For delivery-specific boundaries, prefer the registry fields surfaced in
@@ -760,10 +762,10 @@ shared `.loopx/registry.json`, but use one active state per goal:
 .loopx/goals/<validation-goal-id>/ACTIVE_GOAL_STATE.md
 ```
 
-Those are the default paths. When project and runtime roots overlap, use the
-corresponding `.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md` paths. In
-all cases, use each registry goal's recorded `state_file` instead of
-reconstructing the path.
+Those are the default paths. When `<project>/.loopx/goals` and
+`<runtime-root>/goals` resolve to the same physical path, use the corresponding
+`.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md` paths. In all cases, use
+each registry goal's recorded `state_file` instead of reconstructing the path.
 
 Do not reuse one `state_file` for two goal ids. `loopx registry` treats
 that as a health error, and `read-only-map` checks the selected goal's own

@@ -25,6 +25,10 @@ PROJECT_STATE_GUIDES = (
     "skills/loopx-project/SKILL.md",
     "skills/loopx-doc-registry/SKILL.md",
 )
+PRECISE_STATE_PATH_COLLISION_MARKERS = (
+    "`<project>/.loopx/goals` and `<runtime-root>/goals` resolve to the same physical path",
+    "`<project>/.loopx/goals` 与 `<runtime-root>/goals` 解析为同一个物理路径",
+)
 GOAL_ID = "new-project-main-control"
 PROJECT = Path("/tmp/public-example-project")
 GOAL_DOC = Path("/tmp/public-example-project/GOAL.md")
@@ -138,8 +142,7 @@ def assert_project_state_path_guidance() -> None:
         assert ".loopx/project-goals/" in normalized, relative_path
         assert "`state_file`" in normalized, relative_path
         assert any(
-            marker in normalized
-            for marker in ("roots overlap", "roots are collocated", "根目录重合")
+            marker in normalized for marker in PRECISE_STATE_PATH_COLLISION_MARKERS
         ), relative_path
 
 
