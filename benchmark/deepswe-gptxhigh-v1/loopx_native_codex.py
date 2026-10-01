@@ -69,6 +69,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any, Literal, TypedDict
 
 from goal_codex import GoalCodex, _CODEX_EXEC_MARKER, _REMOTE_DIR
 
@@ -84,10 +85,26 @@ _LOOPX_ROOT = os.path.expanduser(
 _GOAL_ID = "deepswe-task"
 _AGENT_ID = "deepswe-codex"
 _PROJECT = "/app"
-_RUNTIME_PROFILES = {
-    "ssh-goal": "codex_cli",
-    "codex-cli": "codex_cli",
-    "heartbeat": "outer_controller",
+
+
+class _TreatmentMetadata(TypedDict):
+    runtime_profile: Literal["codex_cli", "outer_controller"]
+    execution_host: Literal["codex-app-server", "codex-cli"]
+
+
+_TREATMENT_METADATA: dict[str, _TreatmentMetadata] = {
+    "ssh-goal": {
+        "runtime_profile": "codex_cli",
+        "execution_host": "codex-app-server",
+    },
+    "codex-cli": {
+        "runtime_profile": "codex_cli",
+        "execution_host": "codex-cli",
+    },
+    "heartbeat": {
+        "runtime_profile": "outer_controller",
+        "execution_host": "codex-cli",
+    },
 }
 # Deliberately not GoalCodex's objective.txt: that file is written after this
 # runs, so sharing the name would let the Goal arm's hand-written objective
@@ -107,14 +124,18 @@ _SUPPORT_SOURCES = (
 )
 
 
-def build_host_profile(loopx_root: str = _LOOPX_ROOT,
-                       profile_root: str = _PROFILE_ROOT) -> dict:
+def build_host_profile(
+    experiment_arm: str,
+    loopx_root: str = _LOOPX_ROOT,
+    profile_root: str = _PROFILE_ROOT,
+) -> dict[str, Any]:
     """Install the formal release snapshot once, on the host.
 
     Reuses an existing profile: the installer refuses a non-empty target on
     purpose, because mixing installation revisions would invalidate the
     treatment, and re-installing per task would repeat that work 54 times.
     """
+    metadata = _TREATMENT_METADATA[experiment_arm]
     sys.path.insert(0, loopx_root)
     from loopx.capabilities.benchmark_toolkit.native_codex_profile import (
         compact_native_codex_profile_receipt,
@@ -127,7 +148,13 @@ def build_host_profile(loopx_root: str = _LOOPX_ROOT,
         profile = inspect_native_codex_profile(target, source_root=loopx_root)
     else:
         profile = install_native_codex_profile(loopx_root, target)
-    return compact_native_codex_profile_receipt(profile)
+    receipt = compact_native_codex_profile_receipt(
+        profile,
+        experiment_arm=experiment_arm,
+        runtime_profile=metadata["runtime_profile"],
+        execution_host=metadata["execution_host"],
+    )
+    return receipt
 
 
 class LoopxNativeCodex(GoalCodex):
@@ -146,9 +173,9 @@ class LoopxNativeCodex(GoalCodex):
         if _CODEX_EXEC_MARKER not in str(command):
             return await super().exec_as_agent(environment, command, env=env, **kwargs)
 
-        profile_receipt = build_host_profile()
         mode = self.loopx_mode
-        runtime_profile = _RUNTIME_PROFILES[mode]
+        profile_receipt = build_host_profile(mode)
+        runtime_profile = _TREATMENT_METADATA[mode]["runtime_profile"]
         # GoalCodex owns the common Pier setup and command interception, but the
         # three treatments must not share one execution surface. ssh-goal uses
         # native app-server Goal attachment, codex-cli uses LoopX's built-in
