@@ -94,7 +94,6 @@ SPEND_MUST_HAVE = (
 HEARTBEAT_PROMPT_MUST_HAVE = (
     "如果要给这个项目设置宿主循环（如 Codex CLI `/goal`）",
     "loopx heartbeat-prompt",
-    "--active-state .loopx/goals/",
     "再把输出交给宿主循环",
 )
 HANDOFF_MUST_HAVE = (
@@ -211,7 +210,7 @@ def main() -> int:
     assert "不要默认或拔高成 `multi_surface` / `outcome_progress`" in prompt, prompt
     assert_quota_guard(payload["prompt"])
     generated_heartbeat_step = prompt.split(
-        "7. 如果要给这个项目设置 recurring Codex App heartbeat", 1
+        "7. 如果要给这个项目设置宿主循环（如 Codex CLI `/goal`）", 1
     )[1].split("8. 生成一个 read-only project map", 1)[0]
     generated_heartbeat_command = generated_heartbeat_step.split("```bash", 1)[
         1
@@ -220,7 +219,7 @@ def main() -> int:
     doc = DOC.read_text(encoding="utf-8")
     assert_quota_guard(doc)
     doc_heartbeat_step = doc.split(
-        "6. 如果要给这个项目设置 recurring Codex App heartbeat", 1
+        "6. 如果要给这个项目设置宿主循环（如 Codex CLI `/goal`）", 1
     )[1].split("7. 生成一个 read-only project map", 1)[0]
     doc_heartbeat_command = doc_heartbeat_step.split("```bash", 1)[1].split(
         "```", 1
