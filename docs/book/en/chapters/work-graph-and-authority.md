@@ -128,7 +128,7 @@ or perform a special override. Delegating one lifecycle mutation to a peer does 
 global leader.
 
 LoopX live multi-agent work uses an **equal peer** model. An Agent id is a work identity, not proof of a
-Host surface or organizational hierarchy. A `codex-*` name alone cannot prove Codex App or Codex CLI is
+Host surface or organizational hierarchy. A `codex-*` name alone cannot prove which local or remote Host is
 currently running the work.
 
 ## A Gate is scoped authority

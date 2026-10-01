@@ -138,7 +138,7 @@ action on the following turn.
 | **Evidence** | Proves an outcome, blocker, or external effect state | artifact refs, validation/readback, rollout/rollback events |
 | **Transition** | Validates and commits one legal state change | Todo/Goal write APIs, settlement, scheduler ACK |
 | **Projection** | Compiles facts into views for an Agent, Host, or person | quota/status, Workspace, review packet |
-| **Runtime** | Interprets the turn decision and executes a bounded effect | Codex App/CLI, heartbeat, extension provider |
+| **Runtime** | Interprets the turn decision and executes a bounded effect | Codex CLI, Host scheduler, extension provider |
 
 These components are not one JSON document that a Runtime may overwrite. The Runtime executes effects;
 authoritative-state and transition owners decide whether facts actually changed.
@@ -460,8 +460,8 @@ Three invariants must hold:
 2. no spend when durable writeback is missing or rejected;
 3. no claim that the Host changed without an ACK or failure receipt for scheduler apply.
 
-This generic Turn-journal receipt is separate from App cadence projection. App automation has no
-scheduler ACK/failure follow-up command and persists no per-App scheduler state; it relies on the direct
+This generic Turn-journal receipt is separate from Host cadence projection. A cadence adapter has no
+scheduler ACK/failure follow-up command and persists no per-Host scheduler state; it relies on the direct
 Host update result or authoritative readback for each stateless proposal.
 
 A failure does not erase the transaction. Failure kinds such as `receipt_missing`, `identity_mismatch`,
@@ -514,8 +514,8 @@ flowchart TD
   Keep --> NextTick
 ```
 
-Each App poll projects the current profile's initial interval and compares it with the observed Host
-RRULE. App automation does not persist a progression index, apply ACK, or failure receipt; the next wake
+Each scheduler poll projects the current profile's initial interval and compares it with the observed Host
+RRULE. A cadence adapter does not persist a progression index, apply ACK, or failure receipt; the next wake
 recomputes the projection from canonical state. Local schedulers may still use bounded unchanged-poll
 backoff. A schedule change does not spend quota and cannot turn a paused or blocked Goal into an eligible
 one.

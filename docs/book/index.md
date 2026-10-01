@@ -17,7 +17,7 @@
 
 -   :material-source-repository: **项目接入**
 
-    把接入任务交给 Agent，验收 Goal、identity 与 Git 边界，再从 Codex App 或 Codex CLI 启动。
+    把接入任务交给 Agent，验收 Goal、identity 与 Git 边界，再从可见的 Codex CLI 启动。
 
     [:octicons-arrow-right-24: 接入现有项目](chapters/05-connect-existing-project.md)
 

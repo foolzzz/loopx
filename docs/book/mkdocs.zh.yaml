@@ -76,7 +76,7 @@ nav:
       - 6. 恢复、自修复与运行边界: chapters/04-runtime-boundaries.md
   - 第二部分：接入现有项目:
       - 7. 连接你的 Git 项目: chapters/05-connect-existing-project.md
-      - 8. 从 Codex App 启动: chapters/06-codex-app.md
+      - 8. Codex App 入口退役与迁移: chapters/06-codex-app.md
       - 9. 从 Codex CLI 启动: chapters/07-codex-cli.md
   - 第三部分：开发者贡献:
       - 10. 开发者贡献地图与协议入口: chapters/source-protocol-map.md

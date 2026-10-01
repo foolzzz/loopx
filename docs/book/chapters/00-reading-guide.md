@@ -117,7 +117,7 @@ lifecycle 选择，不是所有贡献的默认终点。
 - 安装与升级；
 - Host 启动方式；
 - `start-goal` guided packet；
-- Codex App heartbeat、Codex CLI visible Goal 和其他可选 Host；
+- Codex CLI visible Goal 和其他受支持 Host；
 - TypeScript Effect runtime readiness；
 - Extension manifest 与生命周期命令。
 

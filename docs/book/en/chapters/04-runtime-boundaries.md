@@ -18,7 +18,7 @@ After this chapter, you should be able to:
 
 ## Recover action conditions, not old thoughts
 
-Assume Codex CLI closes after local tests pass and Codex App takes over the next day. The new session does
+Assume Codex CLI closes after local tests pass and another supported Host takes over the next day. The new session does
 not need a verbatim transcript. It does need to reconstruct:
 
 - Goal, acceptance, and current per-Agent Vision;

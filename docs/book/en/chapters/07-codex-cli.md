@@ -84,8 +84,8 @@ loopx quota should-run \
   --runtime-profile codex_cli
 ```
 
-The Host runtime should identify `codex_cli`, with scheduling owned by the Goal or agent loop rather than a
-Codex App heartbeat. If the packet reports missing scheduler context, fix the runtime profile instead of
+The Host runtime should identify `codex_cli`, with scheduling owned by the Goal or agent loop rather than
+retired local App automation. If the packet reports missing scheduler context, fix the runtime profile instead of
 ignoring the warning.
 
 ## 5. Preserve identity and Todo ownership
@@ -131,9 +131,9 @@ returning to the visible TUI, and do not let two executors modify the same workt
 After the unchanged limit, block or wait quietly. External observation belongs in a monitor Todo. Resume
 through the Host Goal surface instead of repeatedly resending the full objective.
 
-### App and CLI are both active
+### Multiple Hosts are active
 
-Inspect claim, lease, and scheduler ownership. Both Hosts may read the same Goal, but an effectful Todo can
+Inspect claim, lease, and scheduler ownership. Supported Hosts may read the same Goal, but an effectful Todo can
 have only one legal executor.
 
 ## After project onboarding
@@ -141,7 +141,7 @@ have only one legal executor.
 At this point you can, without modifying LoopX core:
 
 - give an existing Git project a recoverable Goal, Todo, Gate, and evidence lifecycle;
-- start the same project state from Codex App or the visible Codex CLI TUI;
+- start project state from the visible Codex CLI TUI and let other supported Hosts reuse the same source of truth;
 - preserve authority, identity, and workspace boundaries while changing Hosts;
 - verify continuation through status, history, and quota.
 

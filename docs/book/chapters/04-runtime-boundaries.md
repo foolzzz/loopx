@@ -17,7 +17,7 @@
 
 ## 恢复的是行动条件，不是旧思维过程
 
-假设 Codex CLI 在本地测试通过后关闭，第二天由 Codex App 接手。新 session 不需要逐字获得旧
+假设 Codex CLI 在本地测试通过后关闭，第二天由另一个受支持 Host 接手。新 session 不需要逐字获得旧
 transcript，但至少需要重建：
 
 - Goal、acceptance 与当前 per-Agent Vision；

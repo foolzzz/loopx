@@ -48,7 +48,7 @@ LoopX coordinates Goals, Agents, and Hosts, but each identity answers a differen
 | --- | --- | --- |
 | `goal_id` | Which long-running project boundary are we advancing? | Binds registry state, Todos, Gates, and evidence lineage; reuse requires the exact existing id |
 | `agent_id` | Which peer or work lane owns the current responsibility? | Binds claims, Vision, quota, and writeback; new onboarding defaults to a fresh identity only when no registered lane exists or `--new-peer` is explicit |
-| `host_surface` / runtime profile | Which product surface executes and wakes this turn? | Binds App heartbeat, a visible Goal, or another Host loop; declare the surface that is actually running |
+| `host_surface` / runtime profile | Which product surface executes and wakes this turn? | Binds a visible Goal or another supported Host loop; declare the surface that is actually running |
 
 Reusing a Goal does not imply that a new session should take over an existing Agent identity. The current
 Goal-start contract keeps those choices explicit:
@@ -211,13 +211,12 @@ The Host still owns the actual scheduler. LoopX emits the scheduling contract.
 
 ### 5. Cross-agent, cross-Host recovery
 
-The canonical state belongs to the project. Codex App, Codex CLI, and other supported Hosts can read the
+The canonical state belongs to the project. Codex CLI and other supported Hosts can read the
 same Goal boundary:
 
 ```text
-Codex App heartbeat ─┐
-Codex CLI Goal ──────┼──> LoopX project state ──> current turn packet
-Other Host hook ─────┘
+Codex CLI Goal ────────┐
+Other supported Host ──┴──> LoopX project state ──> current turn packet
 ```
 
 Recovery uses events, lineage, projections, a fresh environment read, and replanning instead of requiring
@@ -233,7 +232,6 @@ defines these main paths:
 
 | Host surface | Driver | Key limit |
 | --- | --- | --- |
-| Codex App | `$loopx <task>` plus App heartbeat | Cadence needs RRULE apply/readback/ACK |
 | Codex CLI TUI | Generated bootstrap plus visible `/goal` | Stays visible and interruptible |
 | Claude Code | `/loopx` plus opt-in native `/loop` adapter | Uses the same quota and writeback |
 | OpenCode 1/2 | `/loopx` plus an opt-in Goal bridge or persistent worker | The bridge or worker preserves Host visibility and stop semantics |
@@ -244,7 +242,7 @@ defines these main paths:
 
 Catalog presence does not mean every Host exposes the same automation API. When `host_surface` is omitted,
 LoopX defaults to the visible Codex CLI TUI. Pass an exact surface for every other Host; do not mistake an
-App SSH workspace or ordinary shell for another Host's scheduler. Use the Runtime Connector Catalog and the
+ordinary shell for another Host's scheduler. Use the Runtime Connector Catalog and the
 corresponding Host documentation for complete startup, stop, and validation details; the Dev Book does
 not duplicate every adapter runbook.
 

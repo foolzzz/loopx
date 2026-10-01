@@ -124,7 +124,7 @@ Claim 回答谁计划执行；lifecycle authority 回答谁有权 complete、sup
 特殊 override。显式委托某个 peer 完成 lifecycle mutation，不会把它升级为全局 leader。
 
 LoopX 的 live multi-agent 模型是 **equal peer**。Agent id 是工作身份，不是 Host 证明，也不是
-组织层级。`codex-*` 命名不能单独证明任务运行在 Codex App 还是 CLI。
+组织层级。`codex-*` 命名不能单独证明任务运行在哪个本地或远端 Host。
 
 ## Gate 是 scoped authority
 

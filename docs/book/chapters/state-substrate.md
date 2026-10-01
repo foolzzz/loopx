@@ -29,7 +29,7 @@ Session / thread
 └── one temporary executor context
 ```
 
-一个 Goal 可以先后由 Codex App、Codex CLI 或其他 Host 推进；一个 session 也可能读取多个 Goal。
+一个 Goal 可以先后由 Codex CLI 或其他受支持 Host 推进；一个 session 也可能读取多个 Goal。
 读取 Goal 不会自动授予写权限，结束 session 也不会使 Goal 消失。
 
 ### 精确复用 Goal，不靠文本猜测

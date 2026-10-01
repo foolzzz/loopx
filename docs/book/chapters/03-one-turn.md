@@ -324,7 +324,7 @@ live decision
   -> one spend
 ```
 
-Codex App heartbeat、Codex CLI visible Goal 或其他 Host 不必都用同一种 adapter 实现，但应保持同一
+Codex CLI visible Goal 或其他受支持 Host 不必都用同一种 adapter 实现，但应保持同一
 控制语义：Host 负责执行与唤醒，LoopX decision 负责合法下一步，validator 不直接相信 Host 的
 完成声明。
 
@@ -384,7 +384,7 @@ Host 即使在正确时间唤醒，也必须重新运行 current decision。旧 
 
 ### Scheduler 需要 apply 与 readback
 
-以 Codex App heartbeat 为例，`recommended_rrule` 只是目标 cadence。完整收敛链是：
+对支持 cadence 控制的 Host，`recommended_rrule` 只是目标 cadence。完整收敛链是：
 
 ```text
 LoopX proposes recommended_rrule
@@ -399,7 +399,7 @@ LoopX proposes recommended_rrule
 - `host_observation.status=drift_detected`：实际 cadence 与 proposal 不一致，按当前 hint 更新一次；
 - terminal pause/stop：按 Host contract 验证停止结果。
 
-LoopX 不再持久化 App scheduler state，也不接受 ACK/failure follow-up。每轮根据当前 profile 与
+LoopX 不持久化 Host scheduler state，也不接受 ACK/failure follow-up。每轮根据当前 profile 与
 decision 重新推导 target，调用方提供的 Host RRULE 用于避免重复 update。Cadence 变化属于控制面
 housekeeping，不产生 delivery quota spend。
 
