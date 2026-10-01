@@ -1,5 +1,7 @@
 """Public writer regressions; fixtures never touch an installed Goal."""
 from pathlib import Path
+from datetime import datetime, timezone
+import json
 
 import pytest
 
@@ -75,22 +77,29 @@ def test_monitor_effect_replay_and_generation_are_locked_public_writer_semantics
     assert readback["todos"][0]["material_change_generation"] == 1
 
 
-@pytest.mark.parametrize("value", [
-    "1970-01-01", "19700101", "1970-W01-4", "1970W014", "1970-W01", "1970W01",
-    "19700101T00", "1970-01-01X0000", "1970-01-01 00:00:00", "1970-01-01T00:00z",
-    "2030-01-01T12:34:56.123456+08:00", "20300101T123456,123456+0800",
-    "1970-01-01T01:00:00+00:59:59.999999", "1970-01-01T00.1",
-    "1970-02-30", "2021-W53", "1970-01-01T24:00:00", "1970-01-01T01:00+24:00",
-    "1970-01-01T00:0000", "1970-01-01T0000:00", "tomorrow", "2030",
-])
-def test_monitor_timestamp_input_matches_retained_python_iso_codec(value):
+_TIMESTAMP_VECTORS = json.loads(
+    (Path(__file__).parents[1] / "fixtures/control_plane/timestamp_codec_v0.json").read_text()
+)
+
+
+@pytest.mark.parametrize("vector", _TIMESTAMP_VECTORS, ids=lambda vector: vector["value"])
+def test_monitor_timestamp_input_matches_explicit_codec(vector):
+    value = vector["value"]
+    expected = vector["epoch_micros"]
+    parsed = parse_timestamp(value)
+    if expected is None:
+        assert parsed is None
+    else:
+        assert parsed is not None
+        delta = parsed - datetime(1970, 1, 1, tzinfo=timezone.utc)
+        assert (delta.days * 86400 + delta.seconds) * 1000000 + delta.microseconds == int(expected)
     request = {
         "schema_version": "loopx_todo_monitor_metadata_request_v0",
         "role": "agent", "task_class": "continuous_monitor", "enforce_boundedness": True,
         "metadata": {"expires_at": value},
     }
-    # The pre-migration stdlib codec is an independent input-compatibility oracle.
-    if parse_timestamp(value) is None:
+    # Both runtimes are checked against explicit protocol expectations.
+    if expected is None:
         with pytest.raises(EffectRuntimeRejected, match="timestamp"):
             effect_runtime_result("todo.monitor_metadata.plan", request)
     else:
@@ -104,7 +113,7 @@ def test_public_writer_rejects_timezone_letter_as_date_separator(tmp_path, date,
     registry, _, state = _write_fixture(tmp_path)
     todo = _add_monitor(registry, text="Observe public fixture", target_key="fixture")
     value = f"{date}{separator}00:00"
-    assert parse_timestamp(value) is None  # Independent legacy input contract.
+    assert parse_timestamp(value) is None
     before = state.read_bytes()
     with pytest.raises(ValueError, match="expires-at must be an ISO timestamp"):
         update_goal_todo(registry_path=registry, goal_id=GOAL_ID, todo_id=todo["todo_id"],
@@ -122,3 +131,17 @@ def test_public_writer_keeps_terminal_timezone_letter(tmp_path, suffix):
                      role="agent", agent_id=AGENT_ID, monitor_metadata={"expires_at": value})
     readback = list_goal_todos(registry_path=registry, goal_id=GOAL_ID, role="agent")
     assert readback["todos"][0]["expires_at"] == value
+
+
+def test_public_writer_preserves_reduced_fraction_and_rejects_end_of_day(tmp_path):
+    registry, _, state = _write_fixture(tmp_path)
+    todo = _add_monitor(registry, text="Observe public fixture", target_key="fixture")
+    update_goal_todo(registry_path=registry, goal_id=GOAL_ID, todo_id=todo["todo_id"],
+                     role="agent", agent_id=AGENT_ID, monitor_metadata={"expires_at": "1970-01-01T00.1"})
+    readback = list_goal_todos(registry_path=registry, goal_id=GOAL_ID, role="agent")
+    assert readback["todos"][0]["expires_at"] == "1970-01-01T00.1"
+    before = state.read_bytes()
+    with pytest.raises(ValueError, match="expires-at must be an ISO timestamp"):
+        update_goal_todo(registry_path=registry, goal_id=GOAL_ID, todo_id=todo["todo_id"],
+                         role="agent", agent_id=AGENT_ID, monitor_metadata={"expires_at": "1970-01-01T24:00:00"})
+    assert state.read_bytes() == before
