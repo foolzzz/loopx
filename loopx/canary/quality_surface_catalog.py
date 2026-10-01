@@ -226,6 +226,7 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
         "canary_profile_id": "agent-facing-cli-output-budget",
         "owner_paths": [
             "loopx/bootstrap_command_pack.py",
+            "loopx/bootstrap_packet_summary.py",
             "loopx/control_plane/testing/cli_output_budget.py",
             "loopx/control_plane/quota/turn_envelope.py",
         ],
