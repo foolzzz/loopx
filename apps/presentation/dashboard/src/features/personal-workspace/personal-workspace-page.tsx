@@ -447,7 +447,6 @@ function defaultTimeline(model: WorkspaceModel, selectedGoalId: string | null, t
       label: todo.text,
       schedule: todo.evidence ?? t("schedule.summary"),
       scheduleId: todo.todoId,
-      scheduleKind: "monitor",
       sessionId: monitorRun?.run.sessionId,
       status: todo.done || todo.status === "paused" ? "paused" : "active",
       stopCondition: t("drawer.scheduleDefaultStop"),
@@ -456,29 +455,6 @@ function defaultTimeline(model: WorkspaceModel, selectedGoalId: string | null, t
     },
     });
   });
-  const heartbeatProposal = model.timeline?.find((item): item is Extract<WorkspaceTimelineItem, { kind: "proposal" }> =>
-    item.kind === "proposal" && item.proposal.actionKind === "heartbeat.bind" && item.proposal.goalId === goal.goalId);
-  if (heartbeatProposal) {
-    const field = (key: string) => heartbeatProposal.proposal.fields.find((item) => item.key === key)?.value;
-    items.push({
-      id: `schedule:${goal.goalId}:heartbeat`,
-      kind: "schedule",
-      schedule: {
-        agentId: goal.agentId,
-        executionHistory: [],
-        goalId: goal.goalId,
-        label: `${t("schedule.heartbeat")} · ${goal.title}`,
-        nextRunAt: t("drawer.schedulePending"),
-        notificationRule: t("drawer.scheduleDefaultNotification"),
-        schedule: field("cadence") ?? t("schedule.summary"),
-        scheduleId: `${goal.goalId}:heartbeat`,
-        scheduleKind: "heartbeat",
-        status: heartbeatProposal.proposal.status === "applied" ? "active" : "draft",
-        stopCondition: field("stop_condition") ?? t("drawer.scheduleDefaultStop"),
-        timezone: field("timezone") ?? "Asia/Shanghai",
-      },
-    });
-  }
   return items;
 }
 
@@ -496,7 +472,6 @@ function proposalFields(parameters: Record<string, unknown>, t: WorkspaceTransla
     completion_criteria: t("proposal.field.completionCriteria"),
     execution_boundary: t("proposal.field.executionBoundary"),
     goal_id: t("proposal.field.goalId"),
-    heartbeat: t("proposal.field.heartbeat"),
     initial_todos: t("proposal.field.initialTodos"),
     objective: t("proposal.field.objective"),
     operation: t("proposal.field.operation"),
@@ -508,7 +483,7 @@ function proposalFields(parameters: Record<string, unknown>, t: WorkspaceTransla
     title: t("proposal.field.title"),
     workspace_ref: t("proposal.field.workspace"),
   };
-  const priority = ["title", "objective", "completion_criteria", "execution_boundary", "permission", "agent_id", "workspace_ref", "initial_todos", "heartbeat", "stop_condition", "goal_id"];
+  const priority = ["title", "objective", "completion_criteria", "execution_boundary", "permission", "agent_id", "workspace_ref", "initial_todos", "stop_condition", "goal_id"];
   return Object.entries(parameters)
     .sort(([left], [right]) => {
       const leftIndex = priority.indexOf(left);
@@ -634,9 +609,7 @@ function workspaceProposal(proposal: TypedActionProposal, t: WorkspaceTranslate)
     })
     : proposal.action_kind === "goal.create"
     ? t("proposal.summary.goalCreate", { title })
-    : proposal.action_kind === "heartbeat.bind"
-      ? t("proposal.summary.heartbeat")
-      : proposal.action_kind === "monitor.create"
+    : proposal.action_kind === "monitor.create"
         ? t("proposal.summary.monitor", { target })
         : proposal.action_kind === "goal.lifecycle" && lifecycleOperation === "stop"
           ? t("proposal.summary.lifecycleStop", { title })
@@ -992,32 +965,10 @@ export function PersonalWorkspacePage({
   const settingsOpen = selection?.kind === "settings";
   const managerProjectionId = selectedGoalId;
   const items = useMemo(() => {
-    const heartbeatSchedules: WorkspaceTimelineItem[] = Object.values(proposals)
-      .filter((proposal) => proposal.actionKind === "heartbeat.bind" && proposal.goalId && proposal.status === "applied")
-      .map((proposal) => ({
-        id: `schedule:${proposal.goalId}:heartbeat`,
-        kind: "schedule" as const,
-        schedule: {
-          agentId: selectedAgentId,
-          executionHistory: [],
-          goalId: proposal.goalId!,
-          label: proposal.title,
-          nextRunAt: t("drawer.schedulePending"),
-          notificationRule: t("drawer.scheduleDefaultNotification"),
-          schedule: proposal.fields.find((field) => field.key === "cadence")?.value ?? t("schedule.summary"),
-          scheduleId: `${proposal.goalId}:heartbeat`,
-          scheduleKind: "heartbeat" as const,
-          status: proposal.status === "applied" ? "active" as const : "draft" as const,
-          stopCondition: proposal.fields.find((field) => field.key === "stop_condition")?.value ?? t("drawer.scheduleDefaultStop"),
-          timezone: proposal.fields.find((field) => field.key === "timezone")?.value ?? "Asia/Shanghai",
-        },
-      }));
     const merged: WorkspaceTimelineItem[] = [
       ...defaultTimeline(model, managerProjectionId, t),
       ...(model.timeline ?? []),
-      ...heartbeatSchedules,
       ...dedupeProposals(Object.values(proposals))
-        .filter((proposal) => proposal.actionKind !== "heartbeat.bind" || proposal.status !== "applied")
         .map((proposal) => ({ id: `proposal:${proposal.previewId}`, kind: "proposal" as const, proposal })),
     ];
     const projected = [...new Map(merged.map((item) => [item.id, item])).values()]
@@ -1347,22 +1298,18 @@ export function PersonalWorkspacePage({
     }
   }
 
-  function prepareScheduleDraft(kind: "heartbeat" | "monitor", goalId: string | null) {
+  function prepareScheduleDraft(goalId: string | null) {
     if (!goalId) {
-      setComposer(kind === "heartbeat"
-        ? t("composer.heartbeatTemplateWithoutGoal")
-        : t("composer.monitorTemplateWithoutGoal"));
+      setComposer(t("composer.monitorTemplateWithoutGoal"));
     } else {
-      setComposer(kind === "heartbeat"
-        ? t("composer.heartbeatTemplate")
-        : t("composer.monitorTemplate"));
+      setComposer(t("composer.monitorTemplate"));
     }
     setSelection(null);
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
-  async function requestSchedule(kind: "heartbeat" | "monitor", goalId: string | null, intent = "") {
-    const delegated = await callbacks.onRequestScheduleConfig?.(kind, goalId);
+  async function requestSchedule(goalId: string | null, intent = "") {
+    const delegated = await callbacks.onRequestScheduleConfig?.(goalId);
     if (delegated) {
       setSessionProposalIds((current) => current.includes(delegated.previewId) ? current : [...current, delegated.previewId]);
       setProposals((current) => ({ ...current, [delegated.previewId]: delegated }));
@@ -1370,21 +1317,15 @@ export function PersonalWorkspacePage({
       return;
     }
     if (!goalId) {
-      setComposer(kind === "heartbeat" ? t("composer.heartbeatGoalQuestion") : t("composer.monitorGoalQuestion"));
+      setComposer(t("composer.monitorGoalQuestion"));
       return;
     }
     const timestamp = Date.now().toString(36);
     await createPreview({
-      actionKind: kind === "heartbeat" ? "heartbeat.bind" : "monitor.create",
+      actionKind: "monitor.create",
       context: { kind: "schedule", goal_id: goalId },
-      idempotencyKey: `workspace-${kind}-${goalId}-${timestamp}`,
-      normalizedParameters: kind === "heartbeat" ? {
-        agent_id: selectedAgentId,
-        cadence: cadenceFromMessage(intent),
-        goal_id: goalId,
-        stop_condition: stopConditionFromMessage(intent),
-        timezone: "Asia/Shanghai",
-      } : {
+      idempotencyKey: `workspace-monitor-${goalId}-${timestamp}`,
+      normalizedParameters: {
         agent_id: selectedAgentId,
         cadence: cadenceFromMessage(intent),
         goal_id: goalId,
@@ -1393,9 +1334,7 @@ export function PersonalWorkspacePage({
         target_key: `goal-${goalId}`,
         timezone: "Asia/Shanghai",
       },
-      summary: kind === "heartbeat"
-        ? t("proposal.summary.heartbeat")
-        : t("proposal.summary.monitor", { target: monitorTargetFromMessage(intent, t) }),
+      summary: t("proposal.summary.monitor", { target: monitorTargetFromMessage(intent, t) }),
     });
   }
 
@@ -1650,26 +1589,25 @@ export function PersonalWorkspacePage({
       });
     },
     onPreviewAction: createPreview,
-    onRequestScheduleConfig: (kind, goalId) => prepareScheduleDraft(kind, goalId),
+    onRequestScheduleConfig: (goalId) => prepareScheduleDraft(goalId),
     onOpenNotificationSettings: (goalId) => openSettings({ goalId, kind: "settings", tab: "lark" }),
     onFetchNotificationTargets: () => fetchGoalChannelTargets(),
     onSetupGoalChannel: (options) => setupGoalChannel(options),
     onToggleGoalAutoNotify: (options) => configureGoalChannelAutoNotify(options),
     onUpdateSchedule: async (schedule, operation) => {
       const timestamp = Date.now().toString(36);
-      const heartbeat = schedule.scheduleKind === "heartbeat";
       await createPreview({
-        actionKind: heartbeat ? "heartbeat.bind" : "monitor.update",
+        actionKind: "monitor.update",
         context: { kind: "schedule", goal_id: schedule.goalId },
         idempotencyKey: `workspace-monitor-${schedule.scheduleId}-${operation}-${timestamp}`,
         normalizedParameters: {
           agent_id: schedule.agentId ?? selectedAgentId,
-          ...(!heartbeat && operation === "run_now" ? { endpoint_id: selectedAgentId } : {}),
-          ...(operation === "edit" ? { cadence: "2h", ...(heartbeat ? { timezone: schedule.timezone ?? "Asia/Shanghai" } : {}) } : {}),
+          ...(operation === "run_now" ? { endpoint_id: selectedAgentId } : {}),
+          ...(operation === "edit" ? { cadence: "2h" } : {}),
           goal_id: schedule.goalId,
           operation,
-          ...(!heartbeat && operation === "run_now" && schedule.sessionId ? { session_id: schedule.sessionId } : {}),
-          ...(!heartbeat ? { todo_id: schedule.scheduleId } : {}),
+          ...(operation === "run_now" && schedule.sessionId ? { session_id: schedule.sessionId } : {}),
+          todo_id: schedule.scheduleId,
         },
         summary: operation === "pause" ? `暂停自动运行：${schedule.label}`
           : operation === "resume" ? `恢复自动运行：${schedule.label}`
@@ -1763,11 +1701,6 @@ export function PersonalWorkspacePage({
             completion_criteria: intent.completionCriteria,
             execution_boundary: intent.executionBoundary,
             goal_id: goalId,
-            heartbeat: {
-              cadence: cadenceFromMessage(message),
-              enabled: intentRoute.normalizedParameters.heartbeat_enabled === true,
-              timezone: "Asia/Shanghai",
-            },
             initial_todos: intent.initialTodos,
             objective: intent.objective,
             permission: intent.permission,
@@ -1779,10 +1712,6 @@ export function PersonalWorkspacePage({
         });
         return;
       }
-      if (selectedGoalId && intentRoute.actionKind === "heartbeat.bind") {
-        await requestSchedule("heartbeat", selectedGoalId, message);
-        return;
-      }
       if (selectedGoalId && intentRoute.actionKind === "monitor.create") {
         const scheduleError = unsupportedCalendarScheduleReason(message, t);
         if (scheduleError) {
@@ -1790,7 +1719,7 @@ export function PersonalWorkspacePage({
           setActionFeedback(scheduleError);
           return;
         }
-        await requestSchedule("monitor", selectedGoalId, message);
+        await requestSchedule(selectedGoalId, message);
         return;
       }
       const requestedAgent = mentionedAgent(message, agents);
@@ -1967,7 +1896,7 @@ export function PersonalWorkspacePage({
       drawer={drawerSelection ? <ContextDrawer agents={agents} attentionHistory={model.attentionHistory ?? model.userTodos} onSelectAttention={(item) => setSelection({ kind: "attention", item })} callbacks={effectiveDrawerCallbacks} goalNotifications={model.goalNotifications ?? []} goals={workspaceGoals} inspectorExpanded={taskInspectorExpanded} larkConnections={readOnly ? [] : larkConnections} onClose={() => {
         if (drawerSelection.kind === "proposal"
           && ["applied", "rejected"].includes(drawerSelection.item.status)
-          && !(drawerSelection.item.status === "applied" && ["heartbeat.bind", "team.plan"].includes(drawerSelection.item.actionKind))) {
+          && !(drawerSelection.item.status === "applied" && drawerSelection.item.actionKind === "team.plan")) {
           setProposals((current) => {
             const next = { ...current };
             delete next[drawerSelection.item.previewId];

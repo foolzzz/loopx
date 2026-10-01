@@ -12,7 +12,11 @@ from .agent_registry import agent_profile_for_goal, registered_agent_ids_for_goa
 from .bootstrap import bootstrap_project
 from .chat import apply_todo_review_preview, build_todo_review_preview
 from .chat_action_normalization import ChatActionNormalizationMixin
-from .chat_action_store import ActionConflictError, ChatActionStore
+from .chat_action_store import (
+    ACTION_KINDS,
+    ActionConflictError,
+    ChatActionStore,
+)
 from .chat_gate_actions import ChatGateActionMixin
 from .chat_goal_lifecycle_actions import ChatGoalLifecycleActionMixin
 from .chat_monitor_actions import ChatMonitorActionMixin
@@ -27,7 +31,6 @@ from .control_plane.goals.configure_goal_service import (
 from .control_plane.runtime.time import now_utc, parse_timestamp
 from .control_plane.scheduler.monitor_todo import monitor_next_due_at
 from .history import load_registry
-from .host_loop_activation import build_host_loop_activation_packet
 from .kiro_cli_goal_mode import KIRO_CLI_CHAT_AGENT_ID
 from .quota import build_quota_should_run
 from .registry import registry_goals
@@ -35,21 +38,6 @@ from .todos import add_goal_todo, update_goal_todo
 
 
 CHAT_ACTION_RESPONSE_SCHEMA_VERSION = "loopx_chat_action_response_v1"
-SUPPORTED_ACTION_KINDS = {
-    "todo.create",
-    "todo.update",
-    "run.correct",
-    "goal.create",
-    "goal.update",
-    "goal.lifecycle",
-    "agent.bind",
-    "heartbeat.bind",
-    "monitor.create",
-    "monitor.update",
-    "gate.resolve",
-    "operation.execute",
-    "team.plan",
-}
 _OPAQUE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 # Runtime Endpoint ids and durable Goal agent ids are chosen independently, so
 # a family token collapses both onto the host that produced them: Endpoint
@@ -594,11 +582,6 @@ class ChatActionService(
         self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any]
     ) -> dict[str, Any]:
         current_fingerprint = self._registry_fingerprint()
-        heartbeat = (
-            parameters.get("heartbeat")
-            if isinstance(parameters.get("heartbeat"), dict)
-            else {}
-        )
         goal_id = str(parameters["goal_id"])
         existing_goal = next(
             (
@@ -826,24 +809,6 @@ class ChatActionService(
                 step="first_turn_gated",
                 receipt={"outcome": "first_turn_gated", "gate": first_turn_gate},
             )
-        child_gate: dict[str, Any] | None = first_turn_gate
-        if heartbeat.get("enabled") is True:
-            heartbeat_parameters = {
-                "goal_id": goal_id,
-                "agent_id": agent_id or "codex",
-                "operation": "bind",
-                "cadence": str(heartbeat.get("cadence") or "1d"),
-                "timezone": str(heartbeat.get("timezone") or "UTC"),
-                "stop_condition": str(
-                    parameters.get("stop_condition") or "goal_complete"
-                ),
-            }
-            child_gate = self._heartbeat_gate(heartbeat_parameters).gate
-            self.store.save_checkpoint(
-                proposal_id,
-                step="heartbeat_gate_ready",
-                receipt={"outcome": "heartbeat_gate_ready", "gate": child_gate},
-            )
         receipt = {
             "receipt_id": _digest({"proposal_id": proposal_id, "goal_id": goal_id})[
                 :32
@@ -857,7 +822,7 @@ class ChatActionService(
                 **({"session_id": session_id} if session_id else {}),
                 **({"turn_id": turn_result["turn_id"]} if turn_result else {}),
             },
-            **({"child_gate": child_gate} if child_gate else {}),
+            **({"child_gate": first_turn_gate} if first_turn_gate else {}),
             "step_receipts": (
                 (self.store.load(proposal_id) or {}).get("checkpoint") or {}
             ).get("steps", {}),
@@ -867,7 +832,7 @@ class ChatActionService(
             current_state_fingerprint=str(proposal["expected_state_fingerprint"]),
             receipt=receipt,
         )
-        return {"proposal": stored, "turn": turn_result, "gate": child_gate}
+        return {"proposal": stored, "turn": turn_result, "gate": first_turn_gate}
 
     def _apply_agent_bind(
         self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any]
@@ -912,49 +877,6 @@ class ChatActionService(
             receipt=receipt,
         )
         return {"proposal": stored, "turn": None}
-
-    def _heartbeat_gate(self, parameters: dict[str, Any]) -> ProtectedActionGate:
-        goal_id = str(parameters["goal_id"])
-        agent_id = str(parameters["agent_id"])
-        registered = registered_agent_ids_for_goal(self._goal(goal_id))
-        if agent_id not in registered:
-            raise ValueError("heartbeat Agent must be registered for the Goal")
-        packet = build_host_loop_activation_packet(
-            agent_type="codex-app",
-            goal_id=goal_id,
-            agent_id=agent_id,
-            registered_agents=registered,
-        )
-        operation = str(parameters.get("operation") or "bind")
-        gate_receipt = _digest(
-            {
-                "goal_id": goal_id,
-                "agent_id": agent_id,
-                "operation": operation,
-                "packet": packet,
-            }
-        )[:32]
-        return ProtectedActionGate(
-            "heartbeat.bind",
-            gate={
-                "kind": "host_activation_required",
-                "summary": "The Codex App host owns heartbeat automation creation.",
-                "next_action": "Use automation_update with the canonical activation packet, then verify the installed automation before retrying.",
-                "operation": operation,
-                "gate_receipt": gate_receipt,
-                "desired_configuration": {
-                    key: parameters[key]
-                    for key in (
-                        "cadence",
-                        "timezone",
-                        "stop_condition",
-                        "notification_policy",
-                    )
-                    if parameters.get(key) is not None
-                },
-                "activation_packet": packet,
-            },
-        )
 
     def _apply_monitor_create(
         self, proposal_id: str, proposal: dict[str, Any], parameters: dict[str, Any]
@@ -1124,7 +1046,7 @@ class ChatActionService(
         if unknown:
             raise ValueError(f"unknown typed action field: {sorted(unknown)[0]}")
         action_kind = str(request.get("action_kind") or "").strip()
-        if action_kind not in SUPPORTED_ACTION_KINDS:
+        if action_kind not in ACTION_KINDS:
             raise ValueError(f"unsupported action_kind: {action_kind or '<empty>'}")
         parameters = request.get("normalized_parameters")
         context = request.get("context")
@@ -1372,8 +1294,6 @@ class ChatActionService(
             return self._apply_goal_lifecycle(proposal_id, proposal, parameters)
         if action_kind == "agent.bind":
             return self._apply_agent_bind(proposal_id, proposal, parameters)
-        if action_kind == "heartbeat.bind":
-            raise self._heartbeat_gate(parameters)
         if action_kind == "monitor.create":
             return self._apply_monitor_create(proposal_id, proposal, parameters)
         if action_kind == "team.plan":

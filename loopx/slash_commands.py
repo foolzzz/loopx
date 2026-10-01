@@ -67,8 +67,6 @@ def build_slash_command_catalog(
                 "host_loop_activation_required_after_todo_writeback": True,
                 "host_loop_activation_catalog": f"{cli_bin} agent-onboard --list-agent-types",
                 "host_loop_activation_by_agent_type": {
-                    "codex-app": "create/update Codex App heartbeat automation from heartbeat-prompt task_body",
-                    "trae_app": "create/update Trae App heartbeat automation from heartbeat-prompt task_body",
                     "codex-cli": "set visible Codex CLI TUI `/goal <task_body>`",
                     "claude-code": "arm LoopX with `/loopx <task>`, then run native `/loop`",
                     "opencode": "call `loopx_goal_activate`",

@@ -179,9 +179,9 @@ def test_codex_install_upgrades_managed_loopx_facade(tmp_path: Path) -> None:
 
     skill_text = skill.read_text(encoding="utf-8")
     assert "Treat this as the LoopX `/loopx` explicit LoopX command skill." in skill_text
-    assert "--host-surface <exact-current-host>" in skill_text
-    assert "Identify the exact current host surface" in skill_text
-    assert "ark-managed-agent" in skill_text
+    assert "--host-surface codex-cli-tui" in skill_text
+    assert "--host-surface <exact-current-host>" not in skill_text
+    assert "exact current host `codex-cli-tui`" in skill_text
     assert "`ordered_steps` and `goal_start_contract` as authoritative" in skill_text
     assert "use `codex-ide` for the IDE" not in skill_text
     assert "surface the exact pasteable gate" in skill_text
@@ -211,6 +211,34 @@ def test_codex_install_upgrades_managed_loopx_facade(tmp_path: Path) -> None:
         and item.get("command") == "/loopx"
     )
     assert "$loopx" in fallback
+
+
+def test_codex_app_ssh_install_binds_skill_to_ssh_host(tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex"
+
+    payload = install_slash_commands(
+        execute=True,
+        surfaces=["codex-app-ssh"],
+        codex_home=str(codex_home),
+    )
+
+    skill, _ = _loopx_paths(codex_home)
+    skill_text = skill.read_text(encoding="utf-8")
+    assert "exact current host `codex-app-ssh`" in skill_text
+    assert "--host-surface codex-app-ssh" in skill_text
+    assert "--host-surface codex-cli-tui" not in skill_text
+    assert _row(payload, "codex_explicit_skills")["host_surfaces"] == [
+        "codex-app-ssh"
+    ]
+
+
+def test_codex_install_rejects_two_hosts_for_one_skill_directory(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="install exactly one Codex host surface"):
+        install_slash_commands(
+            execute=False,
+            surfaces=["codex-cli", "codex-app-ssh"],
+            codex_home=str(tmp_path / "codex"),
+        )
 
 
 def test_codex_install_preserves_user_owned_loopx_facade(tmp_path: Path) -> None:
@@ -917,6 +945,39 @@ def test_gemini_surface_writes_skill_files_gemini_cli_can_discover(tmp_path: Pat
     row = _row(payload, "gemini_cli_skills")
     assert row["surface"] == "gemini"
     assert row["host_surfaces"] == ["gemini-cli"]
+
+
+@pytest.mark.parametrize(
+    ("surface", "home_argument", "skill_relative", "host_surface"),
+    [
+        ("claude-code", "claude_home", "skills/loopx/SKILL.md", "claude-code"),
+        ("gemini", "gemini_home", "skills/loopx/SKILL.md", "gemini-cli"),
+        ("agy", "agy_home", "skills/loopx.md", "agy"),
+        ("kiro-cli", "kiro_home", "skills/loopx/SKILL.md", "kiro-cli"),
+        ("cursor", "cursor_home", "skills/loopx/SKILL.md", "cursor-agent"),
+        ("zcode", "zcode_home", "skills/loopx/SKILL.md", "zcode"),
+        ("opencode", "opencode_home", "skills/loopx/SKILL.md", "opencode"),
+    ],
+)
+def test_installed_loopx_skill_binds_its_exact_host_surface(
+    tmp_path: Path,
+    surface: str,
+    home_argument: str,
+    skill_relative: str,
+    host_surface: str,
+) -> None:
+    host_home = tmp_path / surface
+    install_slash_commands(
+        execute=True,
+        surfaces=[surface],
+        **{home_argument: str(host_home)},
+    )
+
+    body = (host_home / skill_relative).read_text(encoding="utf-8")
+    assert f"exact current host `{host_surface}`" in body
+    assert f"--host-surface {host_surface}" in body
+    if host_surface != "codex-cli-tui":
+        assert "--host-surface codex-cli-tui" not in body
 
 
 def test_gemini_uninstall_keeps_user_files(tmp_path: Path) -> None:

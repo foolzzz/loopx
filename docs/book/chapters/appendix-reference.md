@@ -81,17 +81,11 @@ loopx start-goal --guided --project . \
   --goal-id <goal-id> \
   --agent-id <agent-id> \
   --goal-text "<goal text>" \
-  --host-surface codex-app
-
-loopx start-goal --guided --project . \
-  --goal-id <goal-id> \
-  --agent-id <agent-id> \
-  --goal-text "<goal text>" \
   --host-surface codex-cli-tui
 ```
 
-初次运行可以先省略 `--goal-id`、`--agent-id` 或 `--host-surface`，分别获得只读 Goal、fresh Agent
-identity 或 Host selection gate。选择后使用 packet 给出的精确命令重跑；不要根据相似文本或唯一
+初次运行可以先省略 `--goal-id` 或 `--agent-id`，分别获得只读 Goal 或 fresh Agent identity
+selection gate。省略 `--host-surface` 时默认使用 Codex CLI TUI；其他 Host 必须显式传入。选择后使用 packet 给出的精确命令重跑；不要根据相似文本或唯一
 已有 Agent 猜测。新 identity 的推荐注册路径使用 `register-agent --goal-id <goal-id>
 --agent-id <new-agent-id>` preview，再以 `--execute` 原子写入；已有 identity 只用于用户明确授权
 的 takeover。

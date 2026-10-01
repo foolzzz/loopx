@@ -431,7 +431,6 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
     actionTransitions: [],
     gateThreads: new Map(),
     gateReplies: [],
-    allowNextHeartbeatApply: false,
     nextLifecycleApplyDelayMs: 0,
     nextLifecyclePreviewDelayMs: 0,
     nextActionPreviewDelayMs: 0,
@@ -1463,7 +1462,7 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
         },
         ...(state.goalSubagentConfigurationEnabled ? { goal_subagent_configuration: "preview_locked" } : {}),
         goal_id: null, streaming: true, resume: true, interrupt: true, typed_actions: true,
-        action_kinds: ["goal.create", "goal.lifecycle", "agent.bind", "heartbeat.bind", "monitor.create", "run.correct"],
+        action_kinds: ["goal.create", "goal.lifecycle", "agent.bind", "monitor.create", "run.correct"],
         adapters: [
           { agent_id: "codex", display_name: "Codex", adapter_kind: "codex_app_server", available: true, streaming: true, resume: true, interrupt: true },
           { agent_id: "claude-code", display_name: "Claude Code", adapter_kind: "claude_code_cli", available: true, streaming: true, resume: true, interrupt: true },
@@ -1750,11 +1749,6 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
     const apply = url.pathname.match(/^\/api\/actions\/(.+)\/apply$/);
     if (apply) {
       state.actionApplies.push(apply[1]);
-      if (actionKinds.get(apply[1]) === "heartbeat.bind" && !state.allowNextHeartbeatApply) {
-        await route.fulfill({ contentType: "application/json", json: { ok: false, schema_version: "loopx_chat_action_gate_v1", error: "Host activation required", error_code: "protected_action", gate: { kind: "host_activation_required", summary: "需要 Codex App 宿主创建 Heartbeat 自动化。", next_action: "确认宿主自动化后重新验证。" }, write_attempted: false }, status: 409 });
-        return;
-      }
-      if (actionKinds.get(apply[1]) === "heartbeat.bind") state.allowNextHeartbeatApply = false;
       const actionKind = actionKinds.get(apply[1]) ?? "goal.create";
       const preview = state.actionPreviews.find((item) => item.proposalId === apply[1]);
       const lifecycleDelayMs = actionKind === "goal.lifecycle" ? state.nextLifecycleApplyDelayMs : 0;

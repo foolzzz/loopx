@@ -287,7 +287,7 @@ describe('thread binding V0 decoding', () => {
   it('fails closed on schema, echo, relation, status, and exit mismatches', () => {
     const mutations: Array<(payload: Record<string, unknown>) => void> = [
       payload => { payload.schema_version = 'old' },
-      payload => { payload.host_surface = 'codex-app' },
+      payload => { payload.host_surface = 'codex-cli-tui' },
       payload => { payload.thread_id = 'another-session' },
       payload => { payload.goal_id = 'another-goal' },
       payload => { payload.status = 'unbound' },

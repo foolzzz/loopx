@@ -251,7 +251,12 @@ def test_goal_text_invocation_plans_ranked_todos_before_activation() -> None:
         assert isinstance(commands, dict)
         plan_prompt = str(commands["goal_start_plan_prompt"])
         assert "returned `ordered_steps` + `goal_start_contract` are authoritative" in plan_prompt
-        assert "stable unbound host gets a fresh public-safe agent" in plan_prompt
+        assert "existing lanes requires exact lane selection" in plan_prompt
+        assert (
+            "fresh public-safe agent registration is allowed only with no registered lane "
+            "or explicit `--new-peer`"
+            in plan_prompt
+        )
         assert "`loopx agent-onboard --list-agent-types`" in plan_prompt
         assert "only `selected_capability_route`" in plan_prompt
         assert "`capability show`" in plan_prompt
@@ -349,16 +354,18 @@ def test_start_goal_guided_previews_transaction_without_mutation() -> None:
             "--goal-text",
             "Connect this repo and start an auto research lane",
         )
-        selection = run_json(*start_args)
-        selection_summary = assert_packet_summary_refs(
-            selection,
-            packet_kind="guided_start_host_surface_selection",
+        default_payload = run_json(*start_args)
+        default_summary = assert_packet_summary_refs(
+            default_payload,
+            packet_kind="guided_start_goal",
+            compact_projection_default=True,
         )
-        assert selection_summary["next_step_kind"] == "select_host_surface"
-        assert selection["guided_transaction"]["blocked_by"] == "host_surface_selection"
-        assert selection["safety_contract"]["writes_registry"] is False
+        assert default_summary["next_step_kind"] == "goal_plan_write_and_activate"
+        assert default_payload["host_surface"] == "codex-cli-tui"
+        assert default_payload["command_pack"]["host_surface"] == "codex-cli-tui"
+        assert default_payload["safety_contract"]["writes_registry"] is False
 
-        payload = run_json(*start_args, "--host-surface", "codex-app")
+        payload = run_json(*start_args, "--host-surface", "codex-cli-tui")
 
         assert payload["schema_version"] == "loopx_start_goal_guided_v0"
         assert payload["read_only"] is True
@@ -450,7 +457,7 @@ def test_start_goal_guided_blocks_orphaned_goal_state() -> None:
             "--goal-id",
             goal_id,
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Continue the interrupted refactor",
         )
@@ -536,7 +543,7 @@ def test_start_goal_guided_fences_orphaned_state_for_every_absence_route() -> No
                 "--goal-id",
                 "reset-goal",
                 "--host-surface",
-                "codex-app",
+                "codex-cli-tui",
                 "--goal-text",
                 "Continue the interrupted refactor",
             )
@@ -579,7 +586,7 @@ def test_unparseable_registry_without_orphaned_state_keeps_onboarding() -> None:
             "--goal-id",
             "reset-goal",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Continue the interrupted refactor",
         )
@@ -615,7 +622,7 @@ def test_fenced_project_surfaces_offer_no_continuation() -> None:
             "--goal-id",
             "reset-goal",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Continue the interrupted refactor",
         )
@@ -626,7 +633,7 @@ def test_fenced_project_surfaces_offer_no_continuation() -> None:
             "--goal-id",
             "reset-goal",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
         )
 
         assert guided["project_connection"]["connection_state"] == "orphaned_goal_state"
@@ -676,7 +683,7 @@ def test_start_goal_guided_requires_explicit_goal_for_multi_goal_project() -> No
             "--project",
             str(project),
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "Add a new meta agent without reusing an old lane",
         )
@@ -959,7 +966,7 @@ def test_start_goal_guided_derives_display_name_from_goal_text() -> None:
             "--agent-id",
             "codex-test-agent",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "修复 scheduler state path 覆盖问题",
             "--include-command-pack-detail",
@@ -998,7 +1005,7 @@ def test_start_goal_guided_derives_display_name_from_goal_text() -> None:
             "--agent-id",
             "codex-test-agent",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "some objective",
             "--display-name",
@@ -1021,7 +1028,7 @@ def test_start_goal_guided_derives_display_name_from_goal_text() -> None:
             "--agent-id",
             "codex-test-agent",
             "--host-surface",
-            "codex-app",
+            "codex-cli-tui",
             "--goal-text",
             "/private/secret/path should not leak",
             "--include-command-pack-detail",

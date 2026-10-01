@@ -13,7 +13,7 @@ quickstart. This page keeps the full operator and contributor detail.
 For the curated learning path, start with the
 [Developer Book](/loopx/docs/book/) before moving into the full guide.
 
-## Codex App And Other Agent Setup
+## Agent Setup
 
 If you already use Codex, Claude Code, Cursor, or another terminal agent, paste
 this into the agent while it is already operating in the project root:
@@ -37,9 +37,9 @@ Then run `loopx doctor`. Work only from the current project root:
 2. If the project is not connected, prefer `loopx connect`; use
    `loopx bootstrap` only when project state clearly needs initialization.
 3. Ensure `.loopx/` and `.local/` are ignored.
-4. Set up the thin LoopX heartbeat for this surface. For Codex App, start the
-   recurring automation at 3 minutes, then follow
-   `quota should-run.scheduler_hint` for backoff and self-stop behavior.
+4. Set up the thin LoopX loop for this surface (for Codex CLI, a visible
+   `/goal <thin task_body>`), then follow `quota should-run.scheduler_hint`
+   for backoff and self-stop behavior.
 5. Stop after setup and report the active state id, current user gate, top
    agent todo, and next safe action.
 
@@ -75,7 +75,7 @@ Success looks like this:
 The installer also registers the LoopX command family for host surfaces that
 can discover user-installed skills:
 
-- Codex CLI / IDE / App: explicit LoopX command-facade skills under
+- Codex CLI: explicit LoopX command-facade skills under
   `~/.codex/skills/loopx*`. Codex does not currently support user-defined
   native top-level `/loopx` slash commands, so invoke the project command
   through `$loopx` or `/skills`. The primary `LoopX` command facade and
@@ -154,18 +154,11 @@ integrations that need the lower-level handoff packet can use
 manager or PR review commands, use `loopx slash-commands` to print the current
 canonical command list and fallback CLI shapes.
 
-Use `codex-app`, `codex-app-ssh`, `codex-ide-plugin`, `codex-cli-tui`,
-`opencode`, or `opencode2` for the corresponding host. Use `codex-app-ssh`
-when the desktop app is attached to a remote workspace over SSH and its
-automation tools are unavailable; LoopX will generate a visible `/goal` task
-instead. Select `codex-ide-plugin` only when LoopX is running through the
-installed IDE plugin;
-using Codex beside an editor does not make the host an IDE plugin. If the exact
-host is not known, omit `--host-surface` once: LoopX
-returns a read-only selection gate with exact rerun commands and does not write
-project state. The legacy `codex-ide` value remains an accepted compatibility
-alias but is no longer advertised. This prevents an upgrade from silently
-routing an IDE plugin or terminal start to a desktop-app heartbeat.
+Use `codex-cli-tui`, `codex-app-ssh`, `opencode`, or `opencode2` for the
+corresponding host. Use `codex-app-ssh` when the desktop app is attached to a
+remote workspace over SSH; LoopX will generate a visible `/goal` task. When
+`--host-surface` is omitted, LoopX defaults to `codex-cli-tui`; pass every
+other host explicitly.
 
 ## Local State Backup
 
@@ -184,7 +177,7 @@ loopx backup-state --project . --execute
 
 The backup is written under the runtime root's `backups` directory
 (`~/.loopx/backups` by default). It captures the shared LoopX runtime root,
-Codex App automations, installed `loopx-*` skills, the current project's state,
+installed `loopx-*` skills, the current project's state,
 and every reachable project's `.loopx` (which includes its goal state),
 `.claude/goals`, `.local/goals`, registry-declared active state,
 and source registry discovered from the global registry. Missing or stale
@@ -234,16 +227,15 @@ stop and report the active state id, current user gate, top agent todo, and
 next safe action.
 ```
 
-The generated paste block is a setup-first rewrite of the App onboarding
-experience, not the heartbeat body itself. The first useful response should
+The generated paste block is a setup-first onboarding message, not the
+heartbeat body itself. The first useful response should
 show the current state id, concrete user gate if one exists, top user todo if
 any, top agent todo, and next safe action before longer delivery work. The
 setup turn should not spend quota for delivery unless the user explicitly asks
 it to do delivery in the setup turn. The agent should still generate
 `heartbeat-prompt --thin` and install that body into the surface during setup:
-Codex CLI gets `/goal <thin task_body>`, while Codex App gets a heartbeat
-automation body that starts at 3 minutes and then follows
-`scheduler_hint`.
+Codex CLI gets `/goal <thin task_body>`, and other hosts get their native loop
+from `agent-onboard`.
 
 Once `loopx` is installed, generate a stricter repo-specific setup
 message:
@@ -947,11 +939,11 @@ missing policy defaults off, so other goals keep their normal skip or wait
 behavior.
 
 If `quota should-run` returns a `gate_prompt` or `operator_question`, the
-target heartbeat should proactively ask that concrete user/controller gate. If
+target host loop should proactively ask that concrete user/controller gate. If
 open user todos are present, do not call the turn "no new user action" while
 they remain open; its report still has to list existing open user todos.
 
-When `safe_bypass_allowed=true`, the heartbeat may still do one bounded
+When `safe_bypass_allowed=true`, the host loop may still do one bounded
 read-only steering or analysis step that is independent of the blocked gate.
 See [quota allocation](../quota-allocation.md) for the full allocation
 contract.
@@ -970,17 +962,16 @@ loopx quota spend-slot \
 Do not append spend for quiet `should_run=false` skips, preflight failures, or
 pure dry-run previews.
 
-Generate a guarded Codex App heartbeat body. First-run Codex App onboarding
-should install this body on a 3-minute bootstrap cadence unless the user
-explicitly asks for a different interval; later waits should follow
+Generate the guarded task body for the selected host loop. Codex CLI installs
+this body as the visible `/goal <task_body>`; later waits should follow
 `quota should-run.scheduler_hint`:
 
 ```bash
 loopx heartbeat-prompt --thin --goal-id your-project-goal
 ```
 
-For shared-control-plane agents, pass identity and scope in the automation
-prompt, then let the agent soft-claim matching todos with a registered
+For shared-control-plane agents, pass identity and scope in the host task body,
+then let the agent soft-claim matching todos with a registered
 `--claimed-by` id:
 
 New onboarding defaults to a new identity. When `agent-onboard` or an
@@ -1005,8 +996,8 @@ loopx heartbeat-prompt --compact --goal-id your-project-goal \
 ```
 
 Once `coordination.registered_agents` is set, `heartbeat-prompt` fails closed
-when called without `--agent-id`; this makes stale Codex App automations
-surface an upgrade error instead of silently running without identity or
+when called without `--agent-id`; this makes stale host invocations surface an
+upgrade error instead of silently running without identity or
 scope. Old goal registries without `coordination.registered_agents` also fail
 closed when a scoped heartbeat or todo claim names an agent; register the agent
 identity first instead of letting workers invent claim ids.
@@ -1193,7 +1184,7 @@ operator-gate           record a human gate decision
 reward                  append run-bound human reward
 todo                    add, claim, complete, update, supersede, or archive todos
 quota                   inspect or account for automatic agent turns
-heartbeat-prompt        generate Codex App heartbeat task bodies
+heartbeat-prompt        generate guarded host-loop task bodies
 review-packet           package a CLI-visible handoff packet
 serve-status            serve local status JSON for the dashboard
 archive-runtime         archive obsolete runtime-only goal history

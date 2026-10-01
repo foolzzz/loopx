@@ -22,7 +22,7 @@ def build_projection(monkeypatch, *, age=None, binding=False, status="open",
         "id": "test-goal", "coordination": {
             "registered_agents": ["peer"],
             "thread_agent_bindings": [{"agent_id": "peer", "thread_id": "thread-peer",
-                                        "host_surface": "codex-app"}] if binding else [],
+                                        "host_surface": "codex-cli-tui"}] if binding else [],
         }}]}, "todo_index": {"items": todos}}
     return projection.build_agent_management_projection(payload), todo
 

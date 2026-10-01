@@ -392,7 +392,6 @@ export const typedActionKindSchema = z.enum([
   "todo.create",
   "todo.update",
   "agent.bind",
-  "heartbeat.bind",
   "monitor.create",
   "monitor.update",
   "gate.resolve",

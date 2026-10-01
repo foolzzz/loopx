@@ -1,5 +1,10 @@
 # Start from Codex App
 
+!!! warning "Retired host entry"
+    Codex App onboarding and activation are no longer supported. This chapter
+    temporarily preserves scheduler background for the typed-core cleanup; use
+    the Codex CLI chapter for runnable setup.
+
 Codex App supplies visible interaction, agent turns, and heartbeat automation. LoopX decides whether each
 heartbeat should work, which bounded work it should select, and when it should back off or stop.
 
@@ -138,7 +143,7 @@ Refresh the Host's skill discovery. The CLI fallback is:
 ```bash
 loopx start-goal --guided --project . \
   --goal-text "<task>" \
-  --host-surface codex-app
+  --host-surface codex-cli-tui
 ```
 
 ### No heartbeat exists

@@ -200,7 +200,6 @@ assert.match(drawer, /onClick=\{onClose\} type="button">\{t\("drawer\.proposalCl
 assert.match(drawer, /drawer\.copyRepositoryDone[\s\S]*drawer\.copyRepositorySuccess/, "Repository copy action exposes a visible receipt");
 assert.doesNotMatch(drawer, />打开 Goal</, "Goal details do not repeat navigation to the already-open Goal");
 assert.match(page, /function prepareScheduleDraft[\s\S]*composer\.monitorTemplateWithoutGoal[\s\S]*composer\.monitorTemplate/, "Manager monitor action opens a localized complete editable configuration draft");
-assert.match(page, /function prepareScheduleDraft[\s\S]*composer\.heartbeatTemplateWithoutGoal[\s\S]*composer\.heartbeatTemplate/, "Goal heartbeat action opens a localized editable configuration draft before preview");
 assert.match(page, /function structuredGoalIntentFromMessage/, "Goal creation parses the visible form as structured fields");
 assert.match(page, /\["目标", "Objective"\]/, "Goal creation accepts Chinese and English objective fields");
 assert.match(page, /"Execution boundary \(optional\)"/, "Goal creation accepts an English execution boundary");
@@ -208,7 +207,6 @@ assert.match(page, /t\("schedule\.unsupportedCalendar"\)/, "Unsupported calendar
 assert.match(page, /function monitorTargetFromMessage/, "Monitor creation preserves the user's requested check target");
 assert.match(model, /fields: Array<\{ key: string; label: string; value: string \}>/, "Every action preview field retains a stable semantic key beside its localized label");
 assert.match(page, /\.map\(\(\[key, value\]\) => \(\{[\s\S]*key,[\s\S]*label: fieldLabels\[key\]/, "Typed action projection preserves semantic parameter keys while localizing labels");
-assert.match(page, /field\.key === "cadence"[\s\S]*field\.key === "stop_condition"[\s\S]*field\.key === "timezone"/, "Applied Heartbeat readback consumes stable semantic keys");
 assert.doesNotMatch(page, /field\.label === "cadence"|field\.label === "stop condition"/, "Schedule semantics never depend on localized display labels");
 assert.match(page, /defaultTimeline\(model, managerProjectionId, t\)/, "Default schedule projection uses the active locale authority");
 assert.match(page, /onOpenGoal: \(goalId\) => \{\s*selectGoal\(goalId\);\s*void reconcileStatus\(\[goalId\]\)/, "Applied-action Goal navigation is immediate and reconciles that Goal in the background");
@@ -246,8 +244,7 @@ for (const field of ["timezone", "nextRunAt", "previousRunAt", "notificationRule
   assert.match(model, new RegExp(`${field}\\??:`), `Schedule exposes ${field}`);
 }
 assert.match(drawer, /personal-execution-history/, "Schedule drawer renders execution history");
-assert.match(page, /const heartbeat = schedule\.scheduleKind === "heartbeat"/, "Schedule distinguishes heartbeat lifecycle type");
-assert.match(page, /actionKind: heartbeat \? "heartbeat\.bind" : "monitor\.update"/, "Schedule previews preserve heartbeat lifecycle type");
+assert.match(page, /actionKind: "monitor\.update"/, "Schedule lifecycle actions preview the continuous_monitor update");
 
 assert.match(drawer, /event\.key === "Tab"/, "Drawer traps keyboard focus");
 assert.match(shell, /event\.key !== "Tab"/, "Mobile Goal navigation traps keyboard focus");
@@ -378,11 +375,10 @@ assert.match(dashboard, /title:\s*personalGoalTitle\(goal\.id,\s*goal\.display_n
 assert.match(dashboard, /function personalGoalHasPendingOperatorGate/, "Pending operator gates have a durable state projection helper");
 assert.match(dashboard, /personalGoalHasPendingOperatorGate\(row\)/, "Pending operator gates project into the needs-you state");
 assert.match(dashboard, /explicitUserWait/, "Explicit user-approval language repairs incomplete gate projections");
-assert.match(page, /proposal\.status === "applied"/, "Unconfirmed Heartbeat previews never project as active schedules");
 assert.match(drawer, /actionKind === "goal\.create" \? t\("drawer\.proposalEnterGoal"\) : t\(selection\.item\.actionKind === "team\.plan" \? "proposal\.teamPlan\.openGoal" : "drawer\.proposalViewGoal"\)/, "Applied actions offer scoped refreshed navigation labels");
 assert.doesNotMatch(sidebar, /Agent 设置/, "The sidebar omits the read-only Agent settings dead end");
 assert.doesNotMatch(sidebar, /野兽主题|默认主题/, "The sidebar keeps one owner-reviewed visual theme");
-for (const key of ["composer.createGoalTemplate", "composer.monitorTemplate", "composer.heartbeatTemplate", "proposal.primary.goalCreate", "proposal.impact.goalCreate"]) {
+for (const key of ["composer.createGoalTemplate", "composer.monitorTemplate", "proposal.primary.goalCreate", "proposal.impact.goalCreate"]) {
   assert.match(i18n, new RegExp(`"${key.replaceAll(".", "\\.")}"`), `${key} has a typed locale resource`);
 }
 assert.match(i18n, /Create a long-term Goal:[\s\S]*Completion criteria:[\s\S]*Related repository \(optional\):[\s\S]*Notification method \(optional\):/, "English Create Goal starts with a useful objective form instead of a host gate");

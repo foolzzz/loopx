@@ -46,7 +46,8 @@ def assert_concise_default_help(output: str) -> None:
     assert "ready-score --goal-id ID" in output, output
     assert "start-goal --guided" in output, output
     assert "Run the loop:" in output, output
-    assert "Codex App" in output, output
+    assert "Codex CLI" in output, output
+    assert "Codex App automation" not in output, output
     assert "Claude Code" in output, output
     assert "loopx commands" in output, output
     assert "evidence-log --goal-id ID --agent-id AGENT --thin" in output, output
@@ -245,7 +246,8 @@ def assert_installer_manpage_surface() -> None:
         compact_man_text = " ".join(man_text.split())
         assert ".TH LOOPX 1" in man_text, man_text
         assert ".SH LOOP DRIVER HINTS" in man_text, man_text
-        assert "Codex App automation" in man_text, man_text
+        assert "Codex CLI visible goal" in man_text, man_text
+        assert "Codex App automation" not in man_text, man_text
         assert "loopx commands" in man_text, man_text
         assert "loopx extension" in man_text, man_text
         assert r"loopx evidence\-log \-\-goal\-id" in man_text, man_text

@@ -22,7 +22,6 @@ import {
   MoreHorizontal,
   Pause,
   Play,
-  Radio,
   RotateCcw,
   Send,
   Square,
@@ -317,7 +316,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
         : selection.kind === "output" ? t("drawer.titleOutput")
           : selection.kind === "proposal" && selection.item.actionKind === "team.plan" && selection.item.status === "applied" ? t("proposal.teamPlan.resultTitle")
           : selection.kind === "proposal" ? t(selection.item.reviewPlan?.retryOriginal ? "drawer.recoverEditResult" : selection.item.status === "applied" ? "drawer.titleProposalApplied" : "drawer.titleProposalConfirm")
-            : selection.kind === "schedule" ? (selection.item.scheduleKind === "heartbeat" ? "Heartbeat" : t("drawer.titleSchedule"))
+            : selection.kind === "schedule" ? t("drawer.titleSchedule")
               : t("drawer.goalDetails");
   const goalId = selection.kind === "proposal" ? selection.item.goalId ?? "manager"
       : selection.item.goalId;
@@ -822,10 +821,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 </>
               )}
             </section>
-            {!readOnly ? <div className="personal-drawer-action-grid">
-              <button className="personal-secondary-action" onClick={() => callbacks.onRequestScheduleConfig?.("heartbeat", selection.item.goalId)} type="button"><Radio size={16} />{t("drawer.setupHeartbeat")}</button>
-              <button className="personal-secondary-action" onClick={() => callbacks.onRequestScheduleConfig?.("monitor", selection.item.goalId)} type="button"><CalendarClock size={16} />{t("drawer.scheduleAdd")}</button>
-            </div> : null}
+            {!readOnly ? <button className="personal-secondary-action" onClick={() => callbacks.onRequestScheduleConfig?.(selection.item.goalId)} type="button"><CalendarClock size={16} />{t("drawer.scheduleAdd")}</button> : null}
             {selection.item.subagentExecution ? <section className="personal-detail-card personal-goal-subagents">
               <div className="personal-subagent-heading">
                 <div>
@@ -1149,7 +1145,7 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
         {selection.kind === "schedule" ? (
           <>
             <section className="personal-detail-card">
-              <small>{selection.item.scheduleKind === "heartbeat" ? "Goal Heartbeat" : "continuous_monitor"} · {selection.item.status ?? "active"}</small>
+              <small>continuous_monitor · {selection.item.status ?? "active"}</small>
               <h3>{selection.item.label}</h3>
               <p>{selection.item.target ?? selection.item.schedule ?? t("drawer.scheduleDefaultTarget")}</p>
               <dl>
@@ -1160,12 +1156,12 @@ export function ContextDrawer({ agents, attentionHistory = [], onSelectAttention
                 <div><dt>{t("drawer.scheduleStopCondition")}</dt><dd>{selection.item.stopCondition ?? t("drawer.scheduleDefaultStop")}</dd></div>
               </dl>
             </section>
-            {!readOnly && selection.item.scheduleKind === "monitor" ? <button className="personal-primary-action" onClick={() => void callbacks.onUpdateSchedule?.(selection.item, "run_now")} type="button"><Play size={16} />{t("drawer.scheduleRunNow")}</button> : null}
+            {!readOnly ? <button className="personal-primary-action" onClick={() => void callbacks.onUpdateSchedule?.(selection.item, "run_now")} type="button"><Play size={16} />{t("drawer.scheduleRunNow")}</button> : null}
             {!readOnly ? <div className="personal-drawer-action-grid">
               <button className="personal-secondary-action" onClick={() => void callbacks.onUpdateSchedule?.(selection.item, selection.item.status === "paused" ? "resume" : "pause")} type="button">{selection.item.status === "paused" ? <Play size={16} /> : <Pause size={16} />}{selection.item.status === "paused" ? t("drawer.scheduleResume") : t("drawer.schedulePause")}</button>
               <button className="personal-secondary-action" onClick={() => void callbacks.onUpdateSchedule?.(selection.item, "edit")} type="button"><CalendarClock size={16} />{t("drawer.scheduleEdit")}</button>
             </div> : null}
-            {!readOnly ? <button className="personal-danger-action" onClick={() => void callbacks.onUpdateSchedule?.(selection.item, "stop")} type="button"><Square size={16} />{t("drawer.scheduleStop", { kind: selection.item.scheduleKind === "heartbeat" ? " Heartbeat" : t("drawer.titleSchedule") })}</button> : null}
+            {!readOnly ? <button className="personal-danger-action" onClick={() => void callbacks.onUpdateSchedule?.(selection.item, "stop")} type="button"><Square size={16} />{t("drawer.scheduleStop", { kind: t("drawer.titleSchedule") })}</button> : null}
             <section className="personal-execution-history" aria-labelledby="personal-execution-history-title">
               <h3 id="personal-execution-history-title">{t("drawer.executionHistory")}</h3>
               {selection.item.executionHistory?.length ? (

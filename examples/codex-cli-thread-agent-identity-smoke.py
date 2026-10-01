@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic Codex App thread-to-agent identity smoke."""
+"""Synthetic Codex CLI TUI thread-to-agent identity smoke."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ def main() -> None:
             agent_id="codex-a",
             thread_id="thread-a",
             cli_bin="loopx",
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="select the existing lane",
         )
         ordered_steps = first["guided_transaction"]["ordered_steps"]
@@ -105,7 +105,7 @@ def main() -> None:
                         "--goal-id",
                         "goal",
                         "--host-surface",
-                        "codex-app",
+                        "codex-cli-tui",
                         "--goal-text",
                         "continue the task",
                     ]
@@ -146,7 +146,7 @@ def main() -> None:
         assert deep_link_resolution["agent_id"] == "codex-a", deep_link_resolution
         assert deep_link_resolution["host_surface"] is None, deep_link_resolution
         assert deep_link_resolution["host_family"] == "codex", deep_link_resolution
-        assert deep_link_resolution["matched_host_surfaces"] == ["codex-app"], (
+        assert deep_link_resolution["matched_host_surfaces"] == ["codex-cli-tui"], (
             deep_link_resolution
         )
         assert deep_link_resolution["session_locator"]["authority"] == "locator_only", (
@@ -159,7 +159,7 @@ def main() -> None:
             agent_id=None,
             thread_id="thread-b",
             cli_bin="loopx",
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="start another task",
         )
         gate = unbound["guided_transaction"]["identity_selection_gate"]
@@ -203,7 +203,7 @@ def main() -> None:
             agent_id="codex-c",
             thread_id="thread-b",
             cli_bin="loopx",
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="start another task",
         )
         fresh_bind_step = next(
@@ -225,7 +225,7 @@ def main() -> None:
             agent_id=None,
             thread_id="thread-b",
             cli_bin="loopx",
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="continue the new session",
         )
         assert reused_fresh["agent_id"] == "codex-c", reused_fresh
@@ -245,7 +245,7 @@ def main() -> None:
                     "--thread-id",
                     "thread-b",
                     "--host-surface",
-                    "codex-app",
+                    "codex-cli-tui",
                     "--agent-id",
                     "codex-c",
                     "--execute",
@@ -270,7 +270,7 @@ def main() -> None:
                     "--thread-id",
                     "thread-b",
                     "--host-surface",
-                    "codex-app",
+                    "codex-cli-tui",
                     "--agent-id",
                     "codex-b",
                     "--execute",
@@ -286,12 +286,12 @@ def main() -> None:
         ]
         assert {
             "thread_id": "thread-a",
-            "host_surface": "codex-app",
+            "host_surface": "codex-cli-tui",
             "agent_id": "codex-a",
         } in bindings_after, bindings_after
         assert {
             "thread_id": "thread-b",
-            "host_surface": "codex-app",
+            "host_surface": "codex-cli-tui",
             "agent_id": "codex-b",
         } in bindings_after, bindings_after
         assert (
@@ -304,14 +304,14 @@ def main() -> None:
             agent_id=None,
             thread_id=None,
             cli_bin="loopx",
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             goal_text="start a genuinely new peer",
             new_peer=True,
         )
         fresh_gate = fresh["guided_transaction"]["identity_selection_gate"]
         assert fresh_gate["default_action"] == "register_fresh_agent", fresh_gate
         assert fresh_gate["fresh_agent_registration"]["recommended"] is True, fresh_gate
-    print("codex-app-thread-agent-identity-smoke ok")
+    print("codex-cli-thread-agent-identity-smoke ok")
 
 
 if __name__ == "__main__":

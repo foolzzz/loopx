@@ -237,9 +237,9 @@ LoopX 保留同一 control-plane contract，但不同 Host 的启动和唤醒机
 | DeepSeek Harness | native skill + same-session Driver / `loopx turn run-once` | 每段 bounded execution 仍需独立 validation |
 | Shell / other Agent | guided packet + caller-owned runner | 无 runner hook 时由调用方唤醒 |
 
-表中出现一个 Host 不代表所有 Host 都支持相同 automation API。`host_surface` 未知时，应省略一次
-该参数并使用只读 selection Gate；不要把 Codex CLI、IDE plugin、App SSH 或普通 shell 猜成
-Codex App heartbeat。完整表面、启动方式、停止策略和验证证据以 Runtime Connector Catalog 与
+表中出现一个 Host 不代表所有 Host 都支持相同 automation API。省略 `host_surface` 时，LoopX
+默认使用可见的 Codex CLI TUI；其他 Host 必须传精确 surface。不要把 App SSH 或普通 shell 误当成
+其他 Host 的 scheduler。完整表面、启动方式、停止策略和验证证据以 Runtime Connector Catalog 与
 对应 Host 文档为准；Dev Book 不复制每个 adapter 的完整 runbook。
 
 ## 如何组合 Codex Goal 与 LoopX

@@ -3,7 +3,6 @@ export type WorkspaceRouterActionKind =
   | "todo.create"
   | "todo.update"
   | "agent.bind"
-  | "heartbeat.bind"
   | "monitor.create";
 
 export type WorkspaceRouterResult = {
@@ -69,25 +68,22 @@ export function routeWorkspaceInput(rawMessage: string, context: WorkspaceRouter
   const todo = context.todos.find((candidate) => message.includes(candidate.todoId) || message.includes(candidate.text));
   const todoSubject = "todo|待办|任务";
   const referencesExistingTodo = /(刚刚|已经|已)(?:经)?\s*(新增|创建|添加)(?:的)?\s*(todo|待办|任务)/iu.test(message);
-  const requestsHeartbeat = Boolean(context.goalId)
+  const explicitMonitorIntent = !negates(message, /定时|监控|监测|持续观察|scheduled check|monitor/iu)
+    && /(定时|监控|监测|持续观察|scheduled check|monitor|每.{0,8}(分钟|小时).{0,12}(检查|监控|监测|观察)|每天.{0,12}(检查|监控|监测|观察)|every.{0,12}(minute|hour|day).{0,12}(check|monitor|observe)|daily.{0,12}(check|monitor|observation))/iu.test(message);
+  // Keeping a Goal moving has no typed contract. The selected Agent interprets
+  // it, so a bounded monitor preview never stands in for Goal continuation.
+  if (context.goalId
+    && !explicitMonitorIntent
     && !negates(message, /heartbeat|心跳/iu)
-    && /(heartbeat|心跳|每天推进|持续推进|daily progress)/iu.test(message);
+    && /(heartbeat|心跳|每天推进|持续推进|daily progress)/iu.test(message)) {
+    return { actionKind: null, confidence: 0.75, missingFields: [], normalizedParameters: {}, route: "agent_chat" };
+  }
 
   if (!context.goalId && !negates(message, /goal|目标/iu) && /(创建|新建|设置|create|start|set up).{0,24}(goal|目标)/iu.test(message)) {
-    candidates.push({
-      actionKind: "goal.create",
-      confidence: 0.97,
-      normalizedParameters: {
-        heartbeat_enabled: !negates(message, /heartbeat|心跳/iu) && /(heartbeat|心跳|每天推进|持续推进|daily progress)/iu.test(message),
-      },
-    });
-  }
-  if (context.goalId && requestsHeartbeat) {
-    candidates.push({ actionKind: "heartbeat.bind", confidence: 0.96, normalizedParameters: { goal_id: context.goalId } });
+    candidates.push({ actionKind: "goal.create", confidence: 0.97, normalizedParameters: {} });
   }
   if (context.goalId
-    && !requestsHeartbeat
-    && !negates(message, /定时|监控|监测|持续观察|scheduled check|monitor/iu)
+    && explicitMonitorIntent
     && /(定时|监控|监测|每.{0,8}(分钟|小时|天)|持续观察|scheduled check|monitor|every.{0,12}(minute|hour|day)|daily)/iu.test(message)) {
     candidates.push({ actionKind: "monitor.create", confidence: 0.94, normalizedParameters: { goal_id: context.goalId } });
   }

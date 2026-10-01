@@ -5,11 +5,11 @@ execution: code
 product_contract_source: ce-plan-bootstrap
 ---
 
-# Fix Codex App Thread Agent Identity Reuse
+# Fix Codex CLI Thread Agent Identity Reuse
 
 ## Goal
 
-Make repeated Codex App `/loopx` calls in one stable host thread reuse the
+Make repeated Codex CLI `/loopx` calls in one stable host thread reuse the
 agent identity already selected by that thread. A task, worktree, or new Todo
 must not create a new peer by itself.
 
@@ -17,14 +17,15 @@ must not create a new peer by itself.
 
 - The binding key is `(host_surface, goal_id, thread_id)` and maps to one
   already registered `agent_id`.
-- Codex App `start-goal` consumes its ambient `CODEX_THREAD_ID` when an
+- Codex CLI `start-goal` consumes its ambient `CODEX_THREAD_ID` when an
   explicit `--thread-id` is absent. Other hosts may pass an opaque thread ID.
 - Identity resolution prefers a verified thread binding. An exact agent from
   the current host task's active interaction contract is a valid initial
   selection and must then be bound before Todo writeback.
-- A stable unbound thread is a new host session and defaults to fresh
-  registration. Registry order and a single registered lane are not identity
-  evidence for takeover.
+- A stable unbound thread never reuses a lane implicitly. When registered lanes
+  exist, it requires an explicit existing-lane selection; fresh registration is
+  available only when no lane exists or `--new-peer` is explicit. Registry
+  order and a single registered lane are not identity evidence for takeover.
 - A missing thread ID or conflicting binding fails closed. `--new-peer` carries
   explicit fresh-session intent when the host cannot provide a stable ID; task
   text, a new Todo, or a worktree never implies it.
@@ -42,18 +43,18 @@ In scope:
 
 Out of scope:
 
-- Codex App host changes or synthesized thread IDs;
+- Codex CLI host changes or synthesized thread IDs;
 - identity inference from conversation text or registry ordering;
 - cross-runtime identity transfer, expiration, or binding-management UI;
 - raw transcripts, credentials, paths, or private host metadata.
 
 ## Required Transaction
 
-For an unbound Codex App thread:
+For an unbound Codex CLI thread:
 
 1. inspect the connected goal and registered lanes;
-2. default to fresh registration, or select an existing lane only for explicit
-   takeover;
+2. require an exact authorized lane selection when registered lanes exist, or
+   use fresh registration when no lane exists or `--new-peer` is explicit;
 3. register the fresh identity when selected, then execute
    `bind-agent-thread --execute`;
 4. require `ok=true`, `global_sync.ok=true`, and
@@ -69,11 +70,12 @@ repeat the binding mutation.
 Focused validation must cover:
 
 - invalid, missing, idempotent, and conflicting bindings;
-- ambient Codex App thread-ID resolution;
+- ambient Codex CLI thread-ID resolution;
 - an ordered bind/readback step before Todo writeback;
 - a real first-call bind followed by a second call without `--agent-id`;
-- a stable unbound thread that defaults to fresh registration while preserving
-  explicit existing-lane takeover;
+- a stable unbound thread that requires explicit existing-lane selection when
+  lanes exist and permits fresh registration only with no lanes or explicit
+  `--new-peer`;
 - a missing thread ID that stays fail closed unless `--agent-id` or
   `--new-peer` is explicit;
 - generated Skill text that reuses active task identity and never treats a
@@ -87,15 +89,15 @@ pytest -q \
   tests/test_thread_agent_binding.py \
   tests/control_plane/test_start_goal_compact_projection.py \
   tests/test_slash_command_install.py
-python3 examples/codex-app-thread-agent-identity-smoke.py
+python3 examples/codex-cli-thread-agent-identity-smoke.py
 python3 examples/run-smokes.py --suite full-public \
-  --script examples/codex-app-thread-agent-identity-smoke.py --json
+  --script examples/codex-cli-thread-agent-identity-smoke.py --json
 git diff --check
 ```
 
 ## Definition of Done
 
-- Repeated `/loopx` calls in one Codex App task reuse one stable agent lane.
+- Repeated `/loopx` calls in one Codex CLI task reuse one stable agent lane.
 - The first explicit lane selection is durably bound and read back before any
   Todo write.
 - Missing thread IDs and conflicting bindings remain fail closed without

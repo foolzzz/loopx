@@ -34,6 +34,19 @@ AGENT_ID = "codex-guided-projection"
 GOAL_TEXT = "Ship a bounded public issue triage workflow."
 
 
+def test_start_goal_help_matches_existing_lane_selection_contract(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args(["start-goal", "--help"])
+
+    assert exc_info.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "an unbound thread must select an exact existing lane" in help_text
+    assert "Fresh registration is available only when no lane exists" in help_text
+    assert "new onboarding defaults to fresh registration" not in help_text
+
+
 def _write_connected_project(root: Path) -> Path:
     project = root / "project"
     state_file = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
@@ -72,7 +85,7 @@ def _build(project: Path, *, include_detail: bool) -> dict[str, Any]:
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
         include_command_pack_detail=include_detail,
@@ -439,8 +452,8 @@ def test_goal_start_packet_is_parity_complete_behavior_authority(
     contract = payload["command_pack"]["goal_start_contract"]
     assert "ordered_steps + goal_start_contract" in contract["behavior_authority"]
     assert "passes raw arguments" in contract["behavior_authority"]
-    assert contract["activation"]["host_surfaces"]["trae_app"] == (
-        "Trae App heartbeat automation"
+    assert contract["activation"]["host_surfaces"]["codex-cli"] == (
+        "visible Codex CLI `/goal <task_body>`"
     )
     slash_catalog = build_slash_command_catalog()
     goal_start = next(
@@ -449,13 +462,13 @@ def test_goal_start_packet_is_parity_complete_behavior_authority(
         if command["command"] == "/loopx <goal text>"
     )
     assert goal_start["agent_contract"]["host_loop_activation_by_agent_type"][
-        "trae_app"
-    ].startswith("create/update Trae App heartbeat automation")
+        "codex-cli"
+    ].startswith("set visible Codex CLI TUI `/goal <task_body>`")
 
     invariants = contract["execution_invariants"]
     for marker in (
-        "fresh public-safe agent",
-        "explicit takeover",
+        "existing lanes require exact selection",
+        "fresh public-safe agent only with no registered lane or explicit --new-peer",
         "bind/readback before Todo",
         "loopx agent-onboard --list-agent-types",
         "selected_capability_route",
@@ -475,16 +488,18 @@ def test_goal_start_packet_is_parity_complete_behavior_authority(
 
     prompt = payload["command_pack"]["commands"]["goal_start_plan_prompt"]
     for required_text in (
-        "stable unbound host gets a fresh public-safe agent",
+        "unbound host with existing lanes requires exact lane selection",
+        "fresh public-safe agent registration is allowed only with no registered lane or explicit `--new-peer`",
         "selected_capability_route",
         "no `--priority`",
         "current Todo evidence + next executable Todo",
         "Chat/model summaries are not durable state",
-        "Codex App heartbeat automation",
+        "CLI/TraeX `/goal`, Claude `/loop`",
         "returned typed `quota_guard`",
         "surface the exact pasteable gate",
     ):
         assert required_text in prompt
+    assert "stable unbound host gets a fresh public-safe agent" not in prompt
 
 
 def test_issue_fix_goal_projects_capability_guard_without_todo_fields(
@@ -901,7 +916,7 @@ def test_projection_preserves_agent_identity_gate_actions(tmp_path: Path) -> Non
         "goal_id": GOAL_ID,
         "agent_id": None,
         "cli_bin": "loopx",
-        "host_surface": "codex-app",
+        "host_surface": "codex-cli-tui",
         "goal_text": GOAL_TEXT,
         "available_capabilities": ["network"],
     }
@@ -936,7 +951,7 @@ def test_start_goal_reuses_bound_thread_agent_and_scopes_commands(tmp_path: Path
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
     registry["goals"][0]["coordination"]["registered_agents"].append("codex-guided-peer")
     registry["goals"][0]["coordination"]["thread_agent_bindings"] = [
-        {"thread_id": "thread-a", "host_surface": "codex-app", "agent_id": AGENT_ID}
+        {"thread_id": "thread-a", "host_surface": "codex-cli-tui", "agent_id": AGENT_ID}
     ]
     registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
 
@@ -946,7 +961,7 @@ def test_start_goal_reuses_bound_thread_agent_and_scopes_commands(tmp_path: Path
         agent_id=None,
         thread_id="thread-a",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -969,7 +984,7 @@ def test_start_goal_reuses_bound_thread_agent_and_scopes_commands(tmp_path: Path
         agent_id="codex-guided-peer",
         thread_id="thread-a",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -977,14 +992,14 @@ def test_start_goal_reuses_bound_thread_agent_and_scopes_commands(tmp_path: Path
     assert explicit_override["command_pack"]["commands"]["goal_start_bind_thread"] is None
 
 
-def test_cli_codex_app_reuses_ambient_thread_binding(
+def test_cli_codex_cli_reuses_ambient_thread_binding(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _write_connected_project(tmp_path)
     registry_path = project / ".loopx" / "registry.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
     registry["goals"][0]["coordination"]["thread_agent_bindings"] = [
-        {"thread_id": "thread-ambient", "host_surface": "codex-app", "agent_id": AGENT_ID}
+        {"thread_id": "thread-ambient", "host_surface": "codex-cli-tui", "agent_id": AGENT_ID}
     ]
     registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-ambient")
@@ -1002,7 +1017,7 @@ def test_cli_codex_app_reuses_ambient_thread_binding(
                 "--goal-id",
                 GOAL_ID,
                 "--host-surface",
-                "codex-app",
+                "codex-cli-tui",
                 "--goal-text",
                 GOAL_TEXT,
             ]
@@ -1016,17 +1031,17 @@ def test_cli_codex_app_reuses_ambient_thread_binding(
     assert payload["guided_transaction"].get("blocked_by") is None
 
 
-def test_cli_trae_app_reuses_ambient_thread_binding(
+def test_cli_default_codex_cli_reuses_ambient_thread_binding(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _write_connected_project(tmp_path)
     registry_path = project / ".loopx" / "registry.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
     registry["goals"][0]["coordination"]["thread_agent_bindings"] = [
-        {"thread_id": "trae-thread", "host_surface": "trae_app", "agent_id": AGENT_ID}
+        {"thread_id": "thread-default", "host_surface": "codex-cli-tui", "agent_id": AGENT_ID}
     ]
     registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
-    monkeypatch.setenv("TRAECLI_THREAD_ID", "trae-thread")
+    monkeypatch.setenv("CODEX_THREAD_ID", "thread-default")
 
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
@@ -1040,8 +1055,6 @@ def test_cli_trae_app_reuses_ambient_thread_binding(
                 str(project),
                 "--goal-id",
                 GOAL_ID,
-                "--host-surface",
-                "trae_app",
                 "--goal-text",
                 GOAL_TEXT,
             ]
@@ -1049,12 +1062,11 @@ def test_cli_trae_app_reuses_ambient_thread_binding(
 
     assert exit_code == 0
     payload = json.loads(output.getvalue())
-    assert payload["thread_id"] == "trae-thread"
+    assert payload["host_surface"] == "codex-cli-tui"
+    assert payload["thread_id"] == "thread-default"
     assert payload["agent_id"] == AGENT_ID
     assert payload["thread_agent_binding"]["status"] == "bound"
-    assert "--trae_app" in payload["command_pack"]["commands"][
-        "heartbeat_prompt"
-    ]
+    assert payload["guided_transaction"].get("blocked_by") is None
 
 
 def test_start_goal_binds_selected_lane_before_todo_writeback(
@@ -1085,7 +1097,7 @@ def test_start_goal_binds_selected_lane_before_todo_writeback(
         agent_id=AGENT_ID,
         thread_id="thread-first-selection",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -1118,7 +1130,7 @@ def test_start_goal_binds_selected_lane_before_todo_writeback(
         agent_id=None,
         thread_id="thread-first-selection",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text="continue the same task",
         available_capabilities=["network"],
     )
@@ -1161,7 +1173,7 @@ def test_fresh_agent_registration_preserves_guided_runtime_root(
         agent_id="fresh-agent",
         thread_id="thread-fresh-agent",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -1234,7 +1246,7 @@ def test_start_goal_cli_preserves_explicit_runtime_root_in_registration_command(
                 "--thread-id",
                 "thread-explicit-runtime",
                 "--host-surface",
-                "codex-app",
+                "codex-cli-tui",
                 "--goal-text",
                 GOAL_TEXT,
             ]
@@ -1275,7 +1287,7 @@ def test_guided_state_commands_share_explicit_runtime_root(
         agent_id=AGENT_ID,
         thread_id="thread-runtime-consistency",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
         runtime_root_arg="explicit-runtime",
@@ -1360,7 +1372,7 @@ def test_start_goal_with_unbound_thread_requires_existing_lane_selection(
         agent_id=None,
         thread_id="thread-new",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -1387,7 +1399,7 @@ def test_start_goal_unbound_thread_requires_lane_selection_even_for_single_regis
         agent_id=None,
         thread_id="thread-unbound",
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -1409,7 +1421,7 @@ def test_start_goal_without_thread_id_requires_explicit_lane_selection(tmp_path:
         goal_id=GOAL_ID,
         agent_id=None,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )
@@ -1423,7 +1435,7 @@ def test_start_goal_without_thread_id_requires_explicit_lane_selection(tmp_path:
     assert gate["choices"][0]["requires_explicit_takeover_intent"] is True
 
 
-def test_cli_codex_app_unbound_ambient_thread_requires_lane_selection(
+def test_cli_codex_cli_unbound_ambient_thread_requires_lane_selection(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _write_connected_project(tmp_path)
@@ -1442,7 +1454,7 @@ def test_cli_codex_app_unbound_ambient_thread_requires_lane_selection(
                 "--goal-id",
                 GOAL_ID,
                 "--host-surface",
-                "codex-app",
+                "codex-cli-tui",
                 "--goal-text",
                 GOAL_TEXT,
             ]
@@ -1594,7 +1606,7 @@ def test_start_goal_new_peer_explicitly_allows_fresh_registration(tmp_path: Path
         goal_id=GOAL_ID,
         agent_id=None,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         new_peer=True,
         available_capabilities=["network"],
@@ -1634,7 +1646,7 @@ def test_projection_preserves_multi_goal_selection_actions(tmp_path: Path) -> No
         "goal_id": None,
         "agent_id": None,
         "cli_bin": "loopx",
-        "host_surface": "codex-app",
+        "host_surface": "codex-cli-tui",
         "goal_text": GOAL_TEXT,
         "available_capabilities": ["network"],
         "capability_route": "issue-fix",
@@ -1754,7 +1766,7 @@ def test_start_goal_keeps_the_requested_linked_worktree(
     assert old_goal_id not in json.dumps(payload)
 
 
-def test_cli_without_host_returns_read_only_host_selection_gate(
+def test_cli_without_host_defaults_to_codex_cli(
     tmp_path: Path,
 ) -> None:
     project = _write_connected_project(tmp_path)
@@ -1781,34 +1793,14 @@ def test_cli_without_host_returns_read_only_host_selection_gate(
 
     assert exit_code == 0
     payload = json.loads(output.getvalue())
-    assert payload["guided_transaction"]["blocked_by"] == "host_surface_selection"
-    assert payload["safety_contract"]["writes_registry"] is False
-    choices = payload["host_surface_selection_gate"]["choices"]
-    assert [choice["host_surface"] for choice in choices] == [
-        "codex-app",
-        "trae_app",
-        "codex-app-ssh",
-        "codex-ide-plugin",
-        "codex-cli-tui",
-        "claude-code",
-        "opencode",
-        "opencode2",
-        "traex-cli",
-        "pi",
-        "gemini-cli",
-        "cursor-agent",
-        "zcode",
-        "agy",
-        "kiro-cli",
-        "deepseek-harness",
-        "deepseek-harness-native",
-        "ark-managed-agent",
-        "shell",
-        "other-agent",
-    ]
-    ide = next(choice for choice in choices if choice["host_surface"] == "codex-ide-plugin")
-    assert "--host-surface codex-ide-plugin" in ide["rerun_command"]
-    assert "--capability-route issue-fix" in ide["rerun_command"]
+    assert payload["host_surface"] == "codex-cli-tui"
+    assert payload["command_pack"]["host_surface"] == "codex-cli-tui"
+    activation = payload["command_pack"]["host_loop_activation"]
+    assert activation["host_surface"] == "codex_cli_visible_goal_mode"
+    assert activation["activation_method"] == "set_visible_goal"
+    assert "host_surface_selection_gate" not in payload
+    assert "--host-surface codex-cli-tui" in payload["command_pack"]["detail_command"]
+    assert "--capability-route issue-fix" in payload["command_pack"]["detail_command"]
 
 
 @pytest.mark.parametrize(
@@ -1946,7 +1938,7 @@ def test_ark_managed_agent_plans_todos_before_one_shot_goal_activation(
     )
 
 
-def test_codex_ide_plugin_uses_visible_goal_and_preserves_compact_parity(
+def test_codex_cli_uses_visible_goal_and_preserves_compact_parity(
     tmp_path: Path,
 ) -> None:
     project = _write_connected_project(tmp_path)
@@ -1955,7 +1947,7 @@ def test_codex_ide_plugin_uses_visible_goal_and_preserves_compact_parity(
         "goal_id": GOAL_ID,
         "agent_id": AGENT_ID,
         "cli_bin": "loopx",
-        "host_surface": "codex-ide-plugin",
+        "host_surface": "codex-cli-tui",
         "goal_text": GOAL_TEXT,
         "available_capabilities": ["network"],
     }
@@ -1969,20 +1961,11 @@ def test_codex_ide_plugin_uses_visible_goal_and_preserves_compact_parity(
     )
 
     activation = compact["command_pack"]["host_loop_activation"]
-    assert detailed["command_pack"]["agent_type"] == "codex-ide-plugin"
-    assert activation["host_surface"] == "codex_ide_visible_goal_mode"
+    assert detailed["command_pack"]["agent_type"] == "codex-cli"
+    assert activation["host_surface"] == "codex_cli_visible_goal_mode"
     assert activation["activation_method"] == "set_visible_goal"
     assert activation["host_mutation"]["host_command"] == "/goal <task_body>"
     assert _host_shadow_document(compact) == _host_shadow_document(detailed)
-
-    legacy = build_start_goal_guided_packet(
-        **{**common, "host_surface": "codex-ide"},
-        include_command_pack_detail=True,
-    )
-    assert legacy["command_pack"]["agent_type"] == "codex-ide-plugin"
-    assert legacy["command_pack"]["host_loop_activation"]["host_surface"] == (
-        "codex_ide_visible_goal_mode"
-    )
 
 
 def _runnable_todo_add_argv(command_template: str) -> list[str]:
@@ -2013,7 +1996,7 @@ def test_guided_write_ordered_todos_template_is_accepted_by_todo_add(
         goal_id=GOAL_ID,
         agent_id=agent_id,
         cli_bin="loopx",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         goal_text=GOAL_TEXT,
         available_capabilities=["network"],
     )

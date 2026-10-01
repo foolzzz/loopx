@@ -1,8 +1,8 @@
 # Connect an existing Git project
 
 Project onboarding is an independent track. You do not need to modify the LoopX Kernel or develop an
-Extension first. This chapter establishes the project state and Git boundary; the next two chapters
-activate work from Codex App and the visible Codex CLI TUI.
+Extension first. This chapter establishes the project state and Git boundary; the runtime chapters then
+show how a supported Host activates work.
 
 The recommended path is to delegate onboarding to the Agent already working in the repository. You define
 the goal, Host, and authority boundaries. The Agent inspects the repository, reads the current LoopX
@@ -38,7 +38,7 @@ Safely connect the current Git project to LoopX.
 
 Goal:
 - Establish a recoverable, verifiable release workflow for this project.
-- The current Host is Codex App. If the environment is not that Host, tell me first; do not guess.
+- The current Host is Codex CLI TUI. If the environment is not that Host, tell me first; do not guess.
 
 Execution contract:
 1. Begin with a read-only inspection of the project root, current branch, git status, .gitignore, and any
@@ -253,19 +253,14 @@ verified. If the user explicitly requests an old lane, use the packet command bo
 If you know the active Host, state it explicitly:
 
 ```bash
-# Codex App
-loopx start-goal --guided --project . \
-  --goal-text "Establish a verifiable release workflow for this project" \
-  --host-surface codex-app
-
 # Visible Codex CLI TUI
 loopx start-goal --guided --project . \
   --goal-text "Establish a verifiable release workflow for this project" \
   --host-surface codex-cli-tui
 ```
 
-When the Host is unknown, omit `--host-surface`. LoopX should return a read-only selection Gate instead of
-guessing.
+When `--host-surface` is omitted, LoopX defaults to the visible Codex CLI TUI. Pass an exact surface for
+every other Host.
 
 ## 5. Read current state
 

@@ -9,7 +9,6 @@ from ..bootstrap_command_pack import (
     START_GOAL_CAPABILITY_ROUTES,
     START_GOAL_HOST_SURFACES,
     build_start_goal_guided_packet,
-    build_start_goal_host_surface_selection_packet,
     render_start_goal_guided_markdown,
 )
 from ..control_plane.effect_runtime import (
@@ -149,15 +148,16 @@ def register_start_goal_command(subparsers: argparse._SubParsersAction) -> None:
         help=(
             "Explicit registered LoopX identity for an ongoing session or exact "
             "user-requested takeover. When omitted, a bound thread identity is reused "
-            "when available; otherwise new onboarding defaults to fresh registration."
+            "when available; an unbound thread must select an exact existing lane when "
+            "registered lanes exist. Fresh registration is available only when no lane "
+            "exists or --new-peer is explicit."
         ),
     )
     start_goal_parser.add_argument(
         "--thread-id",
         help=(
             "Stable opaque host thread id used to reuse the bound agent lane. "
-            "Codex App defaults to CODEX_THREAD_ID and Trae App to "
-            "TRAECLI_THREAD_ID when available."
+            "Codex CLI defaults to CODEX_THREAD_ID when available."
         ),
     )
     start_goal_parser.add_argument(
@@ -175,7 +175,7 @@ def register_start_goal_command(subparsers: argparse._SubParsersAction) -> None:
         choices=START_GOAL_HOST_SURFACES,
         help=(
             "Exact host surface that will own loop activation after todo writeback. "
-            "When omitted, start-goal returns a read-only host selection gate."
+            "Defaults to codex-cli-tui when omitted."
         ),
     )
     start_goal_parser.add_argument(
@@ -314,38 +314,16 @@ def handle_start_goal_command(
         print_payload(payload, args.format, _render_start_goal_markdown)
         return 2
     display_name = args.display_name
-    if not args.host_surface:
-        try:
-            payload = build_start_goal_host_surface_selection_packet(
-                project=Path(args.project),
-                goal_id=args.goal_id,
-                agent_id=args.agent_id,
-                thread_id=current_host_thread_id(args),
-                new_peer=bool(getattr(args, "new_peer", False)),
-                cli_bin=args.cli_bin,
-                goal_text=goal_text,
-                available_capabilities=args.available_capabilities,
-                capability_route=capability_route,
-                fine_grained=fine_grained,
-                include_command_pack_detail=bool(args.include_command_pack_detail),
-                display_name=display_name,
-                runtime_root_arg=runtime_root_arg,
-            )
-        except EffectRuntimeStartupError as exc:
-            payload = _effect_runtime_startup_failure_payload(exc)
-            print_payload(payload, args.format, _render_start_goal_markdown)
-            return 1
-        print_payload(payload, args.format, _render_start_goal_markdown)
-        return 0
+    host_surface = args.host_surface or "codex-cli-tui"
     try:
         payload = build_start_goal_guided_packet(
             project=Path(args.project),
             goal_id=args.goal_id,
             agent_id=args.agent_id,
-            thread_id=current_host_thread_id(args),
+            thread_id=current_host_thread_id(args, host_surface=host_surface),
             new_peer=bool(getattr(args, "new_peer", False)),
             cli_bin=args.cli_bin,
-            host_surface=args.host_surface,
+            host_surface=host_surface,
             goal_text=goal_text,
             available_capabilities=args.available_capabilities,
             capability_route=capability_route,

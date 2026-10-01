@@ -166,7 +166,7 @@ loopx start-goal \
   --guided \
   --project . \
   --goal-id <goal-id> \
-  --host-surface codex-app \
+  --host-surface codex-cli-tui \
   --goal-text "<long-running task>"
 ```
 

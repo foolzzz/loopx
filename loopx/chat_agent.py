@@ -358,7 +358,7 @@ def _turn_prompt(
         + "with an autonomous project task. "
         + planning_limits
         + trusted_manager_limits
-        + "Outside scoped intent delegation, when the operator requests a durable Goal, Todo, Agent binding, heartbeat, monitor, gate, or correction change, "
+        + "Outside scoped intent delegation, when the operator requests a durable Goal, Todo, Agent binding, monitor, gate, or correction change, "
         "describe the bounded proposal clearly so LoopX can route it through typed preview and explicit apply. "
         + protected_action_contract
         + "Exception for the host-supplied context_delegation catalog: when the current user explicitly asks "

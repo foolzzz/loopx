@@ -26,8 +26,8 @@ selecting it opens the right drawer, where the relevant controls and focused
 Chat are available.
 
 Natural-language requests are a first-class control path. The owner can ask
-LoopX to create a Goal, assign an Agent, add Todos, configure a Goal heartbeat,
-or create a recurring monitor. A durable or high-impact request produces a
+LoopX to create a Goal, assign an Agent, add Todos, or create a recurring
+monitor. A durable or high-impact request produces a
 structured preview before LoopX writes state or starts work.
 
 ## User Outcomes
@@ -82,7 +82,7 @@ LoopX Personal Workspace
 │   ├── user decision
 │   ├── Todo detail
 │   ├── Run / Session detail and correction
-│   ├── heartbeat or monitor detail
+│   ├── recurring-monitor detail
 │   └── artifact preview
 └── Global tools
     ├── notifications and Lark App management
@@ -165,7 +165,7 @@ stable container:
 1. Decision detail
 2. Todo detail
 3. Run / Session detail
-4. Heartbeat or recurring-monitor detail
+4. Recurring-monitor detail
 5. Artifact preview
 
 The drawer header states the selected object and its source Goal. `Advanced
@@ -294,7 +294,7 @@ LoopX classifies each message into one of these intent families:
 | Goal write | `Create a Goal for the Agent control plane.` | Generate a typed preview |
 | Todo write | `Add a regression-test Todo and give it to Codex.` | Generate a typed preview |
 | Agent binding | `Use Claude Code for research and Codex for implementation.` | Validate endpoints and preview bindings |
-| Goal heartbeat | `Keep this Goal moving every morning.` | Preview host heartbeat binding and lifecycle policy |
+| Goal continuation | `Keep this Goal moving every morning.` | Interpret with the selected Agent; no typed preview |
 | Recurring monitor | `Check MR status every 30 minutes.` | Preview a bounded `continuous_monitor` Todo and schedule |
 | Protected transition | `Release this version.` | Produce an explicit operator gate |
 
@@ -317,8 +317,7 @@ The owner can say:
 
 ```text
 Create a Goal to improve the Agent control plane. Bind the current repository,
-use Codex, check progress every morning, analyze before editing, and ask me
-before submitting.
+use Codex, analyze before editing, and ask me before submitting.
 ```
 
 LoopX responds with a single structured card:
@@ -330,7 +329,6 @@ Name             Improve the Agent control plane
 Agent            Codex
 Workspace        Current repository
 Permission       Repository write · confirm before submit
-Heartbeat        Every day at 09:00
 Stop condition   Goal complete
 
 Initial plan
@@ -349,43 +347,18 @@ Initial plan
 3. Create or connect the Goal and its authority boundary.
 4. Write ordered initial Todos.
 5. Bind the selected Agent identity.
-6. Generate and bind the Goal heartbeat when requested.
-7. Refresh the public-safe projection.
-8. Create or resume the Goal Chat Session.
-9. Start the first eligible bounded Turn only after quota and gate checks.
-10. Return an apply receipt and navigate to the new Goal Channel.
+6. Refresh the public-safe projection.
+7. Create or resume the Goal Chat Session.
+8. Start the first eligible bounded Turn only after quota and gate checks.
+9. Return an apply receipt and navigate to the new Goal Channel.
 
 A partial failure leaves a visible resumable result. Retrying with the same
-proposal id cannot duplicate the Goal, Todos, schedule, or first Turn.
+proposal id cannot duplicate the Goal, Todos, or first Turn.
 
-## Heartbeat And Recurring Monitor
+## Recurring Monitor
 
-The interface accepts friendly language while preserving two distinct LoopX
-contracts.
-
-### Goal heartbeat
-
-A Goal heartbeat wakes the host Agent to reassess and advance the Goal under
-LoopX quota, gate, boundary, and scheduler rules. It is suitable for requests
-such as:
-
-- `Keep this Goal moving every morning.`
-- `Continue this Goal while there is eligible work.`
-
-The preview shows:
-
-- Goal and Agent identity;
-- host surface;
-- initial cadence;
-- permission boundary;
-- quota behavior;
-- notification policy;
-- stop or pause condition.
-
-LoopX generates the lifecycle body from `heartbeat-prompt`; the UI never asks
-the owner to edit raw prompt text or RRULE syntax.
-
-### Recurring monitor
+A request to keep a Goal moving has no typed contract: the router hands it to
+the selected Agent instead of previewing a monitor that cannot satisfy it.
 
 A recurring monitor watches a bounded target and materializes as an Agent Todo
 with `task_class=continuous_monitor`. It is suitable for requests such as:
@@ -456,7 +429,7 @@ receipt and refreshed projection establish success.
 - compact runtime actions;
 - advanced diagnostics.
 
-### Heartbeat / monitor
+### Recurring monitor
 
 - target, Agent, cadence, timezone, next and previous run;
 - notification and stop rules;
@@ -513,7 +486,6 @@ Goal
 │   └── Turns and visible events
 ├── Run Sessions
 │   └── evidence and artifacts
-├── heartbeat host binding
 └── interaction_contract
 ```
 
@@ -529,7 +501,7 @@ Goal
 | active Turn and safe events | Streaming reply and current phase |
 | run history and evidence | Execution progress, receipts, and outputs |
 | interaction contract | Who acts next and which transition is available |
-| quota and scheduler hint | Heartbeat eligibility and cadence detail |
+| quota and scheduler hint | Host-loop eligibility and cadence detail |
 | Agent-management projection | Selector, binding preview, and endpoint health |
 | registry findings | Needs-repair state and diagnostics |
 
@@ -574,7 +546,6 @@ Initial action kinds:
 - `todo.create`
 - `todo.update`
 - `agent.bind`
-- `heartbeat.bind`
 - `monitor.create`
 - `monitor.update`
 - `gate.resolve`
@@ -657,10 +628,9 @@ Button policy:
 - implement Goal creation, ordered Todo creation, and Agent binding;
 - render proposal, stale, failure, and receipt states in the channel timeline.
 
-### Phase 4 — Heartbeat and recurring monitors
+### Phase 4 — Recurring monitors
 
-- classify Goal heartbeat and bounded monitor intents separately;
-- generate Goal heartbeat lifecycle configuration through LoopX policy;
+- classify bounded monitor intents and keep Goal continuation with the Agent;
 - create and edit `continuous_monitor` Todos;
 - add schedule detail, run history, pause/resume, and stop interactions.
 
@@ -674,7 +644,7 @@ Button policy:
 
 - browser E2E for every visible entry and drawer transition;
 - real Chat, stream, refresh, resume, correction, interrupt, and retry tests;
-- idempotent Goal/heartbeat apply tests;
+- idempotent Goal apply tests;
 - public/private boundary checks;
 - first-screen screenshot comparison and owner review before finalization.
 
@@ -690,12 +660,12 @@ Button policy:
    Chat Session and preserves context.
 6. Refreshing the page restores visible history and reconnects an active Turn.
 7. A natural-language Goal request creates a structured preview with Goal,
-   Agent, workspace, permissions, Todos, heartbeat, and stop condition.
-8. No Goal, Todo, Agent binding, heartbeat, or recurring monitor is written
+   Agent, workspace, permissions, Todos, and stop condition.
+8. No Goal, Todo, Agent binding, or recurring monitor is written
    before the required confirmation.
 9. Applying the same proposal twice cannot duplicate durable state or launch a
    duplicate first Turn.
-10. A request for Goal continuation maps to the heartbeat contract; a request
+10. A request for Goal continuation stays with the selected Agent; a request
     to watch a bounded target maps to a `continuous_monitor` Todo.
 11. Protected operations remain explicit operator gates.
 12. Raw ids, logs, tool output, private paths, credentials, and provider
@@ -725,5 +695,5 @@ Button policy:
 - Lists browse; drawers act.
 - Corrections continue the scoped Session.
 - Durable natural-language operations use preview and apply.
-- Goal heartbeat and recurring monitor remain separate typed contracts.
+- Goal continuation is never previewed as a recurring monitor.
 - Advanced diagnostics stay collapsed.

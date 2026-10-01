@@ -39,11 +39,10 @@ matches the surface you already use:
 
 | Surface | Start with | What keeps it moving |
 | --- | --- | --- |
-| Codex App | `$loopx <task text>` or `/skills` -> `loopx` in the project thread | The app heartbeat automation. Let the agent install or refresh the generated LoopX heartbeat body; start at the bootstrap cadence, then follow `quota should-run.scheduler_hint`. |
 | Codex CLI | `codex` from the project root, then paste `loopx codex-cli-bootstrap-message --project .` output | Current verified Codex CLI builds do not load user-installed `/loopx` or `/prompts:loopx` commands. Keep the executor visible, then set the generated `/goal <thin task_body>`. |
 | Claude Code | Install LoopX, then `/loopx <task text>` | The installer registers lightweight slash-command skills. Enable the opt-in adapter only when Claude Code's native `/loop` should be gated by LoopX `should_run`. |
 | OpenCode | Install the OpenCode surface, then `/loopx <task text>` | The bridge writes commands, plugin, runtime, and pinned dependencies. After todos are written, call `loopx_goal_activate` to bind the quota-gated goal loop. |
-| Other agent or shell | `loopx start-goal --guided --project . --goal-text "<task text>" --host-surface <exact-host>` | The guided packet previews the same transaction an agent should execute: inspect or connect state, plan todos, refresh status, activate a host loop, run quota, and apply scheduler hints when needed. If the surface has no runner hook, LoopX can track state but the user drives it manually. |
+| Other agent or shell | `loopx start-goal --guided --project . --goal-text "<task text>" --host-surface <exact-host>` | The guided packet previews the same transaction an agent should execute: inspect or connect state, plan todos, refresh status, activate a host loop, and run quota. If the surface has no runner hook, LoopX can track state but the user drives it manually. |
 
 If you already own the Agent runner or workflow supervisor, use
 [Embed LoopX In Your Agent Runner](custom-agent-runner-integration.md) instead
@@ -67,13 +66,10 @@ loopx start-goal --guided --project . --goal-text "<your first long-running task
 The command pack checks the host-facing recovery packet. The guided start
 packet is the first task path: paste the generated transaction into Codex,
 Claude Code, or another compatible agent that can run shell commands from the
-project root. Replace `codex-cli-tui` with `codex-app`, `codex-app-ssh`,
-`codex-ide-plugin`, `claude-code`, or `shell` when that is the actual host. Use
-`codex-app-ssh` for Codex App attached over SSH without automation tools. Use
-`codex-ide-plugin` only for the installed IDE plugin, not for another Codex
-surface that happens to be used near an editor. When the host is unclear, omit
-the flag once and follow the returned read-only selection gate; that preview
-does not write project state.
+project root. Replace `codex-cli-tui` with `codex-app-ssh`, `claude-code`, or
+`shell` when that is the actual host. Use `codex-app-ssh` for Codex App attached
+over SSH. When `--host-surface` is omitted, LoopX defaults to
+`codex-cli-tui`; pass every other host explicitly.
 
 ## Multi-Project Manager Commands
 
@@ -99,7 +95,7 @@ useful work inside one repository.
 | Understand several LoopX projects at once | `/loopx-global-summary` | `/loopx-global-gates`, `/loopx-global-todos`, or `/loopx-global-risks` when you need a focused manager view. |
 | Understand why work is paused | `/loopx` | `loopx diagnose --goal-id <goal-id>` when the agent needs a deeper evidence packet. |
 | Review a handoff or gate | The agent's LoopX status summary | `loopx review-packet --goal-id <goal-id>` for a copyable operator packet. |
-| Operate recurring work | Codex App heartbeat or visible Codex CLI task body | `loopx heartbeat-prompt --thin --goal-id <goal-id>` when installing or repairing the loop. |
+| Operate recurring work | Visible Codex CLI task body or the host's native loop | `loopx heartbeat-prompt --thin --goal-id <goal-id>` when installing or repairing the loop. |
 | Debug the control plane | The specific error or blocked todo | `loopx status`, `loopx history`, `loopx quota should-run`, or `loopx check`. |
 
 ## Reference Boundary

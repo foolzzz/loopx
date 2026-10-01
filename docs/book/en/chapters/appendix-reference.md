@@ -81,18 +81,12 @@ loopx start-goal --guided --project . \
   --goal-id <goal-id> \
   --agent-id <agent-id> \
   --goal-text "<goal text>" \
-  --host-surface codex-app
-
-loopx start-goal --guided --project . \
-  --goal-id <goal-id> \
-  --agent-id <agent-id> \
-  --goal-text "<goal text>" \
   --host-surface codex-cli-tui
 ```
 
-On first run, omit `--goal-id`, `--agent-id`, or `--host-surface` to receive the corresponding read-only
-Goal, fresh-Agent, or Host selection Gate. Rerun the exact command provided by the packet. Do not infer a
-Goal from similar text or take over the only existing Agent automatically. Register a new identity with a
+On first run, omit `--goal-id` or `--agent-id` to receive the corresponding read-only Goal or fresh-Agent
+selection Gate. An omitted `--host-surface` defaults to Codex CLI TUI; pass every other Host explicitly.
+Rerun the exact command provided by the packet. Do not infer a Goal from similar text or take over the only existing Agent automatically. Register a new identity with a
 `register-agent --goal-id <goal-id> --agent-id <new-agent-id>` preview followed by atomic `--execute`; use
 an existing identity only for an explicitly authorized takeover.
 

@@ -23,7 +23,7 @@ def register_starter_bootstrap_commands(subparsers: argparse._SubParsersAction) 
     )
     agent_onboard_parser.add_argument(
         "--agent-type",
-        help="Agent runtime type: codex-app, trae_app, traex-cli, codex-app-ssh, codex-ide-plugin, codex-cli, claude-code, opencode, pi, manual, or other-agent.",
+        help="Agent runtime type: codex-cli, codex-app-ssh, traex-cli, claude-code, opencode, pi, manual, or other-agent.",
     )
     agent_onboard_parser.add_argument(
         "--list-agent-types",
@@ -66,7 +66,7 @@ def register_starter_bootstrap_commands(subparsers: argparse._SubParsersAction) 
         "--thread-id",
         help=(
             "Stable opaque host thread id used to reuse the bound agent lane. "
-            "Codex App defaults to the ambient CODEX_THREAD_ID when available."
+            "Codex CLI defaults to the ambient CODEX_THREAD_ID when available."
         ),
     )
     bootstrap_command_pack_parser.add_argument(
@@ -81,7 +81,7 @@ def register_starter_bootstrap_commands(subparsers: argparse._SubParsersAction) 
     )
     bootstrap_command_pack_parser.add_argument(
         "--host-surface",
-        default="codex-app",
+        default="codex-cli-tui",
         choices=START_GOAL_HOST_SURFACES,
         help="Host surface where the slash command pack will be exposed.",
     )

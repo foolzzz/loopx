@@ -614,7 +614,7 @@ def build_codex_cli_bootstrap_message(
         f"{cli_bin} doctor passed after PyPI install repair or an existing install",
         "repo bootstrap/connect completed conservatively or a concrete install/connect blocker was shown",
         f"thin heartbeat task_body generated from {cli_bin} heartbeat-prompt --thin, not hand-written",
-        "host loop surface activated from the thin task_body: Codex CLI /goal or Codex App heartbeat automation initially at max(3 minutes, owner cadence floor), then following quota scheduler_hint",
+        "host loop surface activated from the thin task_body (Codex CLI /goal or the host's native loop), then following quota scheduler_hint",
         "setup was not reported complete from registry/quota identity alone; missing host-loop mutation was reported as a concrete gate",
         "quota/status guard checked with the registered agent id when available after bootstrap/connect",
         "current goal, concrete user gate or none, top todos, and next safe action shown in the TUI",
@@ -650,8 +650,6 @@ def build_codex_cli_bootstrap_message(
         "heartbeat_prompt_command": heartbeat_prompt_command,
         "heartbeat_prompt_json_command": heartbeat_prompt_json_command,
         "codex_cli_goal_prefix": "/goal ",
-        "codex_app_loop_surface": "heartbeat automation task_body",
-        "codex_app_default_heartbeat_cadence": "initially 3 minutes, then follow quota scheduler_hint",
         "quota_guard_command": quota_guard_command,
         "refresh_command": refresh_command,
         "progress_refresh_command": progress_refresh_command,
@@ -826,12 +824,10 @@ heartbeat prompt. Complete the setup in order: install or repair LoopX
 if needed; probe whether this goal already exists in the shared global
 registry; only bootstrap/connect this project when the goal is absent; then
 configure the current loop surface from the generated thin heartbeat prompt.
-For Codex CLI, set the current TUI goal to `/goal ` plus the thin `task_body`.
-For Codex App, set or refresh the heartbeat automation to start at 3 minutes
-with that same thin `task_body`, then follow quota `scheduler_hint` for
-backoff. If the current surface cannot be mutated from this session, show the
-exact pasteable `/goal` or automation body and report that as a concrete user
-gate; do not claim setup success.
+Set the current Codex CLI TUI goal to `/goal ` plus the thin `task_body`, then
+follow quota `scheduler_hint`. If the current surface cannot be mutated from
+this session, show the exact pasteable `/goal` body and report that as a
+concrete user gate; do not claim setup success.
 
 Project: `{project}`
 Goal id: `{goal_id}`
@@ -843,13 +839,11 @@ Success criteria for this first setup turn:
 - If LoopX is already installed and this goal is already present in the shared
   global registry, reuse the existing `source_registry` route and do not
   duplicate bootstrap from this worktree.
-- Configure the loop target after bootstrap: Codex CLI `/goal <thin task_body>`
-  or Codex App heartbeat automation starting at 3 minutes with
-  `<thin task_body>`, then follow quota `scheduler_hint`.
+- Configure the loop target after bootstrap: Codex CLI `/goal <thin task_body>`,
+  then follow quota `scheduler_hint`.
 - Do not claim setup success from registry/quota identity alone. Setup is
   complete only when the host loop surface is active, or when you report the
-  exact host-tool gate that prevented setting Codex CLI `/goal` or creating the
-  Codex App heartbeat automation.
+  exact host-tool gate that prevented setting Codex CLI `/goal`.
 - Show me the current goal id, concrete user gate if any, top user todo if any,
   top agent todo, and next safe action.
 - Do not do longer delivery work in the setup turn unless I explicitly ask; the
@@ -896,10 +890,9 @@ hand-write or copy an old heartbeat body:
 
 Read `task_body` from the JSON result. Then configure the current surface:
 - Codex CLI TUI: set the current goal to `/goal ` followed by that `task_body`.
-- Codex App: create or update the heartbeat automation to start at 3 minutes
-  with that `task_body`, then follow quota `scheduler_hint`. If this session
-  cannot mutate Codex App automations, report that exact gate and do not say
-  LoopX automation is enabled.
+- Follow quota `scheduler_hint` for subsequent loop decisions. If this session
+  cannot set the visible Goal, report that exact gate and do not say the LoopX
+  loop is enabled.
 
 For review, the Markdown form is:
 
@@ -1118,7 +1111,7 @@ def render_prompt_text(
 ```
 
    只把输出的 handoff 交给目标项目 agent；完整 review packet 留给 operator view / evidence drill-down。
-7. 如果要给这个项目设置 recurring Codex App heartbeat，默认每 3 分钟一次，后续跟随 `quota should-run.scheduler_hint` 降频；不要手抄 guard 和 spend 协议；先生成 task body，再把输出复制进 automation：
+7. 如果要给这个项目设置宿主循环（如 Codex CLI `/goal`），后续跟随 `quota should-run.scheduler_hint`；不要手抄 guard 和 spend 协议；先生成 task body，再把输出交给宿主循环：
 
 ```bash
 {cli_bin} heartbeat-prompt --goal-id {goal_id}
@@ -1213,8 +1206,7 @@ def render_codex_cli_bootstrap_message_markdown(payload: dict[str, Any]) -> str:
         goal_mode_note = (
             "\nThe generated block is a setup message, not the reusable heartbeat body. "
             "After install/bootstrap, it tells the agent to set Codex CLI goal mode "
-            "to `/goal <thin task_body>` or Codex App automation starting at 3 minutes "
-            "with `<thin task_body>`.\n"
+            "to `/goal <thin task_body>` and follow quota `scheduler_hint`.\n"
         )
     return f"""# Codex CLI LoopX Bootstrap Message
 
@@ -1242,9 +1234,8 @@ Generate the thin task body after the project is connected:
 {payload.get("heartbeat_prompt_json_command", "")}
 ```
 
-- Codex CLI TUI loop: set `/goal <task_body>`.
-- Codex App loop: set heartbeat automation initially every 3 minutes with
-  `<task_body>`, then follow quota `scheduler_hint`.
+- Codex CLI TUI loop: set `/goal <task_body>`, then follow quota
+  `scheduler_hint`.
 
 ## Transcript-Free Validation Checklist
 

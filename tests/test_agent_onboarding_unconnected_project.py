@@ -7,7 +7,7 @@ import pytest
 from loopx.agent_onboarding import build_agent_onboarding_packet
 
 
-@pytest.mark.parametrize("agent_type", ["claude-code", "codex-app"])
+@pytest.mark.parametrize("agent_type", ["claude-code", "codex-cli"])
 def test_agent_onboard_serves_a_packet_before_the_project_registry_exists(
     tmp_path: Path,
     agent_type: str,

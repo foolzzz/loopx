@@ -71,7 +71,7 @@ def run_install(
     cwd: Path = REPO_ROOT,
     revalidate_extensions: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    result = subprocess.run(
         [str(INSTALL_SCRIPT)],
         cwd=cwd,
         env={
@@ -81,10 +81,16 @@ def run_install(
                 "1" if revalidate_extensions else "0"
             ),
         },
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    assert result.returncode == 0, (
+        f"install-local.sh failed with exit {result.returncode}\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )
+    return result
 
 
 def write_promotion_readiness(
@@ -377,19 +383,22 @@ def main() -> int:
             "Identify the target project and goal first",
             "loopx register-authority-source",
             "loopx import-doc-registry-authority",
-            "LoopX managed heartbeat bootstrap v2",
             "Generate A Review Packet",
             "loopx review-packet --goal-id",
             "loopx review-packet --goal-id <STABLE_GOAL_ID> --handoff-only",
             "loopx --format json review-packet --goal-id",
             "target project agent must not run this draft",
-            "This command is read-only",
-            "JSON output returns a minimized handoff payload with `handoff_text` instead of the full operator packet",
+            "This read-only command assembles agent context directly from current status",
+            "Neither path grants authority or changes work state",
+            "JSON `handoff_text` and `project_agent_handoff` always contain complete prepared text",
             "--classification <PUBLIC_SAFE_PROGRESS_CLASSIFICATION>",
             "--delivery-batch-scale <ACTUAL_DELIVERY_BATCH_SCALE>",
             "--delivery-outcome <ACTUAL_DELIVERY_OUTCOME>",
             "Never default or upgrade a smaller/preparatory turn",
             "do not infer scale/outcome from the classification name",
+            "never infer fresh registration merely from the new host session",
+            "If registered lanes exist",
+            "Fresh registration is available only when no registered lane exists",
         ):
             assert phrase in compact_skill_text, phrase
         assert "JSON output still keeps the full payload" not in compact_skill_text, compact_skill_text
@@ -444,7 +453,9 @@ def main() -> int:
         loopx_command_skill = codex_home / "skills" / "loopx" / "SKILL.md"
         loopx_command_skill_text = loopx_command_skill.read_text(encoding="utf-8")
         assert "surface=codex-skills" in loopx_command_skill_text, loopx_command_skill_text
-        assert "Identify the exact current host surface" in loopx_command_skill_text
+        assert "exact current host `codex-cli-tui`" in loopx_command_skill_text
+        assert "--host-surface codex-cli-tui" in loopx_command_skill_text
+        assert "--host-surface <exact-current-host>" not in loopx_command_skill_text
         assert "`goal_start_contract` as authoritative" in loopx_command_skill_text
         loopx_openai_metadata = loopx_command_skill.parent / "agents" / "openai.yaml"
         loopx_openai_metadata_text = loopx_openai_metadata.read_text(encoding="utf-8")

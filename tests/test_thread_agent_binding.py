@@ -92,21 +92,21 @@ def test_binding_lookup_is_fail_closed_without_thread_id() -> None:
             "thread_agent_bindings": [
                 {
                     "thread_id": "thread-a",
-                    "host_surface": "codex-app",
+                    "host_surface": "codex-cli-tui",
                     "agent_id": "agent-a",
                 }
             ],
         }
     }
     assert (
-        resolve_thread_agent_binding(goal, host_surface="codex-app", thread_id=None)[
+        resolve_thread_agent_binding(goal, host_surface="codex-cli-tui", thread_id=None)[
             "status"
         ]
         == "unavailable"
     )
     assert (
         resolve_thread_agent_binding(
-            goal, host_surface="codex-app", thread_id="thread-a"
+            goal, host_surface="codex-cli-tui", thread_id="thread-a"
         )["agent_id"]
         == "agent-a"
     )
@@ -233,7 +233,7 @@ def test_resolve_codex_deep_link_confirms_exact_bound_goal_and_agent(
     assert bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-a",
         agent_id="agent-a",
         execute=True,
@@ -241,7 +241,7 @@ def test_resolve_codex_deep_link_confirms_exact_bound_goal_and_agent(
 
     resolved = resolve_registry_thread_agent_binding(
         registry_path=path,
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_link="codex://threads/thread-a",
     )
 
@@ -544,7 +544,7 @@ def test_binding_is_idempotent_and_conflicts_fail_closed(tmp_path: Path) -> None
     first = bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-a",
         agent_id="agent-a",
         execute=True,
@@ -554,7 +554,7 @@ def test_binding_is_idempotent_and_conflicts_fail_closed(tmp_path: Path) -> None
     second = bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-a",
         agent_id="agent-a",
         execute=True,
@@ -564,7 +564,7 @@ def test_binding_is_idempotent_and_conflicts_fail_closed(tmp_path: Path) -> None
     conflict = bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-a",
         agent_id="agent-b",
         execute=True,
@@ -574,7 +574,7 @@ def test_binding_is_idempotent_and_conflicts_fail_closed(tmp_path: Path) -> None
     payload = json.loads(path.read_text(encoding="utf-8"))
     bindings = payload["goals"][0]["coordination"]["thread_agent_bindings"]
     assert bindings == [
-        {"thread_id": "thread-a", "host_surface": "codex-app", "agent_id": "agent-a"}
+        {"thread_id": "thread-a", "host_surface": "codex-cli-tui", "agent_id": "agent-a"}
     ]
 
 
@@ -586,7 +586,7 @@ def test_unbind_removes_only_the_exact_thread_and_preserves_agent_registration(
         bound = bind_thread_agent_in_registry(
             registry_path=path,
             goal_id="goal",
-            host_surface="codex-app",
+            host_surface="codex-cli-tui",
             thread_id=thread_id,
             agent_id="agent-b",
             execute=True,
@@ -597,7 +597,7 @@ def test_unbind_removes_only_the_exact_thread_and_preserves_agent_registration(
     preview = unbind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-current",
         agent_id="agent-b",
         execute=False,
@@ -610,7 +610,7 @@ def test_unbind_removes_only_the_exact_thread_and_preserves_agent_registration(
     unbound = unbind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-current",
         agent_id="agent-b",
         execute=True,
@@ -625,25 +625,25 @@ def test_unbind_removes_only_the_exact_thread_and_preserves_agent_registration(
     assert goal["coordination"]["thread_agent_bindings"] == [
         {
             "thread_id": "thread-other",
-            "host_surface": "codex-app",
+            "host_surface": "codex-cli-tui",
             "agent_id": "agent-b",
         }
     ]
     assert resolve_thread_agent_binding(
         goal,
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-current",
     )["status"] == "missing"
     assert resolve_thread_agent_binding(
         goal,
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-other",
     )["agent_id"] == "agent-b"
 
     rebound = bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-current",
         agent_id="agent-a",
         execute=True,
@@ -658,7 +658,7 @@ def test_unbind_is_idempotent_and_expected_agent_mismatch_fails_closed(
     assert bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-current",
         agent_id="agent-b",
         execute=True,
@@ -668,7 +668,7 @@ def test_unbind_is_idempotent_and_expected_agent_mismatch_fails_closed(
     mismatch = unbind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-current",
         agent_id="agent-a",
         execute=True,
@@ -680,7 +680,7 @@ def test_unbind_is_idempotent_and_expected_agent_mismatch_fails_closed(
     missing = unbind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app",
+        host_surface="codex-cli-tui",
         thread_id="thread-missing",
         agent_id="agent-b",
         execute=True,

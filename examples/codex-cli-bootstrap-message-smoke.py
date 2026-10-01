@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,7 +27,7 @@ MUST_HAVE = (
     "setup/bootstrap instruction",
     "thin task_body",
     "/goal <thin task_body>",
-    "heartbeat automation",
+    "quota `scheduler_hint`",
     "host loop surface",
     "hidden headless `codex exec`",
     "current goal id",
@@ -68,8 +69,7 @@ def assert_message_contract(payload: dict[str, object]) -> None:
     assert "heartbeat-prompt --thin" in str(payload["heartbeat_prompt_json_command"]), payload
     assert "--format json heartbeat-prompt" in str(payload["heartbeat_prompt_json_command"]), payload
     assert payload["codex_cli_goal_prefix"] == "/goal ", payload
-    assert payload["codex_app_loop_surface"] == "heartbeat automation task_body", payload
-    assert payload["codex_app_default_heartbeat_cadence"] == "initially 3 minutes, then follow quota scheduler_hint", payload
+    assert not any(key.startswith("codex_app_") for key in payload), payload
     assert "--agent-scope 'Codex CLI /goal visible TUI loop'" in str(payload["heartbeat_prompt_command"]), payload
     checklist = payload["first_run_validation_checklist"]
     assert isinstance(checklist, list) and len(checklist) >= 5, payload
@@ -110,6 +110,8 @@ def assert_message_contract(payload: dict[str, object]) -> None:
     assert "Headless fallback should never be the only way" not in message, message
     assert "quota spend-slot --goal-id public-codex-cli-goal" in message, message
     assert "--source heartbeat --execute --agent-id codex-side-bypass" in message, message
+    assert "Codex App" not in message, message
+    assert "automation body" not in message, message
 
 
 def run_cli(*extra_args: str) -> str:
@@ -126,6 +128,7 @@ def run_cli(*extra_args: str) -> str:
 def assert_docs_surface_codex_cli_quickstart() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     getting_started = (REPO_ROOT / "docs/guides/getting-started.md").read_text(encoding="utf-8")
+    newcomer = (REPO_ROOT / "docs/guides/newcomer-command-path.md").read_text(encoding="utf-8")
     product_contract = (REPO_ROOT / "docs/product/runtimes/codex-cli/codex-cli-tui-loop.md").read_text(encoding="utf-8")
 
     assert "Codex CLI" in readme, readme[:500]
@@ -153,7 +156,6 @@ def assert_docs_surface_codex_cli_quickstart() -> None:
     assert "do not use hidden headless execution" in normalized_getting_started
     assert "one TUI setup message" in normalized_product_contract
     assert "install or reuse LoopX" in normalized_getting_started
-    assert "starts at 3 minutes" in normalized_getting_started
     assert (
         "set the current Codex CLI goal to `/goal <thin task_body>`"
         in normalized_product_contract
@@ -167,8 +169,8 @@ def assert_docs_surface_codex_cli_quickstart() -> None:
         in normalized_getting_started
     ), getting_started
     assert "first-run path should not require you to understand registry paths" in normalized_getting_started, getting_started
-    assert "setup-first rewrite of the App onboarding experience" in normalized_getting_started, getting_started
-    assert "Codex App gets a heartbeat automation body that starts at 3 minutes" in normalized_getting_started, getting_started
+    assert "setup-first onboarding message, not the heartbeat body itself" in normalized_getting_started, getting_started
+    assert "other hosts get their native loop from `agent-onboard`" in normalized_getting_started, getting_started
     assert "transcript-free validation checklist" in normalized_getting_started, getting_started
     assert "installs the thin LoopX goal/heartbeat body immediately" in normalized_product_contract, product_contract
     assert "optional automation checks after the setup path works" in normalized_getting_started, getting_started
@@ -178,6 +180,56 @@ def assert_docs_surface_codex_cli_quickstart() -> None:
     assert "loopx codex-cli-exec-handoff --project . --goal-id <goal-id>" in getting_started, getting_started
     assert "headless-disabled boundary" in normalized_getting_started, getting_started
     assert "This command no longer prints a runnable `codex exec` handoff script" in product_contract, product_contract
+
+    default_host_docs = {
+        "docs/guides/getting-started.md": getting_started,
+        "docs/guides/newcomer-command-path.md": newcomer,
+    }
+    for text in default_host_docs.values():
+        assert "defaults to `codex-cli-tui`" in " ".join(text.split()), text
+
+    retired_entry_paths = (
+        "docs/book/chapters/05-connect-existing-project.md",
+        "docs/book/en/chapters/05-connect-existing-project.md",
+        "docs/book/chapters/appendix-reference.md",
+        "docs/book/en/chapters/appendix-reference.md",
+        "docs/book/chapters/06-codex-app.md",
+        "docs/book/en/chapters/06-codex-app.md",
+        "docs/development/control-plane-course/03-first-real-loop.md",
+    )
+    identity_plan_path = "docs/plans/issue-2785-thread-agent-identity.md"
+    identity_plan = (REPO_ROOT / identity_plan_path).read_text(encoding="utf-8")
+    assert "Codex CLI Thread Agent Identity Reuse" in identity_plan, identity_plan
+    assert "Codex App Thread Agent Identity Reuse" not in identity_plan, identity_plan
+
+    retired_host_argument = re.compile(
+        r"--host-surface(?:\s+|=)codex-app(?![-\w])",
+        re.IGNORECASE,
+    )
+    omitted_host_selection_gate = re.compile(
+        r"(?:"
+        r"(?:--host-surface|host[ -]surface|host|宿主)"
+        r"[^.!?。！？\n]{0,120}(?:omit(?:ted|ting)?|省略)"
+        r"[^.!?。！？\n]{0,120}selection\s+gate"
+        r"|"
+        r"(?:omit(?:ted|ting)?|省略)"
+        r"[^.!?。！？\n]{0,120}(?:--host-surface|host[ -]surface|host|宿主)"
+        r"[^.!?。！？\n]{0,120}selection\s+gate"
+        r")",
+        re.IGNORECASE,
+    )
+    contract_docs = {
+        **default_host_docs,
+        "docs/product/runtimes/codex-cli/codex-cli-tui-loop.md": product_contract,
+        identity_plan_path: identity_plan,
+        **{
+            relative_path: (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for relative_path in retired_entry_paths
+        },
+    }
+    for relative_path, text in contract_docs.items():
+        assert retired_host_argument.search(text) is None, relative_path
+        assert omitted_host_selection_gate.search(text) is None, relative_path
 
 
 def main() -> int:
@@ -217,7 +269,8 @@ def main() -> int:
     assert "Copy the block below into Codex CLI TUI" in cli_markdown, cli_markdown
     assert "setup message, not the reusable heartbeat body" in cli_markdown, cli_markdown
     assert "`/goal <thin task_body>`" in cli_markdown, cli_markdown
-    assert "Codex App loop: set heartbeat automation initially every 3 minutes" in cli_markdown, cli_markdown
+    assert "Codex App" not in cli_markdown, cli_markdown
+    assert "automation starting" not in cli_markdown, cli_markdown
     assert "heartbeat-prompt --thin" in cli_markdown, cli_markdown
     assert "Fresh Repo Install Repair" in cli_markdown, cli_markdown
     assert "Post-Bootstrap Thin Loop Prompt" in cli_markdown, cli_markdown

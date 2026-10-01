@@ -132,10 +132,6 @@ COMMAND_GROUPS: list[dict[str, object]] = [
         "title": "Loop driver hints",
         "commands": [
             {
-                "command": "Codex App automation",
-                "purpose": "Use `/loopx <goal>` and let the app create or refresh the heartbeat automation.",
-            },
-            {
                 "command": "Codex CLI visible goal",
                 "purpose": "Stay in the visible TUI; use `loopx codex-cli-bootstrap-message` for setup when needed.",
             },
@@ -488,7 +484,6 @@ def render_concise_help(program: str = "loopx") -> str:
             "  loopx quota should-run         Decide whether the next agent turn should run.",
             "",
             "Run the loop:",
-            "  Codex App      use /loopx <goal>; let the app set the heartbeat automation.",
             "  Codex CLI      keep visible TUI; run loopx codex-cli-bootstrap-message.",
             "  Claude Code    use installed /loopx skills; adapter only for gated native /loop.",
             "  OpenCode       opt into the goal bridge, then use loopx_goal_activate.",

@@ -88,7 +88,7 @@ def _loopx_start_goal_arguments_instruction(
     cli_bin: str,
     host_surface: str | None,
 ) -> str:
-    selected_host = host_surface or "<exact-current-host>"
+    selected_host = host_surface or "codex-cli-tui"
     instruction = (
         "If arguments are present and the current host already has a verified "
         "active LoopX Goal/Agent binding, preserve that exact identity when the "
@@ -107,8 +107,8 @@ def _loopx_start_goal_arguments_instruction(
     )
     if host_surface is None:
         instruction += (
-            " If the host is unclear, omit the host flag once and follow the "
-            "returned host-surface selection gate."
+            " This unbound entry defaults to Codex CLI TUI; every other host "
+            "must pass its exact host surface."
         )
     return instruction
 
@@ -177,14 +177,13 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
             "argument_hint": "[--fine-grained] [--capability-route issue-fix] [task text]",
             "instructions": [
                 "Visible command arguments: `$ARGUMENTS`.",
-                "Identify the exact current host surface (codex-app, trae_app, codex-app-ssh, codex-ide-plugin, codex-cli-tui, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
+                "Identify the exact current host surface (codex-cli-tui, codex-app-ssh, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
                 _loopx_start_goal_arguments_instruction(
                     cli_bin=cli_bin,
                     host_surface=None,
                 ),
                 "Treat the returned `ordered_steps` and `goal_start_contract` as authoritative. Follow their identity, capability-route, Todo, writeback, host-loop, quota, and stop/gate rules before substantive work; do not reconstruct those rules from skill memory.",
                 "When the host explicitly supplies a `loopx_task_planning_v0` packet from `loopx todo plan` for a registered Goal/Agent, execute that bounded planning checkpoint instead of starting another Goal. Follow its shared planner and Todo delta, then return actual Todo ids for readback. Its caller-owned execution_handoff retains host activation and quota; do not create a planning Todo, execute task work, or claim delivery during the checkpoint.",
-                "For a Codex App heartbeat, run the returned activation command, require ok=true, and save its `LoopX managed heartbeat bootstrap v2` task_body through automation_update. The saved loader fetches the current thin contract on every wake; do not persist a raw thin/compact/full execution body. Preserve the current goal, registered agent, task binding and existing schedule; read back the automation through the same App.",
                 "If the packet exposes a goal-selection gate, rerun one exact choice before any mutation.",
                 "When authoring task Todos, treat `--action-kind` as the documented extensible public-safe token: choose a short task-relevant value such as `implement`, `test`, or `review`; do not search the LoopX source for an allowlist.",
                 "Consume the turn-start quota JSON packet exactly once: read the complete output directly or save it and query it with `jq`; never pipe it through `head` or `tail`, and never rerun the turn-start call to recover hidden fields. A host whose runtime mints Turn identity uses `--begin-turn`; every other host passes its own `--turn-instance-id`. When selection is required, choose the Todo and use `interaction_contract.cli_channel.selection_command` with the returned Turn identity before mutation.",
@@ -286,6 +285,36 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
             )
         specs.extend(legacy_specs)
     return specs
+
+
+def _command_prompt_specs_for_host(
+    *,
+    cli_bin: str,
+    include_legacy_aliases: bool,
+    host_surface: str,
+) -> list[dict[str, Any]]:
+    """Bind the generated ``loopx`` facade to its installation host."""
+
+    specs = _command_prompt_specs(
+        cli_bin=cli_bin,
+        include_legacy_aliases=include_legacy_aliases,
+    )
+    bound_specs: list[dict[str, Any]] = []
+    for spec in specs:
+        if spec["name"] != "loopx":
+            bound_specs.append(spec)
+            continue
+        instructions = list(spec["instructions"])
+        instructions[1] = (
+            "This entry skill is installed for the exact current host "
+            f"`{host_surface}`; do not infer or substitute another host surface."
+        )
+        instructions[2] = _loopx_start_goal_arguments_instruction(
+            cli_bin=cli_bin,
+            host_surface=host_surface,
+        )
+        bound_specs.append({**spec, "instructions": instructions})
+    return bound_specs
 
 
 def _command_skill_content(spec: dict[str, Any], *, surface: str) -> str:
@@ -590,7 +619,7 @@ def _normalize_surfaces(surfaces: list[str] | None) -> list[str]:
             candidates = ["codex", "claude-code", "opencode"]
         elif surface == "codex":
             candidates = ["codex"]
-        elif surface in {"codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-ide", "codex-cli"}:
+        elif surface in {"codex-app-ssh", "codex-cli"}:
             candidates = ["codex"]
         elif surface in {"gemini-cli", "gemini-code"}:
             candidates = ["gemini"]
@@ -786,7 +815,21 @@ def install_slash_commands(
     pi_scope: str = "project",
     pi_user_home: str | None = None,
 ) -> dict[str, Any]:
-    specs = _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=include_legacy_aliases)
+    requested_surfaces = set(surfaces or ["all"])
+    codex_host_requests = {
+        "codex-app-ssh" if surface == "codex-app-ssh" else "codex-cli-tui"
+        for surface in requested_surfaces
+        if surface in {"all", "codex", "codex-cli", "codex-app-ssh"}
+    }
+    if len(codex_host_requests) > 1:
+        raise ValueError(
+            "Codex CLI and Codex App over SSH share one skill directory; "
+            "install exactly one Codex host surface at a time"
+        )
+    codex_host_surface = next(iter(codex_host_requests), "codex-cli-tui")
+    codex_result_host_surfaces = [
+        "codex-app-ssh" if codex_host_surface == "codex-app-ssh" else "codex-cli"
+    ]
     effective_surfaces = _normalize_surfaces(surfaces)
     codex_root = _codex_home(codex_home)
     claude_root = _claude_home(claude_home)
@@ -823,7 +866,11 @@ def install_slash_commands(
     if "codex" in effective_surfaces:
         # Keep aliases in the catalog and native slash hosts, but expose one
         # canonical skill per outcome in Codex's skill picker.
-        codex_specs = _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=False)
+        codex_specs = _command_prompt_specs_for_host(
+            cli_bin=cli_bin,
+            include_legacy_aliases=False,
+            host_surface=codex_host_surface,
+        )
         legacy_specs = [s for s in _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=True)
                         if str(s["name"]).startswith("loop-global-")]
         for spec in legacy_specs:
@@ -843,7 +890,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "retired_codex_custom_prompt",
                         "command": spec["command"],
                         "path": str(prompt_path),
@@ -857,7 +904,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "retired_codex_custom_prompt",
                         "command": spec["command"],
                         "path": str(prompt_path),
@@ -875,7 +922,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "codex_explicit_skills",
                         "command": spec["command"],
                         "path": str(skill_path),
@@ -887,7 +934,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "codex_skill_openai_metadata",
                         "command": spec["command"],
                         "path": str(metadata_path),
@@ -901,7 +948,7 @@ def install_slash_commands(
             installed.append(
                 {
                     "surface": "codex",
-                    "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                    "host_surfaces": codex_result_host_surfaces,
                     "mechanism": "codex_explicit_skills",
                     "command": spec["command"],
                     "path": str(skill_path),
@@ -922,7 +969,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "codex_skill_openai_metadata",
                         "command": spec["command"],
                         "path": str(metadata_path),
@@ -936,7 +983,7 @@ def install_slash_commands(
                     installed.append(
                         {
                             "surface": "codex",
-                            "host_surfaces": ["codex-cli", "codex-ide-plugin", "codex-app", "codex-app-ssh"],
+                            "host_surfaces": codex_result_host_surfaces,
                             "mechanism": "retired_codex_command_metadata",
                             "command": spec["command"],
                             "path": str(metadata_path),
@@ -948,7 +995,7 @@ def install_slash_commands(
             installed.append(
                 {
                     "surface": "codex",
-                    "host_surfaces": ["codex-cli"],
+                    "host_surfaces": codex_result_host_surfaces,
                     "mechanism": "unsupported_native_slash_registry",
                     "command": spec["command"],
                     "path": None,
@@ -976,7 +1023,12 @@ def install_slash_commands(
 
     if "claude-code" in effective_surfaces:
         skills_dir = claude_root / "skills"
-        for spec in specs:
+        claude_specs = _command_prompt_specs_for_host(
+            cli_bin=cli_bin,
+            include_legacy_aliases=include_legacy_aliases,
+            host_surface="claude-code",
+        )
+        for spec in claude_specs:
             path = skills_dir / str(spec["name"]) / "SKILL.md"
             if uninstall:
                 status = _retire_status(path, execute=execute)
@@ -1020,7 +1072,11 @@ def install_slash_commands(
         # status and the dry run that every other surface reports — and it would
         # need the `gemini` binary on PATH to install a file it already has.
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="gemini-cli",
+            ),
             installed=installed,
             skills_dir=gemini_root / "skills",
             surface="gemini",
@@ -1038,7 +1094,11 @@ def install_slash_commands(
         # and the root belongs to agy alone (Gemini CLI reads ~/.gemini/skills),
         # so the managed skill surfaces never collide across different hosts.
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="agy",
+            ),
             installed=installed,
             skills_dir=agy_root / "skills",
             surface="agy",
@@ -1059,7 +1119,11 @@ def install_slash_commands(
         # .kiro/prompts wins over a skill by Kiro's own resolution order; the
         # installer never touches the prompt directories.
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="kiro-cli",
+            ),
             installed=installed,
             skills_dir=kiro_root / "skills",
             surface="kiro-cli",
@@ -1075,7 +1139,11 @@ def install_slash_commands(
         # include .claude/skills and .codex/skills, but relying on another
         # host's directory would break the moment that host is uninstalled).
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="cursor-agent",
+            ),
             installed=installed,
             skills_dir=cursor_root / "skills",
             surface="cursor",
@@ -1103,7 +1171,11 @@ def install_slash_commands(
     if "zcode" in effective_surfaces:
         # ZCode discovers user skills from ZCODE_HOME/skills (default ~/.zcode/skills).
         _install_skill_facade(
-            specs=specs,
+            specs=_command_prompt_specs_for_host(
+                cli_bin=cli_bin,
+                include_legacy_aliases=include_legacy_aliases,
+                host_surface="zcode",
+            ),
             installed=installed,
             skills_dir=zcode_root / "skills",
             surface="zcode",
@@ -1118,8 +1190,13 @@ def install_slash_commands(
         # OpenCode reads global skills from OPENCODE_CONFIG_DIR/skills. The
         # static command facade below stays as it is — a command is something
         # the user types, a skill is something the model can reach for itself.
+        opencode_specs = _command_prompt_specs_for_host(
+            cli_bin=cli_bin,
+            include_legacy_aliases=include_legacy_aliases,
+            host_surface="opencode",
+        )
         _install_skill_facade(
-            specs=specs,
+            specs=opencode_specs,
             installed=installed,
             skills_dir=opencode_root / "skills",
             surface="opencode",
@@ -1290,7 +1367,7 @@ def install_slash_commands(
                         )
 
         if not bridge_preflight_blocked:
-            for spec in specs:
+            for spec in opencode_specs:
                 path = commands_dir / f"{spec['name']}.md"
                 status = (
                     _retire_status(path, execute=execute)

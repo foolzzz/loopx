@@ -132,28 +132,27 @@ def test_traex_visible_goal_body_contract_rejects_forbidden_variants(
         _assert_traex_visible_goal_body_contract(forbidden_body)
 
 
-def test_codex_ide_plugin_is_an_exact_host_type_with_visible_goal_activation() -> None:
-    assert normalize_agent_type("codex-ide-plugin") == "codex-ide-plugin"
-    assert normalize_agent_type("VSCode Codex") == "codex-ide-plugin"
-    assert normalize_agent_type("codex-ide") == "codex-ide-plugin"
-    assert agent_type_for_host_surface("codex-ide-plugin") == "codex-ide-plugin"
-    assert agent_type_for_host_surface("codex-ide") == "codex-ide-plugin"
-    assert agent_type_for_host_surface("codex-app") == "codex-app"
+def test_host_surfaces_resolve_to_supported_agent_types() -> None:
+    assert agent_type_for_host_surface(None) == "codex-cli"
     assert agent_type_for_host_surface("codex-cli-tui") == "codex-cli"
+    assert agent_type_for_host_surface("codex-app-ssh") == "codex-app-ssh"
     assert normalize_agent_type("Open Code") == "opencode"
     assert agent_type_for_host_surface("opencode") == "opencode"
     assert agent_type_for_host_surface("ark-managed-agent") == "ark-managed-agent"
+    for removed in ("codex-app", "chat-box", "trae_app", "codex-ide-plugin", "codex-ide"):
+        with pytest.raises(AgentTypeError, match="unsupported agent_type"):
+            agent_type_for_host_surface(removed)
 
     packet = build_host_loop_activation_packet(
-        agent_type="codex-ide-plugin",
+        agent_type="codex-cli",
         goal_id="fixture-goal",
         agent_id="codex-fixture",
         registered_agents=["codex-fixture"],
     )
 
-    assert packet["host_surface"] == "codex_ide_visible_goal_mode"
+    assert packet["host_surface"] == "codex_cli_visible_goal_mode"
     assert packet["activation_method"] == "set_visible_goal"
-    assert packet["host_mutation"]["owner"] == "Codex IDE plugin composer"
+    assert packet["host_mutation"]["owner"] == "Codex CLI TUI"
     assert packet["host_mutation"]["host_command"] == "/goal <task_body>"
     assert "automation_update" not in str(packet)
     assert (
@@ -169,11 +168,8 @@ def test_codex_ide_plugin_is_an_exact_host_type_with_visible_goal_activation() -
     ("agent_type", "runtime_profile"),
     (
         ("ark-managed-agent", "ark_managed_agent_goal"),
-        ("codex-app", "codex_app_heartbeat"),
-        ("trae_app", "trae_app"),
         ("codex-app-ssh", "codex_app_ssh_goal"),
         ("codex-cli", "codex_cli"),
-        ("codex-ide-plugin", "codex_cli"),
         ("claude-code", "claude_code"),
         ("opencode", "generic_cli"),
         ("traex-cli", "generic_cli"),
@@ -500,65 +496,9 @@ def test_accountable_refresh_preserves_explicit_validated_turn_semantics() -> No
     assert "outcome_progress" not in command
 
 
-def test_codex_app_activation_uses_narrow_runtime_profile() -> None:
-    packet = build_host_loop_activation_packet(
-        agent_type="codex-app",
-        goal_id="fixture-goal",
-        agent_id="codex-fixture",
-        registered_agents=["codex-fixture"],
-    )
-
-    command = packet["commands"]["heartbeat_prompt"]
-    assert "--codex-app" in command
-    assert "--runtime-profile" not in command
-    assert "--host-surface" not in command
-    assert "--scheduler-owner" not in command
-    assert "--execution-mode" not in command
-
-
-def test_trae_app_activation_uses_host_automation_and_stays_distinct_from_cli() -> None:
-    assert normalize_agent_type("trae_app") == "trae_app"
-    assert agent_type_for_host_surface("trae_app") == "trae_app"
-    assert normalize_agent_type("traex") == "traex-cli"
-    with pytest.raises(AgentTypeError, match="unsupported agent_type"):
-        normalize_agent_type("Trae App")
-
-    packet = build_host_loop_activation_packet(
-        agent_type="trae_app",
-        goal_id="fixture-goal",
-        agent_id="trae_app-fixture",
-        registered_agents=["trae_app-fixture"],
-    )
-
-    command = packet["commands"]["heartbeat_prompt"]
-    assert packet["host_surface"] == "trae_app"
-    assert packet["activation_method"] == (
-        "create_or_update_trae_app_automation"
-    )
-    assert packet["host_mutation"]["preferred_tool"] == "automation_update"
-    assert "--trae_app" in command
-    assert "--codex-app" not in command
-    assert "--runtime-profile" not in command
-    assert any(
-        "settled non-terminal turn leaves the automation active" in criterion
-        for criterion in packet["success_criteria"]
-    )
-
-    prompt = build_heartbeat_prompt(
-        goal_id="trae_app-prompt-fixture",
-        thin=True,
-        runtime_profile="trae_app",
-    )
-    assert "--trae_app" in prompt["quota_guard_command"]
-    assert "--trae_app" in prompt["task_body"]
-    rendered = render_heartbeat_prompt_markdown(prompt)
-    assert "Trae App heartbeat automation" in rendered
-    assert "Codex App heartbeat automation" not in rendered
-
-
 def test_new_agent_onboarding_defaults_to_fresh_identity() -> None:
     packet = build_host_loop_activation_packet(
-        agent_type="codex-app",
+        agent_type="codex-cli",
         goal_id="fixture-goal",
         registered_agents=["codex-existing"],
         fresh_agent_default=True,
@@ -597,9 +537,7 @@ def test_new_agent_onboarding_defaults_to_fresh_identity() -> None:
     "agent_type",
     (
         "ark-managed-agent",
-        "codex-app",
         "codex-app-ssh",
-        "codex-ide-plugin",
         "codex-cli",
         "claude-code",
         "opencode",
@@ -624,7 +562,7 @@ def test_non_traex_identity_selection_preserves_v0_prompt_fields(
 
 def test_new_agent_onboarding_gates_an_empty_agent_registry() -> None:
     packet = build_host_loop_activation_packet(
-        agent_type="codex-app",
+        agent_type="codex-cli",
         goal_id="fixture-goal",
         registered_agents=[],
         fresh_agent_default=True,
@@ -638,7 +576,7 @@ def test_new_agent_onboarding_gates_an_empty_agent_registry() -> None:
 
 def test_explicit_identity_preserves_existing_agent_continuation() -> None:
     packet = build_host_loop_activation_packet(
-        agent_type="codex-app",
+        agent_type="codex-cli",
         goal_id="fixture-goal",
         agent_id="codex-existing",
         registered_agents=["codex-existing"],
@@ -1186,35 +1124,33 @@ def test_generic_cli_prompt_does_not_imply_traex_visible_goal() -> None:
     assert "visible TraeX `/goal` task" not in payload["task_body"]
 
 
-def test_ambiguous_codex_requires_app_ide_or_cli_selection() -> None:
+def test_bare_codex_resolves_to_the_cli_while_bare_cli_stays_ambiguous() -> None:
+    for alias in ("codex", "openai-codex", "OpenAI Codex"):
+        assert normalize_agent_type(alias) == "codex-cli"
     with pytest.raises(AgentTypeError) as caught:
-        normalize_agent_type("codex")
+        normalize_agent_type("cli")
 
-    assert caught.value.suggestions == [
-        "codex-app",
-        "codex-app-ssh",
-        "codex-ide-plugin",
-        "codex-cli",
-    ]
+    assert caught.value.suggestions == ["codex-cli", "manual", "other-agent"]
 
 
-def test_codex_app_startup_saves_v2_and_loads_the_current_contract(
+def test_codex_cli_startup_bootstrap_loads_the_current_contract(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    goal_id = "app-bootstrap-fixture"
+    goal_id = "cli-bootstrap-fixture"
     project, home = _write_onboarding_goal(
         tmp_path, goal_id=goal_id, registered_agents=["worker-a"])
     monkeypatch.setenv("LOOPX_RUNTIME_ROOT", str(home / ".loopx"))
     packet = build_agent_onboarding_packet(
-        project=project, agent_type="codex-app", goal_id=goal_id,
+        project=project, agent_type="codex-cli", goal_id=goal_id,
         agent_id="worker-a", cli_bin=str(REPO_ROOT / "scripts" / "loopx"))
     initial = _run_activation_command(packet["host_loop_activation"]["activation_input_command"], home=home)
     assert initial["ok"] and initial["bootstrap"]
     prompt = initial["task_body"]
-    assert prompt.startswith("LoopX managed heartbeat bootstrap v2\n每次唤醒先执行：\n")
+    assert prompt.startswith("LoopX managed host bootstrap v1\n")
     command = prompt.split("```sh\n", 1)[1].split("\n```", 1)[0]
     tokens = shlex.split(command)
-    assert "--bootstrap" not in tokens and "--codex-app" in tokens
+    assert "--bootstrap" not in tokens
+    assert tokens[tokens.index("--runtime-profile") + 1] == "codex_cli"
     assert tokens[tokens.index("--agent-id") + 1] == "worker-a"
     loaded = _run_activation_command(command, home=home)
     assert loaded["ok"] and not loaded.get("bootstrap")

@@ -28,7 +28,7 @@ bash scripts/dashboard-dev.sh
 底部输入框直接说人话，LoopX 会识别意图并生成**变更预览**：
 
 - "创建一个 xxx 的 Goal" → goal.create 预览
-- "每天推进这个 Goal" → heartbeat.bind 预览
+- "每 2 小时检查一次 MR 状态" → monitor.create 预览
 - "标记完成 / 阻塞 / 暂缓某个 todo" → todo.update 预览
 - "把这个任务交给 Kimi" → todo.update reassign 预览
 
@@ -116,6 +116,6 @@ uv run loopx chat-endpoint remove --agent-id kimi   # 移除
 
 ## 安全边界
 
-- 所有写操作（建 Goal、改 todo、绑 heartbeat…）都必须经预览弹窗由你确认
+- 所有写操作（建 Goal、改 todo、配置定时检查…）都必须经预览弹窗由你确认
 - 受保护操作（发布、删除、付款类）有额外的宿主确认门禁
 - 页面不展示原始 runtime id、本地路径、凭证等内部细节（"高级诊断"折叠区除外）

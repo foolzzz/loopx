@@ -243,9 +243,9 @@ defines these main paths:
 | DeepSeek Harness | Native skill plus same-session Driver or `loopx turn run-once` | Every bounded execution segment still needs independent validation |
 | Shell / other Agent | Guided packet plus caller-owned runner | Caller owns wake-up without a runner hook |
 
-Catalog presence does not mean every Host exposes the same automation API. When `host_surface` is unknown,
-omit it once and follow the read-only selection Gate. Do not guess that a CLI, IDE plugin, App SSH
-workspace, or ordinary shell is a Codex App heartbeat. Use the Runtime Connector Catalog and the
+Catalog presence does not mean every Host exposes the same automation API. When `host_surface` is omitted,
+LoopX defaults to the visible Codex CLI TUI. Pass an exact surface for every other Host; do not mistake an
+App SSH workspace or ordinary shell for another Host's scheduler. Use the Runtime Connector Catalog and the
 corresponding Host documentation for complete startup, stop, and validation details; the Dev Book does
 not duplicate every adapter runbook.
 

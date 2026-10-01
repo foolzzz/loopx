@@ -56,7 +56,7 @@ includes(workspacePageSource, 'kind: "output"', "output row projection");
 includes(workspacePageSource, 'kind: "schedule"', "schedule row projection");
 includes(workspacePageSource, 'kind: "proposal"', "typed proposal projection");
 includes(workspacePageSource, 'actionKind: "goal.create"', "natural language Goal preview");
-includes(workspacePageSource, '"heartbeat.bind" : "monitor.create"', "heartbeat and monitor classification");
+includes(workspacePageSource, 'actionKind: "monitor.create"', "bounded monitor classification");
 includes(workspacePageSource, 'error.payload.error_code === "protected_action"', "protected host Gate rendering");
 includes(workspacePageSource, 'todo.taskClass === "continuous_monitor"', "canonical continuous monitor projection");
 
@@ -65,7 +65,6 @@ includes(drawerSource, 'role="dialog"', "accessible drawer dialog");
 includes(drawerSource, 'event.key === "Escape"', "drawer Escape handling");
 includes(drawerSource, "callbacks.onCorrectRun", "same-session correction action");
 includes(drawerSource, "callbacks.onInterruptRun", "turn interruption action");
-includes(drawerSource, 't("drawer.setupHeartbeat")', "Goal heartbeat entry");
 includes(drawerSource, 't("drawer.scheduleAdd")', "Goal monitor entry");
 includes(drawerSource, 't("drawer.advancedDiagnostics")', "collapsed diagnostics");
 includes(drawerSource, "session_id:", "diagnostic Session id");

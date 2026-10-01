@@ -75,24 +75,25 @@ loopx start-goal --guided --project . --goal-text "<GOAL_TEXT>"
 Append `--capability-route issue-fix` only when the caller supplied that exact
 explicit route switch.
 
-Include `--goal-id <STABLE_GOAL_ID>` when known. Codex App automatically reads
-the stable ambient `CODEX_THREAD_ID`, while Trae App reads
-`TRAECLI_THREAD_ID`; other hosts that expose a stable opaque thread id should
-pass it as `--thread-id <HOST_THREAD_ID>` on every `/loopx`
+Include `--goal-id <STABLE_GOAL_ID>` when known. Codex CLI automatically reads
+the stable ambient `CODEX_THREAD_ID`; other hosts that expose a stable opaque
+thread id should pass it as `--thread-id <HOST_THREAD_ID>` on every `/loopx`
 invocation. If that thread is already bound, reuse the returned
 `--agent-id <REGISTERED_AGENT_ID>` on start, heartbeat, quota, refresh-state,
 and Todo commands. Include `--agent-id <REGISTERED_AGENT_ID>` only when the
 current session already owns that identity, the thread binding resolves to it,
 or the user explicitly asks to take over that exact agent's work.
 
-When a stable thread id is present but has no binding, treat it as a new host
-session and follow the returned fresh-registration default. Select an existing
-lane only when the user explicitly requests takeover of that exact agent, then
-bind it with the returned `bind-agent-thread` command. When no thread id is
-available, preserve the fail-closed identity gate and never infer takeover from
-registry order or the only registered lane; pass `--new-peer` only when the
-user explicitly requests fresh onboarding on that unboundable host. Choose a
-fresh public-safe id, preview then execute `register-agent`, and
+When a thread has no verified binding, never infer fresh registration merely
+from the new host session. If registered lanes exist, follow the returned
+identity-selection gate, select one exact existing lane, and bind it with the
+returned `bind-agent-thread` command; never infer that lane from registry order
+or from it being the only registered lane. Fresh registration is available
+only when no registered lane exists or the user explicitly requests a new peer
+with `--new-peer`. When no stable thread id is available, preserve the same
+fail-closed identity gate and require an exact existing `--agent-id` or explicit
+`--new-peer` intent. For fresh registration, choose a public-safe id, preview
+then execute `register-agent`, and
 require the `--require-new --execute` result to report `ok=true`, `changed=true`,
 `written=true`, successful global sync, and verified registration readback
 before rerunning `start-goal` with that new id. A preview is advisory and never
@@ -519,36 +520,6 @@ limit. It uses an interactive `agent_cli_loop` scheduler context, omits
 heartbeat turn receipts, and must not create/update automations, apply RRULE
 cadence, or invent `LOOPX_TURN`.
 
-For a recurring Codex App heartbeat, save the stable bootstrap returned by:
-
-```bash
-loopx --format json --registry <GLOBAL_REGISTRY> heartbeat-prompt \
-  --bootstrap --thin --codex-app --goal-id <STABLE_GOAL_ID> \
-  --agent-id <REGISTERED_AGENT_ID>
-```
-
-Read the complete JSON and require `ok=true`. Store its `task_body`, headed
-`LoopX managed heartbeat bootstrap v2`, with the App's `automation_update` tool.
-The saved command must load `heartbeat-prompt --thin --codex-app` on each wake;
-it must not include `--bootstrap` recursively. Do not persist the expanded
-thin/compact/brief/full execution body: those are current-turn or audit output,
-not the installed automation contract. `$loopx` startup follows the returned
-host activation command and saves this same bootstrap.
-
-Preserve the exact goal, registered agent, current task, schedule and
-notification setting. Never copy the example identity from another task.
-Connected goals resolve active state and agent scope from the registry on each
-wake; pass `--active-state` or `--agent-scope` only for an explicit override.
-An unregistered or missing identity must fail closed before task execution or
-accounting. A successful load is not permission to create another goal or take
-over another scheduler.
-
-For an existing automation, save the new bootstrap with the App
-`automation_update` tool and read back the same automation, including its
-preserved binding and scheduling fields. Do not claim completion from a replaced
-CLI alone. Never copy sessions or rebind another Codex home's tasks to make its
-API reachable.
-
 Each wake reads the full fresh result and follows only its current `task_body`
 when `ok=true`. Separate notification from execution, follow the current waiting
 contract, and attempt recovery within existing authority when loading fails.
@@ -653,7 +624,7 @@ still be de-duplicated when the same blocker was already surfaced recently.
 Eligible monitor-only no-transition polls keep user todos visible in the
 payload but should stay quiet unless a material transition appears.
 
-Keep the Codex App visible goal text short, for example
+Keep the visible `/goal` text short, for example
 `按 ACTIVE_GOAL_STATE.md，基于 LoopX 体系，推进项目`. Do not use that short
 text as the automation body. Across projects, the automation body should be the
 same generated lifecycle prompt with only `goal_id`, `active_state`, and narrow

@@ -37,7 +37,6 @@ def preview_request(
         "normalized_parameters": {
             "goal_id": "agent-control-plane",
             "agent_id": "codex",
-            "heartbeat": {"cadence": "daily", "hour": 9},
         },
         "context": {"kind": "manager", "goal_id": None},
         "expected_state_fingerprint": expected_state_fingerprint,
@@ -260,17 +259,9 @@ def assert_http_action_api(root: Path) -> None:
                 "objective": "Deliver a bounded verified result.",
                 "agent_id": "codex",
                 "workspace_ref": "current",
-                "heartbeat": {"enabled": False},
                 "initial_todos": ["Verify the new Goal projection"],
             },
             "agent.bind": {"goal_id": "goal-one", "agent_id": "claude-review"},
-            "heartbeat.bind": {
-                "goal_id": "goal-one",
-                "agent_id": "codex",
-                "cadence": "daily",
-                "timezone": "Asia/Shanghai",
-                "stop_condition": "goal_complete",
-            },
             "monitor.create": {
                 "goal_id": "goal-one",
                 "agent_id": "codex",
@@ -312,7 +303,6 @@ def assert_http_action_api(root: Path) -> None:
             "todo.create",
             "run.correct",
             "agent.bind",
-            "heartbeat.bind",
             "monitor.create",
         }, restored
         assert all(proposal["status"] == "preview_ready" for proposal in restored["proposals"])
@@ -408,42 +398,48 @@ def assert_http_action_api(root: Path) -> None:
         assert new_state.read_text(encoding="utf-8").count("Verify the new Goal projection") == 1
         assert len(runtime_controller.opened_sessions) == 2
 
-        code, heartbeat_goal_preview = request_json(
+        registry_before_retired_parameter = registry_path.read_text(encoding="utf-8")
+        code, retired_parameter = request_json(
             f"{base_url}/api/actions/preview",
             method="POST",
             body={
                 "action_kind": "goal.create",
-                "summary": "Create a Goal with a heartbeat child Gate",
+                "summary": "Create a Goal with a schedule request",
                 "normalized_parameters": {
                     "goal_id": "scheduled-goal",
                     "title": "Scheduled Goal",
-                    "objective": "Create the Goal before requesting host scheduling.",
                     "agent_id": "codex",
                     "workspace_ref": "current",
-                    "heartbeat": {
-                        "enabled": True,
-                        "cadence": "daily",
-                        "timezone": "Asia/Shanghai",
-                    },
-                    "stop_condition": "goal_complete",
-                    "initial_todos": ["Verify scheduled Goal readiness"],
+                    "heartbeat": {"enabled": True, "cadence": "daily"},
                 },
                 "context": {"kind": "goal", "goal_id": "goal-one"},
                 "idempotency_key": "http-goal-with-heartbeat",
             },
         )
-        assert code == 201, heartbeat_goal_preview
-        code, heartbeat_goal_applied = request_json(
-            f"{base_url}/api/actions/{heartbeat_goal_preview['proposal']['proposal_id']}/apply",
+        assert code == 400, retired_parameter
+        assert retired_parameter["error"] == "unknown typed action parameter: heartbeat"
+        assert registry_path.read_text(encoding="utf-8") == registry_before_retired_parameter
+
+        code, retired_action = request_json(
+            f"{base_url}/api/actions/preview",
             method="POST",
-            body={},
+            body={
+                "action_kind": "heartbeat.bind",
+                "summary": "Set a retired heartbeat binding",
+                "normalized_parameters": {
+                    "goal_id": "goal-one",
+                    "agent_id": "codex",
+                    "cadence": "daily",
+                    "timezone": "UTC",
+                    "stop_condition": "goal_complete",
+                },
+                "context": {"kind": "goal", "goal_id": "goal-one"},
+                "idempotency_key": "http-retired-heartbeat-bind",
+            },
         )
-        assert code in {200, 202}, heartbeat_goal_applied
-        assert heartbeat_goal_applied["proposal"]["status"] == "applied", heartbeat_goal_applied
-        assert heartbeat_goal_applied["proposal"]["receipt"]["child_gate"]["kind"] == "host_activation_required"
-        steps = heartbeat_goal_applied["proposal"]["receipt"]["step_receipts"]
-        assert "goal_bootstrapped" in steps and "heartbeat_gate_ready" in steps, steps
-        assert any(goal["id"] == "scheduled-goal" for goal in json.loads(registry_path.read_text())["goals"])
+        assert code == 400, retired_action
+        assert retired_action["error"] == "unsupported action_kind: heartbeat.bind"
+        assert registry_path.read_text(encoding="utf-8") == registry_before_retired_parameter
 
         code, unavailable_agent = request_json(
             f"{base_url}/api/actions/preview",
@@ -516,44 +512,6 @@ def assert_http_action_api(root: Path) -> None:
         configured = json.loads(registry_path.read_text(encoding="utf-8"))
         goal_one = next(item for item in configured["goals"] if item["id"] == "goal-one")
         assert goal_one["coordination"]["registered_agents"] == ["claude-review", "codex"], goal_one
-
-        heartbeat_proposal = previews["heartbeat.bind"]
-        code, heartbeat_gate = request_json(
-            f"{base_url}/api/actions/{heartbeat_proposal['proposal_id']}/apply",
-            method="POST",
-            body={},
-        )
-        assert code == 409, heartbeat_gate
-        assert heartbeat_gate["gate"]["kind"] == "host_activation_required", heartbeat_gate
-        assert heartbeat_gate["gate"]["activation_packet"]["host_surface"] == "codex_app_heartbeat_automation"
-        assert heartbeat_gate["write_attempted"] is False, heartbeat_gate
-        heartbeat_stored = action_store.load(str(heartbeat_proposal["proposal_id"]))
-        assert heartbeat_stored["status"] == "gated", heartbeat_stored
-        assert heartbeat_stored["gate"]["kind"] == "host_activation_required", heartbeat_stored
-
-        for index, operation in enumerate(("edit", "pause", "resume", "stop")):
-            code, heartbeat_lifecycle = request_json(
-                f"{base_url}/api/actions/preview",
-                method="POST",
-                body={
-                    "action_kind": "heartbeat.bind",
-                    "summary": f"{operation.title()} heartbeat",
-                    "normalized_parameters": {
-                        **preview_bodies["heartbeat.bind"],
-                        "operation": operation,
-                    },
-                    "context": {"kind": "goal", "goal_id": "goal-one"},
-                    "idempotency_key": f"http-heartbeat-{operation}-{index}",
-                },
-            )
-            assert code == 201, heartbeat_lifecycle
-            code, lifecycle_gate = request_json(
-                f"{base_url}/api/actions/{heartbeat_lifecycle['proposal']['proposal_id']}/apply",
-                method="POST",
-                body={},
-            )
-            assert code == 409, lifecycle_gate
-            assert lifecycle_gate["gate"]["operation"] == operation, lifecycle_gate
 
         monitor_proposal = previews["monitor.create"]
         # Agent binding legitimately changed the registry after this preview.

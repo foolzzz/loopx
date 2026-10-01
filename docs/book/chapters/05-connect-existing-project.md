@@ -1,7 +1,7 @@
 # 连接你的 Git 项目
 
 项目接入是一条独立实践路径。你不需要修改 LoopX Kernel，也不需要先开发 Extension。本章先建立
-项目状态和 Git 边界；后两章再分别从 Codex App 和 Codex CLI 启动。
+项目状态和 Git 边界；后续 runtime 章节再说明受支持 Host 的启动方式。
 
 推荐做法是把接入任务直接交给当前 Agent。你负责给出目标、Host 和权限边界，Agent 负责检查
 仓库、读取当前 LoopX 命令表面、执行安全的接入步骤并返回可验收的报告。手动命令仍然重要，
@@ -36,7 +36,7 @@
 
 目标：
 - 为这个项目建立一条可恢复、可验证的发布流程。
-- 当前 Host 是 Codex App。如果当前环境不是这个 Host，先告诉我，不要猜测。
+- 当前 Host 是 Codex CLI TUI。如果当前环境不是这个 Host，先告诉我，不要猜测。
 
 执行合同：
 1. 先只读检查项目根目录、当前分支、git status、.gitignore，以及是否已有
@@ -240,18 +240,13 @@ registration。
 如果你已经知道当前 Host，可以显式指定，避免错误路由：
 
 ```bash
-# Codex App
-loopx start-goal --guided --project . \
-  --goal-text "为这个项目建立一条可验证的发布流程" \
-  --host-surface codex-app
-
 # Codex CLI visible TUI
 loopx start-goal --guided --project . \
   --goal-text "为这个项目建立一条可验证的发布流程" \
   --host-surface codex-cli-tui
 ```
 
-如果不确定 Host 类型，先省略 `--host-surface`。LoopX 会返回只读 selection gate，而不是猜测。
+省略 `--host-surface` 时，LoopX 默认使用可见的 Codex CLI TUI；其他 Host 必须传精确 surface。
 
 ## 5. 读取当前状态
 

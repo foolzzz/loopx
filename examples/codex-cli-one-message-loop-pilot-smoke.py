@@ -148,7 +148,10 @@ def main() -> int:
     assert no_proof["first_turn"]["autostarts_loopx_loop"] is True, no_proof
     assert no_proof["first_turn"]["setup_then_loop_activation"] is True, no_proof
     assert no_proof["first_turn"]["loop_activation"]["codex_cli"] == "/goal <thin task_body>", no_proof
-    assert no_proof["first_turn"]["loop_activation"]["codex_app"] == "<thin task_body> heartbeat automation", no_proof
+    assert set(no_proof["first_turn"]["loop_activation"]) == {
+        "source_command",
+        "codex_cli",
+    }, no_proof
     assert no_proof["first_turn"]["preserve_tui"] is True, no_proof
     assert "workspace_guard" in no_proof["first_turn"]["stop_only_for"], no_proof
     assert no_proof["first_turn"]["message"].startswith("Install and connect LoopX for this repo"), no_proof

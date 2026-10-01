@@ -48,7 +48,7 @@ for (const receipt of [null, {}, { projection_verified: false }, { projection_ve
 check(compile({ status: "preview_ready", receipt: { projection_verified: true } }).interaction !== "completed", "Receipt alone cannot complete");
 check(compile({ status: "applied", receipt: { projection_verified: true }, stale: {} }).interaction === "refresh", "Stale wins over nominal success");
 check(compile({ status: "applied", receipt: { projection_verified: true }, gate: {} }).interaction === "gated", "Gate wins over nominal success");
-for (const action_kind of ["goal.create", "goal.update", "todo.create", "todo.update", "agent.bind", "heartbeat.bind", "monitor.create", "monitor.update", "gate.resolve", "run.correct"] as const) {
+for (const action_kind of ["goal.create", "goal.update", "todo.create", "todo.update", "agent.bind", "monitor.create", "monitor.update", "gate.resolve", "run.correct"] as const) {
   for (const status of ["preview_ready", "deferred"] as const) {
     const result = compile({ action_kind, status, validation_evidence: [] });
     check(result.interaction === "review" && result.canApply, `${action_kind} keeps existing reviewed behavior`);
