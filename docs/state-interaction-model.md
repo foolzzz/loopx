@@ -46,11 +46,11 @@ Goal-owned state:
 - optional human reward overlays attached to exact runs,
 - optional compute quota and spend ledger for this goal.
 
-### Codex App Executor
+### Host Executor
 
-The Codex App executor is an actor that can read goal state, run commands, edit
+The selected supported Host executor can read goal state, run commands, edit
 files, spawn or coordinate child work, and write new state through LoopX
-commands.
+commands within its existing authority.
 
 The executor is ephemeral. It should not be the source of truth. Its job is to
 convert current context into bounded transitions:

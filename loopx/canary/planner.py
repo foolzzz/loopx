@@ -340,6 +340,45 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
         ],
     },
     {
+        "id": "active-host-doc-guidance",
+        "title": "Active host documentation guidance",
+        "purpose": "Reject retired App-host commands and automation guidance in active onboarding docs.",
+        "catalog_families": ["Planning Governance", "State And Boundary"],
+        "trigger_files": (
+            "README.md",
+            "README.zh-CN.md",
+            "docs/README.md",
+            "docs/heartbeat-automation-prompt.md",
+            "docs/guides/getting-started.md",
+            "docs/guides/long-running-coding-agents.md",
+            "docs/guides/newcomer-command-path.md",
+            "docs/integration.md",
+            "docs/state-interaction-model.md",
+            "docs/operations/new-project-codex-prompt.md",
+            "docs/product/runtimes/codex-cli/codex-cli-automation-driver.md",
+            "docs/product/runtimes/codex-cli/codex-cli-packaged-install.md",
+            "docs/product/runtimes/codex-cli/codex-cli-tui-loop.md",
+            "docs/product/runtimes/codex-cli/loopx-turn-codex-cli-quickstart.md",
+            "docs/reference/protocols/host-integration-surface-v0.md",
+            "docs/reference/protocols/loopx-goal-command-v0.md",
+            "examples/docs-active-host-guidance-smoke.py",
+            "examples/support/active_host_doc_guard.py",
+            "skills/loopx-project/SKILL.md",
+        ),
+        "trigger_file_prefixes": ("docs/book/",),
+        "trigger_file_extensions": (".md",),
+        "trigger_hints": ("active-host-doc-guidance",),
+        "surface_only_selector_hints": True,
+        "excluded_file_prefixes": ("docs/archive/", "docs/changelog/"),
+        "checks": [
+            {
+                "command": "python3 examples/docs-active-host-guidance-smoke.py",
+                "tier": "default",
+                "reason": "guards active host docs against retired App onboarding and automation instructions",
+            },
+        ],
+    },
+    {
         "id": "repo-architecture-budget",
         "title": "Control-plane maintainability ratchet",
         "purpose": (
@@ -1557,17 +1596,49 @@ def _selection_reasons(profile: dict[str, Any], selector_blob: str) -> list[str]
     return reasons
 
 
-def _domain_selection_reasons(profile: dict[str, Any], selector_blob: str) -> list[str]:
+def _domain_selection_reasons(
+    profile: dict[str, Any], changed_files: list[str], surfaces: list[str]
+) -> list[str]:
     reasons: list[str] = []
+    excluded_prefixes = tuple(
+        str(value).lower() for value in profile.get("excluded_file_prefixes", ())
+    )
+    eligible_changed_files = [
+        path for path in changed_files if not path.lower().startswith(excluded_prefixes)
+    ]
+    selector_blob = _selector_blob(eligible_changed_files, surfaces)
+    selector_hint_blob = (
+        _selector_blob([], surfaces)
+        if profile.get("surface_only_selector_hints")
+        else selector_blob
+    )
     profile_id = str(profile.get("id") or "")
     title = str(profile.get("title") or "")
-    if profile_id and profile_id in selector_blob:
+    if profile_id and profile_id in selector_hint_blob:
         reasons.append(f"selector names profile `{profile_id}`")
-    if title and title.lower() in selector_blob:
+    if title and title.lower() in selector_hint_blob:
         reasons.append(f"selector names profile `{title}`")
+    changed_file_set = {path.lower() for path in eligible_changed_files}
+    for path in profile.get("trigger_files", []):
+        path_text = str(path or "").lower()
+        if path_text and path_text in changed_file_set:
+            reasons.append(f"changed file matches `{path}`")
+    extensions = tuple(
+        str(value).lower() for value in profile.get("trigger_file_extensions", ())
+    )
+    for prefix in profile.get("trigger_file_prefixes", []):
+        prefix_text = str(prefix or "").lower()
+        if not prefix_text:
+            continue
+        if any(
+            path.startswith(prefix_text)
+            and (not extensions or path.endswith(extensions))
+            for path in changed_file_set
+        ):
+            reasons.append(f"changed file matches prefix `{prefix}`")
     for hint in profile.get("trigger_hints", []):
         hint_text = str(hint or "").lower()
-        if hint_text and hint_text in selector_blob:
+        if hint_text and hint_text in selector_hint_blob:
             reasons.append(f"selector matches `{hint}`")
     for family in profile.get("catalog_families", []):
         family_text = str(family or "").lower()
@@ -1696,7 +1767,7 @@ def build_catalog_canary_plan(
 
     selected_domain_profiles: list[dict[str, Any]] = []
     for profile in packet["domain_profiles"]:
-        reasons = _domain_selection_reasons(profile, selector_blob)
+        reasons = _domain_selection_reasons(profile, changed_files, surfaces)
         if requested_domain_profiles and _slug(str(profile.get("id") or "")) not in requested_domain_profiles:
             continue
         if requested_catalog_profiles and not requested_domain_profiles:

@@ -9,9 +9,9 @@ validator, and one command.
 
 The product goal is one reusable mechanism: LoopX CLI decides what may run,
 Codex CLI performs one bounded agent turn, and LoopX validates and records the
-outcome. It should approach the control-plane behavior available in Codex App
-without copying App-specific heartbeat logic or turning Codex session files
-into project state.
+outcome. It should approach the control-plane behavior from the historical
+Codex App baseline. It must not copy provider-specific heartbeat logic or turn
+Codex session files into project state.
 
 The host-neutral lifecycle is defined by
 [`loopx_turn_v0`](../../../reference/protocols/loopx-turn-v0.md). This page records
@@ -45,9 +45,9 @@ The older `codex-cli-local-scheduler-*` commands remain diagnostics and
 compatibility probes. They are not the default orchestration narrative and must
 not be composed manually as a second control plane.
 
-## Codex App Parity Matrix
+## Historical Codex App Parity Matrix
 
-| Capability | Codex App baseline | Current Codex CLI route | v0 driver requirement |
+| Capability | Historical Codex App baseline | Current Codex CLI route | v0 driver requirement |
 | --- | --- | --- | --- |
 | Persistent identity | Automation thread plus registered LoopX agent | Goal, agent, and todo are authoritative; the resume id stays in private runtime state | Keep the session handle opaque, local, and non-authoritative |
 | Wake and resume | Heartbeat wakes the existing thread | `run-once` starts or resumes only an eligible local session | Add a non-overlapping recurring wake host and interactive attach proof |
@@ -160,9 +160,10 @@ polling indefinitely.
 4. **Scheduled continuation - partial**: resume/new-session eligibility and
    timeout recovery are proven; a generic non-overlapping recurring host loop
    and `interactive-visible` mode remain open.
-5. **Benchmark dogfood - active**: compare the driver with Codex App and the
-   canonical countable `/goal` baseline under matched source, budget,
-   concurrency, no-feedback, no-sync, no-upload, and no-submit boundaries.
+5. **Benchmark dogfood - active**: compare the driver with historical Codex App
+   evidence and the canonical countable `/goal` baseline under matched source,
+   budget, concurrency, no-feedback, no-sync, no-upload, and no-submit
+   boundaries.
 6. **Promotion review - pending**: decide whether to keep the adapter
    experimental, retire older probes, or promote another CLI host.
 

@@ -250,7 +250,7 @@ Generated scoped heartbeat commands pass the same `--agent-id` to both
 accounting evaluate the same identity.
 
 Host capabilities are declarations, not permission grants. When the selected
-Codex App, CLI, or external launcher already has a capability required by its
+Codex CLI or an external launcher already has a capability required by its
 todos, declare it while generating the heartbeat:
 
 ```bash

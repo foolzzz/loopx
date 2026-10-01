@@ -263,6 +263,11 @@ For connected goals, omit `--active-state`; the CLI resolves the active state
 from the registry goal `state_file`. Keep `--active-state` only as an explicit
 override for detached state files, migration checks, or compatibility tests.
 
+Select and activate the recurring loop through the exact supported path
+returned by `loopx agent-onboard`. A generated `heartbeat-prompt` task body can
+serve a scheduler that already owns that loop, but it does not select a host or
+grant host mutation authority by itself.
+
 For live host loops, use the thin form as the local machine-default dispatcher
 when the target agent can inspect LoopX state and CLI
 output itself:
@@ -288,22 +293,17 @@ loopx heartbeat-prompt --brief \
 ```
 
 Copy the generated task body into the heartbeat automation. The timer only
-wakes Codex; the task body asks LoopX whether the goal should spend
-delivery compute on that tick. The thin body keeps the Codex thread as a
-replaceable worker: every wakeup should re-read registry/global quota truth,
-active state, status/run history, repo state, and project signals instead of
-depending on a stale long prompt. The compact body preserves the quota, gate,
+wakes the executor; the task body asks LoopX whether the goal should spend
+delivery compute on that tick. The thin body keeps the worker replaceable:
+every wakeup should re-read registry/global quota truth, active state,
+status/run history, repository state, and project signals instead of depending
+on a stale long prompt. The compact body preserves the quota, gate,
 blocker-push, recommendation, steering-audit, writeback, refresh, and spend
 lifecycle inline without copying the full audit prompt into every run context.
 The brief body is for installed automations that should carry only the
 preflight/guard, core invariants, and spend accounting while delegating detailed
 branches back to the generated contracts.
 
-The Codex App visible goal text can stay short, such as
-`按 ACTIVE_GOAL_STATE.md，基于 LoopX 体系，推进项目`. It is only a label for
-the human and the executor. The recurring automation prompt should use the
-generated heartbeat body above, so every project shares the same quota, gate,
-steering-audit, writeback, refresh, and spend lifecycle.
 Project-specific behavior should live in the registry, active-state sections,
 adapter output, or narrow boundary rules. Do not hand-edit one-off automation
 prompt branches for a single project; when a lifecycle rule is broadly useful,
