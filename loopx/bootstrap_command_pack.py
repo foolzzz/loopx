@@ -31,9 +31,6 @@ from .control_plane.goals.start_goal_todo_delta import (
     existing_runnable_agent_frontier,
     todo_authoring_steps,
 )
-from .control_plane.scheduler.execution_context import (
-    GUIDED_START_TURN_RUNTIME_PROFILES,
-)
 from .host_loop_activation import (
     agent_type_for_host_surface,
     build_host_loop_activation_packet,
@@ -56,7 +53,6 @@ from .paths import global_registry_path, project_goal_state_file, resolve_runtim
 from .registry import registry_goals, resolve_state_file
 from .slash_commands import build_slash_command_catalog
 from .thread_agent_binding import normalize_thread_id, resolve_thread_agent_binding
-from . import turn_identity
 
 SCHEMA_VERSION = "loopx_bootstrap_command_pack_v0"
 CANONICAL_SLASH_COMMAND = "/loopx"
@@ -600,12 +596,6 @@ def build_loopx_bootstrap_command_pack(
     heartbeat_prompt_command = activation_commands.get("heartbeat_prompt")
     heartbeat_prompt_json_command = activation_commands.get("heartbeat_prompt_json")
     scheduler_command_binding = scheduler_command_binding_for_agent_type(agent_type)
-    guided_start_requires_host_turn = turn_identity.host_turn_materialization_required(
-        explicit_goal_start,
-        selected_agent_id,
-        scheduler_command_binding.get("runtime_profile"),
-        {profile.value for profile in GUIDED_START_TURN_RUNTIME_PROFILES},
-    )
     quota_guard_command = (
         render_quota_guard_command(
             resolved_goal_id,
@@ -613,25 +603,13 @@ def build_loopx_bootstrap_command_pack(
             runtime_root=command_runtime_root,
             agent_id=str(selected_agent_id) if selected_agent_id else None,
             available_capabilities=available_capabilities,
-            host_turn_instance_id_placeholder=(
-                turn_identity.HOST_OWNED_TURN_INSTANCE_ID_PLACEHOLDER
-                if guided_start_requires_host_turn
-                else None
-            ),
             include_shared_registry=False,
             **scheduler_command_binding,
         )
         if activation_allowed
         else None
     )
-    host_turn_identity_contract = (
-        turn_identity.host_turn_identity_materialization_contract(
-            quota_guard_command
-        )
-    )
-    executable_quota_guard_command = (
-        None if host_turn_identity_contract else quota_guard_command
-    )
+    goal_start_quota_should_run = quota_guard_command
     command_prefix = render_cli_command_prefix(
         cli_bin=cli_bin,
         runtime_root=command_runtime_root,
@@ -763,11 +741,10 @@ def build_loopx_bootstrap_command_pack(
             fine_grained=fine_grained,
             cli_command_prefix=command_prefix,
         ),
-        "host_turn_identity_contract": host_turn_identity_contract,
         "commands": {
             "doctor": f"{command_prefix} doctor",
             "status": status_command,
-            "quota_guard": executable_quota_guard_command,
+            "quota_guard": quota_guard_command,
             "heartbeat_prompt": heartbeat_prompt_command,
             "heartbeat_prompt_json": heartbeat_prompt_json_command,
             "bootstrap_dry_run_preview": bootstrap_preview_command,
@@ -812,7 +789,7 @@ def build_loopx_bootstrap_command_pack(
                 )
                 + render_available_capability_args(available_capabilities)
             ),
-            "goal_start_quota_should_run": executable_quota_guard_command,
+            "goal_start_quota_should_run": goal_start_quota_should_run,
             "identity_selection_choices": (
                 identity_selection_gate.get("choices")
                 if isinstance(identity_selection_gate, dict)
@@ -1308,21 +1285,12 @@ def build_start_goal_guided_packet(
         and not isinstance(identity_selection_gate, dict)
         else None
     )
-    host_turn_contract = command_pack.get("host_turn_identity_contract")
-    host_turn_contract = (
-        host_turn_contract if isinstance(host_turn_contract, dict) else {}
-    )
-    host_turn = turn_identity.host_turn_guided_projection(
-        host_turn_contract.get("command_template")
-        or commands.get("goal_start_quota_should_run")
-    )
     guided_transaction = {
         "schema_version": GUIDED_START_SCHEMA_VERSION,
         "mode": "dry_run_preview",
         "writes_now": False,
         "spends_quota_now": False,
         "command_cwd_source": "#/project",
-        **host_turn["transaction_fields"],
         **(
             {
                 "checkpoint_policy": {
@@ -1372,7 +1340,12 @@ def build_start_goal_guided_packet(
                 "command": commands.get("goal_start_host_loop_activation"),
                 "purpose": "install or refresh the host loop only when it is missing, unknown, stale, or agent type changed",
             },
-            host_turn["step"],
+            {
+                "id": "quota_guard",
+                "kind": "guard",
+                "command": commands.get("goal_start_quota_should_run"),
+                "purpose": "let LoopX choose the first bounded segment and scheduler cadence",
+            },
         ],
         "idempotency_policy": {
             "safe_to_rerun_preview": True,
@@ -1668,9 +1641,6 @@ def render_start_goal_guided_markdown(payload: dict[str, Any]) -> str:
             + "\n"
         )
     orphan_gate_lines = render_guided_lines(transaction)
-    host_turn_identity_lines = turn_identity.render_host_turn_identity_section(
-        transaction.get("host_turn_identity_contract")
-    )
     return f"""# Guided Start Goal
 
 - project: `{payload.get("project")}`
@@ -1685,7 +1655,6 @@ Preview only; follow ordered commands to mutate.
 {goal_gate_lines}
 {orphan_gate_lines}
 {identity_gate_lines}
-{host_turn_identity_lines}
 
 ## Todo Preservation
 
@@ -1802,14 +1771,6 @@ Identity-aware choices:
 Rerun `{payload.get("canonical_cli_command")} --agent-id <registered-agent-id>`
 with the selected identity before continuing."""
     elif goal_text:
-        quota_guard_instructions = (
-            turn_identity.render_host_turn_identity_materialization_markdown(
-                payload.get("host_turn_identity_contract")
-            )
-            or turn_identity.render_quota_guard_materialization_markdown(
-                commands.get("goal_start_quota_should_run")
-            )
-        )
         action = f"""This is an explicit goal-start invocation. Connect project-local LoopX state if needed:
 
 ```bash
@@ -1830,8 +1791,8 @@ After todo writeback:
 ```bash
 {commands.get("goal_start_refresh_state", "")}
 {commands.get("goal_start_host_loop_activation", "")}
+{commands.get("goal_start_quota_should_run", "")}
 ```
-{quota_guard_instructions}
 
 Host loop activation is part of setup, not a nice-to-have:
 - agent_type: `{payload.get("agent_type")}`

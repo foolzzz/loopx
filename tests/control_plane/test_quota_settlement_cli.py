@@ -12,7 +12,6 @@ from urllib.parse import quote
 
 import pytest
 
-from loopx.bootstrap_command_pack import build_start_goal_guided_packet
 from loopx.control_plane.work_items.delivery_outcome import (
     PROGRESS_DELIVERY_OUTCOMES,
     DeliveryOutcome,
@@ -2721,84 +2720,6 @@ def test_agent_selects_one_bounded_action_before_delivery_receipt_binding(
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
 
 
-@pytest.mark.parametrize("host_surface", ["codex-app", "trae_app"])
-def test_guided_start_uses_host_turn_and_executes_returned_selection(
-    tmp_path: Path,
-    host_surface: str,
-) -> None:
-    project, runtime, registry_path = _write_fixture(tmp_path)
-    _configure_selectable_alternative(project)
-    packet = build_start_goal_guided_packet(
-        project=project,
-        goal_id=GOAL_ID,
-        agent_id=AGENT_ID,
-        cli_bin="loopx",
-        host_surface=host_surface,
-        goal_text="Start one accountable delivery turn.",
-    )
-    guard_step = next(
-        step
-        for step in packet["guided_transaction"]["ordered_steps"]
-        if step["id"] == "quota_guard"
-    )
-    identity_contract = packet["guided_transaction"][
-        "host_turn_identity_contract"
-    ]
-    assert guard_step["kind"] == "host_materialized_guard"
-    assert "command" not in guard_step
-    assert identity_contract["owner"] == "host"
-    assert identity_contract["retry_policy"] == "reuse_exact_same_turn_instance_id"
-    normalized_message = " ".join(packet["message"].split())
-    assert "The template is not executable until materialized" in normalized_message
-    assert "reuse that exact id for every retry" in normalized_message
-    guard_command = identity_contract["command_template"].replace(
-        "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
-    )
-    first_rc, first = _run_generated_cli(
-        guard_command,
-        registry_path=registry_path,
-    )
-
-    assert first_rc == 0, first
-    assert first["interaction_contract"]["cli_channel"]["selection_required"] is True
-    turn_instance_id = first["heartbeat_receipt"]["turn_instance_id"]
-    assert turn_instance_id == TURN_ID
-    retry_rc, retry = _run_generated_cli(
-        guard_command,
-        registry_path=registry_path,
-    )
-    assert retry_rc == 0, retry
-    assert retry["heartbeat_receipt"]["turn_instance_id"] == TURN_ID
-    assert _heartbeat_receipt_count(runtime, turn_instance_id) == 1
-    selection = first["interaction_contract"]["cli_channel"]["selection_command"]
-    assert (
-        f"--turn-instance-id {turn_instance_id}" in selection["command_args_template"]
-    )
-    selection_command = f"{selection['route_prefix']} " + selection[
-        "command_args_template"
-    ].replace("{todo_id}", ALTERNATIVE_TODO_ID)
-
-    selected_rc, selected = _run_generated_cli(
-        selection_command,
-        registry_path=registry_path,
-    )
-
-    assert selected_rc == 0, selected
-    assert selected["selected_todo"]["todo_id"] == ALTERNATIVE_TODO_ID
-    assert selected["selected_todo"]["selection_binding"] == "heartbeat_receipt"
-    receipt_identity = selected["heartbeat_receipt"]["settlement_identity"]
-    assert receipt_identity["turn_instance_id"] == turn_instance_id
-    cli_channel = selected["interaction_contract"]["cli_channel"]
-    settlement_plan = cli_channel["settlement_plan"]
-    assert settlement_plan["identity"] == receipt_identity
-    assert f"--turn-instance-id {turn_instance_id}" in json.dumps(settlement_plan)
-    assert any(
-        "--source heartbeat" in action
-        for action in cli_channel["next_cli_actions"]
-    )
-    assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
-
-
 def test_visible_goal_continuation_uses_host_turn_and_executes_returned_selection(
     tmp_path: Path,
 ) -> None:
@@ -2922,57 +2843,6 @@ def test_visible_goal_capability_reentry_preserves_turn_through_selection(
     assert receipt_identity["turn_instance_id"] == turn_instance_id
     assert receipt_identity["todo_id"] == REENTRY_TODO_ID
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
-
-
-@pytest.mark.parametrize("host_surface", ["codex-app", "trae_app"])
-def test_single_todo_guided_start_keeps_direct_delivery_semantics(
-    tmp_path: Path,
-    host_surface: str,
-) -> None:
-    project, _runtime, registry_path = _write_fixture(tmp_path)
-    packet = build_start_goal_guided_packet(
-        project=project,
-        goal_id=GOAL_ID,
-        agent_id=AGENT_ID,
-        cli_bin="loopx",
-        host_surface=host_surface,
-        goal_text="Start one accountable delivery turn.",
-    )
-    guard_step = next(
-        step
-        for step in packet["guided_transaction"]["ordered_steps"]
-        if step["id"] == "quota_guard"
-    )
-    assert guard_step["kind"] == "host_materialized_guard"
-    identity_contract = packet["guided_transaction"][
-        "host_turn_identity_contract"
-    ]
-    guard_command = identity_contract["command_template"].replace(
-        "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
-    )
-
-    guard_rc, guard = _run_generated_cli(
-        guard_command,
-        registry_path=registry_path,
-    )
-
-    assert guard_rc == 0, guard
-    assert guard["selected_todo"]["todo_id"] == TODO_ID
-    assert (
-        guard["interaction_contract"]["cli_channel"].get("selection_required") is None
-    )
-    identity = guard["heartbeat_receipt"]["settlement_identity"]
-    assert identity["todo_id"] == TODO_ID
-    assert identity["turn_instance_id"] == TURN_ID
-    settlement_plan = guard["interaction_contract"]["cli_channel"][
-        "settlement_plan"
-    ]
-    assert settlement_plan["identity"] == identity
-    assert "heartbeat" in next(
-        step["command_template"]
-        for step in settlement_plan["ordered_steps"]
-        if step["kind"] == "quota_spend"
-    )
 
 
 def test_visible_goal_refresh_and_spend_preserve_selected_todo_causality(
