@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -158,10 +159,81 @@ raise SystemExit(1)
 '''
 
 
+_GIT_REPOSITORY_ENV_OVERRIDES = {
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_ALLOW_PROTOCOL",
+    "GIT_ATTR_GLOBAL",
+    "GIT_ATTR_NOSYSTEM",
+    "GIT_ATTR_SOURCE",
+    "GIT_ATTR_SYSTEM",
+    "GIT_AUTHOR_DATE",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_COMMITTER_DATE",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_DEFAULT_HASH",
+    "GIT_DEFAULT_REF_FORMAT",
+    "GIT_DIR",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_INDEX_VERSION",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_PREFIX",
+    "GIT_PROTOCOL_FROM_USER",
+    "GIT_REFERENCE_BACKEND",
+    "GIT_SHALLOW_FILE",
+    "GIT_TEMPLATE_DIR",
+    "GIT_WORK_TREE",
+}
+
+
 def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=str(cwd), check=True, capture_output=True, text=True
-    ).stdout.strip()
+    env = os.environ.copy()
+    for name in tuple(env):
+        if (
+            name in _GIT_REPOSITORY_ENV_OVERRIDES
+            or name.startswith("GIT_CONFIG_KEY_")
+            or name.startswith("GIT_CONFIG_VALUE_")
+        ):
+            env.pop(name)
+    env.update(
+        {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_ATTR_GLOBAL": os.devnull,
+            "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "LoopX Test",
+            "GIT_AUTHOR_EMAIL": "loopx@example.invalid",
+            "GIT_COMMITTER_NAME": "LoopX Test",
+            "GIT_COMMITTER_EMAIL": "loopx@example.invalid",
+        }
+    )
+    with tempfile.TemporaryDirectory(prefix=".loopx-test-hooks-", dir=cwd.parent) as hooks:
+        return subprocess.run(
+            [
+                "git",
+                "-c",
+                "commit.gpgSign=false",
+                "-c",
+                f"core.hooksPath={hooks}",
+                "-c",
+                f"core.excludesFile={os.devnull}",
+                "-c",
+                f"core.attributesFile={os.devnull}",
+                *args,
+            ],
+            cwd=str(cwd),
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
 
 
 def git_env(tmp_path: Path) -> dict[str, str]:
