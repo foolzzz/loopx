@@ -1041,9 +1041,12 @@ def main() -> int:
     assert "loopx-canary heartbeat-prompt" in integration_doc, integration_doc
     assert "--cli-bin loopx-canary" in integration_doc, integration_doc
     assert "local release snapshot" in integration_doc, integration_doc
-    assert "visible goal text can stay short" in integration_doc, integration_doc
-    assert "shares the same quota, gate," in integration_doc, integration_doc
-    assert "steering-audit, writeback, refresh, and spend lifecycle" in integration_doc, integration_doc
+    assert "Select and activate the recurring loop" in integration_doc, integration_doc
+    assert "loopx agent-onboard" in integration_doc, integration_doc
+    assert "does not select a host or grant host mutation authority" in normalized(integration_doc), integration_doc
+    assert "compact body preserves the quota, gate," in integration_doc, integration_doc
+    assert "steering-audit, writeback, refresh, and spend lifecycle" in normalized(integration_doc), integration_doc
+    assert "--codex-app" not in integration_doc, integration_doc
     assert "heartbeat_recommendation" in integration_doc, integration_doc
     assert "execution_obligation" in integration_doc, integration_doc
     assert "Do not hand-edit one-off automation prompt branches" in normalized(integration_doc), integration_doc
@@ -1053,9 +1056,13 @@ def main() -> int:
     assert "persisted task body" in doc, doc
     assert "LoopX is not an autonomous production controller" in readme, readme
     assert "loopx heartbeat-prompt" in project_skill, project_skill
+    assert "Each wake reads the full fresh result" in project_skill, project_skill
+    assert "never freeze a turn id in the saved bootstrap" in normalized(project_skill), project_skill
+    assert "--codex-app" not in project_skill, project_skill
     assert "goal_boundary" in project_skill, project_skill
     assert "smoke" in project_skill and "contract" in project_skill, project_skill
     assert "Set Up Recurring Heartbeats" in project_skill, project_skill
+    assert "Keep project-specific behavior out of the automation prompt" in project_skill, project_skill
     assert "refresh-state" in project_skill and "spend" in project_skill, project_skill
     assert "--classification <PUBLIC_SAFE_PROGRESS_CLASSIFICATION>" in project_skill, project_skill
     assert "--delivery-batch-scale <ACTUAL_DELIVERY_BATCH_SCALE>" in project_skill, project_skill

@@ -37,11 +37,10 @@ and set the current Codex CLI goal to `/goal <thin task_body>`. Then stop and
 report the goal id, current user gate, top agent todo, and next safe action.
 ```
 
-That text should be a Codex CLI-native setup path for the same lifecycle App
-uses: setup first, including immediate installation of the thin loop prompt into
-the surface. In Codex CLI the loop is `/goal <thin task_body>`; in Codex App
-the loop is heartbeat automation every 3 minutes with `<thin task_body>`. The
-message should be enough for a terminal agent to:
+That text should be a Codex CLI-native setup path: setup first, including
+immediate installation of the thin loop prompt into the surface. In Codex CLI
+the loop is `/goal <thin task_body>`. The message should be enough for a
+terminal agent to:
 
 - run `loopx doctor`;
 - install or repair the local CLI if it is missing, using PyPI and the packaged

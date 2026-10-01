@@ -53,8 +53,8 @@ generates one short, transport-neutral goal prompt; the Managed Agent goal
 runtime owns all inner iteration and continuation.
 
 The prompt uses the same 4,000-character interface budget and the same guarded
-goal policy as the Codex App/CLI visible-goal hosts; only the host ownership
-preamble differs.
+goal policy as the Codex CLI visible-goal host; only the host ownership preamble
+differs.
 
 Generate the prompt with:
 
