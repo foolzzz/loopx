@@ -87,16 +87,6 @@ export function normalizeSchedulerRrule(value: unknown): string {
   return text;
 }
 
-export function schedulerTimestampMilliseconds(value: unknown): number | null {
-  const text = trimmed(value);
-  if (!text) return null;
-  const timezoneAware = /(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$/.test(text)
-    ? text
-    : `${text}Z`;
-  const parsed = Date.parse(timezoneAware);
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
 function safeSegment(value: unknown): string {
   const safe = trimmed(value)
     .replace(/[^0-9A-Za-z_.-]+/g, "-")
