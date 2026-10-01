@@ -11,7 +11,7 @@
 
 任何**未知或不完整**的同 agent 非中性记录都不是可穿透的「中性」记录：它构成恢复边界，
 读取在该处 fail-closed（返回 `None`，回退到 frontier 规则），绝不跨越它去恢复更旧的
-settlement identity。这与 `slot_accounting._latest_unspent_accountable_delivery_run`
+settlement identity。这与 `slot_accounting._latest_unspent_turn_settlement_run`
 及 `test_custom_non_neutral_event_still_fails_closed` 的语义一致。
 
 ## 说明
