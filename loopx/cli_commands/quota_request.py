@@ -25,8 +25,10 @@ def register_quota_monitor_poll_request_arguments(
     quota_parser.add_argument(
         "--todo-id",
         help=(
-            "For `quota should-run`, select one currently projected eligible "
-            "action through typed same-turn qualification. For "
+            "For `quota should-run` under `generic_cli`, `codex_cli`, or "
+            "`ark_managed_agent_goal`, select one currently projected eligible "
+            "action through typed same-turn qualification. Under `claude_code` or "
+            "`outer_controller`, instead name the settlement target. For "
             "`quota monitor-poll`, name the observed monitor Todo; a committed "
             "advancement settlement Todo remains separate under the auxiliary "
             "no-spend observation contract. Otherwise name the accountable "

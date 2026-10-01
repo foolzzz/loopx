@@ -18,8 +18,8 @@ from ..control_plane.quota.heartbeat_receipt import (
     retain_pending_heartbeat_action_selection,
 )
 from ..control_plane.scheduler.execution_context import (
+    NATIVE_GOAL_RUNTIME_PROFILES,
     SchedulerRuntimeProfile,
-    VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES,
     render_scheduler_execution_args,
 )
 from ..control_plane.todos.contract import normalize_todo_id
@@ -70,7 +70,7 @@ def _requested_quota_action_todo_id(
 ) -> str | None:
     selectable_profiles = {
         SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP.value,
-        *(profile.value for profile in VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES),
+        *(profile.value for profile in NATIVE_GOAL_RUNTIME_PROFILES),
     }
     if args.runtime_profile not in selectable_profiles:
         return None

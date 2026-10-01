@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from loopx.cli_commands.quota_action_selection import (
+    _requested_quota_action_todo_id,
     _requested_quota_action_selection_preflight,
 )
 from loopx.cli_commands.quota_failure_report import quota_failure_payload
@@ -20,6 +21,28 @@ from loopx.control_plane.quota.error_codes import (
 
 REQUESTED_TODO_ID = "todo_requested_selection"
 SELECTED_TODO_ID = "todo_projected_selection"
+
+
+@pytest.mark.parametrize(
+    ("runtime_profile", "expected"),
+    [
+        ("claude_code", None),
+        ("codex_cli", REQUESTED_TODO_ID),
+        ("ark_managed_agent_goal", REQUESTED_TODO_ID),
+        ("generic_cli", REQUESTED_TODO_ID),
+        ("outer_controller", None),
+    ],
+)
+def test_only_action_selecting_runtime_profiles_consume_todo_id(
+    runtime_profile: str,
+    expected: str | None,
+) -> None:
+    args = argparse.Namespace(
+        runtime_profile=runtime_profile,
+        todo_id=REQUESTED_TODO_ID,
+    )
+
+    assert _requested_quota_action_todo_id(args) == expected
 
 
 def _payload(**overrides: object) -> dict[str, object]:
