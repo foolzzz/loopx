@@ -12,8 +12,11 @@ personal memory.
 ## Default Route
 
 1. Resolve the target project and stable `goal_id` from the current repo or the
-   user's named project. Prefer `.loopx/registry.json` and
-   `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
+   user's named project. Prefer `.loopx/registry.json` and the goal's recorded
+   `state_file`. The default is
+   `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`; when project and runtime roots
+   overlap, it is `.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md`. Treat
+   the recorded value as authoritative instead of reconstructing either path.
 2. If the material belongs to that project, register it in that project's own
    authority surface. Do not register it into `loopx-meta` just because
    the current worker discovered it.
