@@ -122,12 +122,13 @@ The default files are:
 ```text
 .loopx/registry.json
 .loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md          # default
-.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md  # when roots overlap
+.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md  # same-path collision route
 ```
 
 Only one active-state path is used. The registry goal's `state_file` is
-authoritative; the second path keeps project-owned state out of the
-runtime-owned `goals/` tree when project and runtime roots overlap.
+authoritative. When `<project>/.loopx/goals` and `<runtime-root>/goals` resolve
+to the same physical path, the second route keeps project-owned state out of
+the runtime-owned `goals/` tree.
 
 The generated registry entry also includes an `execution_profile`. This is the
 source-level delivery contract for the project, not a one-off heartbeat hint:
@@ -206,8 +207,9 @@ loopx connect \
 
 Both entries live in the same local `.loopx/registry.json`, but each goal
 must own its own ignored active state at its registry `state_file`. The default
-is `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`; when project and runtime roots
-overlap, LoopX uses `.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
+is `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`; when
+`<project>/.loopx/goals` and `<runtime-root>/goals` resolve to the same physical
+path, LoopX uses `.loopx/project-goals/<goal-id>/ACTIVE_GOAL_STATE.md`.
 Sharing the same `state_file` across two goal ids is treated as a registry
 health error because it lets one lane overwrite or summarize the other's state.
 Do not commit the live `ACTIVE_GOAL_STATE.md`; publish a sanitized template or
@@ -224,8 +226,9 @@ loopx quota should-run --goal-id side-bypass
 `read-only-map` is goal-aware for same-repo setups. In addition to the generic
 project inventory, it reports whether the selected goal has a local project
 registry, the state directory declared by its `state_file` (normally
-`.loopx/goals/<goal-id>/`, or `.loopx/project-goals/<goal-id>/` when project
-and runtime roots overlap), and the declared active state file. A missing
+`.loopx/goals/<goal-id>/`, or `.loopx/project-goals/<goal-id>/` when
+`<project>/.loopx/goals` and `<runtime-root>/goals` resolve to the same physical
+path), and the declared active state file. A missing
 side-lane state directory produces
 `project_goal_state_dir_not_detected:<goal-id>` plus the legacy
 `project_local_goal_state_not_detected` risk, while a healthy main lane in the

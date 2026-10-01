@@ -979,11 +979,12 @@ In the state home:
   .loopx/registry.json                   goal config: agents, roles, repos, authority sources
   .loopx/agents/<id>.yaml                optional project overrides of agent files
   .loopx/goals/<goal>/ACTIVE_GOAL_STATE.md   the default goal state file (todos)
-  .loopx/project-goals/<goal>/ACTIVE_GOAL_STATE.md  goal state when roots overlap
+  .loopx/project-goals/<goal>/ACTIVE_GOAL_STATE.md  same-path collision route
   docs/goals/<goal>/<requirements>.md    the stored requirements doc
 ```
 
-Only one goal-state path applies. When project and runtime roots overlap,
+Only one goal-state path applies. When `<project>/.loopx/goals` and
+`<runtime-root>/goals` resolve to the same physical path,
 `.loopx/project-goals/` keeps project-owned state separate from the runtime
 `goals/` tree. The registry goal's `state_file` is authoritative; consumers
 must not reconstruct the path from the goal id.

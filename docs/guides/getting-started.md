@@ -64,8 +64,9 @@ Success looks like this:
 - `loopx doctor` passes;
 - the project has `.loopx/registry.json`;
 - the registry goal's `state_file` exists under `.loopx/goals/<goal-id>/` by
-  default, or `.loopx/project-goals/<goal-id>/` when project and runtime roots
-  overlap;
+  default, or `.loopx/project-goals/<goal-id>/` when
+  `<project>/.loopx/goals` and `<runtime-root>/goals` resolve to the same
+  physical path;
 - `loopx status` shows the goal and who should act next;
 - local runtime state is ignored, not committed.
 
@@ -693,7 +694,8 @@ from the shared global registry only when the global entry's `source_registry`
 points back to this project. It does not uninstall the LoopX CLI and does not
 delete other projects' runtime history. Pass `--archive-state` to move the
 declared project-owned state directory (`.loopx/goals/<goal-id>/`, or
-`.loopx/project-goals/<goal-id>/` when project and runtime roots overlap) under
+`.loopx/project-goals/<goal-id>/` when `<project>/.loopx/goals` and
+`<runtime-root>/goals` resolve to the same physical path) under
 `.loopx/archived-project-state/`. For a legacy state file inside the runtime
 `goals/` tree, only `ACTIVE_GOAL_STATE.md` is archived; runtime-owned siblings
 stay in place.
@@ -739,7 +741,7 @@ This creates or connects:
 your-project/
   .loopx/registry.json
   .loopx/goals/your-project-goal/ACTIVE_GOAL_STATE.md          # default
-  .loopx/project-goals/your-project-goal/ACTIVE_GOAL_STATE.md  # when roots overlap
+  .loopx/project-goals/your-project-goal/ACTIVE_GOAL_STATE.md  # same-path collision route
 
 ~/.loopx/
   goals/<goal-id>/runs/
