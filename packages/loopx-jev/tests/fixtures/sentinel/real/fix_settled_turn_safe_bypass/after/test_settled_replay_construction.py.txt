@@ -105,7 +105,7 @@ def test_live_intent_can_follow_settled_quota_without_reopening_work(
     payload = live_decision.build_live_quota_should_run_decision(
         quota_status_payload(goal_id="settled-fixture", status="active", recommended_action="Continue"),
         goal_id="settled-fixture", agent_id=None, available_capabilities=["shell"],
-        include_scheduler_detail=False,
+        include_scheduler_detail=False, codex_app_current_rrule=None,
         registry_path=tmp_path / "registry.json", runtime_root=tmp_path / "runtime",
         interaction_projection_hooks=[hook],
     )
