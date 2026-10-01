@@ -18,7 +18,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY
 from ...skill_install_readback import (
@@ -27,7 +27,7 @@ from ...skill_install_readback import (
     inspect_skill_install_readback,
 )
 
-NATIVE_CODEX_PROFILE_SCHEMA_VERSION = "loopx_native_codex_goal_profile_v0"
+NATIVE_CODEX_PROFILE_SCHEMA_VERSION = "loopx_native_codex_goal_profile_v1"
 NATIVE_CODEX_GOAL_PROMPT_SCHEMA_VERSION = "loopx_native_codex_goal_prompt_v0"
 NATIVE_CODEX_PROFILE_REQUIRED_SKILL_IDS = (
     "loopx",
@@ -605,12 +605,27 @@ def install_native_codex_profile(
     )
 
 
-def compact_native_codex_profile_receipt(profile: NativeCodexProfile) -> dict[str, Any]:
+def compact_native_codex_profile_receipt(
+    profile: NativeCodexProfile,
+    *,
+    experiment_arm: str,
+    runtime_profile: Literal["codex_cli", "outer_controller"],
+    execution_host: Literal["codex-app-server", "codex-cli"],
+) -> dict[str, Any]:
     """Return a path-free receipt suitable for benchmark result metadata."""
+
+    if not _SAFE_RELEASE_ID.fullmatch(experiment_arm):
+        raise ValueError("experiment_arm must be a safe non-empty identifier")
+    if runtime_profile not in {"codex_cli", "outer_controller"}:
+        raise ValueError("unsupported native Codex runtime profile")
+    if execution_host not in {"codex-app-server", "codex-cli"}:
+        raise ValueError("unsupported native Codex execution host")
 
     return {
         "schema_version": NATIVE_CODEX_PROFILE_SCHEMA_VERSION,
-        "host_surface": "codex-cli",
+        "experiment_arm": experiment_arm,
+        "runtime_profile": runtime_profile,
+        "execution_host": execution_host,
         "install_mode": "formal_local_release",
         "cli_release_snapshot": True,
         "source_revision": profile.source_revision,

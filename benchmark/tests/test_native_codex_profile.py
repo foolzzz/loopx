@@ -26,20 +26,49 @@ from loopx.cli import build_parser
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _embedded_product_bootstrap_source() -> str:
+def _adapter_literal_assignment(name: str) -> object:
     adapter = REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py"
     tree = ast.parse(adapter.read_text(encoding="utf-8"), filename=str(adapter))
     for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if any(
-            isinstance(target, ast.Name) and target.id == "_BOOTSTRAP"
-            for target in node.targets
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
         ):
-            source = ast.literal_eval(node.value)
-            if isinstance(source, str):
-                return source
-    raise AssertionError("native Codex adapter has no literal _BOOTSTRAP source")
+            return ast.literal_eval(node.value)
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+            and node.value is not None
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError(f"native Codex adapter has no literal {name} assignment")
+
+
+def _adapter_mapping_keys(name: str) -> set[str]:
+    adapter = REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py"
+    tree = ast.parse(adapter.read_text(encoding="utf-8"), filename=str(adapter))
+    for node in tree.body:
+        value = None
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
+        ):
+            value = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+        ):
+            value = node.value
+        if isinstance(value, ast.Dict):
+            return {str(ast.literal_eval(key)) for key in value.keys if key is not None}
+    raise AssertionError(f"native Codex adapter has no mapping {name} assignment")
+
+
+def _embedded_product_bootstrap_source() -> str:
+    source = _adapter_literal_assignment("_BOOTSTRAP")
+    if not isinstance(source, str):
+        raise AssertionError("native Codex adapter _BOOTSTRAP must be a string")
+    return source
 
 
 def test_benchmark_preflight_tracks_the_current_bootstrap_contract() -> None:
@@ -54,6 +83,29 @@ def test_benchmark_preflight_tracks_the_current_bootstrap_contract() -> None:
         "--begin-autonomous-advance",
     ):
         assert retired_flag not in preflight
+
+
+@pytest.mark.parametrize(
+    ("arm", "runtime_profile", "execution_host"),
+    (
+        ("ssh-goal", "codex_cli", "codex-app-server"),
+        ("codex-cli", "codex_cli", "codex-cli"),
+        ("heartbeat", "outer_controller", "codex-cli"),
+    ),
+)
+def test_benchmark_arm_separates_runtime_profile_and_execution_host(
+    arm: str,
+    runtime_profile: str,
+    execution_host: str,
+) -> None:
+    treatment_metadata = _adapter_literal_assignment("_TREATMENT_METADATA")
+
+    assert isinstance(treatment_metadata, dict)
+    assert set(treatment_metadata) == _adapter_mapping_keys("_RUNNER_SOURCES")
+    assert treatment_metadata[arm] == {
+        "runtime_profile": runtime_profile,
+        "execution_host": execution_host,
+    }
 
 
 @pytest.mark.parametrize("wen_compat", [True, False])
@@ -183,9 +235,19 @@ def test_compact_profile_receipt_excludes_local_paths() -> None:
         materialized_skill_ids=("loopx", "loopx-project"),
     )
 
-    receipt = compact_native_codex_profile_receipt(profile)
+    receipt = compact_native_codex_profile_receipt(
+        profile,
+        experiment_arm="ssh-goal",
+        runtime_profile="codex_cli",
+        execution_host="codex-app-server",
+    )
     rendered = json.dumps(receipt, sort_keys=True)
 
+    assert receipt["schema_version"] == "loopx_native_codex_goal_profile_v1"
+    assert receipt["experiment_arm"] == "ssh-goal"
+    assert receipt["runtime_profile"] == "codex_cli"
+    assert receipt["execution_host"] == "codex-app-server"
+    assert "host_surface" not in receipt
     assert receipt["source_clean"] is True
     assert receipt["skill_readback_ready"] is True
     assert "/private" not in rendered

@@ -23,7 +23,7 @@
   "sites": [
     {
       "site": "loopx/agent_onboarding.py::<module>.build_agent_onboarding_packet::codec_read:load_registry#1",
-      "line": 443,
+      "line": 437,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
@@ -87,7 +87,7 @@
     },
     {
       "site": "loopx/bootstrap_command_pack.py::<module>._read_registry::codec_read:load_registry#1",
-      "line": 218,
+      "line": 214,
       "column": 19,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1831,7 +1831,7 @@
     },
     {
       "site": "loopx/thread_agent_binding.py::<module>.bind_thread_agent_in_registry::codec_write:mutate_project_registry#1",
-      "line": 564,
+      "line": 563,
       "column": 16,
       "kind": "codec_write",
       "api": "mutate_project_registry",
@@ -1839,7 +1839,7 @@
     },
     {
       "site": "loopx/thread_agent_binding.py::<module>.bind_thread_agent_in_registry::codec_read:load_registry#1",
-      "line": 571,
+      "line": 570,
       "column": 15,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1847,7 +1847,7 @@
     },
     {
       "site": "loopx/thread_agent_binding.py::<module>.resolve_registry_thread_agent_binding::codec_read:load_registry#1",
-      "line": 327,
+      "line": 326,
       "column": 15,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1855,7 +1855,7 @@
     },
     {
       "site": "loopx/thread_agent_binding.py::<module>.unbind_thread_agent_in_registry::codec_write:mutate_project_registry#1",
-      "line": 623,
+      "line": 622,
       "column": 16,
       "kind": "codec_write",
       "api": "mutate_project_registry",
@@ -1863,7 +1863,7 @@
     },
     {
       "site": "loopx/thread_agent_binding.py::<module>.unbind_thread_agent_in_registry::codec_read:load_registry#1",
-      "line": 630,
+      "line": 629,
       "column": 15,
       "kind": "codec_read",
       "api": "load_registry",

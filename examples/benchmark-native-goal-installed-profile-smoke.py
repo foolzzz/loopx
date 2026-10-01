@@ -99,7 +99,12 @@ def main() -> int:
             Path(raw) / "profile",
             require_clean_source=not args.allow_dirty_source,
         )
-        profile_receipt = compact_native_codex_profile_receipt(profile)
+        profile_receipt = compact_native_codex_profile_receipt(
+            profile,
+            experiment_arm="installed-profile-smoke",
+            runtime_profile="codex_cli",
+            execution_host="codex-app-server",
+        )
         provider_key = "ARK_OPENAI_API_KEY"
         gateway_sentinel_key = "LOOPX_MODEL_PROVIDER_SENTINEL"
         unrelated_key = "LOOPX_BENCHMARK_UNRELATED_SENTINEL"
