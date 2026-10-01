@@ -38,12 +38,11 @@ export function parseIsoTimestamp(value: string): Date | null {
   return Number.isNaN(parsed.valueOf()) ? null : parsed;
 }
 
-/** Compatibility codec for datetime.fromisoformat inputs used by Todo metadata.
+/** Stable Todo/runtime ISO grammar (see docs/reference/monitor-configuration.md).
  * It keeps microseconds and offset seconds, which a JS Date cannot represent.
- * Missing timezone means UTC, matching the existing Python runtime codec. */
+ * Missing timezone means UTC. Python minor versions do not define this grammar. */
 export function parseTodoTimestampMicros(value: string): bigint | null {
-  // The legacy wrapper replaces Z/z with +00:00 before fromisoformat, so
-  // these letters are timezone suffixes, never date/time separators.
+  // Z/z are timezone suffixes, never date/time separators.
   const match = /^(\d{4}-\d{2}-\d{2}|\d{8}|\d{4}-W\d{2}(?:-[1-7])?|\d{4}W\d{2}[1-7]?)(?:[^Zz](.+))?$/u.exec(value);
   if (!match) return null;
   const [, date, time] = match;
@@ -84,5 +83,7 @@ export function parseTodoTimestampMicros(value: string): bigint | null {
     if (parsed === null) return null;
     offset = parts[2][0] === "-" ? -parsed : parsed;
   }
-  return BigInt(calendar.valueOf()) * 1000n + local - offset;
+  const result = BigInt(calendar.valueOf()) * 1000n + local - offset;
+  // Both runtimes must be able to represent the normalized UTC instant.
+  return result < -62135596800000000n || result > 253402300799999999n ? null : result;
 }

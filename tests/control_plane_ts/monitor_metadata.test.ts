@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { planMonitorMetadata, TODO_MONITOR_METADATA_REQUEST_SCHEMA as SCHEMA } from "../../loopx/control_plane/todos/monitor_metadata.ts";
 import { planTodoFieldUpdate, TODO_FIELD_UPDATE_REQUEST_SCHEMA } from "../../loopx/control_plane/todos/field_update.ts";
 import type { JsonObject } from "../../loopx/control_plane/effect_program.ts";
@@ -146,17 +147,15 @@ test("production-scale snapshot remains immutable while each monitor gets an iso
   assert.deepEqual(fixture, before);
 });
 
-test("Todo timestamp codec retains Python ISO compatibility, timezone seconds and exact microseconds", () => {
-  for (const value of ["1970-01-01", "19700101", "1970-W01-4", "1970W014",
-    "19700101T00", "1970-01-01X0000", "1970-01-01 00:00:00", "1970-01-01T00:00z"]) {
-    assert.equal(parseTodoTimestampMicros(value), 0n, value);
-  }
-  for (const value of ["1970-01-01T00:00:00.000001Z", "19700101T000000,000001",
-    "1970-01-01T01:00:00+00:59:59.999999"]) {
-    assert.equal(parseTodoTimestampMicros(value), 1n, value);
-  }
-  for (const value of ["1970-02-30", "2021-W53", "1970-01-01T24:00:00", "1970-01-01T01:00+24:00",
-    "1970-01-01T00:0000", "1970-01-01T0000:00", "tomorrow", "2030"]) {
-    assert.equal(parseTodoTimestampMicros(value), null, value);
+test("Todo timestamp codec follows explicit grammar and exact UTC microseconds", () => {
+  const vectors: {value: string; epoch_micros: string | null}[] = JSON.parse(readFileSync(
+    new URL("../fixtures/control_plane/timestamp_codec_v0.json", import.meta.url), "utf8"));
+  for (const {value, epoch_micros} of vectors) {
+    assert.equal(parseTodoTimestampMicros(value), epoch_micros === null ? null : BigInt(epoch_micros), value);
+    if (epoch_micros === null) {
+      assert.throws(() => planMonitorMetadata(request({metadata: {expires_at: value}})), /timestamp/, value);
+    } else {
+      assert.equal(planMonitorMetadata(request({metadata: {expires_at: value}})).metadata.expires_at, value);
+    }
   }
 });

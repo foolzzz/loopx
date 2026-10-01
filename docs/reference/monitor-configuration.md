@@ -30,6 +30,27 @@ Changing cadence computes the next due time from the edit timestamp unless
 `next_due_at` is supplied explicitly, preserving the legacy schedule contract.
 An expiry-only edit leaves the existing due time unchanged.
 
+Monitor metadata, observations and schedule timestamps use the same stable ISO
+grammar in Python and TypeScript, independent of the Python minor version:
+
+- Dates are `YYYY-MM-DD`, `YYYYMMDD`, or ISO week dates (`YYYY-Www[-D]`
+  / `YYYYWww[D]`); an omitted week day means Monday.
+- An optional clock follows one separator character other than `Z`/`z`.
+  Use `T` in new inputs. Clocks are `HH`, `HHMM`, `HHMMSS`, `HH:MM` or
+  `HH:MM:SS`; a `.` or `,` fraction on any form means fractional seconds,
+  truncated to six digits. Hours are 0–23; minutes and seconds are 0–59.
+- A clock may end in `Z`/`z` or a signed offset using the same clock forms.
+  Offsets are normalized and must have a magnitude below 24 hours. The
+  retained zero-offset rule ignores a fraction when all integer components
+  are zero. No zone means UTC. The normalized UTC instant must fit years 1–9999.
+
+For example, `1970-01-01T00.1` means `00:00:00.100000Z`;
+`1970-01-01T24:00:00` is rejected. Stored metadata keeps the supplied spelling;
+ordering uses exact UTC microseconds and generated schedules use milliseconds.
+The [shared vectors](../../tests/fixtures/control_plane/timestamp_codec_v0.json)
+define explicit positive and negative expectations; stdlib acceptance is not
+the protocol oracle. CI qualifies this contract on Python 3.11 and 3.14.
+
 Configuration does not fabricate `result_hash`, `last_checked_at`,
 `monitor_effect_id`, no-change counts or material-change generations. These
 belong to the observation lifecycle (`quota monitor-poll` / typed
@@ -85,6 +106,16 @@ Monitor 配置修改复用 `todo update`。晋升后由 TS 在同一个 canonica
 已有观察证据时不能更换／清除 target，新目标应新建独立 Monitor。target 是路由身份
 而非调度字段：Monitor 后继 Todo 可以只带 target 而不成为 Monitor，频率、到期、
 检查时间和 watch-only 仍要求 task_class=continuous_monitor。
+
+Python 和 TypeScript 的 Monitor 配置、观察与排期共用上面的固定 ISO grammar，
+不随 Python 小版本改变。日期支持扩展／紧凑日历日期和 ISO 周日期（缺省星期为周一）；
+时间支持小时、小时分钟、小时分钟秒，分钟／秒形式可带冒号，小数点或逗号后的部分
+始终表示秒的小数，截取到微秒。小时仅 0–23，分钟和秒仅 0–59；缺省时区按 UTC，
+Z/z 只能作时区后缀。偏移支持同样的时间形式，归一化后绝对值须小于 24 小时；
+整数部分全零的偏移保留忽略小数的规则，最终 UTC 年份须在 1–9999。
+`1970-01-01T00.1` 表示 `00:00:00.100000Z`，`T24:00:00` 拒绝。
+元数据保留原始拼写，比较保留精确微秒，排期生成使用毫秒。共享正反向向量是验收
+依据，CI 同时覆盖 Python 3.11 和 3.14。
 
 已有 claim／exclusion／lease 检查继续生效，lease proof 不会因配置而续期。Chat
 暂停／恢复／配置编辑复用同一准入和事务，按 registry lifecycle grant 校验委托；

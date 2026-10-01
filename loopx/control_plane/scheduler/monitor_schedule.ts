@@ -4,7 +4,7 @@ import {
   requireJsonObject,
   requireNonEmptyString,
 } from "../runtime_decode.ts";
-import { schedulerTimestampMilliseconds } from "./state_store.ts";
+import { parseTodoTimestampMicros } from "../runtime_timestamp.ts";
 
 export const MONITOR_SCHEDULE_REQUEST_SCHEMA =
   "loopx_monitor_schedule_request_v0";
@@ -60,7 +60,7 @@ export function projectMonitorSchedule(value: unknown): MonitorScheduleResult {
     "explicit_next_due_at",
   );
   if (explicitNextDueAt) {
-    if (schedulerTimestampMilliseconds(explicitNextDueAt) === null) {
+    if (parseTodoTimestampMicros(explicitNextDueAt) === null) {
       throw new EffectRuntimeRequestError(
         "explicit_next_due_at must be an ISO timestamp",
       );
@@ -83,14 +83,20 @@ export function projectMonitorSchedule(value: unknown): MonitorScheduleResult {
     };
   }
   const generatedAt = requireNonEmptyString(request.generated_at, "generated_at");
-  const generatedAtMilliseconds = schedulerTimestampMilliseconds(generatedAt);
-  if (generatedAtMilliseconds === null) {
+  const generatedAtMicros = parseTodoTimestampMicros(generatedAt);
+  if (generatedAtMicros === null) {
     throw new EffectRuntimeRequestError("generated_at must be an ISO timestamp");
   }
+  const dueMicros = generatedAtMicros + BigInt(cadenceSeconds) * 1_000_000n;
+  if (dueMicros < -62135596800000000n || dueMicros > 253402300799999999n) {
+    throw new EffectRuntimeRequestError("cadence produces a due time outside the ISO timestamp range");
+  }
+  // Drop sub-millisecond digits within the second, including before the epoch.
+  const dueMilliseconds = (dueMicros - (dueMicros < 0n ? 999n : 0n)) / 1_000n;
   return {
     schema_version: MONITOR_SCHEDULE_RESULT_SCHEMA,
     next_due_at: monitorScheduleTimestamp(
-      generatedAtMilliseconds + cadenceSeconds * 1_000,
+      Number(dueMilliseconds),
     ),
     schedule_source: "cadence",
     cadence_seconds: cadenceSeconds,

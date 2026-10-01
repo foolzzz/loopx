@@ -18,6 +18,13 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Changed
 
+- **Monitor timestamps use a stable cross-language ISO grammar.** Python and
+  TypeScript retain reduced-time fractional seconds (`T00.1`), reject hour 24
+  and UTC year overflow, and preserve exact microsecond ordering independently
+  of the host Python minor version. Monitor schedule generation now uses this
+  same codec instead of JavaScript's permissive date parser. Focused CI covers
+  Python 3.11 and 3.14.
+
 - **The retired App scheduler contract has been removed from the typed core.**
   This is a breaking wire and CLI cleanup with no compatibility aliases.
   - Runtime profile enum values `codex_app_heartbeat` and `trae_app`, and host
