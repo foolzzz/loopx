@@ -17,7 +17,6 @@ from .arbitration import (
 from .execution_context import (
     SchedulerExecutionContextResolution,
     SchedulerOwner,
-    SchedulerRuntimeProfile,
     apply_scheduler_execution_context,
     resolve_scheduler_execution_context,
 )
@@ -59,7 +58,6 @@ SCHEDULER_IDENTITY_KEYS = (
     "recommended_action",
 )
 MONITOR_WAIT_IDENTITY_KEYS = SCHEDULER_BASE_IDENTITY_KEYS
-CODEX_APP_SSH_GOAL_RUNTIME_KEY = SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE.value
 CODEX_NATIVE_GOAL_BLOCK_ACTION = "update_goal_blocked_keep_loopx_active"
 CODEX_NATIVE_GOAL_RESUME_TRIGGER = "explicit_codex_goal_resume"
 
@@ -159,7 +157,6 @@ def _build_scheduler_stop_hint(
     reason: str,
     spend_policy: str,
     resume_trigger: str,
-    ssh_goal_runtime_action: str,
     unchanged_spend_policy: str,
 ) -> dict[str, Any]:
     return apply_scheduler_execution_context(
@@ -184,7 +181,6 @@ def _build_scheduler_stop_hint(
             "unchanged_poll": {
                 "local_scheduler": "stop",
                 "codex_cli_tui": "exit",
-                CODEX_APP_SSH_GOAL_RUNTIME_KEY: ssh_goal_runtime_action,
                 "claude_code_loop": "stop",
                 "final_quota_replan_check_enabled": False,
                 "spend_policy": unchanged_spend_policy,
@@ -343,7 +339,6 @@ class _SchedulerHintBuilder:
             **codex_goal_loop,
             "no_spend_for_exit": True,
         }
-        codex_app_ssh_goal = dict(codex_goal_loop)
         claude_code_loop = {
             "unchanged_poll_limit": claude_limit,
             "after_limit": "stop_loop" if claude_limit is not None else "continue",
@@ -436,12 +431,6 @@ class _SchedulerHintBuilder:
             "reset_policy_detail",
             "stateful_backoff_detail",
         ]
-        if cli_limit is not None:
-            unchanged_poll_limits[CODEX_APP_SSH_GOAL_RUNTIME_KEY] = cli_limit
-            unchanged_poll_after_limits[CODEX_APP_SSH_GOAL_RUNTIME_KEY] = (
-                codex_app_ssh_goal["after_limit"]
-            )
-            detail_contains.insert(2, CODEX_APP_SSH_GOAL_RUNTIME_KEY)
         scheduler_hint = {
             "schema_version": SCHEDULER_HINT_SCHEMA_VERSION,
             "source": "quota.should-run",
@@ -487,7 +476,6 @@ class _SchedulerHintBuilder:
                 "source": "quota.should-run",
                 "local_scheduler": local_scheduler,
                 "codex_cli_tui": codex_cli_tui,
-                CODEX_APP_SSH_GOAL_RUNTIME_KEY: codex_app_ssh_goal,
                 "claude_code_loop": claude_code_loop,
                 "final_quota_replan_check": final_replan_check,
                 "reset_policy_detail": reset_policy_detail,
@@ -606,7 +594,6 @@ def build_scheduler_hint(
             "unchanged_poll": {
                 "local_scheduler": "stop_until_context_repaired",
                 "codex_cli_tui": "stop_until_context_repaired",
-                CODEX_APP_SSH_GOAL_RUNTIME_KEY: "stop_until_context_repaired",
                 "claude_code_loop": "stop_until_context_repaired",
                 "final_quota_replan_check_enabled": False,
                 "spend_policy": "no quota spend for scheduler context repair",
@@ -667,7 +654,6 @@ def build_scheduler_hint(
                 "unchanged_poll": {
                     "local_scheduler": "stop",
                     "codex_cli_tui": "exit",
-                    CODEX_APP_SSH_GOAL_RUNTIME_KEY: "complete_host_goal",
                     "claude_code_loop": "stop",
                     "final_quota_replan_check_enabled": False,
                     "spend_policy": (
@@ -711,7 +697,6 @@ def build_scheduler_hint(
             ),
             spend_policy="no quota spend for terminal automation shutdown",
             resume_trigger="explicit goal resume or newly projected work",
-            ssh_goal_runtime_action="complete_host_goal",
             unchanged_spend_policy="no quota spend for terminal loop stop",
         )
 

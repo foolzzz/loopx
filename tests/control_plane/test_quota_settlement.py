@@ -804,34 +804,12 @@ def test_unbound_native_goal_actions_require_host_identity_before_settlement(
     assert len(actions) == 1
     assert "quota should-run" in actions[0]
     assert "--turn-instance-id" in actions[0]
-    assert "--begin-turn" not in actions[0]
     assert "spend-slot" not in actions[0]
     assert "refresh-state" not in actions[0]
 
 
-def test_unbound_codex_app_ssh_goal_requires_a_guided_turn_before_delivery() -> None:
-    actions = interaction_next_cli_actions(
-        {
-            "goal_id": GOAL_ID,
-            "agent_identity": {"agent_id": AGENT_ID},
-            "selected_todo": {"todo_id": TODO_ID},
-        },
-        mode="bounded_delivery",
-        scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE
-        ),
-    )
-
-    assert len(actions) == 1
-    assert actions[0].startswith("loopx --format json quota should-run")
-    assert "--runtime-profile codex_app_ssh_goal" in actions[0]
-    assert actions[0].endswith("--begin-turn")
-    assert "spend-slot" not in actions[0]
-
-
 @pytest.mark.parametrize(
     "profile", (
-        SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE,
         SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
         SchedulerRuntimeProfile.ARK_MANAGED_AGENT_GOAL,
     ),
@@ -864,18 +842,13 @@ def test_unbound_native_goal_requires_identity_before_replan(profile) -> None:
     assert len(actions) == 1
     assert actions[0].startswith("loopx --format json quota should-run")
     assert f"--runtime-profile {profile.value}" in actions[0]
-    if profile is SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE:
-        assert actions[0].endswith("--begin-turn")
-    else:
-        assert "--turn-instance-id" in actions[0]
-        assert "--begin-turn" not in actions[0]
+    assert "--turn-instance-id" in actions[0]
     assert "refresh-state" not in actions[0]
     assert "spend-slot" not in actions[0]
 
 
 @pytest.mark.parametrize(
     "profile", (
-        SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE,
         SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
         SchedulerRuntimeProfile.ARK_MANAGED_AGENT_GOAL,
     ),

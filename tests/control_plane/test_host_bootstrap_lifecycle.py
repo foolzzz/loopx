@@ -25,7 +25,7 @@ def registry(tmp_path):
 
 
 @pytest.mark.parametrize("flags", [
-    ["--runtime-profile", "codex_cli"], ["--runtime-profile", "codex_app_ssh_goal"],
+    ["--runtime-profile", "codex_cli"],
     ["--runtime-profile", "ark_managed_agent_goal"],
     ["--runtime-profile", "generic_cli", "--visible-goal-host", "traex-cli"],
     ["--codex-app"],

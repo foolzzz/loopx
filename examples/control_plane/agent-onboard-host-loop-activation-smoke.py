@@ -22,12 +22,8 @@ from loopx.bootstrap_command_pack import (  # noqa: E402
     build_start_goal_guided_packet,
 )
 from loopx.cli import build_parser  # noqa: E402
-from loopx.control_plane.quota.usage_summary import is_automation_run  # noqa: E402
 from loopx.control_plane.scheduler.automation_liveness import (  # noqa: E402
     build_automation_liveness,
-)
-from loopx.control_plane.scheduler.execution_context import (  # noqa: E402
-    scheduler_execution_context_for_runtime_profile,
 )
 from loopx.host_loop_activation import (  # noqa: E402
     agent_type_for_host_surface,
@@ -74,7 +70,6 @@ def main() -> int:
     catalog = build_agent_type_catalog()
     agent_types = {item["agent_type"] for item in catalog["canonical_agent_types"]}
     assert {
-        "codex-app-ssh",
         "codex-cli",
         "claude-code",
         "opencode",
@@ -86,7 +81,6 @@ def main() -> int:
     ambiguous = {item["input"]: item["use_one_of"] for item in catalog["ambiguous_inputs"]}
     assert ambiguous == {"cli": ["codex-cli", "manual", "other-agent"]}, ambiguous
 
-    assert agent_type_for_host_surface("codex-app-ssh") == "codex-app-ssh"
     assert agent_type_for_host_surface("codex-cli-tui") == "codex-cli"
     assert agent_type_for_host_surface("opencode") == "opencode"
     assert agent_type_for_host_surface("pi") == "pi"
@@ -97,10 +91,6 @@ def main() -> int:
     assert agent_type_for_host_surface("deepseek-harness") == "deepseek-harness"
     assert agent_type_for_host_surface("dsh") == "deepseek-harness"
 
-    codex_app_ssh = build_host_loop_activation_packet(
-        agent_type="codex-app-ssh",
-        goal_id="demo",
-    )
     codex_cli = build_host_loop_activation_packet(agent_type="codex-cli", goal_id="demo")
     claude_code = build_host_loop_activation_packet(agent_type="claude-code", goal_id="demo")
     opencode = build_host_loop_activation_packet(agent_type="opencode", goal_id="demo")
@@ -120,23 +110,6 @@ def main() -> int:
     )
     assert settled["keep_active"] is True, settled
     assert settled["next_trigger"] == "next heartbeat turn with a fresh turn identity"
-    assert codex_app_ssh["activation_method"] == "set_visible_goal", codex_app_ssh
-    assert codex_app_ssh["host_surface"] == "codex_app_ssh_visible_goal_mode", codex_app_ssh
-    assert any(
-        "native update_goal marks only the host Goal blocked" in criterion
-        for criterion in codex_app_ssh["success_criteria"]
-    ), codex_app_ssh
-    assert "--runtime-profile codex_app_ssh_goal" in (
-        codex_app_ssh["commands"]["heartbeat_prompt"]
-    ), codex_app_ssh
-    app_ssh_scheduler = scheduler_execution_context_for_runtime_profile(
-        "codex_app_ssh_goal"
-    )
-    assert app_ssh_scheduler.ok, app_ssh_scheduler
-    assert app_ssh_scheduler.projection()["host_surface"] == "codex_app_ssh"
-    assert app_ssh_scheduler.projection()["scheduler_owner"] == "agent_cli_loop"
-    assert app_ssh_scheduler.projection()["execution_mode"] == "interactive"
-    assert app_ssh_scheduler.projection()["codex_app_applicability"] == "not_applicable"
     assert codex_cli["activation_method"] == "set_visible_goal", codex_cli
     assert codex_cli["host_mutation"]["host_command"] == "/goal <task_body>", codex_cli
     assert claude_code["host_mutation"]["host_command"] == "/loop", claude_code
@@ -411,94 +384,6 @@ def main() -> int:
         assert "--host-surface codex-cli-tui" in cli_bootstrap, cli_onboarding
         assert "worker-bridge" not in cli_bootstrap, cli_onboarding
         assert "visible TUI" in cli_onboarding["recommended_start"], cli_onboarding
-
-        app_ssh_onboarding = build_agent_onboarding_packet(
-            project=project,
-            agent_type="codex-app-ssh",
-            goal_id="multi-agent-goal",
-            agent_id="codex-product-capability",
-            cli_bin=cli_bin,
-        )
-        app_ssh_activation = app_ssh_onboarding["host_loop_activation"]
-        assert app_ssh_activation["activation_method"] == "set_visible_goal"
-        assert app_ssh_activation["host_surface"] == "codex_app_ssh_visible_goal_mode"
-        assert "--host-surface codex-app-ssh" in (
-            app_ssh_onboarding["commands"]["bootstrap_command_pack"]
-        )
-        assert "/goal <task_body>" in app_ssh_activation["host_mutation"]["host_command"]
-
-        app_ssh_prompt_run = subprocess.run(
-            shlex.split(app_ssh_activation["activation_input_command"]),
-            cwd=REPO_ROOT,
-            env={**os.environ, "HOME": str(home), "LOOPX_PYTHON": sys.executable},
-            check=True,
-            text=True,
-            capture_output=True,
-            timeout=120,
-        )
-        app_ssh_prompt = json.loads(app_ssh_prompt_run.stdout)
-        assert app_ssh_prompt["ok"] is True, app_ssh_prompt
-        app_ssh_prompt = load_bootstrap(app_ssh_prompt, cli_bin, home)
-        assert app_ssh_prompt["interface_budget"]["mode"] == "visible_goal", app_ssh_prompt
-        assert app_ssh_prompt["interface_budget"]["max_chars"] == 4_000, app_ssh_prompt
-        assert app_ssh_prompt["interface_budget"]["within_budget"] is True, app_ssh_prompt
-        assert "--runtime-profile codex_app_ssh_goal" in (
-            app_ssh_prompt["quota_guard_command"]
-        ), app_ssh_prompt
-        assert "--begin-turn" in app_ssh_prompt["quota_guard_command"], app_ssh_prompt
-        assert "--turn-instance-id" not in app_ssh_prompt["quota_guard_command"], app_ssh_prompt
-        assert "--source visible-goal" in app_ssh_prompt["quota_spend_command"], app_ssh_prompt
-        spend_args = build_parser().parse_args(
-            shlex.split(app_ssh_prompt["quota_spend_command"])[1:]
-        )
-        assert spend_args.command == "quota", spend_args
-        assert spend_args.quota_command == "spend-slot", spend_args
-        assert spend_args.source == "visible-goal", spend_args
-        assert is_automation_run(
-            {
-                "classification": "quota_slot_spent",
-                "quota_event": {"source": spend_args.source},
-            }
-        ) is False
-        assert "no heartbeat/RRULE" in app_ssh_prompt["task_body"], app_ssh_prompt
-        assert "host_action=" not in app_ssh_prompt["task_body"], app_ssh_prompt
-        assert "automation_update stop" not in app_ssh_prompt["task_body"], app_ssh_prompt
-        assert "call `update_goal` with `status=blocked`" in (
-            app_ssh_prompt["task_body"]
-        ), app_ssh_prompt
-        assert "Only user `/goal resume`" in (
-            app_ssh_prompt["task_body"]
-        ), app_ssh_prompt
-        assert "reactivates it; rerun quota after resume" in (
-            app_ssh_prompt["task_body"]
-        ), app_ssh_prompt
-        app_ssh_quota_argv = shlex.split(app_ssh_prompt["quota_guard_command"])
-        app_ssh_quota_argv[0] = cli_bin
-        app_ssh_quota_argv = [
-            arg.replace(
-                "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}",
-                str(home / ".loopx"),
-            )
-            for arg in app_ssh_quota_argv
-        ]
-        app_ssh_quota_argv.extend(["--scan-root", str(project)])
-        app_ssh_quota_run = subprocess.run(
-            app_ssh_quota_argv,
-            cwd=project,
-            env={**os.environ, "HOME": str(home), "LOOPX_PYTHON": sys.executable},
-            check=True,
-            text=True,
-            capture_output=True,
-            timeout=120,
-        )
-        app_ssh_quota = json.loads(app_ssh_quota_run.stdout)
-        execution_context = app_ssh_quota["scheduler_hint"]["execution_context"]
-        assert execution_context["source"] == (
-            "runtime_profile:codex_app_ssh_goal"
-        ), app_ssh_quota
-        assert "codex_app_ssh_goal" not in (
-            app_ssh_quota["scheduler_hint"]["unchanged_poll"]["limits"]
-        ), app_ssh_quota
 
         cli_onboarding = build_agent_onboarding_packet(
             project=project,

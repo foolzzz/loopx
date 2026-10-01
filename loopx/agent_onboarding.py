@@ -56,7 +56,7 @@ def _surface_install_command(
         cli_bin=cli_bin,
         runtime_root=runtime_root,
     )
-    if agent_type in {"codex-app-ssh", "codex-cli"}:
+    if agent_type == "codex-cli":
         return f"{command_prefix} slash-commands --install --surface codex"
     if agent_type == "claude-code":
         return f"{command_prefix} slash-commands --install --surface claude-code"
@@ -87,10 +87,7 @@ def _surface_install_command(
 
 
 def _project_skill_surface(agent_type: str) -> str | None:
-    if agent_type in {
-        "codex-app-ssh",
-        "codex-cli",
-    }:
+    if agent_type == "codex-cli":
         return "codex"
     if agent_type == "claude-code":
         return "claude-code"
@@ -297,7 +294,6 @@ def _bootstrap_pack_command(
     available_capabilities: list[str] | None,
 ) -> str:
     surface_by_type = {
-        "codex-app-ssh": "codex-app-ssh",
         "codex-cli": "codex-cli-tui",
         "claude-code": "claude-code",
         "opencode": "opencode",
@@ -334,8 +330,6 @@ def _bootstrap_pack_command(
 
 
 def _start_instruction(agent_type: str) -> str:
-    if agent_type == "codex-app-ssh":
-        return "Use `$loopx <task>` or select the LoopX skill from `/skills`; after todos are written, set `/goal <task_body>` in the visible Codex App task."
     if agent_type == "codex-cli":
         return "Use `$loopx <task>` or select the LoopX skill from `/skills`; after todos are written, set `/goal <task_body>` in the visible TUI."
     if agent_type == "claude-code":

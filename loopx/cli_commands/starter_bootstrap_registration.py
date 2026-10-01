@@ -23,7 +23,7 @@ def register_starter_bootstrap_commands(subparsers: argparse._SubParsersAction) 
     )
     agent_onboard_parser.add_argument(
         "--agent-type",
-        help="Agent runtime type: codex-cli, codex-app-ssh, traex-cli, claude-code, opencode, pi, manual, or other-agent.",
+        help="Agent runtime type: codex-cli, traex-cli, claude-code, opencode, pi, manual, or other-agent.",
     )
     agent_onboard_parser.add_argument(
         "--list-agent-types",

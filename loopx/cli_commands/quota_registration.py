@@ -137,7 +137,6 @@ def register_quota_command(
         choices=[
             "ark_managed_agent",
             "codex_app",
-            "codex_app_ssh",
             "codex_cli",
             "trae_app",
             "generic_cli",
@@ -182,14 +181,11 @@ def register_quota_command(
         ),
     )
     quota_parser.add_argument(
-        "--begin-turn",
-        action="store_true",
-        help=(
-            "For an initial Codex App `quota should-run`, mint and persist one "
-            "new Turn identity. Any explicit Todo-selection command returned by "
-            "the guard reuses the minted identity. Cannot be combined with "
-            "--turn-instance-id or --todo-id."
-        ),
+        "--scheduler-host-facts-chunk",
+        dest="scheduler_host_facts_chunks",
+        action="append",
+        default=[],
+        help=argparse.SUPPRESS,
     )
     quota_parser.add_argument(
         "--replan-obligation-id",

@@ -29,12 +29,10 @@ from loopx.control_plane.quota.should_run_packet import _scheduler_hint  # noqa:
 RUNTIME_KEYS = (
     "local_scheduler",
     "codex_cli_tui",
-    "codex_app_ssh_goal",
     "claude_code_loop",
 )
-BASE_RUNTIME_KEYS = tuple(
-    key for key in RUNTIME_KEYS if key != "codex_app_ssh_goal"
-)
+BASE_RUNTIME_KEYS = RUNTIME_KEYS
+SCHEDULER_HOST_FACTS_CHUNK_FLAG = "--scheduler-host-facts-chunk"
 APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
     SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
 )
@@ -202,10 +200,6 @@ def assert_compact_scheduler(name: str, source_payload: dict) -> None:
     assert cold_path["schema_version"] == "scheduler_hint_detail_v0", (name, detailed)
     assert cold_path["local_scheduler"]["recommended_interval_minutes"], (name, detailed)
     assert cold_path["codex_cli_tui"]["final_quota_replan_check"], (name, detailed)
-    assert cold_path["codex_app_ssh_goal"]["loopx_goal_state"] == "remains_active", (
-        name,
-        detailed,
-    )
     assert cold_path["claude_code_loop"]["after_limit"], (name, detailed)
     stateful_detail = cold_path["stateful_backoff_detail"]
     assert "progression_minutes" not in stateful_detail, (name, detailed)
@@ -297,12 +291,6 @@ def assert_cli_compact_and_detail_contract() -> None:
     assert detailed["cold_path_detail"]["codex_cli_tui"]["after_limit"] == (
         compact["unchanged_poll"]["after_limits"]["codex_cli_tui"]
     ), detailed
-    assert detailed["cold_path_detail"]["codex_app_ssh_goal"]["after_limit"] == (
-        compact["unchanged_poll"]["after_limits"]["codex_app_ssh_goal"]
-    ), detailed
-    assert compact["unchanged_poll"]["after_limits"]["codex_cli_tui"] == (
-        compact["unchanged_poll"]["after_limits"]["codex_app_ssh_goal"]
-    ), compact
     assert detailed["cold_path_detail"]["claude_code_loop"]["after_limit"] == (
         compact["unchanged_poll"]["after_limits"]["claude_code_loop"]
     ), detailed

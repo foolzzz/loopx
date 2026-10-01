@@ -16,16 +16,14 @@ from ..control_plane.runtime.status_projection_cache import (
     write_status_projection_cache,
 )
 from ..control_plane.scheduler.execution_context import (
-    GUIDED_START_TURN_RUNTIME_PROFILES,
     HostSurface,
     SchedulerExecutionContextResolution,
     SchedulerRuntimeProfile,
     scheduler_execution_context_for_runtime_profile,
-    scheduler_runtime_profile_for_execution_context,
     resolve_scheduler_execution_context,
 )
 from ..status import AUTONOMOUS_REPLAN_PERIODIC_LOOKBACK, collect_status
-from ..turn_identity import mint_turn_instance_id, normalize_turn_instance_id
+from ..turn_identity import normalize_turn_instance_id
 from .quota_request import (
     QUOTA_MONITOR_POLL_DETAIL_SECTIONS,
     QUOTA_SHOULD_RUN_DETAIL_SECTIONS,
@@ -105,7 +103,6 @@ def validate_quota_command_context_request(
 ) -> tuple[
     str | None,
     Mapping[str, object] | SchedulerExecutionContextResolution | None,
-    bool,
 ]:
     """Validate the request before any provider read or local projection write."""
 
@@ -144,7 +141,6 @@ def validate_quota_command_context_request(
             "--record-host-poll is only valid with `quota should-run`"
         )
 
-    begin_turn = bool(getattr(args, "begin_turn", False))
     try:
         heartbeat_turn_id = normalize_turn_instance_id(
             getattr(args, "turn_instance_id", None)
@@ -199,23 +195,11 @@ def validate_quota_command_context_request(
         )
     args.app_automation_current_rrule = neutral_rrule or legacy_codex_rrule or None
     validate_quota_command_request(args)
-    if begin_turn:
-        profile = scheduler_runtime_profile_for_execution_context(scheduler_context)
-        if profile not in GUIDED_START_TURN_RUNTIME_PROFILES:
-            raise QuotaCommandValidationError(
-                "--begin-turn requires runtime-profile codex_app_heartbeat, "
-                "trae_app, or codex_app_ssh_goal; every other host starts its turn by "
-                "passing its own --turn-instance-id"
-            )
-    if (
-        (heartbeat_turn_id or begin_turn)
-        and command == "should-run"
-        and bool(args.dry_run)
-    ):
+    if heartbeat_turn_id and command == "should-run" and bool(args.dry_run):
         raise QuotaCommandValidationError(
             "turn-scoped `quota should-run` cannot use --dry-run"
         )
-    return heartbeat_turn_id, scheduler_context, begin_turn
+    return heartbeat_turn_id, scheduler_context
 
 
 def prepare_quota_command_context(
@@ -230,11 +214,9 @@ def prepare_quota_command_context(
     force_projection_refresh: bool = False,
 ) -> QuotaCommandContext:
     command = args.quota_command
-    heartbeat_turn_id, scheduler_context, begin_turn = (
+    heartbeat_turn_id, scheduler_context = (
         validate_quota_command_context_request(args)
     )
-    if begin_turn:
-        heartbeat_turn_id = mint_turn_instance_id(prefix="guided-start")
 
     scan_roots = [Path(item).expanduser() for item in args.scan_path]
     if not scan_roots:

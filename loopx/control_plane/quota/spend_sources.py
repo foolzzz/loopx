@@ -4,9 +4,9 @@ import shlex
 from collections.abc import Mapping
 from typing import Any
 
+from ...turn_identity import HOST_OWNED_TURN_INSTANCE_ID_PLACEHOLDER
 from ..scheduler.execution_context import (
     SchedulerExecutionContextResolution,
-    SchedulerRuntimeProfile,
     VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES,
     scheduler_runtime_profile_for_execution_context,
 )
@@ -76,13 +76,11 @@ def host_goal_turn_reentry_action(
         and settlement_plan is None
         and turn_instance_id is None
     ):
-        if profile is SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE:
-            return f"{typed_quota_guard} --begin-turn"
         # CLI/managed Goal hosts own their iteration identity, not an App
         # heartbeat receipt. Re-enter before exposing any unbound settlement.
         return (
             f"{typed_quota_guard} --turn-instance-id "
-            "'<unique-work-iteration-id-reuse-on-retry>'"
+            f"'{HOST_OWNED_TURN_INSTANCE_ID_PLACEHOLDER}'"
         )
     return None
 

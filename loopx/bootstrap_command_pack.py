@@ -56,6 +56,7 @@ from .paths import global_registry_path, project_goal_state_file, resolve_runtim
 from .registry import registry_goals, resolve_state_file
 from .slash_commands import build_slash_command_catalog
 from .thread_agent_binding import normalize_thread_id, resolve_thread_agent_binding
+from .turn_identity import HOST_OWNED_TURN_INSTANCE_ID_PLACEHOLDER
 
 SCHEMA_VERSION = "loopx_bootstrap_command_pack_v0"
 CANONICAL_SLASH_COMMAND = "/loopx"
@@ -66,7 +67,6 @@ GUIDED_COMMAND_PACK_PROJECTION_SCHEMA_VERSION = (
 GOAL_CAPABILITY_ROUTE_SCHEMA_VERSION = "loopx_goal_capability_route_v0"
 START_GOAL_CAPABILITY_ROUTES = ("issue-fix",)
 START_GOAL_HOST_SURFACES = (
-    "codex-app-ssh",
     "codex-cli-tui",
     "claude-code",
     "opencode",
@@ -600,7 +600,7 @@ def build_loopx_bootstrap_command_pack(
     heartbeat_prompt_command = activation_commands.get("heartbeat_prompt")
     heartbeat_prompt_json_command = activation_commands.get("heartbeat_prompt_json")
     scheduler_command_binding = scheduler_command_binding_for_agent_type(agent_type)
-    guided_start_begins_turn = bool(
+    guided_start_requires_host_turn = bool(
         explicit_goal_start
         and selected_agent_id
         and scheduler_command_binding.get("runtime_profile")
@@ -613,7 +613,11 @@ def build_loopx_bootstrap_command_pack(
             runtime_root=command_runtime_root,
             agent_id=str(selected_agent_id) if selected_agent_id else None,
             available_capabilities=available_capabilities,
-            begin_turn=guided_start_begins_turn,
+            host_turn_instance_id_placeholder=(
+                HOST_OWNED_TURN_INSTANCE_ID_PLACEHOLDER
+                if guided_start_requires_host_turn
+                else None
+            ),
             include_shared_registry=False,
             **scheduler_command_binding,
         )

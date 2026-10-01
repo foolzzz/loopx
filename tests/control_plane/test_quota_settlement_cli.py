@@ -1648,7 +1648,8 @@ def test_recovery_does_not_bind_current_replan_and_reenters_same_turn(
         GOAL_ID,
         "--agent-id",
         AGENT_ID,
-        "--begin-turn",
+        "--turn-instance-id",
+        "turn-unsettled-recovery",
         "--scan-path",
         str(project),
     )
@@ -1873,7 +1874,8 @@ def test_prior_turn_with_several_receipts_recovers_once(tmp_path: Path) -> None:
         GOAL_ID,
         "--agent-id",
         AGENT_ID,
-        "--begin-turn",
+        "--turn-instance-id",
+        "turn-multi-receipt-recovery",
         "--scan-path",
         str(project),
     )
@@ -1928,7 +1930,13 @@ def test_prior_host_closeout_survives_hidden_todo_lifecycle(
     )
     assert rc == 0, prior
     assert prior["heartbeat_receipt"]["closeout_required"] is True
-    rc, recovery = _run_cli(registry_path, runtime, *guard, "--begin-turn")
+    rc, recovery = _run_cli(
+        registry_path,
+        runtime,
+        *guard,
+        "--turn-instance-id",
+        "turn-hidden-closeout-recovery",
+    )
     assert rc == 0, recovery
     assert recovery["effective_action"] == "unsettled_host_turn_recovery"
     state = project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md"
@@ -2112,7 +2120,13 @@ def test_prior_host_closeout_reads_archived_exact_todo(
     assert exact["todo"]["archive_state"] == "archive"
     assert exact["todo"]["source_section"] == "Completed Work Archive"
 
-    rc, observed = _run_cli(registry_path, runtime, *guard, "--begin-turn")
+    rc, observed = _run_cli(
+        registry_path,
+        runtime,
+        *guard,
+        "--turn-instance-id",
+        "turn-archived-closeout-observed",
+    )
     assert rc == 0, observed
     assert observed["effective_action"] != "unsettled_host_turn_recovery", observed.get(
         "unsettled_host_turn_recovery"
@@ -2707,8 +2721,8 @@ def test_agent_selects_one_bounded_action_before_delivery_receipt_binding(
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
 
 
-@pytest.mark.parametrize("host_surface", ["codex-app", "codex-app-ssh"])
-def test_guided_start_begins_one_turn_and_executes_returned_selection(
+@pytest.mark.parametrize("host_surface", ["codex-app"])
+def test_guided_start_uses_host_turn_and_executes_returned_selection(
     tmp_path: Path,
     host_surface: str,
 ) -> None:
@@ -2728,8 +2742,10 @@ def test_guided_start_begins_one_turn_and_executes_returned_selection(
         if step["id"] == "quota_guard"
     )
 
-    assert "--begin-turn" in guard_command
-    assert "--turn-instance-id" not in guard_command
+    assert "<unique-work-iteration-id-reuse-on-retry>" in guard_command
+    guard_command = guard_command.replace(
+        "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
+    )
     first_rc, first = _run_generated_cli(
         guard_command,
         registry_path=registry_path,
@@ -2738,7 +2754,7 @@ def test_guided_start_begins_one_turn_and_executes_returned_selection(
     assert first_rc == 0, first
     assert first["interaction_contract"]["cli_channel"]["selection_required"] is True
     turn_instance_id = first["heartbeat_receipt"]["turn_instance_id"]
-    assert turn_instance_id.startswith("guided-start:")
+    assert turn_instance_id == TURN_ID
     selection = first["interaction_contract"]["cli_channel"]["selection_command"]
     assert (
         f"--turn-instance-id {turn_instance_id}" in selection["command_args_template"]
@@ -2761,15 +2777,14 @@ def test_guided_start_begins_one_turn_and_executes_returned_selection(
     settlement_plan = cli_channel["settlement_plan"]
     assert settlement_plan["identity"] == receipt_identity
     assert f"--turn-instance-id {turn_instance_id}" in json.dumps(settlement_plan)
-    expected_source = "heartbeat" if host_surface == "codex-app" else "visible-goal"
     assert any(
-        f"--source {expected_source}" in action
+        "--source heartbeat" in action
         for action in cli_channel["next_cli_actions"]
     )
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
 
 
-def test_visible_goal_continuation_begins_turn_and_executes_returned_selection(
+def test_visible_goal_continuation_uses_host_turn_and_executes_returned_selection(
     tmp_path: Path,
 ) -> None:
     project, runtime, registry_path = _write_fixture(tmp_path)
@@ -2777,7 +2792,7 @@ def test_visible_goal_continuation_begins_turn_and_executes_returned_selection(
     prompt = build_heartbeat_prompt(
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        runtime_profile="codex_app_ssh_goal",
+        runtime_profile="codex_cli",
         thin=True,
     )
     guard_command = prompt["quota_guard_command"].replace(
@@ -2785,8 +2800,7 @@ def test_visible_goal_continuation_begins_turn_and_executes_returned_selection(
         str(registry_path),
     )
 
-    assert "--begin-turn" in guard_command
-    assert "--turn-instance-id" not in guard_command
+    guard_command += f" --turn-instance-id {TURN_ID}"
     first_rc, first = _run_generated_cli(
         guard_command,
         registry_path=registry_path,
@@ -2795,7 +2809,7 @@ def test_visible_goal_continuation_begins_turn_and_executes_returned_selection(
     assert first_rc == 0, first
     assert first["interaction_contract"]["cli_channel"]["selection_required"] is True
     turn_instance_id = first["heartbeat_receipt"]["turn_instance_id"]
-    assert turn_instance_id.startswith("guided-start:")
+    assert turn_instance_id == TURN_ID
     selection = first["interaction_contract"]["cli_channel"]["selection_command"]
     assert (
         f"--turn-instance-id {turn_instance_id}" in selection["command_args_template"]
@@ -2840,13 +2854,14 @@ def test_visible_goal_capability_reentry_preserves_turn_through_selection(
     prompt = build_heartbeat_prompt(
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        runtime_profile="codex_app_ssh_goal",
+        runtime_profile="codex_cli",
         thin=True,
     )
     guard_command = prompt["quota_guard_command"].replace(
         "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json",
         str(registry_path),
     )
+    guard_command += f" --turn-instance-id {TURN_ID}"
 
     first_rc, first = _run_generated_cli(
         guard_command,
@@ -2894,7 +2909,7 @@ def test_visible_goal_capability_reentry_preserves_turn_through_selection(
     assert _heartbeat_receipt_count(runtime, turn_instance_id) == 2
 
 
-@pytest.mark.parametrize("host_surface", ["codex-app", "codex-app-ssh"])
+@pytest.mark.parametrize("host_surface", ["codex-app"])
 def test_single_todo_guided_start_keeps_direct_delivery_semantics(
     tmp_path: Path,
     host_surface: str,
@@ -2913,6 +2928,10 @@ def test_single_todo_guided_start_keeps_direct_delivery_semantics(
         for step in packet["guided_transaction"]["ordered_steps"]
         if step["id"] == "quota_guard"
     )
+    assert "<unique-work-iteration-id-reuse-on-retry>" in guard_command
+    guard_command = guard_command.replace(
+        "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
+    )
 
     guard_rc, guard = _run_generated_cli(
         guard_command,
@@ -2926,13 +2945,12 @@ def test_single_todo_guided_start_keeps_direct_delivery_semantics(
     )
     identity = guard["heartbeat_receipt"]["settlement_identity"]
     assert identity["todo_id"] == TODO_ID
-    assert identity["turn_instance_id"].startswith("guided-start:")
+    assert identity["turn_instance_id"] == TURN_ID
     settlement_plan = guard["interaction_contract"]["cli_channel"][
         "settlement_plan"
     ]
     assert settlement_plan["identity"] == identity
-    expected_source = "heartbeat" if host_surface == "codex-app" else "visible-goal"
-    assert expected_source in next(
+    assert "heartbeat" in next(
         step["command_template"]
         for step in settlement_plan["ordered_steps"]
         if step["kind"] == "quota_spend"
@@ -2951,12 +2969,13 @@ def test_visible_goal_refresh_and_spend_preserve_selected_todo_causality(
         "quota",
         "should-run",
         "--runtime-profile",
-        "codex_app_ssh_goal",
+        "codex_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
         AGENT_ID,
-        "--begin-turn",
+        "--turn-instance-id",
+        TURN_ID,
         "--scan-path",
         str(project),
     )
@@ -3026,12 +3045,13 @@ def test_todo_guard_defers_replan_obligation_created_after_admission(
         "quota",
         "should-run",
         "--runtime-profile",
-        "codex_app_ssh_goal",
+        "codex_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
         AGENT_ID,
-        "--begin-turn",
+        "--turn-instance-id",
+        TURN_ID,
         "--scan-path",
         str(project),
     )
@@ -3161,14 +3181,15 @@ def test_visible_goal_unbound_spend_recovers_delivery_after_capability_replan(
         "quota",
         "should-run",
         "--runtime-profile",
-        "codex_app_ssh_goal",
+        "codex_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
         AGENT_ID,
         "--available-capability",
         "network",
-        "--begin-turn",
+        "--turn-instance-id",
+        TURN_ID,
         "--scan-path",
         str(project),
         cwd=project,
@@ -3253,7 +3274,7 @@ def test_visible_goal_unbound_spend_recovers_delivery_after_capability_replan(
     assert _spend_run_count(runtime) == 1
 
 
-@pytest.mark.parametrize("profile", ["codex_app_ssh_goal", "codex_cli", "ark_managed_agent_goal"])
+@pytest.mark.parametrize("profile", ["codex_cli", "ark_managed_agent_goal"])
 def test_unbound_visible_goal_spend_returns_typed_mismatch_without_receipt(
     tmp_path: Path, profile: str,
 ) -> None:
@@ -3276,11 +3297,7 @@ def test_unbound_visible_goal_spend_returns_typed_mismatch_without_receipt(
     assert guard_rc == 0, guard
     actions = guard["interaction_contract"]["cli_channel"]["next_cli_actions"]
     assert len(actions) == 1
-    if profile == "codex_app_ssh_goal":
-        assert actions[0].endswith("--begin-turn")
-    else:
-        assert "--turn-instance-id" in actions[0]
-        assert "--begin-turn" not in actions[0]
+    assert "--turn-instance-id" in actions[0]
     assert all("spend-slot" not in action for action in actions)
 
     spend_rc, spend = _run_cli(
@@ -3316,43 +3333,11 @@ def test_unbound_visible_goal_spend_returns_typed_mismatch_without_receipt(
     plan = bound["interaction_contract"]["cli_channel"]["settlement_plan"]
     assert plan["identity"]["todo_id"] == TODO_ID
     assert plan["identity"]["agent_id"] == AGENT_ID
-    if profile != "codex_app_ssh_goal":
-        assert plan["identity"]["turn_instance_id"] == TURN_ID
+    assert plan["identity"]["turn_instance_id"] == TURN_ID
     assert [step["kind"] for step in plan["ordered_steps"]] == [
         "validation", "durable_writeback", "quota_spend", "terminal_closeout",
     ]
     assert _spend_run_count(runtime) == 0
-
-
-def test_begin_turn_rejects_a_non_receipt_runtime_profile(tmp_path: Path) -> None:
-    project, runtime, registry_path = _write_fixture(tmp_path)
-
-    guard_rc, guard = _run_cli(
-        registry_path,
-        runtime,
-        "quota",
-        "should-run",
-        "--runtime-profile",
-        "generic_cli",
-        "--goal-id",
-        GOAL_ID,
-        "--agent-id",
-        AGENT_ID,
-        "--begin-turn",
-        "--scan-path",
-        str(project),
-    )
-
-    assert guard_rc == 1, guard
-    assert guard["error_code"] == "QUOTA_VALIDATION_FAILED"
-    # The rejection must also tell an agent-CLI host how to start its turn:
-    # Kiro CLI, ZCode, agy, Gemini CLI, Cursor and custom runners all land on
-    # generic_cli and mint their own identity instead.
-    assert guard["reason"] == (
-        "--begin-turn requires runtime-profile codex_app_heartbeat, "
-        "trae_app, or codex_app_ssh_goal; every other host starts its turn by "
-        "passing its own --turn-instance-id"
-    )
 
 
 def test_agent_can_select_eligible_todo_outside_bounded_suggestions(
@@ -5093,7 +5078,7 @@ def test_todoless_blocked_replan_settles_read_only_external_evidence_without_wor
     assert replay.get("unsettled_host_turn_recovery") is None
 
 
-def test_unbound_visible_goal_todoless_replan_reenters_through_guided_turn(
+def test_unbound_visible_goal_todoless_replan_reenters_with_host_turn(
     tmp_path: Path,
 ) -> None:
     project, runtime, registry_path = _write_fixture(tmp_path)
@@ -5105,7 +5090,7 @@ def test_unbound_visible_goal_todoless_replan_reenters_through_guided_turn(
         "quota",
         "should-run",
         "--runtime-profile",
-        "codex_app_ssh_goal",
+        "codex_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",
@@ -5119,12 +5104,14 @@ def test_unbound_visible_goal_todoless_replan_reenters_through_guided_turn(
     assert unbound.get("selected_todo") is None, unbound
     actions = unbound["interaction_contract"]["cli_channel"]["next_cli_actions"]
     assert len(actions) == 1
-    assert actions[0].endswith("--begin-turn")
+    assert "--turn-instance-id" in actions[0]
     assert "refresh-state" not in actions[0]
     assert "spend-slot" not in actions[0]
 
     bound_rc, bound = _run_generated_cli(
-        actions[0],
+        actions[0].replace(
+            "<unique-work-iteration-id-reuse-on-retry>", TURN_ID
+        ),
         registry_path=registry_path,
     )
 
@@ -5135,7 +5122,7 @@ def test_unbound_visible_goal_todoless_replan_reenters_through_guided_turn(
     identity = bound["heartbeat_receipt"]["settlement_identity"]
     assert identity["binding_kind"] == "autonomous_replan"
     assert identity["replan_obligation_id"] == obligation_id
-    assert identity["turn_instance_id"].startswith("guided-start:")
+    assert identity["turn_instance_id"] == TURN_ID
     cli_channel = bound["interaction_contract"]["cli_channel"]
     assert cli_channel["settlement_plan"]["identity"] == identity
     assert len(cli_channel["next_cli_actions"]) == 2

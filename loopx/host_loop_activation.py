@@ -43,7 +43,6 @@ def scheduler_command_binding_for_agent_type(
     canonical = normalize_agent_type(agent_type)
     runtime_profile = {
         "ark-managed-agent": SchedulerRuntimeProfile.ARK_MANAGED_AGENT_GOAL,
-        "codex-app-ssh": SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE,
         "codex-cli": SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
         "claude-code": SchedulerRuntimeProfile.CLAUDE_CODE_VISIBLE,
         "opencode": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
@@ -69,7 +68,6 @@ def agent_type_uses_host_managed_skills(agent_type: str) -> bool:
 
 SUPPORTED_AGENT_TYPES = [
     "ark-managed-agent",
-    "codex-app-ssh",
     "codex-cli",
     "claude-code",
     "opencode",
@@ -99,20 +97,6 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
             "managed-agent",
             "managed_agent",
             "managed agent",
-        ],
-    },
-    "codex-app-ssh": {
-        "display_name": "Codex App over SSH",
-        "host_loop": "visible Codex App /goal when host automation is unavailable over SSH",
-        "entry": "$loopx <task> or the explicit LoopX skill from /skills",
-        "accepted_inputs": [
-            "codex-app-ssh",
-            "codex_app_ssh",
-            "codex app ssh",
-            "codex-ssh",
-            "codex ssh",
-            "codex-app-remote",
-            "codex app remote",
         ],
     },
     "codex-cli": {
@@ -307,7 +291,6 @@ class AgentTypeError(ValueError):
 HOST_SURFACE_TO_AGENT_TYPE = {
     "ark-managed-agent": "ark-managed-agent",
     "ark_managed_agent": "ark-managed-agent",
-    "codex-app-ssh": "codex-app-ssh",
     "codex-cli-tui": "codex-cli",
     "claude-code": "claude-code",
     "opencode": "opencode",
@@ -455,7 +438,6 @@ def _heartbeat_commands(
 ) -> dict[str, str]:
     scope_by_type = {
         "ark-managed-agent": "Ark Managed Agent one-shot Goal activation",
-        "codex-app-ssh": "Codex App SSH /goal visible task loop",
         "codex-cli": "Codex CLI /goal visible TUI loop",
         "claude-code": "Claude Code native /loop gated by LoopX",
         "opencode": "OpenCode visible goal loop gated by LoopX",
@@ -497,7 +479,7 @@ def _heartbeat_commands(
             **renderer_binding,
         ),
     }
-    if agent_type in {"codex-app-ssh", "codex-cli", "ark-managed-agent"}:
+    if agent_type in {"codex-cli", "ark-managed-agent"}:
         commands = {key: command + " --bootstrap" for key, command in commands.items()}
     if renderer_binding:
         commands["visible_goal_prompt_json"] = commands["heartbeat_prompt_json"]
@@ -765,19 +747,6 @@ def _codex_cli_activation(commands: dict[str, str]) -> dict[str, Any]:
         host_label="Codex CLI TUI",
         host_surface="codex_cli_visible_goal_mode",
     )
-
-
-def _codex_app_ssh_activation(commands: dict[str, str]) -> dict[str, Any]:
-    activation = _codex_goal_activation(
-        commands,
-        host_label="Codex App SSH task",
-        host_surface="codex_app_ssh_visible_goal_mode",
-    )
-    activation["success_criteria"].append(
-        "After three unchanged blocked turns, native update_goal marks only the "
-        "host Goal blocked; LoopX remains active until user /goal resume."
-    )
-    return activation
 
 
 def _claude_code_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
@@ -1091,8 +1060,6 @@ def build_host_loop_activation_packet(
     )
     if canonical == "ark-managed-agent":
         surface = _ark_managed_agent_activation(commands)
-    elif canonical == "codex-app-ssh":
-        surface = _codex_app_ssh_activation(commands)
     elif canonical == "codex-cli":
         surface = _codex_cli_activation(commands)
     elif canonical == "claude-code":

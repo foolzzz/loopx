@@ -336,7 +336,7 @@ def render_native_codex_goal_prompt(
     command.extend(
         (
             "--runtime-profile",
-            "codex_app_ssh_goal",
+            "codex_cli",
             "--cli-bin",
             str(profile.cli_bin),
         )
@@ -364,7 +364,7 @@ def render_native_codex_goal_prompt(
         raise NativeCodexProfileError("goal_prompt_cli_invalid_json") from exc
     if not isinstance(payload, dict) or payload.get("ok") is not True:
         raise NativeCodexProfileError("goal_prompt_cli_not_ready")
-    if payload.get("runtime_profile") != "codex_app_ssh_goal":
+    if payload.get("runtime_profile") != "codex_cli":
         raise NativeCodexProfileError("goal_prompt_runtime_profile_mismatch")
     interface_budget = payload.get("interface_budget")
     if (
@@ -399,7 +399,7 @@ def render_native_codex_goal_prompt(
         task_body=task_body,
         task_body_sha256=hashlib.sha256(task_body.encode("utf-8")).hexdigest(),
         task_body_chars=len(task_body),
-        runtime_profile="codex_app_ssh_goal",
+        runtime_profile="codex_cli",
         source_revision=profile.source_revision,
         installed_cli_bound=installed_cli_bound,
         runtime_registry_bound=runtime_registry_bound,
@@ -412,7 +412,7 @@ def _doctor_payload(
     doctor_env = dict(env)
     doctor_env["PATH"] = f"{paths['bin_dir']}{os.pathsep}{env.get('PATH', os.defpath)}"
     completed = subprocess.run(
-        [str(cli_bin), "--format", "json", "doctor", "--agent-type", "codex-app-ssh"],
+        [str(cli_bin), "--format", "json", "doctor", "--agent-type", "codex-cli"],
         cwd=paths["root"],
         env=doctor_env,
         check=False,
@@ -430,7 +430,7 @@ def _doctor_payload(
         raise NativeCodexProfileError("profile_doctor_invalid_json") from exc
     if not isinstance(payload, dict) or payload.get("ok") is not True:
         raise NativeCodexProfileError("profile_doctor_not_ready")
-    if payload.get("agent_type") != "codex-app-ssh":
+    if payload.get("agent_type") != "codex-cli":
         raise NativeCodexProfileError("profile_doctor_host_surface_mismatch")
     if (payload.get("skill_delivery") or {}).get("status") != "ready":
         raise NativeCodexProfileError("profile_doctor_skill_delivery_not_ready")
@@ -610,7 +610,7 @@ def compact_native_codex_profile_receipt(profile: NativeCodexProfile) -> dict[st
 
     return {
         "schema_version": NATIVE_CODEX_PROFILE_SCHEMA_VERSION,
-        "host_surface": "codex-app-ssh",
+        "host_surface": "codex-cli",
         "install_mode": "formal_local_release",
         "cli_release_snapshot": True,
         "source_revision": profile.source_revision,

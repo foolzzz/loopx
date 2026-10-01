@@ -41,7 +41,6 @@ VALID_COMBINATIONS = {
     ("ark_managed_agent", "goal_runtime", "interactive"),
     ("codex_app", "host_automation", "hosted_automation"),
     ("trae_app", "host_automation", "hosted_automation"),
-    ("codex_app_ssh", "agent_cli_loop", "interactive"),
     ("local_scheduler", "host_automation", "hosted_automation"),
     *{
         (surface, owner, mode)
@@ -70,11 +69,6 @@ FIRST_CLASS_RUNTIME_PROFILES = (
         SchedulerRuntimeProfile.TRAE_APP,
         ("trae_app", "host_automation", "hosted_automation"),
         " --trae_app",
-    ),
-    (
-        SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE,
-        ("codex_app_ssh", "agent_cli_loop", "interactive"),
-        " --runtime-profile codex_app_ssh_goal",
     ),
     (
         SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
@@ -1058,10 +1052,7 @@ def test_goal_runtime_terminal_stop_projects_complete() -> None:
 
 @pytest.mark.parametrize(
     ("profile", "runtime_key"),
-    (
-        (SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE, "codex_app_ssh_goal"),
-        (SchedulerRuntimeProfile.CODEX_CLI_VISIBLE, "codex_cli_tui"),
-    ),
+    ((SchedulerRuntimeProfile.CODEX_CLI_VISIBLE, "codex_cli_tui"),),
 )
 def test_native_codex_goal_monitor_wait_uses_blocked_status_after_limit(
     profile: SchedulerRuntimeProfile,

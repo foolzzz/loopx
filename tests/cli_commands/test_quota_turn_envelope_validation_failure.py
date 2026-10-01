@@ -24,11 +24,11 @@ def test_turn_envelope_renders_typed_failure_when_context_preparation_fails(
     monkeypatch: pytest.MonkeyPatch,
     turn_envelope: bool,
 ) -> None:
-    """Regression: --begin-turn --turn-envelope must not raise UnboundLocalError.
+    """A failed context preparation must not raise UnboundLocalError.
 
     When ``prepare_quota_command_context`` fails scheduler execution-context
     validation, the CLI returns the typed validation payload; the post-try
-    ``--turn-envelope`` renderer used to read the never-assigned
+    The ``--turn-envelope`` renderer used to read the never-assigned
     ``scheduler_context`` local and crash (issue #3687).
     """
     registry_path = tmp_path / ".loopx" / "registry.json"
@@ -48,7 +48,6 @@ def test_turn_envelope_renders_typed_failure_when_context_preparation_fails(
         quota_command="should-run",
         goal_id="synthetic-goal",
         agent_id="synthetic-agent",
-        begin_turn=True,
         turn_envelope=turn_envelope,
         format="json",
     )

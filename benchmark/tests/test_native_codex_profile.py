@@ -36,7 +36,7 @@ def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfil
         f"task_body = {task_body}\n"
         "print(json.dumps({\n"
         "    'ok': True,\n"
-        "    'runtime_profile': 'codex_app_ssh_goal',\n"
+        "    'runtime_profile': 'codex_cli',\n"
         "    'interface_budget': {'within_budget': True},\n"
         "    'task_body': task_body,\n"
         "}))\n",

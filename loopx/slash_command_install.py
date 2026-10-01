@@ -177,7 +177,7 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
             "argument_hint": "[--fine-grained] [--capability-route issue-fix] [task text]",
             "instructions": [
                 "Visible command arguments: `$ARGUMENTS`.",
-                "Identify the exact current host surface (codex-cli-tui, codex-app-ssh, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
+                "Identify the exact current host surface (codex-cli-tui, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
                 _loopx_start_goal_arguments_instruction(
                     cli_bin=cli_bin,
                     host_surface=None,
@@ -186,7 +186,7 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
                 "When the host explicitly supplies a `loopx_task_planning_v0` packet from `loopx todo plan` for a registered Goal/Agent, execute that bounded planning checkpoint instead of starting another Goal. Follow its shared planner and Todo delta, then return actual Todo ids for readback. Its caller-owned execution_handoff retains host activation and quota; do not create a planning Todo, execute task work, or claim delivery during the checkpoint.",
                 "If the packet exposes a goal-selection gate, rerun one exact choice before any mutation.",
                 "When authoring task Todos, treat `--action-kind` as the documented extensible public-safe token: choose a short task-relevant value such as `implement`, `test`, or `review`; do not search the LoopX source for an allowlist.",
-                "Consume the turn-start quota JSON packet exactly once: read the complete output directly or save it and query it with `jq`; never pipe it through `head` or `tail`, and never rerun the turn-start call to recover hidden fields. A host whose runtime mints Turn identity uses `--begin-turn`; every other host passes its own `--turn-instance-id`. When selection is required, choose the Todo and use `interaction_contract.cli_channel.selection_command` with the returned Turn identity before mutation.",
+                "Consume the turn-start quota JSON packet exactly once: read the complete output directly or save it and query it with `jq`; never pipe it through `head` or `tail`, and never rerun the turn-start call to recover hidden fields. Pass the host-owned `--turn-instance-id` when the runtime settles work through an explicit Turn. When selection is required, choose the Todo and use `interaction_contract.cli_channel.selection_command` with the returned Turn identity before mutation.",
                 "Runtime capability flags are host observations, not task requirements or grants; registered Agents reuse supported ones via `loopx agent-capabilities`. Before initial quota, include capabilities already established by this host context or successful task-facing use. Read capability_gate.repair_missing even when should_run is true: when runtime_capability_reentry is projected, verify its real callsite and follow the returned same-Turn command before choosing fallback work. Never infer credentials or production access from network availability, and do not claim a missing declaration proves a missing tool.",
                 f"If arguments are empty and the host already identifies an active LoopX goal, follow its exact CLI `interaction_contract` or quota command first; otherwise inspect `{cli_bin} status` and `{cli_bin} bootstrap-command-pack --project .` before changing files.",
                 "If this session cannot mutate the host loop surface, surface the exact pasteable gate instead of claiming autonomous setup.",
@@ -619,7 +619,7 @@ def _normalize_surfaces(surfaces: list[str] | None) -> list[str]:
             candidates = ["codex", "claude-code", "opencode"]
         elif surface == "codex":
             candidates = ["codex"]
-        elif surface in {"codex-app-ssh", "codex-cli"}:
+        elif surface == "codex-cli":
             candidates = ["codex"]
         elif surface in {"gemini-cli", "gemini-code"}:
             candidates = ["gemini"]
@@ -815,21 +815,7 @@ def install_slash_commands(
     pi_scope: str = "project",
     pi_user_home: str | None = None,
 ) -> dict[str, Any]:
-    requested_surfaces = set(surfaces or ["all"])
-    codex_host_requests = {
-        "codex-app-ssh" if surface == "codex-app-ssh" else "codex-cli-tui"
-        for surface in requested_surfaces
-        if surface in {"all", "codex", "codex-cli", "codex-app-ssh"}
-    }
-    if len(codex_host_requests) > 1:
-        raise ValueError(
-            "Codex CLI and Codex App over SSH share one skill directory; "
-            "install exactly one Codex host surface at a time"
-        )
-    codex_host_surface = next(iter(codex_host_requests), "codex-cli-tui")
-    codex_result_host_surfaces = [
-        "codex-app-ssh" if codex_host_surface == "codex-app-ssh" else "codex-cli"
-    ]
+    codex_result_host_surfaces = ["codex-cli"]
     effective_surfaces = _normalize_surfaces(surfaces)
     codex_root = _codex_home(codex_home)
     claude_root = _claude_home(claude_home)
@@ -869,7 +855,7 @@ def install_slash_commands(
         codex_specs = _command_prompt_specs_for_host(
             cli_bin=cli_bin,
             include_legacy_aliases=False,
-            host_surface=codex_host_surface,
+            host_surface="codex-cli-tui",
         )
         legacy_specs = [s for s in _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=True)
                         if str(s["name"]).startswith("loop-global-")]

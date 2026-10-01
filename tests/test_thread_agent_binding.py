@@ -281,7 +281,7 @@ def test_resolve_codex_deep_link_searches_codex_host_family(
     assert bind_thread_agent_in_registry(
         registry_path=path,
         goal_id="goal",
-        host_surface="codex-app-ssh",
+        host_surface="codex-cli-tui",
         thread_id="thread-a",
         agent_id="agent-a",
         execute=True,
@@ -295,12 +295,12 @@ def test_resolve_codex_deep_link_searches_codex_host_family(
     assert resolved["status"] == "bound"
     assert resolved["host_surface"] is None
     assert resolved["host_family"] == "codex"
-    assert resolved["matched_host_surfaces"] == ["codex-app-ssh"]
+    assert resolved["matched_host_surfaces"] == ["codex-cli-tui"]
     assert resolved["matches"] == [
         {
             "goal_id": "goal",
             "agent_id": "agent-a",
-            "host_surface": "codex-app-ssh",
+            "host_surface": "codex-cli-tui",
         }
     ]
 

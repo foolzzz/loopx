@@ -1041,6 +1041,53 @@ def test_retired_suggestion_options_are_not_silently_accepted(
 
 
 @pytest.mark.parametrize(
+    "argv",
+    [
+        ["quota", "should-run", "--goal-id", "example-goal", "--begin-turn"],
+        [
+            "quota",
+            "should-run",
+            "--goal-id",
+            "example-goal",
+            "--runtime-profile",
+            "codex_app_ssh_goal",
+        ],
+        [
+            "quota",
+            "should-run",
+            "--goal-id",
+            "example-goal",
+            "--host-surface",
+            "codex_app_ssh",
+        ],
+        [
+            "start-goal",
+            "--guided",
+            "--project",
+            ".",
+            "--host-surface",
+            "codex-app-ssh",
+            "--goal-text",
+            "Retired surface must fail before state access.",
+        ],
+        ["slash-commands", "--surface", "codex-app-ssh"],
+    ],
+)
+def test_retired_codex_app_ssh_wire_values_are_rejected_before_state_access(
+    argv: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        main(argv)
+
+    assert exc_info.value.code == 2
+    diagnostic = capsys.readouterr().err
+    assert (
+        "unrecognized arguments" in diagnostic or "invalid choice" in diagnostic
+    )
+
+
+@pytest.mark.parametrize(
     ("argv", "expected"),
     [
         (["quota", "should-run"], "json"),

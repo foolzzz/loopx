@@ -85,7 +85,7 @@ _GOAL_ID = "deepswe-task"
 _AGENT_ID = "deepswe-codex"
 _PROJECT = "/app"
 _RUNTIME_PROFILES = {
-    "ssh-goal": "codex_app_ssh_goal",
+    "ssh-goal": "codex_cli",
     "codex-cli": "codex_cli",
     "heartbeat": "outer_controller",
 }
@@ -242,6 +242,7 @@ class LoopxNativeCodex(GoalCodex):
                 f"--project {shlex.quote(_PROJECT)} "
                 f"--goal-id {_GOAL_ID} --agent-id {_AGENT_ID} "
                 f"--runtime-profile {runtime_profile} "
+                f"--codex-app-heartbeat {'yes' if mode == 'ssh-goal' else 'no'} "
                 f"--goal-doc-file {shlex.quote(_GOAL_DOC_FILE)} "
                 f"--task-file {shlex.quote(f'{_REMOTE_DIR}/task.txt')} "
                 f"--objective-out {shlex.quote(_OBJECTIVE_FILE)} "
@@ -374,6 +375,7 @@ p.add_argument("--agent-id", required=True)
 p.add_argument("--goal-doc-file", required=True)
 p.add_argument("--task-file", required=True)
 p.add_argument("--runtime-profile", required=True)
+p.add_argument("--codex-app-heartbeat", choices=("yes", "no"), required=True)
 p.add_argument("--objective-out", required=True)
 p.add_argument("--receipt-out", required=True)
 a = p.parse_args()
@@ -429,7 +431,7 @@ if os.environ.get("LOOPX_WEN_COMPAT", "1") not in ("", "0"):
         "--no-onboarding-scan",
         "--begin-autonomous-advance",
         "--codex-app-heartbeat",
-        "yes" if a.runtime_profile == "codex_app_ssh_goal" else "no",
+        a.codex_app_heartbeat,
         "--write-scope", a.project,
     ]
 else:
