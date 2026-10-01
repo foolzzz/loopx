@@ -227,14 +227,14 @@ each signal first flags drift, when `assist` would raise the obligation, and eve
 false flag. `--live` records fresh answers instead; the committed
 `expected_summary.json` preserves two separate evidence tracks:
 
-- `current_replay` is reproducible offline from the committed matrix and
-  provider responses. Its matrix digest is
+- `current_replay` uses `recorded_replay` and is reproducible offline from the
+  committed current sanitized matrix and provider responses. Its matrix digest is
   `25e20d5d5d1bc3dfc1fe7f2a20e28c73c707e0a348fb8db0534ec308b2e6b44c`.
-- `historical_live` retains the last complete live provider result for the
-  exact pre-sanitization matrix. Its matrix digest is
+- `historical_live` uses `live_provider_recording` and retains the last complete
+  live provider result for the exact pre-sanitization matrix. Its matrix digest is
   `c6dd6e0f40eff982d64a2703374a21d3975ccac70c8d62bf11bdef50aeef94ab`.
   It is historical evidence, not an offline replay of the current sanitized
-  matrix or proof of a fresh provider run.
+  matrix. It is not proof of a fresh provider run.
 
 ## Evidence, deduplication and results
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import runpy
 from pathlib import Path
 
@@ -280,12 +281,38 @@ def test_replay_reproduces_the_committed_live_summary(tmp_path: Path) -> None:
 def test_operation_guides_identify_both_expected_summary_evidence_tracks() -> None:
     expected = json.loads((FIXTURES / "expected_summary.json").read_text(encoding="utf-8"))
     package_root = FIXTURES.parents[2]
+    semantic_markers = {
+        "DRIFT_SHADOW.md": {
+            "current_replay": ("reproducible offline", "current sanitized matrix"),
+            "historical_live": (
+                "exact pre-sanitization matrix",
+                "historical evidence",
+                "not an offline replay of the current sanitized matrix",
+                "not proof of a fresh provider run",
+            ),
+        },
+        "DRIFT_SHADOW.zh-CN.md": {
+            "current_replay": ("当前清理后矩阵", "离线复现"),
+            "historical_live": (
+                "清理前原样矩阵",
+                "历史证据",
+                "不是当前清理后矩阵的离线回放",
+                "不表示刚刚完成了新的 provider 运行",
+            ),
+        },
+    }
 
-    for guide_name in ("DRIFT_SHADOW.md", "DRIFT_SHADOW.zh-CN.md"):
+    for guide_name, guide_markers in semantic_markers.items():
         guide = (package_root / guide_name).read_text(encoding="utf-8")
         for track in ("current_replay", "historical_live"):
-            assert f"`{track}`" in guide
-            assert expected[track]["matrix_digest"] in guide
+            match = re.search(rf"(?ms)^- `{track}` (?P<body>.*?)(?=^- `|^## |\Z)", guide)
+            assert match is not None, f"{guide_name} has no structured {track} block"
+            block = " ".join(match.group("body").split())
+            assert f"`{expected[track]['execution']}`" in block
+            assert expected[track]["matrix_digest"] in block
+            other_track = "historical_live" if track == "current_replay" else "current_replay"
+            assert expected[other_track]["matrix_digest"] not in block
+            assert all(marker in block for marker in guide_markers[track])
 
 
 def test_on_goal_summary_separates_failed_and_partial_evaluations() -> None:
