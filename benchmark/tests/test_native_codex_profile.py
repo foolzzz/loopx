@@ -42,6 +42,20 @@ def _embedded_product_bootstrap_source() -> str:
     raise AssertionError("native Codex adapter has no literal _BOOTSTRAP source")
 
 
+def test_benchmark_preflight_tracks_the_current_bootstrap_contract() -> None:
+    preflight = (
+        REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/preflight_loopx_rerun.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"--write-scope", a.project' in preflight
+    for retired_flag in (
+        "--codex-app-heartbeat",
+        "--no-onboarding-scan",
+        "--begin-autonomous-advance",
+    ):
+        assert retired_flag not in preflight
+
+
 @pytest.mark.parametrize("wen_compat", [True, False])
 def test_embedded_product_bootstrap_emits_only_current_cli_arguments(
     tmp_path: Path,
