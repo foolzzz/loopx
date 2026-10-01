@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import ast
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -20,7 +18,7 @@ from loopx.capabilities.benchmark_toolkit.native_codex_profile import (
     native_codex_profile_environment,
     render_native_codex_goal_prompt,
 )
-from loopx.cli import build_parser
+from loopx.canary.path_scope import is_excluded_from_active_canary_scans
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -64,117 +62,52 @@ def _adapter_mapping_keys(name: str) -> set[str]:
     raise AssertionError(f"native Codex adapter has no mapping {name} assignment")
 
 
-def _embedded_product_bootstrap_source() -> str:
-    source = _adapter_literal_assignment("_BOOTSTRAP")
-    if not isinstance(source, str):
-        raise AssertionError("native Codex adapter _BOOTSTRAP must be a string")
-    return source
-
-
-def test_benchmark_preflight_tracks_the_current_bootstrap_contract() -> None:
-    preflight = (
-        REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/preflight_loopx_rerun.py"
-    ).read_text(encoding="utf-8")
-
-    assert '"--write-scope", a.project' in preflight
-    for retired_flag in (
-        "--codex-app-heartbeat",
-        "--no-onboarding-scan",
-        "--begin-autonomous-advance",
-    ):
-        assert retired_flag not in preflight
+def test_benchmark_preflight_is_outside_current_contract_scans() -> None:
+    assert is_excluded_from_active_canary_scans(
+        "benchmark/deepswe-gptxhigh-v1/preflight_loopx_rerun.py"
+    )
 
 
 @pytest.mark.parametrize(
-    ("arm", "runtime_profile", "execution_host"),
+    ("arm", "runtime_profile"),
     (
-        ("ssh-goal", "codex_cli", "codex-app-server"),
-        ("codex-cli", "codex_cli", "codex-cli"),
-        ("heartbeat", "outer_controller", "codex-cli"),
+        ("ssh-goal", "codex_app_ssh_goal"),
+        ("codex-cli", "codex_cli"),
+        ("heartbeat", "outer_controller"),
     ),
 )
-def test_benchmark_arm_separates_runtime_profile_and_execution_host(
+def test_frozen_benchmark_arm_retains_historical_runtime_profile(
     arm: str,
     runtime_profile: str,
-    execution_host: str,
 ) -> None:
-    treatment_metadata = _adapter_literal_assignment("_TREATMENT_METADATA")
+    runtime_profiles = _adapter_literal_assignment("_RUNTIME_PROFILES")
 
-    assert isinstance(treatment_metadata, dict)
-    assert set(treatment_metadata) == _adapter_mapping_keys("_RUNNER_SOURCES")
-    assert treatment_metadata[arm] == {
-        "runtime_profile": runtime_profile,
-        "execution_host": execution_host,
-    }
+    assert isinstance(runtime_profiles, dict)
+    assert set(runtime_profiles) == _adapter_mapping_keys("_RUNNER_SOURCES")
+    assert runtime_profiles[arm] == runtime_profile
 
 
-@pytest.mark.parametrize("wen_compat", [True, False])
-def test_embedded_product_bootstrap_emits_only_current_cli_arguments(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    wen_compat: bool,
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py",
+        "benchmark/deepswe-gptxhigh-v1/preflight_loopx_rerun.py",
+    ),
+)
+def test_frozen_benchmark_source_is_excluded_from_current_cli_scans(
+    relative_path: str,
 ) -> None:
-    project = tmp_path / "project"
-    project.mkdir()
-    task_file = tmp_path / "task.txt"
-    task_file.write_text("Repair the fixture.", encoding="utf-8")
-    parser = build_parser()
-    parsed_commands: list[str] = []
+    assert is_excluded_from_active_canary_scans(relative_path)
 
-    def parse_without_executing(
-        command: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        arguments = command[1:]
-        parsed = parser.parse_args(arguments)
-        parsed_commands.append(str(parsed.command))
-        payload: dict[str, object] = {"ok": True}
-        if parsed.command == "heartbeat-prompt":
-            payload["task_body"] = "Use the current LoopX contract."
-        return subprocess.CompletedProcess(
-            command,
-            0,
-            stdout=json.dumps(payload),
-            stderr="",
-        )
 
-    monkeypatch.setattr(subprocess, "run", parse_without_executing)
-    monkeypatch.setenv("LOOPX_WEN_COMPAT", "1" if wen_compat else "0")
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "loopx_product_bootstrap.py",
-            "--profile-root",
-            str(tmp_path / "profile"),
-            "--project",
-            str(project),
-            "--goal-id",
-            "benchmark-goal",
-            "--agent-id",
-            "benchmark-agent",
-            "--goal-doc-file",
-            str(tmp_path / "goal.md"),
-            "--task-file",
-            str(task_file),
-            "--runtime-profile",
-            "codex_cli",
-            "--objective-out",
-            str(tmp_path / "objective.txt"),
-            "--receipt-out",
-            str(tmp_path / "receipt.json"),
-        ],
+def test_frozen_benchmark_scan_exclusion_is_path_scoped() -> None:
+    assert is_excluded_from_active_canary_scans("benchmark/deepswe-gptxhigh-v1")
+    assert not is_excluded_from_active_canary_scans(
+        "benchmark/deepswe-gptxhigh-v1-revised/loopx_native_codex.py"
     )
-
-    source = _embedded_product_bootstrap_source()
-    with pytest.raises(SystemExit) as stopped:
-        exec(compile(source, "<loopx_product_bootstrap>", "exec"), {})
-
-    assert stopped.value.code == 0
-    expected_commands = ["bootstrap", "configure-goal", "todo"]
-    if wen_compat:
-        expected_commands.append("configure-goal")
-    expected_commands.append("heartbeat-prompt")
-    assert parsed_commands == expected_commands
+    assert not is_excluded_from_active_canary_scans(
+        "benchmark/deepswe-gptxhigh-v1/../../loopx/quota.py"
+    )
 
 
 def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfile:
@@ -184,7 +117,7 @@ def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfil
     task_body = (
         'f"Use {cli} with runtime root {runtime}."'
         if bind_cli
-        else '"No installed CLI reference."'
+        else repr("No installed CLI reference.")
     )
     cli.write_text(
         "#!/usr/bin/env python3\n"

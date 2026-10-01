@@ -194,7 +194,7 @@ def test_registration_persists_an_absolute_runtime_root(
     capsys.readouterr()
 
     assert _registry_payload(registry_path)["common_runtime_root"] == str(
-        (tmp_path / "runtime").resolve()
+        (knowledge_root / "runtime").resolve()
     )
 
 

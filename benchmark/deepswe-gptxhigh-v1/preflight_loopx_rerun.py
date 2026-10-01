@@ -188,10 +188,7 @@ def main() -> int:
     adapter_source = adapter.read_text(encoding="utf-8") if adapter.is_file() else ""
     if not adapter.is_file() or '"--accept-onboarding-agent-todos"' in adapter_source:
         errors.append("benchmark_adapter_allows_onboarding_todos")
-    if (
-        '"--write-scope", a.project' not in adapter_source
-        or '"--text", "[P0] " + task_text' not in adapter_source
-    ):
+    if '"--no-onboarding-scan"' not in adapter_source or '"--text", "[P0] " + task_text' not in adapter_source:
         errors.append("benchmark_task_admission_contract_missing")
     wrapper_source = wrapper.read_text(encoding="utf-8") if wrapper.is_file() else ""
     if args.arm == "codex-cli" and (

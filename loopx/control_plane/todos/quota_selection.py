@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..agents.profile import agent_profile_candidate_rank
+from ..agents.runtime_model import normalize_agent_role
 from ..effect_runtime import EffectRuntimeRejected, effect_runtime_result
 from .contract import (
     normalize_todo_claimed_by, normalize_todo_bound_agent, normalize_todo_blocks_agent,
@@ -14,7 +15,15 @@ from .contract import (
     normalize_todo_action_kind, TODO_PLANNING_ACTION_KINDS,
     normalize_todo_status, TODO_STATUS_IN_REVIEW, todo_review_agent,
 )
-from ..agents.runtime_model import normalize_agent_role
+from .resume_planning import build_todo_resume_planning_request
+from .summary_item import compact_todo_summary_item
+from .todo_semantics import (
+    todo_item_has_removed_continuation_policy, todo_item_is_actionable_open,
+    todo_item_is_due_monitor, todo_item_is_watch_only_monitor,
+    todo_item_task_class, todo_projection_sort_key,
+    todo_summary_monitor_writeback_supported,
+)
+from .user_gate import is_user_gate_todo_item
 
 QUOTA_PLANNING_REQUEST_SCHEMA_VERSION = "todo_quota_planning_request_v2"
 
@@ -24,15 +33,6 @@ def _todo_is_planning_work(item: dict[str, Any]) -> bool:
         normalize_todo_replan_obligation_id(item.get("replan_obligation_id"))
         or normalize_todo_action_kind(item.get("action_kind")) in TODO_PLANNING_ACTION_KINDS
     )
-from .todo_semantics import (
-    todo_item_has_removed_continuation_policy, todo_item_is_actionable_open,
-    todo_item_is_due_monitor, todo_item_is_watch_only_monitor,
-    todo_item_task_class, todo_projection_sort_key,
-    todo_summary_monitor_writeback_supported,
-)
-from .resume_planning import build_todo_resume_planning_request
-from .summary_item import compact_todo_summary_item
-from .user_gate import is_user_gate_todo_item
 
 
 def project_quota_planning(
