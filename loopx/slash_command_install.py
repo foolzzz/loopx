@@ -815,6 +815,21 @@ def install_slash_commands(
     pi_scope: str = "project",
     pi_user_home: str | None = None,
 ) -> dict[str, Any]:
+    requested_surfaces = set(surfaces or ["all"])
+    codex_host_requests = {
+        "codex-app-ssh" if surface == "codex-app-ssh" else "codex-cli-tui"
+        for surface in requested_surfaces
+        if surface in {"all", "codex", "codex-cli", "codex-app-ssh"}
+    }
+    if len(codex_host_requests) > 1:
+        raise ValueError(
+            "Codex CLI and Codex App over SSH share one skill directory; "
+            "install exactly one Codex host surface at a time"
+        )
+    codex_host_surface = next(iter(codex_host_requests), "codex-cli-tui")
+    codex_result_host_surfaces = [
+        "codex-app-ssh" if codex_host_surface == "codex-app-ssh" else "codex-cli"
+    ]
     effective_surfaces = _normalize_surfaces(surfaces)
     codex_root = _codex_home(codex_home)
     claude_root = _claude_home(claude_home)
@@ -851,7 +866,11 @@ def install_slash_commands(
     if "codex" in effective_surfaces:
         # Keep aliases in the catalog and native slash hosts, but expose one
         # canonical skill per outcome in Codex's skill picker.
-        codex_specs = _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=False)
+        codex_specs = _command_prompt_specs_for_host(
+            cli_bin=cli_bin,
+            include_legacy_aliases=False,
+            host_surface=codex_host_surface,
+        )
         legacy_specs = [s for s in _command_prompt_specs(cli_bin=cli_bin, include_legacy_aliases=True)
                         if str(s["name"]).startswith("loop-global-")]
         for spec in legacy_specs:
@@ -871,7 +890,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "retired_codex_custom_prompt",
                         "command": spec["command"],
                         "path": str(prompt_path),
@@ -885,7 +904,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "retired_codex_custom_prompt",
                         "command": spec["command"],
                         "path": str(prompt_path),
@@ -903,7 +922,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "codex_explicit_skills",
                         "command": spec["command"],
                         "path": str(skill_path),
@@ -915,7 +934,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "codex_skill_openai_metadata",
                         "command": spec["command"],
                         "path": str(metadata_path),
@@ -929,7 +948,7 @@ def install_slash_commands(
             installed.append(
                 {
                     "surface": "codex",
-                    "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                    "host_surfaces": codex_result_host_surfaces,
                     "mechanism": "codex_explicit_skills",
                     "command": spec["command"],
                     "path": str(skill_path),
@@ -950,7 +969,7 @@ def install_slash_commands(
                 installed.append(
                     {
                         "surface": "codex",
-                        "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                        "host_surfaces": codex_result_host_surfaces,
                         "mechanism": "codex_skill_openai_metadata",
                         "command": spec["command"],
                         "path": str(metadata_path),
@@ -964,7 +983,7 @@ def install_slash_commands(
                     installed.append(
                         {
                             "surface": "codex",
-                            "host_surfaces": ["codex-cli", "codex-app-ssh"],
+                            "host_surfaces": codex_result_host_surfaces,
                             "mechanism": "retired_codex_command_metadata",
                             "command": spec["command"],
                             "path": str(metadata_path),
@@ -976,7 +995,7 @@ def install_slash_commands(
             installed.append(
                 {
                     "surface": "codex",
-                    "host_surfaces": ["codex-cli"],
+                    "host_surfaces": codex_result_host_surfaces,
                     "mechanism": "unsupported_native_slash_registry",
                     "command": spec["command"],
                     "path": None,
