@@ -18,6 +18,19 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Changed
 
+- **The retired App scheduler contract has been removed from the typed core.**
+  This is a breaking wire and CLI cleanup with no compatibility aliases.
+  - Runtime profile enum values `codex_app_heartbeat` and `trae_app`, and host
+    surface values `codex_app` and `trae_app`, are no longer accepted.
+  - `quota should-run --codex-app`, `heartbeat-prompt --trae_app`,
+    `--codex-app-current-rrule`, and `--app-automation-current-rrule` have been
+    removed.
+  - Scheduler output no longer emits `codex_app`, `app_automation`,
+    App-applicability placeholders, RRULE recommendations, cadence guarantees,
+    stateful App backoff, or App pause/delete host actions.
+  - The App-specific settlement plan/source is removed. Generic CLI callers
+    retain provider-neutral, turn-scoped settlement and must provide an explicit
+    turn identity. Host-specific scheduler mutation remains provider-owned.
 - **LoopX state no longer lives under Codex's directory.** This is a breaking
   path change with no migration.
   - The global runtime root moves from `~/.codex/loopx` to `~/.loopx`. It

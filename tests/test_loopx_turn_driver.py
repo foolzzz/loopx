@@ -159,7 +159,6 @@ def test_dsh_turn_plan_uses_the_headless_outer_controller_context() -> None:
         "execution_mode": "isolated_headless",
         "source": "loopx_turn",
         "valid": True,
-        "codex_app_applicability": "not_applicable",
     }
 
 
@@ -1057,7 +1056,6 @@ def test_turn_plan_projects_typed_recovery_routes(
         "execution_mode": "isolated_headless",
         "source": "loopx_turn",
         "valid": True,
-        "codex_app_applicability": "not_applicable",
     }
 
 
@@ -1264,7 +1262,7 @@ def _promote_turn_fixture(project: Path, runtime: Path) -> None:
     )
 
 
-def test_quota_cli_projects_outer_controller_without_codex_app_action(
+def test_quota_cli_projects_outer_controller_without_host_action(
     tmp_path: Path,
 ) -> None:
     project, runtime, registry = _write_live_fixture(tmp_path)
@@ -1299,9 +1297,9 @@ def test_quota_cli_projects_outer_controller_without_codex_app_action(
     payload = json.loads(output.getvalue())
     hint = payload["scheduler_hint"]
     assert exit_code == 0, payload
-    assert hint["execution_context"]["codex_app_applicability"] == "not_applicable"
-    assert hint["codex_app"]["applicability"] == "not_applicable"
-    assert "stateful_backoff" not in hint["codex_app"]
+    assert "codex_app_applicability" not in hint["execution_context"]
+    assert "codex_app" not in hint
+    assert "app_automation" not in hint
     assert hint["execution_phase"]["scheduler_owner"] == "outer_controller"
     assert hint["execution_phase"]["completed"] is True
     assert hint["execution_phase"]["apply_needed"] is False
@@ -1337,25 +1335,24 @@ def test_quota_cli_without_scheduler_context_fails_closed(tmp_path: Path) -> Non
     assert exit_code == 0, payload
     assert hint["action"] == "repair_scheduler_execution_context"
     assert hint["execution_context"]["valid"] is False
-    assert hint["codex_app"]["applicability"] == "blocked_invalid_context"
+    assert "codex_app" not in hint
+    assert "app_automation" not in hint
 
 
 @pytest.mark.parametrize(
-    "profile_args",
+    "profile",
     (
-        ["--runtime-profile", "codex_app_heartbeat"],
-        ["--codex-app"],
+        "codex_app_heartbeat",
+        "trae_app",
     ),
 )
-def test_quota_cli_codex_app_profile_is_explicit_and_applicable(
+def test_quota_cli_rejects_removed_app_runtime_profiles(
     tmp_path: Path,
-    profile_args: list[str],
+    profile: str,
 ) -> None:
     project, runtime, registry = _write_live_fixture(tmp_path)
-    output = io.StringIO()
-
-    with contextlib.redirect_stdout(output):
-        exit_code = cli_main(
+    with pytest.raises(SystemExit):
+        cli_main(
             [
                 "--registry",
                 str(registry),
@@ -1369,19 +1366,36 @@ def test_quota_cli_codex_app_profile_is_explicit_and_applicable(
                 "loopx-turn-fixture",
                 "--agent-id",
                 "codex-fixture",
-                *profile_args,
+                "--runtime-profile",
+                profile,
                 "--scan-root",
                 str(project),
             ]
         )
 
-    payload = json.loads(output.getvalue())
-    hint = payload["scheduler_hint"]
-    assert exit_code == 0, payload
-    assert "execution_context" not in hint
-    assert "execution_phase" not in hint
-    assert hint["codex_app"]["applicability"] == "applicable"
-    assert "stateful_backoff" in hint["codex_app"]
+
+@pytest.mark.parametrize(
+    "command_args",
+    (
+        ["quota", "should-run", "--codex-app"],
+        [
+            "quota",
+            "should-run",
+            "--codex-app-current-rrule",
+            "FREQ=MINUTELY;INTERVAL=3",
+        ],
+        [
+            "quota",
+            "should-run",
+            "--app-automation-current-rrule",
+            "FREQ=MINUTELY;INTERVAL=3",
+        ],
+        ["heartbeat-prompt", "--trae_app"],
+    ),
+)
+def test_cli_rejects_removed_app_flags(command_args: list[str]) -> None:
+    with pytest.raises(SystemExit):
+        cli_main(command_args)
 
 
 def test_quota_cli_short_context_flags_preserve_all_typed_fields(
@@ -1422,10 +1436,10 @@ def test_quota_cli_short_context_flags_preserve_all_typed_fields(
     assert context["host_surface"] == "generic_cli"
     assert context["scheduler_owner"] == "agent_cli_loop"
     assert context["execution_mode"] == "interactive"
-    assert context["codex_app_applicability"] == "not_applicable"
+    assert "codex_app_applicability" not in context
 
 
-def test_heartbeat_cli_codex_app_alias_reaches_generated_quota_guard(
+def test_heartbeat_cli_generic_profile_reaches_generated_quota_guard(
     tmp_path: Path,
 ) -> None:
     _, runtime, registry = _write_live_fixture(tmp_path)
@@ -1446,7 +1460,8 @@ def test_heartbeat_cli_codex_app_alias_reaches_generated_quota_guard(
                 "loopx-turn-fixture",
                 "--agent-id",
                 "codex-fixture",
-                "--codex-app",
+                "--runtime-profile",
+                "generic_cli",
             ]
         )
 
@@ -1455,7 +1470,7 @@ def test_heartbeat_cli_codex_app_alias_reaches_generated_quota_guard(
     assert payload["schema_version"] == "heartbeat_agent_input_v1"
     assert "runtime_profile" not in payload
     assert "quota_guard_command" not in payload
-    assert "--codex-app" in payload["task_body"]
+    assert "--runtime-profile generic_cli" in payload["task_body"]
 
 
 def test_turn_cli_consumes_live_state_without_writes(
@@ -1852,7 +1867,7 @@ raise SystemExit(0 if artifact.read_text(encoding="utf-8") == "validated" else 7
         "disposition": "outer_controller_owned",
         "completed": True,
         "apply_needed": False,
-        "completion_reason": "selected scheduler owner requires no App cadence update",
+            "completion_reason": "selected scheduler owner requires no host action",
     }
     assert payload["effects"] == {
         "host_invoked": True,

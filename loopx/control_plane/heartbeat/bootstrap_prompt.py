@@ -11,12 +11,7 @@ BOOTSTRAP_INSTRUCTION = (
     "入口异常先做权限内恢复；契约仍不可用时不执行任务或记账，并报告阻塞。"
 )
 
-# Keep the managed heartbeat wrapper in one module.  The host bootstrap and
-# automation-prompt lifecycle both consume this renderer so a new wake-up
-# contract cannot be stranded behind only one entrypoint.
-HEARTBEAT_BOOTSTRAP = "LoopX managed heartbeat bootstrap v2"
 LEGACY_HOST_BOOTSTRAP = "LoopX managed host bootstrap v1"
-HEARTBEAT_BOOTSTRAP_ENTRY = "每次唤醒先执行："
 LEGACY_HOST_BOOTSTRAP_ENTRY = (
     "每次进入或恢复本 Goal 时先加载当前规则；升级后重新加载，"
     "不创建新 Goal、不接管宿主调度："
@@ -25,13 +20,6 @@ LEGACY_HOST_BOOTSTRAP_ENTRY = (
 
 def render_bootstrap(command: list[str], *, title: str, entry: str) -> str:
     return f"{title}\n{entry}\n```sh\n{shlex.join(command)}\n```\n{BOOTSTRAP_INSTRUCTION}"
-
-
-def render_heartbeat_bootstrap(command: list[str]) -> str:
-    """Render the canonical v2 managed heartbeat loader."""
-    return render_bootstrap(
-        command, title=HEARTBEAT_BOOTSTRAP, entry=HEARTBEAT_BOOTSTRAP_ENTRY
-    )
 
 
 def _goal_command(args, *, registry: Path, legacy: bool) -> list[str]:
@@ -53,10 +41,6 @@ def _goal_command(args, *, registry: Path, legacy: bool) -> list[str]:
     # after the subcommand. Native Goal loaders retain their historical contract.
     if not legacy:
         command.append("--" + mode)
-        if args.codex_app:
-            command.append("--codex-app")
-        if getattr(args, "trae_app", False):
-            command.append("--trae_app")
     command += ["--goal-id", args.goal_id]
     for field, flag in (
         ("agent_id", "--agent-id"), ("active_state", "--active-state"),
@@ -77,24 +61,11 @@ def _goal_command(args, *, registry: Path, legacy: bool) -> list[str]:
     if args.cli_bin != "loopx":
         command += ["--cli-bin", args.cli_bin]
     if legacy:
-        if args.codex_app:
-            command.append("--codex-app")
-        if getattr(args, "trae_app", False):
-            command.append("--trae_app")
         command.append("--" + mode)
     return command
 
 
 def goal_bootstrap(args, *, registry: Path) -> str:
-    """Use the heartbeat wrapper only for an App heartbeat scheduler."""
-    heartbeat = (
-        args.codex_app
-        or getattr(args, "trae_app", False)
-        or getattr(args, "runtime_profile", None)
-        in {"codex_app_heartbeat", "trae_app"}
-    )
-    command = _goal_command(args, registry=registry, legacy=not heartbeat)
-    if heartbeat:
-        return render_heartbeat_bootstrap(command)
+    command = _goal_command(args, registry=registry, legacy=True)
     return render_bootstrap(command, title=LEGACY_HOST_BOOTSTRAP,
                             entry=LEGACY_HOST_BOOTSTRAP_ENTRY)

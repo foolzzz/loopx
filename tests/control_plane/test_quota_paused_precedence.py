@@ -162,14 +162,13 @@ def test_paused_quota_preempts_workspace_repair(
     assert "workspace_guard" not in payload
 
 
-def test_paused_quota_stops_codex_app_heartbeat_until_explicit_resume() -> None:
+def test_paused_quota_stops_generic_loop_until_explicit_resume() -> None:
     payload = build_quota_should_run(
         _paused_status(),
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        codex_app_current_rrule="FREQ=MINUTELY;INTERVAL=30",
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
     )
 
@@ -180,14 +179,9 @@ def test_paused_quota_stops_codex_app_heartbeat_until_explicit_resume() -> None:
 
     scheduler = payload["scheduler_hint"]
     assert scheduler["reason_code"] == "quota_paused"
-    codex_app = scheduler["codex_app"]
-    assert codex_app["applicability"] == "applicable"
-    assert codex_app["apply"] == "pause_or_delete_current_heartbeat_if_possible"
-    assert codex_app["host_action"] == "pause_or_delete_current_heartbeat"
-    assert codex_app["host_action_required"] is True
-    assert "ack_required" not in codex_app
-    assert codex_app["resume_trigger"] == "explicit quota resume with quota.compute > 0"
-    assert "recommended_rrule" not in codex_app
+    assert scheduler["execution_phase"]["completed"] is True
+    assert "codex_app" not in scheduler
+    assert "app_automation" not in scheduler
 
 
 def test_paused_quota_preserves_unhealthy_status_fact() -> None:

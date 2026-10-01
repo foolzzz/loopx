@@ -193,7 +193,7 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
         "title": "Scheduler cadence projection and local backoff",
         "quality_risk": "high",
         "purpose": (
-            "Qualify stateless App cadence convergence, monitor due-time projection, "
+            "Qualify typed cadence projection, monitor due-time projection, "
             "and real local scheduler backoff without nested smoke execution."
         ),
         "catalog_families": [
@@ -217,7 +217,7 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
             {
                 "command": "python3 examples/control_plane/monitor-scheduler-contract-smoke.py",
                 "tier": "default",
-                "reason": "guards stateless App cadence and multi-monitor lane selection",
+                "reason": "guards typed cadence policy and multi-monitor lane selection",
             },
             {
                 "command": "python3 examples/codex-cli-local-scheduler-tick-smoke.py",

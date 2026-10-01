@@ -1,7 +1,7 @@
 # 第 7 讲：Host、Heartbeat 与 Cadence Projection
 
-> **本讲结论：** Host 拥有唤醒和外部 effect，LoopX 拥有 cadence proposal 与验证规则；
-> scheduler hint 只是 proposal，不能证明 host 已应用 RRULE。
+> **本讲结论：** Host 拥有唤醒和外部 effect，LoopX 投影 typed scheduler policy；
+> scheduler hint 不能证明 host 已应用自己的 schedule。
 
 建议时长：90 分钟。讲解 55 分钟、时序推演 20 分钟、实验 15 分钟。
 
@@ -11,7 +11,7 @@
 
 1. 区分 host trigger、heartbeat task body 和 LoopX decision kernel。
 2. 解释 thin prompt 为什么比项目专属大 prompt 更可靠。
-3. 区分 App 无状态 cadence projection 与 local scheduler 的 stateful backoff/reset policy。
+3. 区分 typed scheduler policy 与 local scheduler 的 stateful backoff/reset policy。
 4. 区分 quiet skip、monitor poll、wait、run-now 和 terminal stop。
 5. 解释为什么 monitor-poll 的 before/after decision 必须共享同一 execution context。
 6. 设计一个不会重复 spend、不会无限刷盘的 host adapter。
@@ -20,11 +20,11 @@
 
 | 边界 | LoopX 中的答案 |
 | --- | --- |
-| Decision owner | LoopX 从 quota decision 投影 App 初始 cadence 与 apply obligation；local scheduler 独立维护 backoff |
+| Decision owner | LoopX 从 quota decision 投影 owner-scoped cadence policy；local scheduler 独立维护 backoff |
 | Execution context | `host_surface + scheduler_owner + execution_mode` 共同限定 effect authority |
-| Effect owner | Host 创建 session、触发 turn、修改 RRULE 或调用外部 runtime |
-| Commit receipt | Scheduler cadence 没有 ACK receipt；Turn 由 validated writeback 与 spend 结算 |
-| Recovery | Quiet 保持 automation；未应用的 proposal 下一轮继续 apply，不伪装成 delivery |
+| Effect owner | Host 创建 session、触发 turn、管理自己的 schedule 或调用外部 runtime |
+| Commit receipt | Scheduler policy 不结算 delivery；Turn 由 validated writeback 与 spend 结算 |
+| Recovery | Quiet 保持 owner loop；scheduler change 不伪装成 delivery |
 
 ## 三个 Showcase 的 Cadence 不同，Proposal 合同相同
 
@@ -40,9 +40,9 @@ Scheduler 不懂 GitHub 或研究指标，但它能根据 Kernel 已分类的 ac
 | 研究 lane 有 holdout todo | runnable frontier | 较快继续 | evidence packet 写回 |
 | 研究暂无可执行 frontier，等待外部证据 | fresh-evidence wait | 较慢轮询 | 新 evidence event 或 user decision |
 
-无论哪种场景，LoopX 只产生 cadence proposal，由 host 应用 RRULE 或下一次触发时间。
-LoopX 不持久化 App cadence state，也不接受 scheduler ACK；proposal 本身不能证明 host
-应用了本次决定。
+无论哪种场景，LoopX 只产生 owner-scoped cadence policy，由声明的 scheduler owner
+应用本地间隔或下一次触发时间。LoopX 不投影 host-specific scheduler mutation；policy
+本身不能证明 host 应用了本次决定。
 
 Explore Graph 的 material finding 会改变下一轮 evidence frontier，Explore Harness 的新
 portfolio 可能改变 advisory ranking；二者本身都不应创建额外 heartbeat。只有它们经
@@ -56,7 +56,6 @@ LoopX 支持多种 host：
 
 | Host surface | 如何开始 | 谁持续触发 |
 | --- | --- | --- |
-| Codex App | `$loopx <task>` | App heartbeat automation |
 | Codex CLI | 设置稳定的 thin re-entry body 与可见 goal/session | 用户或 CLI 可见循环 |
 | Claude Code | `/loopx <task>`，可选 native loop adapter | Claude native loop 或用户 |
 | 其他 shell/agent | `start-goal --guided` | 外部 runner 或人工触发 |
@@ -109,8 +108,8 @@ stop at private/credential/destructive/unauthorized boundaries
 ## 一次 Heartbeat Turn 的 Host 时序
 
 ```text
-Codex App automation fires
-  -> opens/resumes target thread
+Host-owned loop fires
+  -> opens/resumes target session
   -> executor reads thin task body
   -> executor runs quota should-run with same agent identity
   -> interaction_contract determines this turn
@@ -148,8 +147,7 @@ Scheduler 根据已经解析的 lifecycle 状态决定下一次 cadence，不应
 - 等用户或外部证据时会反复空转、刷日志和占用模型。
 
 Local scheduler 的 stateful backoff 保存同一等待身份的连续轮次，逐步增加
-间隔。当状态变化时 reset。App scheduler 不持久化这个 progression，每轮使用
-当前 profile 的初始间隔。
+间隔。当状态变化时 reset。其他 host 如何保存 schedule state 由其 provider 自己决定。
 
 可以把 identity key 理解成：
 
@@ -166,13 +164,11 @@ goal + agent + lifecycle reason + selected work/wait target
 
 当 todo、gate、evidence、monitor due state 或 agent lane 变化时，backoff 应重置到新类别的初始 cadence。
 
-## App Scheduler ACK 已退役
+## Host Schedule 不属于 LoopX Typed Core
 
-模型输出“已将 automation 改成 30 分钟”不是执行证据，scheduler hint 也不是。旧版 App
-在更新 RRULE 后运行 scheduler ACK 命令持久化 applied RRULE；这条 ACK/failure
-follow-up 与 App scheduler state 已经移除。App 的 `stateful_backoff` 现在每轮
-从空状态计算，投影停在当前 profile 的初始 interval。Host 只在 `apply_needed=true` 时
-更新一次 RRULE，失败不重试；cadence 调整不构成 delivery，不 spend。
+模型输出“已改变 schedule”不是执行证据，scheduler hint 也不是。LoopX 只投影 typed
+execution context、local reset policy 与 unchanged-poll policy；host-specific schedule
+mutation 及 readback 由 provider 持有。Cadence 调整不构成 delivery，不 spend。
 
 ## Monitor 的 Quiet Contract
 
@@ -289,13 +285,13 @@ LoopX 再补充项目拥有的结构化状态和过程：todo/claim/gate、领�
 跨 host cadence、replan 与 terminal audit。两者不是竞争状态机，也不能把 LoopX packet 伪装成
 native Goal baseline。
 
-### Codex App 的 LoopX 路径
+### Host-owned loop 的 LoopX 路径
 
-- App heartbeat automation 持有稳定的薄 task body；
+- Host loop 持有稳定的薄 task body；
 - 每次唤醒时，executor 按 task body 调用 LoopX CLI，从最新 state 取得本轮 packet；
-- host 可以按 `scheduler_hint` 更新 RRULE；
-- scheduler hint 可要求 App 更新 RRULE；
-- App thread/session 不成为 LoopX canonical state owner。
+- host 在自己的 provider 边界内解释 wait/stop policy；
+- LoopX 不投影 host-specific schedule mutation；
+- host thread/session 不成为 LoopX canonical state owner。
 
 ### Codex CLI 的 LoopX 路径
 
@@ -401,21 +397,19 @@ def build_scheduler_hint(payload, *, scheduler_execution_context=None, ...):
         return {
             "action": "repair_scheduler_execution_context",
             "spend_policy": "no quota spend for scheduler context repair",
-            "codex_app": {"apply": "none", "host_action": "none"},
+            "execution_phase": {"disposition": "contract_error"},
             ...,
         }
 ```
 
-纯函数意味着它不能声称“RRULE 已更新”。它只能返回 `apply_needed`、推荐 interval 和 reset token；effect 必须由 host 执行。
+纯函数意味着它不能声称“host schedule 已更新”。它只返回 typed owner/context、
+本地 interval 和 reset token；effect 必须由声明的 scheduler owner 执行。
 
 Execution context 也必须由调用方显式提供。缺少 context 的通用调用会返回
-`repair_scheduler_execution_context`，不会再假定自己运行在 Codex App。
-Codex App heartbeat 的兼容入口是明确的
-`--runtime-profile codex_app_heartbeat`（生成命令使用等价的紧凑别名
-`--codex-app`）；Codex CLI、Claude Code 和外部
-controller 则传各自的 `host_surface`、`scheduler_owner` 和
+`repair_scheduler_execution_context`，不会再假定 scheduler owner。
+调用方使用受支持的 `--runtime-profile`，或传各自的 `host_surface`、`scheduler_owner` 和
 `execution_mode`。这样测试与真实 host 使用同一个 typed contract，而不是靠一个
-库级 legacy 默认碰巧命中 App 行为。
+库级 legacy 默认碰巧命中某个 host 行为。
 
 ### 2. Stateful backoff 的 identity 不只是 goal id
 
@@ -434,12 +428,11 @@ base_identity_keys = [
 
 只要工作身份发生 material 变化，backoff progression 就应 reset。否则“等待同一个外部结果的第 5 次 poll”和“刚切换到新 runnable todo 的第一次执行”会错误共享慢 cadence。
 
-### 3. App scheduler follow-up 已退役
+### 3. Host-specific scheduler mutation 不进入 typed core
 
-原生 ACK/failure follow-up、其 TypeScript transaction 与 App scheduler state 已移除。
-`scheduler_hint.py` 直接从当前 profile 的初始 RRULE 构建 App cadence proposal，仅用
-observed Host RRULE 判断 `apply_needed`；已删除旧 transition kernel，该路径也不产生
-ACK/failure follow-up。Local scheduler 的 unchanged-poll progression/reset 仍由其自身状态路径管理。
+`scheduler_hint.py` 根据 quota decision 与 typed execution context 投影 local reset 和
+unchanged-poll policy。Local scheduler 的 progression/reset 由其自身状态路径管理；
+其他 host 的 schedule mutation/readback 由 provider 持有。
 
 ### 4. Monitor writeback 用 result hash 区分观察与推进
 
@@ -507,24 +500,24 @@ return record_quota_monitor_poll_for_decision(
 )
 ```
 
-Execution context 不是渲染选项，而是 decision input。若 CLI 入口识别出 Codex App，
-但 wrapper 只把 context 传给 `before`，`after` 会误以为自己处在未知 host，返回
+Execution context 不是渲染选项，而是 decision input。若 wrapper 只把 context 传给
+`before`，`after` 会误以为自己处在未知 host，返回
 `repair_scheduler_execution_context`。这不是 monitor 产生了新阻塞，而是调用链丢失
 了 authority context。
 
 对应回归应同时证明：
 
-1. App context 在 before/after 都保持 App scheduler contract；
-2. generic CLI context 在 before/after 都保持 external-controller contract；
+1. generic CLI context 在 before/after 都保持 external-controller contract；
+2. local scheduler context 在 before/after 都保持相同 owner contract；
 3. 非法或缺失 context 两边一致 fail closed，不能由 wrapper 静默补默认值。
 
 ### 6. 一次真实 host 循环
 
 ```text
-App tick
+Owner loop tick
   -> heartbeat prompt 要求先 quota should-run
   -> quota 返回 interaction_contract + scheduler_hint
-  -> 若 apply_needed: host 更新 RRULE
+  -> declared scheduler owner 应用自己的 wait policy
   -> 若 agent.must_attempt: 执行 bounded work
   -> refresh-state 写回 outcome
   -> validation 通过后 spend 一次
@@ -537,11 +530,11 @@ App tick
 - `scheduler_hint.py:457`：观察非法 execution context 如何 fail closed；
 - `write_monitor_poll_todo_state:98`：比较 hash 相同、hash 变化、显式 material change；
 - `record_quota_monitor_poll`：确认 before/after 收到同一个 scheduler context；
-- host adapter：确认只有 host 层真正调用 automation update。
+- host adapter：确认只有声明的 scheduler owner 改变 host schedule。
 
 ### 读完这一段应能回答
 
-1. 为什么 scheduler hint 不能证明 RRULE 已应用？
+1. 为什么 scheduler hint 不能证明 host schedule 已应用？
 2. 为什么 cadence 调整不消耗 delivery slot？
 3. 哪些字段变化应 reset stateful backoff？
 4. unchanged monitor 为什么必须写 `next_due_at`？
@@ -572,7 +565,7 @@ App tick
 
 ### 把 scheduler hint 当成已应用证据
 
-hint 只是 proposal；只有 host 实际调用 `automation_update` 才改变 cadence。
+hint 只是 policy；只有声明的 scheduler owner 实际执行并 readback 才改变 cadence。
 
 ### Quiet no-op 也 spend
 

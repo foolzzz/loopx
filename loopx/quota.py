@@ -844,8 +844,6 @@ def build_quota_should_run(
     available_capabilities: Any = None,
     include_scheduler_detail: bool = False,
     include_agent_todo_detail: bool = False,
-    codex_app_current_rrule: Any = None,
-    codex_app_automation_id: Any = None,
     scheduler_execution_context: (
         Mapping[str, Any] | SchedulerExecutionContextResolution | None
     ) = None,
@@ -870,8 +868,6 @@ def build_quota_should_run(
         available_capabilities=available_capabilities,
         include_scheduler_detail=include_scheduler_detail,
         include_agent_todo_detail=include_agent_todo_detail,
-        codex_app_current_rrule=codex_app_current_rrule,
-        codex_app_automation_id=codex_app_automation_id,
         scheduler_execution_context=scheduler_execution_context,
         operator_inbox_urgency_projector=operator_inbox_urgency_projector,
         receipt_bound_todo_id=receipt_bound_todo_id,

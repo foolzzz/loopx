@@ -21,7 +21,7 @@ def _missing(root: Path):
         ("refresh-state", "--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
          "--vision-summary", "Validate the scoped change.", "--vision-acceptance", "Focused checks pass.",
          "--no-global-sync", "--suppress-external-sinks"),
-        ("quota", "should-run", "--codex-app", *binding, "--scan-path", str(project)),
+        ("quota", "should-run", "--runtime-profile", "generic_cli", *binding, "--scan-path", str(project)),
     ):
         rc, result = _run_cli(registry, runtime, *args, cwd=project)
         assert rc == 0, result

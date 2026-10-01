@@ -196,7 +196,7 @@ test("Turn envelope transaction owns compaction and signature construction", () 
   const envelope = buildTurnEnvelope({
     payload: source,
     protocol_action_fields: protocolActionFields,
-    scheduler_execution_args: " --scheduler-runtime-profile codex_app",
+    scheduler_execution_args: " --runtime-profile generic_cli",
   });
 
   assert.equal(envelope.schema_version, "loopx_turn_envelope_v0");
@@ -204,7 +204,7 @@ test("Turn envelope transaction owns compaction and signature construction", () 
   assert.equal(
     (envelope.detail_ref as Record<string, unknown>).full_decision,
     "loopx --format json quota should-run --goal-id goal-turn-envelope " +
-      "--agent-id agent-ts --scheduler-runtime-profile codex_app",
+      "--agent-id agent-ts --runtime-profile generic_cli",
   );
   const capsule = envelope.contract_capsule as Record<string, unknown>;
   assert.deepEqual(capsule.protocol_action_packet, {
@@ -235,38 +235,38 @@ test("Turn envelope transaction owns compaction and signature construction", () 
   );
 });
 
-test("Trae App Turn envelope preserves app automation without a Codex alias", () => {
+test("generic CLI Turn envelope preserves scheduler execution context", () => {
   const source = payload();
   source.scheduler_hint = {
     action: "run_now",
     cadence_class: "active_work",
-    app_automation: {
-      host_surface: "trae_app",
-      apply: "update_automation_cadence_if_possible",
-      recommended_rrule: "FREQ=MINUTELY;INTERVAL=3",
-      stateful_backoff: {
-        reset_token: "reset-1",
-        current_rrule: "FREQ=MINUTELY;INTERVAL=15",
-        apply_needed: true,
-        state_policy: "ephemeral_no_app_scheduler_state",
-      },
+    execution_context: {
+      host_surface: "generic_cli",
+      scheduler_owner: "agent_cli_loop",
+      execution_mode: "interactive",
+      valid: true,
+    },
+    execution_phase: {
+      disposition: "context_only",
+      completed: true,
+      apply_needed: false,
     },
   };
 
   const envelope = buildTurnEnvelope({
     payload: source,
     protocol_action_fields: protocolActionFields,
-    scheduler_execution_args: " --scheduler-runtime-profile trae_app",
+    scheduler_execution_args: " --runtime-profile generic_cli",
   });
   const scheduler = envelope.scheduler as Record<string, unknown>;
-  const app = scheduler.app_automation as Record<string, unknown>;
+  const context = scheduler.execution_context as Record<string, unknown>;
+  const phase = scheduler.execution_phase as Record<string, unknown>;
 
   assert.equal(scheduler.codex_app, undefined);
-  assert.equal(app.host_surface, "trae_app");
-  assert.equal(
-    (app.stateful_backoff as Record<string, unknown>).state_policy,
-    "ephemeral_no_app_scheduler_state",
-  );
+  assert.equal(scheduler.app_automation, undefined);
+  assert.equal(context.host_surface, "generic_cli");
+  assert.equal(context.scheduler_owner, "agent_cli_loop");
+  assert.equal(phase.completed, true);
 });
 
 test("monitor-only capsule preserves the non-runnable non-monitor count", () => {

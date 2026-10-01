@@ -35,8 +35,8 @@ MATERIAL_WAIT_ID = "todo_material_wait"
 GATED_ACTION = "[P0] Review refreshed projection wording."
 FALLBACK_ACTION = "[P1] Continue catalog-driven product canary coverage."
 ARCHIVE_MONITOR_ACTION = "[P1] Monitor product refactor/catalog canary continuation."
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -326,7 +326,7 @@ def assert_nonblocking_user_action_preserves_successor_replan() -> None:
         ),
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
 
     assert quota_payload["decision"] == "successor_replan_required", quota_payload

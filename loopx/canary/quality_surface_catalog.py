@@ -146,15 +146,16 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "source_kind": "specification",
             "refs": ["docs/status-data-contract.md"],
             "independence_rationale": (
-                "The status contract specifies stateless App initial-cadence projection "
-                "and local unchanged-poll backoff independently of the transition kernel "
-                "implementation."
+                "The status contract specifies typed scheduler ownership, local reset "
+                "policy, and unchanged-poll backoff independently of the transition "
+                "kernel implementation."
             ),
         },
         "layers": {
             "unit_contract": _covered(
-                "tests/control_plane/test_scheduler_backoff_convergence.py",
+                "tests/control_plane/test_scheduler_execution_context.py",
                 "tests/control_plane/test_monitor_schedule.py",
+                "tests/test_automation_cadence.py",
                 "tests/control_plane_ts/scheduler_state_store.test.ts",
                 "tests/control_plane_ts/monitor_schedule.test.ts",
             ),
@@ -168,7 +169,7 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
                 "no launcher or installer path participates."
             ),
             "model_behavior": _not_applicable(
-                "App cadence projection and local backoff are deterministic scheduler invariants."
+                "Typed cadence projection and local backoff are deterministic scheduler invariants."
             ),
             "release_gate": _covered(
                 "loopx canary premerge --profile scheduler-cadence"

@@ -6,7 +6,6 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from ..effect_runtime import effect_runtime_result
 from ..runtime.time import now_utc
 from ..todos.frontier_deadline import build_frontier_recheck_plan
 from .arbitration import (
@@ -28,15 +27,9 @@ from .monitor_wait import (
     _parse_monitor_timestamp,  # noqa: F401  # re-exported for compatibility
     build_monitor_wait_cadence_plan,
 )
-from .state import normalize_scheduler_rrule, rrule_for_minutes
-
 SCHEDULER_HINT_SCHEMA_VERSION = "scheduler_hint_v0"
 SCHEDULER_RESET_POLICY_SCHEMA_VERSION = "scheduler_reset_policy_v0"
 SCHEDULER_HINT_DETAIL_SCHEMA_VERSION = "scheduler_hint_detail_v0"
-APP_AUTOMATION_STATEFUL_BACKOFF_SCHEMA_VERSION = (
-    "app_automation_stateful_backoff_v0"
-)
-CODEX_APP_MAX_INTERVAL_MINUTES = 60
 SCHEDULER_BASE_IDENTITY_KEYS = (
     "goal_id",
     "agent_identity.agent_id",
@@ -76,28 +69,6 @@ def _dict_or_empty(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _scheduler_profile_digest_snapshot(
-    profile_snapshot: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Keep the persisted v0 reset identity stable across the App rename.
-
-    These legacy key names are part of the reset-token hash protocol, not the
-    public scheduler projection. Changing them would reset an existing Codex
-    App backoff even when the cadence semantics are unchanged.
-    """
-
-    key_aliases = {
-        "app_automation_initial_interval_minutes": (
-            "codex_app_initial_interval_minutes"
-        ),
-        "app_automation_initial_rrule": "codex_app_initial_rrule",
-        "app_automation_max_interval_minutes": (
-            "codex_app_max_interval_minutes"
-        ),
-    }
-    return {key_aliases.get(key, key): value for key, value in profile_snapshot.items()}
-
-
 def _scheduler_reset_identity_digests(
     *,
     action: str,
@@ -107,22 +78,18 @@ def _scheduler_reset_identity_digests(
 ) -> tuple[str, str, str, str]:
     """Build the stable v0 reset token and its component signatures."""
 
-    profile_digest_snapshot = _scheduler_profile_digest_snapshot(profile_snapshot)
-    reset_profile_digest_snapshot = _scheduler_profile_digest_snapshot(
-        reset_profile_snapshot
-    )
     return (
         _stable_digest(
             {
                 "action": action,
                 "identity_snapshot": identity_snapshot,
-                "profile_snapshot": reset_profile_digest_snapshot,
+                "profile_snapshot": reset_profile_snapshot,
             },
             length=16,
         ),
         _stable_digest(identity_snapshot, length=12),
-        _stable_digest(profile_digest_snapshot, length=12),
-        _stable_digest(reset_profile_digest_snapshot, length=12),
+        _stable_digest(profile_snapshot, length=12),
+        _stable_digest(reset_profile_snapshot, length=12),
     )
 
 
@@ -156,7 +123,6 @@ def _build_scheduler_stop_hint(
     reason_code: str,
     reason: str,
     spend_policy: str,
-    resume_trigger: str,
     unchanged_spend_policy: str,
 ) -> dict[str, Any]:
     return apply_scheduler_execution_context(
@@ -168,16 +134,6 @@ def _build_scheduler_stop_hint(
             "reason_code": reason_code,
             "reason": reason,
             "spend_policy": spend_policy,
-            "app_automation": {
-                "apply": "pause_or_delete_current_heartbeat_if_possible",
-                "host_tool": "automation_update",
-                "host_action": "pause_or_delete_current_heartbeat",
-                "host_action_required": True,
-                "attempt_limit": 1,
-                "verify_host_result": True,
-                "resume_trigger": resume_trigger,
-                "no_spend_for_host_action": True,
-            },
             "unchanged_poll": {
                 "local_scheduler": "stop",
                 "codex_cli_tui": "exit",
@@ -202,7 +158,6 @@ class _SchedulerHintBuilder:
     execution_context: SchedulerExecutionContextResolution
     arbitration: SchedulerArbitration
     spend_policy: Any
-    codex_app_current_rrule: Any
     include_detail: bool
 
     def _identity_value(self, path: str) -> Any:
@@ -213,23 +168,18 @@ class _SchedulerHintBuilder:
             current = current.get(part)
         return current
 
-    def _cadence_projections(
+    def _cadence_projection(
         self, interval: int, maximum: int, multiplier: int, override: list[int] | None,
-    ) -> dict[str, Any]:
-        """Keep legacy profile selection separate from the owner constraint projection."""
-        local = override or [min(interval * multiplier**step, maximum) for step in range(3)]
-        app_max = min(max(1, maximum), CODEX_APP_MAX_INTERVAL_MINUTES)
-        app: list[int] = []
-        for value in local:
-            bounded = min(max(1, int(value)), app_max)
-            if not app or app[-1] != bounded:
-                app.append(bounded)
-        projections = {"local": local, "app": app, "app_max": app_max, "local_max": maximum, "floor": 0}
+    ) -> tuple[list[int], int]:
+        progression = override or [
+            min(interval * multiplier**step, maximum) for step in range(3)
+        ]
         policy = _dict_or_empty(self.payload.get("automation_cadence"))
         floor = policy.get("min_interval_minutes")
-        return effect_runtime_result("quota.automation_cadence.schedule", {
-            **projections, "min_interval_minutes": floor,
-        }) if floor else projections
+        if isinstance(floor, int) and floor > 0:
+            progression = [max(floor, value) for value in progression]
+            maximum = max(floor, maximum)
+        return progression, maximum
 
     def build(
         self,
@@ -237,8 +187,8 @@ class _SchedulerHintBuilder:
         action: str,
         cadence_class: str,
         reason: str,
-        codex_interval: int,
-        codex_max: int,
+        local_interval: int,
+        local_max: int,
         cli_limit: int | None,
         claude_limit: int | None,
         multiplier: int = 2,
@@ -246,10 +196,9 @@ class _SchedulerHintBuilder:
         reset_profile_snapshot_override: dict[str, Any] | None = None,
         cadence_context_detail: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        cadence = self._cadence_projections(codex_interval, codex_max, multiplier, cadence_progression_override)
-        local_cadence_progression, app_cadence_progression = cadence["local"], cadence["app"]
-        app_host_max, codex_max, floor = cadence["app_max"], cadence["local_max"], cadence["floor"]
-        app_initial_interval = app_cadence_progression[0]
+        local_cadence_progression, local_max = self._cadence_projection(
+            local_interval, local_max, multiplier, cadence_progression_override
+        )
         local_initial_interval = local_cadence_progression[0]
         final_replan_check = {
             "enabled": cli_limit is not None or claude_limit is not None,
@@ -267,12 +216,10 @@ class _SchedulerHintBuilder:
             )
         )
         identity_snapshot = {key: self._identity_value(key) for key in identity_keys}
-        app_rrule = rrule_for_minutes(app_initial_interval)
         profile_snapshot = {
             "cadence_class": cadence_class,
-            "app_automation_initial_interval_minutes": app_initial_interval,
-            "app_automation_initial_rrule": app_rrule,
-            "app_automation_max_interval_minutes": app_host_max,
+            "local_scheduler_initial_interval_minutes": local_initial_interval,
+            "local_scheduler_max_interval_minutes": local_max,
             "unchanged_poll_backoff_multiplier": multiplier,
             "local_scheduler_unchanged_poll_limit": cli_limit,
             "claude_code_loop_unchanged_poll_limit": claude_limit,
@@ -295,8 +242,6 @@ class _SchedulerHintBuilder:
             "reset_to": "profile_initial_interval",
             "profile_action": action,
             "reset_token": reset_token,
-            "app_automation_initial_interval_minutes": app_initial_interval,
-            "app_automation_initial_rrule": app_rrule,
             "local_scheduler_initial_interval_minutes": local_initial_interval,
             "clear_unchanged_poll_state": True,
             "identity_key_count": len(identity_keys),
@@ -305,19 +250,16 @@ class _SchedulerHintBuilder:
             "reset_profile_signature": reset_profile_signature,
             "reset_condition_summary": "token_changed|user_feedback|new_or_reassigned_todo|gate_or_material_transition|active_work_projected",
             "after_reset": "apply_initial_interval_before_backoff",
-            "app_automation_tool": "automation_update",
-            "app_automation_apply": "call_automation_update_when_observed_rrule_differs_from_initial",
             "no_spend_for_reset": True,
         }
         reset_policy = {
             "reset_token": reset_token,
-            "app_automation_initial_interval_minutes": app_initial_interval,
-            "app_automation_initial_rrule": app_rrule,
+            "local_scheduler_initial_interval_minutes": local_initial_interval,
             "identity_signature": identity_signature,
         }
         local_scheduler = {
             "recommended_interval_minutes": local_initial_interval,
-            "max_interval_minutes": codex_max,
+            "max_interval_minutes": local_max,
             "unchanged_poll_backoff_multiplier": multiplier,
             "example_progression_minutes": local_cadence_progression,
             "unchanged_poll_limit": cli_limit,
@@ -345,74 +287,6 @@ class _SchedulerHintBuilder:
             "final_quota_replan_check": final_replan_check,
             "no_spend_for_stop": True,
         }
-        current_interval = app_initial_interval
-        current_rrule = app_rrule
-        observed_host_rrule = normalize_scheduler_rrule(
-            self.codex_app_current_rrule
-        )
-        current_rrule_already_applied = bool(
-            observed_host_rrule
-            and observed_host_rrule == normalize_scheduler_rrule(current_rrule)
-        )
-        apply_needed = not current_rrule_already_applied
-        stateful_backoff_detail = {
-            "current_interval_minutes": current_interval,
-            "host_max_interval_minutes": app_host_max,
-            "coarser_wait_fallback": "hold_affected_automation" if floor else "local_scheduler_only",
-            "state_policy": "ephemeral_no_app_scheduler_state",
-            "reset_action": "apply_profile_initial_rrule_when_observed_rrule_differs",
-            "automation_update_scope": "rrule_only_preserve_body_name_status",
-        }
-        app_automation = {
-            "recommended_interval_minutes": current_interval,
-            "max_interval_minutes": app_host_max,
-            "unchanged_poll_backoff_multiplier": multiplier,
-            "apply": (
-                "update_automation_cadence_if_possible"
-                if apply_needed
-                else "none_already_applied"
-            ),
-            "host_tool": "automation_update",
-            "host_action": (
-                "update_current_heartbeat_rrule"
-                if apply_needed
-                else "none"
-            ),
-            "host_action_contract": (
-                "automation_update_rrule_once"
-                if apply_needed
-                else "skip_automation_update_when_apply_needed_false"
-            ),
-            "rrule_source": (
-                "scheduler_hint.app_automation.recommended_rrule"
-                if apply_needed
-                else None
-            ),
-            "stateful_backoff": {
-                "schema_version": APP_AUTOMATION_STATEFUL_BACKOFF_SCHEMA_VERSION,
-                "reset_token": reset_token,
-                "current_rrule": current_rrule,
-                "apply_needed": apply_needed,
-                "state_policy": "ephemeral_no_app_scheduler_state",
-            },
-            "no_spend_for_cadence_change": True,
-        }
-        if floor:
-            app_automation["execution_interval_policy"] = self.payload["automation_cadence"]
-            app_automation["guarantee"] = cadence["guarantee"]
-        stateful_backoff = app_automation["stateful_backoff"]
-        if observed_host_rrule:
-            stateful_backoff["host_observation"] = {
-                "source": "quota_should_run_host_observation",
-                "current_rrule": observed_host_rrule,
-                "status": (
-                    "matches_recommended"
-                    if current_rrule_already_applied
-                    else "drift_detected"
-                ),
-            }
-        if apply_needed:
-            app_automation["recommended_rrule"] = current_rrule
         unchanged_poll_limits = {
             "local_scheduler": cli_limit,
             "codex_cli_tui": cli_limit,
@@ -429,7 +303,6 @@ class _SchedulerHintBuilder:
             "claude_code_loop",
             "final_quota_replan_check",
             "reset_policy_detail",
-            "stateful_backoff_detail",
         ]
         scheduler_hint = {
             "schema_version": SCHEDULER_HINT_SCHEMA_VERSION,
@@ -439,7 +312,6 @@ class _SchedulerHintBuilder:
             "reason_code": self.arbitration.reason_code,
             "reason": reason,
             "spend_policy": self.spend_policy,
-            "app_automation": app_automation,
             "unchanged_poll": {
                 "limits": unchanged_poll_limits,
                 "after_limits": unchanged_poll_after_limits,
@@ -459,7 +331,6 @@ class _SchedulerHintBuilder:
                 "execution_required": False,
                 "request": "loopx quota should-run --include-detail scheduler",
                 "hot_path_runtime_fields": [
-                    "app_automation",
                     "unchanged_poll",
                     "reset_policy",
                 ],
@@ -479,7 +350,6 @@ class _SchedulerHintBuilder:
                 "claude_code_loop": claude_code_loop,
                 "final_quota_replan_check": final_replan_check,
                 "reset_policy_detail": reset_policy_detail,
-                "stateful_backoff_detail": stateful_backoff_detail,
             }
             if cadence_context_detail:
                 scheduler_hint["cold_path_detail"]["cadence_context"] = (
@@ -497,6 +367,7 @@ class _SchedulerHintBuilder:
                 if frontier_recheck
                 else None
             ),
+            default_recheck_after_seconds=local_initial_interval * 60,
         )
 
 
@@ -527,9 +398,8 @@ def _monitor_bounded_wait_profile(
     monitor_reset_profile = (
         {
             "cadence_class": cadence_class,
-            "app_automation_initial_interval_minutes": initial_interval,
-            "app_automation_initial_rrule": rrule_for_minutes(initial_interval),
-            "app_automation_max_interval_minutes": max_interval_minutes,
+            "local_scheduler_initial_interval_minutes": initial_interval,
+            "local_scheduler_max_interval_minutes": max_interval_minutes,
             "unchanged_poll_backoff_multiplier": 2,
             "local_scheduler_unchanged_poll_limit": 3,
             "claude_code_loop_unchanged_poll_limit": 3,
@@ -540,8 +410,8 @@ def _monitor_bounded_wait_profile(
         else None
     )
     return {
-        "codex_interval": initial_interval,
-        "codex_max": max_interval_minutes,
+        "local_interval": initial_interval,
+        "local_max": max_interval_minutes,
         "cadence_progression_override": progression,
         "reset_profile_snapshot_override": monitor_reset_profile,
         "cadence_context_detail": monitor_plan,
@@ -554,7 +424,6 @@ def build_scheduler_hint(
     user_action_required: bool = False,
     agent_scope_frontier_actions: Collection[str] = (),
     include_detail: bool = False,
-    codex_app_current_rrule: Any = None,
     scheduler_execution_context: (
         Mapping[str, Any] | SchedulerExecutionContextResolution | None
     ) = None,
@@ -568,12 +437,7 @@ def build_scheduler_hint(
 
     execution_context = resolve_scheduler_execution_context(scheduler_execution_context)
     if not execution_context.ok:
-        blocked_app_automation = {
-            "applicability": "blocked_invalid_context",
-            "apply": "none",
-            "host_action": "none",
-        }
-        blocked_hint = {
+        return {
             "schema_version": SCHEDULER_HINT_SCHEMA_VERSION,
             "source": "quota.should-run",
             "action": "repair_scheduler_execution_context",
@@ -603,25 +467,12 @@ def build_scheduler_hint(
                 "errors": list(execution_context.errors),
             },
         }
-        supplied_host_surface = str(
-            (execution_context.supplied or {}).get("host_surface") or ""
-        ).strip()
-        if supplied_host_surface == "trae_app":
-            blocked_hint["app_automation"] = blocked_app_automation
-        else:
-            blocked_hint["codex_app"] = blocked_app_automation
-        return blocked_hint
 
     heartbeat_recommendation = _dict_or_empty(payload.get("heartbeat_recommendation"))
     pause_mode = str(heartbeat_recommendation.get("recommended_mode") or "")
     if pause_mode in {"goal_stopped", "quota_paused"}:
         goal_stopped = pause_mode == "goal_stopped"
         cadence_class = "goal_stopped" if goal_stopped else "quota_paused"
-        resume_trigger = (
-            "explicit Goal lifecycle resume"
-            if goal_stopped
-            else "explicit quota resume with quota.compute > 0"
-        )
         return apply_scheduler_execution_context(
             {
                 "schema_version": SCHEDULER_HINT_SCHEMA_VERSION,
@@ -641,16 +492,6 @@ def build_scheduler_hint(
                     if goal_stopped
                     else "no quota spend for paused automation shutdown"
                 ),
-                "app_automation": {
-                    "apply": "pause_or_delete_current_heartbeat_if_possible",
-                    "host_tool": "automation_update",
-                    "host_action": "pause_or_delete_current_heartbeat",
-                    "host_action_required": True,
-                    "attempt_limit": 1,
-                    "verify_host_result": True,
-                    "resume_trigger": resume_trigger,
-                    "no_spend_for_host_action": True,
-                },
                 "unchanged_poll": {
                     "local_scheduler": "stop",
                     "codex_cli_tui": "exit",
@@ -696,7 +537,6 @@ def build_scheduler_hint(
                 "remaining frontier; recurring polling must stop until resume"
             ),
             spend_policy="no quota spend for terminal automation shutdown",
-            resume_trigger="explicit goal resume or newly projected work",
             unchanged_spend_policy="no quota spend for terminal loop stop",
         )
 
@@ -705,7 +545,6 @@ def build_scheduler_hint(
         execution_context=execution_context,
         arbitration=arbitration,
         spend_policy=spend_policy,
-        codex_app_current_rrule=codex_app_current_rrule,
         include_detail=include_detail,
     )
     if arbitration.disposition == SchedulerDisposition.PEER_COORDINATION_WAIT:
@@ -717,8 +556,8 @@ def build_scheduler_hint(
                 "fallback; keep a bounded no-spend observer because peer readiness, "
                 "configuration, or the local frontier can change asynchronously"
             ),
-            codex_interval=10,
-            codex_max=60,
+            local_interval=10,
+            local_max=60,
             cli_limit=3,
             claude_limit=3,
             cadence_progression_override=[10, 20, 30, 60],
@@ -731,8 +570,8 @@ def build_scheduler_hint(
                 "agent monitor-only mode blocks advancement while a quiet poll keeps "
                 "due monitors and verified direct replies responsive"
             ),
-            codex_interval=15,
-            codex_max=60,
+            local_interval=15,
+            local_max=60,
             cli_limit=3,
             claude_limit=3,
         )
@@ -745,8 +584,8 @@ def build_scheduler_hint(
                 "scheduler inputs disagree with the final interaction contract; "
                 "repair the projection before applying delivery or wait cadence"
             ),
-            codex_interval=3,
-            codex_max=10,
+            local_interval=3,
+            local_max=10,
             cli_limit=None,
             claude_limit=None,
         )
@@ -780,8 +619,8 @@ def build_scheduler_hint(
                 "the interaction contract requires an agent attempt; keep the active "
                 "scheduler cadence until the turn validates or blocks"
             ),
-            codex_interval=3,
-            codex_max=10,
+            local_interval=3,
+            local_max=10,
             cli_limit=None,
             claude_limit=None,
         )
@@ -794,8 +633,8 @@ def build_scheduler_hint(
                 "the current mapped or post-handoff source is unchanged; do not "
                 "keep a tight loop while waiting for fresh evidence or a concrete handoff"
             ),
-            codex_interval=60,
-            codex_max=240,
+            local_interval=60,
+            local_max=240,
             cli_limit=3,
             claude_limit=3,
         )
@@ -810,8 +649,8 @@ def build_scheduler_hint(
                 "the prior scheduler cadence while waiting for handoff owner "
                 "progress, reassignment, or a current-agent todo"
             ),
-            codex_interval=10,
-            codex_max=60,
+            local_interval=10,
+            local_max=60,
             cli_limit=3,
             claude_limit=3,
             cadence_progression_override=[10, 20, 30, 60],
@@ -844,8 +683,8 @@ def build_scheduler_hint(
                 "quota blocks delivery and no immediate user/monitor-specific path "
                 "is projected; poll at a slower cadence until the status changes"
             ),
-            codex_interval=30,
-            codex_max=120,
+            local_interval=30,
+            local_max=120,
             cli_limit=3,
             claude_limit=3,
         )

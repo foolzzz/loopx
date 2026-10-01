@@ -178,11 +178,10 @@ Do not describe wrapper rollback as whole-system rollback.
 
 ## Scheduler convergence entrypoint
 
-When a supported Host packet reports `stateful_backoff.apply_needed=true`, have the Host apply
-`recommended_rrule` once and read back the actual result. After a failure or timeout, do not retry in
-the same turn. When `apply_needed=false`, exact Host readback already matches the target cadence, so
-skip the no-op update. LoopX keeps no scheduler state and accepts no ACK/failure follow-up; cadence
-changes do not consume delivery spend.
+Read `scheduler_hint.execution_context` to identify the scheduler owner. A local scheduler may apply
+`reset_policy.local_scheduler_initial_interval_minutes` and the cold-path local policy, then perform
+its own readback. Schedule mutation and readback for other Hosts remain provider-owned; LoopX does not
+project those Host operations or count cadence changes as delivery spend.
 
 ## Extension lifecycle entrypoints
 

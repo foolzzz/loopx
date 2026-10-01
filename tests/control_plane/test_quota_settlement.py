@@ -26,7 +26,7 @@ from loopx.control_plane.quota.heartbeat_receipt import (
     heartbeat_receipt_settlement_todo_id,
 )
 from loopx.control_plane.quota.settlement import (
-    build_codex_app_settlement_plan,
+    build_turn_scoped_cli_settlement_plan,
     read_heartbeat_settlement,
     settlement_step_command,
 )
@@ -673,13 +673,14 @@ def test_settlement_result_bind_rejects_corrupted_receipts() -> None:
             SettlementResult.pure(2).bind(writeback)
 
 
-def test_codex_app_plan_projects_one_identity_across_settlement_steps() -> None:
-    plan = build_codex_app_settlement_plan(
+def test_turn_scoped_cli_plan_projects_one_identity_across_settlement_steps() -> None:
+    plan = build_turn_scoped_cli_settlement_plan(
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
         todo_id=TODO_ID,
         scoped_cli_args=f" --agent-id {AGENT_ID}",
         lifecycle_actor_args=f" --agent-id {AGENT_ID}",
+        turn_instance_id="${LOOPX_TURN:?}",
     ).as_dict()
 
     assert plan["identity"]["todo_id"] == TODO_ID
@@ -709,32 +710,25 @@ def test_codex_app_plan_projects_one_identity_across_settlement_steps() -> None:
         (TODO_ID, "replan-0000000000000001"),
     ],
 )
-def test_codex_app_plan_rejects_ambiguous_settlement_binding(
+def test_turn_scoped_cli_plan_rejects_ambiguous_settlement_binding(
     todo_id: str | None,
     replan_obligation_id: str | None,
 ) -> None:
     with pytest.raises(ValueError, match="requires exactly one"):
-        build_codex_app_settlement_plan(
+        build_turn_scoped_cli_settlement_plan(
             goal_id=GOAL_ID,
             agent_id=AGENT_ID,
             todo_id=todo_id,
             replan_obligation_id=replan_obligation_id,
             scoped_cli_args=f" --agent-id {AGENT_ID}",
             lifecycle_actor_args=f" --agent-id {AGENT_ID}",
+            turn_instance_id="${LOOPX_TURN:?}",
         )
 
 
-@pytest.mark.parametrize(
-    "profile",
-    (
-        SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT,
-        SchedulerRuntimeProfile.TRAE_APP,
-    ),
-)
-def test_standard_app_actions_use_typed_settlement_before_turn_driver(
-    profile: SchedulerRuntimeProfile,
-) -> None:
+def test_generic_cli_actions_use_typed_settlement_before_turn_driver() -> None:
     todo_id = "todo_123456789abc"
+    turn_instance_id = "generic-cli-turn"
     actions = interaction_next_cli_actions(
         {
             "goal_id": GOAL_ID,
@@ -743,8 +737,9 @@ def test_standard_app_actions_use_typed_settlement_before_turn_driver(
         },
         mode="bounded_delivery",
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            profile
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
+        turn_instance_id=turn_instance_id,
     )
 
     assert len(actions) == 2
@@ -752,10 +747,10 @@ def test_standard_app_actions_use_typed_settlement_before_turn_driver(
     assert actions[1].startswith("loopx quota spend-slot")
     for command in actions:
         assert f"--todo-id {todo_id}" in command
-        assert '--turn-instance-id "${LOOPX_TURN:?}"' in command
+        assert f"--turn-instance-id {turn_instance_id}" in command
 
 
-def test_codex_app_actions_preserve_a_concrete_admitted_turn_identity() -> None:
+def test_generic_cli_actions_preserve_a_concrete_admitted_turn_identity() -> None:
     todo_id = "todo_concrete_turn"
     turn_instance_id = "guided-start:concrete-turn"
 
@@ -767,7 +762,7 @@ def test_codex_app_actions_preserve_a_concrete_admitted_turn_identity() -> None:
         },
         mode="bounded_delivery",
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
         turn_instance_id=turn_instance_id,
     )
@@ -918,8 +913,9 @@ def test_claude_visible_goal_reenters_before_exposing_bound_settlement() -> None
         assert f"--turn-instance-id {turn_instance_id}" in command
 
 
-def test_codex_app_external_observation_settles_only_substantive_writeback() -> None:
+def test_generic_cli_external_observation_settles_only_substantive_writeback() -> None:
     todo_id = "todo_external_observation"
+    turn_instance_id = "generic-cli-external-observation"
     actions = interaction_next_cli_actions(
         {
             "goal_id": GOAL_ID,
@@ -928,8 +924,9 @@ def test_codex_app_external_observation_settles_only_substantive_writeback() -> 
         },
         mode="external_evidence_observation",
         scheduler_execution_context=scheduler_execution_context_for_runtime_profile(
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+            SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
         ),
+        turn_instance_id=turn_instance_id,
     )
 
     assert len(actions) == 3
@@ -937,10 +934,10 @@ def test_codex_app_external_observation_settles_only_substantive_writeback() -> 
     assert actions[1].startswith("on a substantive transition or blocker only:")
     assert "--delivery-outcome <outcome>" in actions[1]
     assert f"--todo-id {todo_id}" in actions[1]
-    assert '--turn-instance-id "${LOOPX_TURN:?}"' in actions[1]
+    assert f"--turn-instance-id {turn_instance_id}" in actions[1]
     assert actions[2].startswith("after that accountable writeback receipt only:")
     assert f"--todo-id {todo_id}" in actions[2]
-    assert '--turn-instance-id "${LOOPX_TURN:?}"' in actions[2]
+    assert f"--turn-instance-id {turn_instance_id}" in actions[2]
     assert "otherwise do not spend for unchanged observation" in actions[2]
 
 

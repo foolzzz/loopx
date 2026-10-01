@@ -53,7 +53,7 @@ def test_recovery_never_constructs_settlement_or_executable_primary_action(monke
     bind_action_selection_recovery_command(
         source, registry_path="/registry with spaces.json", runtime_root="/runtime with spaces",
         goal_id="selection-fixture", agent_id="fixture-agent", turn_instance_id="selection-turn",
-        scheduler_args=" --codex-app", available_capabilities=["shell"],
+        scheduler_args=" --runtime-profile generic_cli", available_capabilities=["shell"],
     )
     [command] = cli["next_cli_actions"]
     assert contract["agent_channel"]["primary_action"] == command
@@ -62,7 +62,7 @@ def test_recovery_never_constructs_settlement_or_executable_primary_action(monke
                         "--goal-id": "selection-fixture", "--agent-id": "fixture-agent",
                         "--turn-instance-id": "selection-turn", "--available-capability": "shell"}.items():
         assert argv[argv.index(flag) + 1] == value
-    assert "--codex-app" in argv
+    assert argv[argv.index("--runtime-profile") + 1] == "generic_cli"
     assert "--todo-id" not in argv and "--replan-obligation-id" not in argv
 
 
@@ -124,11 +124,16 @@ def _scoped_gate_status():
     import sys
 
     sys.path.insert(0, "tests/control_plane")
-    from test_user_gate_lane_progress import APP_CONTEXT, AGENT_ID, GOAL_ID, _status_payload
+    from test_user_gate_lane_progress import (
+        AGENT_ID,
+        GENERIC_CONTEXT,
+        GOAL_ID,
+        _status_payload,
+    )
 
     return _status_payload(gate_action_kind="approve_product_first_screen"), {
         "goal_id": GOAL_ID, "agent_id": AGENT_ID,
-        "scheduler_execution_context": APP_CONTEXT,
+        "scheduler_execution_context": GENERIC_CONTEXT,
     }
 
 

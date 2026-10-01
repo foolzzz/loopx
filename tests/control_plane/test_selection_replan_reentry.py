@@ -17,7 +17,7 @@ def test_deferred_selection_recovers_same_turn_and_settles_once(tmp_path, bindin
     project, runtime, registry = _write_fixture(tmp_path)
     _configure_selectable_alternative(project)
     turn = "turn-selection-preempted"
-    guard = ("quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+    guard = ("quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
              "--agent-id", AGENT_ID, "--turn-instance-id", turn, "--scan-path", str(project))
     rc, first = _run_cli(registry, runtime, *guard)
     assert rc == 0 and first["decision"] == "run"
@@ -69,7 +69,8 @@ def test_deferred_selection_recovers_same_turn_and_settles_once(tmp_path, bindin
     argv = shlex.split(command)
     assert argv[argv.index("--turn-instance-id") + 1] == turn
     assert "--todo-id" not in argv and "--replan-obligation-id" not in argv
-    assert "should-run" in argv and "--codex-app" in argv
+    assert "should-run" in argv
+    assert argv[argv.index("--runtime-profile") + 1] == "generic_cli"
     assert not deferred["interaction_contract"]["agent_channel"]["must_attempt"]
     rc, resumed = _run_generated_cli(command, registry_path=registry)
     assert rc == 0, resumed
@@ -174,7 +175,7 @@ def test_reentry_never_replaces_retained_selection_with_recommended_todo(tmp_pat
     project, runtime, registry = _write_fixture(tmp_path)
     _configure_selectable_alternative(project)
     turn = "turn-selection-recommendation-drift"
-    guard = ("quota", "should-run", "--codex-app", "--goal-id", GOAL_ID,
+    guard = ("quota", "should-run", "--runtime-profile", "generic_cli", "--goal-id", GOAL_ID,
              "--agent-id", AGENT_ID, "--turn-instance-id", turn, "--scan-path", str(project))
     rc, first = _run_cli(registry, runtime, *guard)
     assert rc == 0, first

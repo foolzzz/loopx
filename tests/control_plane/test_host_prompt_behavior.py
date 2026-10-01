@@ -51,7 +51,7 @@ def test_probe_uses_current_production_prompts_and_hidden_independent_oracle():
                 or "wait->monitor+successor/work" in body
                 or "open + monitor_changed + successor" in body
             )
-            assert "--codex-app" in body
+            assert "--runtime-profile generic_cli" in body
             assert "LOOPX_TURN=<current_time_iso>" in body
             assert case["id"] not in json.dumps(messages)
             assert "expected" not in json.dumps(messages)

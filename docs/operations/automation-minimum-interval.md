@@ -1,9 +1,9 @@
-# Codex App minimum schedule interval
+# Minimum local schedule interval
 
-This opt-in policy keeps LoopX's **Codex App schedule recommendations** at or
+This opt-in policy keeps LoopX's **local scheduler recommendations** at or
 above an owner-configured minimum, including after backoff/reset. It does not
-intercept App timer execution or enforce a token budget. Existing automations
-are not changed by configuration alone.
+intercept timer execution or enforce a token budget. Existing schedulers are
+not changed by configuration alone.
 
 ## Configure and apply
 
@@ -31,24 +31,16 @@ command to confirm the saved revision and contributing sources. Do not infer
 owner approval from a scheduler recommendation. A local owner-reference records
 caller intent, not authentication against other processes sharing the OS user.
 
-For an already bound App turn, inspect its `quota should-run` scheduler packet
+For an already bound turn, inspect its `quota should-run` scheduler packet
 using that turn's normal identity and selection contract. Do not create a new
-turn solely to observe a timer. `scheduler_hint.app_automation` and its legacy
-`codex_app` projection expose the floor, desired RRULE, stateless
-`stateful_backoff.apply_needed` decision and `guarantee`. There is no scheduler
-ACK command or persisted per-App apply state. When `apply_needed=true`, apply the
-desired schedule once with the App's `automation_update` tool while preserving
-task binding, prompt, status and notification preference. Then view that same
-automation and compare its actual schedule. Pass the observed RRULE to the next
-normal `quota should-run` call with `--app-automation-current-rrule`; an exact
-match produces `apply_needed=false` and skips a no-op update. A configuration
-write or update-tool response alone is not actual schedule readback. Resume only
-the affected schedule when its normal activation requirements are met.
+turn solely to observe a timer. The typed `scheduler_hint.reset_policy` exposes
+the local initial interval and reset token; opt-in cold detail exposes the full
+`local_scheduler` progression. The owning local scheduler applies that policy
+and performs its own readback. LoopX does not project or mutate host-specific
+automation schedules.
 
-If the App rejects the required interval, hold that automation and retain the
-failure; do not shorten the floor or activate an alternate scheduler. A daily
-wall-clock schedule and 1440 elapsed minutes can differ around timezone/DST
-changes; this policy uses elapsed minutes and projects a minute-based RRULE.
+If the local scheduler rejects the required interval, hold that scheduler and
+retain the failure; do not shorten the floor or activate an alternate scheduler.
 
 ## Disable or roll back
 
@@ -69,8 +61,8 @@ reset backoff history to bypass an interval. No policy is enabled by default.
 
 CLI configuration/readback, inherited constraints, version conflicts and
 recommendation/reset parity are covered by real temporary-file tests. No
-frontend/Lark editor is added: this first delivery is explicitly the existing
-App automation plus CLI configuration path. Settings projection is tracked in
+frontend/Lark editor is added: this delivery uses the existing local scheduler
+plus CLI configuration path. Settings projection is tracked in
 [RFC M3](../architecture/rfcs/automatic-execution-admission-v0.md).
 
 The App-bundled runtime supports prompt hooks in an isolated test, but actual

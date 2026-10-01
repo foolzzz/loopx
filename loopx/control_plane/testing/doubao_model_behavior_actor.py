@@ -204,10 +204,9 @@ def _semantic_contract_field_rules(*, arm: str) -> dict[str, str]:
   spend_after_validation, and spend_policy from interaction_contract.cli_channel;
   use []/false/null when absent.""",
             "scheduler_action": """project scheduler_hint using only non-null action,
-  cadence_class, spend_policy, and a codex_app object containing only non-null
-  apply, host_action, recommended_rrule, no_spend_for_cadence_change, and
-  stateful_backoff {reset_token,current_rrule,apply_needed,state_policy}. Use {}
-  when absent.""",
+  cadence_class, spend_policy, execution_context
+  {host_surface,scheduler_owner,execution_mode,source,valid}, and execution_phase
+  {disposition,completed,apply_needed}. Use {} for either object when absent.""",
             "vision_continuation": """copy only non-null schema_version, required, decision,
   selected_todo_is_goal_completion, closeout_allowed_without_evidence,
   required_before_closeout, and recommended_action from

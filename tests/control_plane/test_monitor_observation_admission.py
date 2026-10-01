@@ -24,7 +24,7 @@ def test_receipt_bound_advancement_allows_one_auxiliary_due_monitor_receipt(
     guard_args = (
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",

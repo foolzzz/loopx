@@ -179,7 +179,7 @@ def _build_scoped_gate_fixture(root: Path) -> _SelectedTodoToolFixture:
         agent_id=SELECTED_TODO_TOOL_FIXTURE_AGENT_ID,
         registered_agents=[SELECTED_TODO_TOOL_FIXTURE_AGENT_ID],
         available_capabilities=["shell", "filesystem_read"],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
     quota_guard_command = str(prompt["quota_guard_command"])
     if quota_guard_command not in str(prompt["task_body"]):

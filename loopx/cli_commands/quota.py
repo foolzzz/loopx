@@ -204,7 +204,6 @@ def _record_automatic_heartbeat_stall(
             "agent-todos" in context.detail_sections
             and not bool(getattr(args, "turn_envelope", False))
         ),
-        codex_app_current_rrule=args.app_automation_current_rrule,
         registry_path=registry_path,
         runtime_root=context.runtime_root,
         scheduler_execution_context=context.scheduler_context,
@@ -398,7 +397,6 @@ def handle_quota_command(
                     "agent-todos" in detail_sections
                     and not bool(getattr(args, "turn_envelope", False))
                 ),
-                codex_app_current_rrule=args.app_automation_current_rrule,
                 registry_path=registry_path,
                 runtime_root=runtime_root,
                 scheduler_execution_context=scheduler_context,

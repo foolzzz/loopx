@@ -382,26 +382,12 @@ interaction contract: what this turn may do
 Host 即使在正确时间唤醒，也必须重新运行 current decision。旧 scheduler proposal、旧
 `should_run` 或旧 selected Todo 不能跨状态变化直接复用。
 
-### Scheduler 需要 apply 与 readback
+### Scheduler 收敛遵循 typed ownership
 
-对支持 cadence 控制的 Host，`recommended_rrule` 只是目标 cadence。完整收敛链是：
-
-```text
-LoopX proposes recommended_rrule
-  -> Host applies one automation update
-  -> Host result / observed RRULE proves the actual cadence
-```
-
-协议上的几个关键分支：
-
-- `apply_needed=true`：Host 最多尝试一次 update；失败或超时不重试；
-- `apply_needed=false`：观察到的 Host cadence 已精确匹配 proposal，跳过 no-op update；
-- `host_observation.status=drift_detected`：实际 cadence 与 proposal 不一致，按当前 hint 更新一次；
-- terminal pause/stop：按 Host contract 验证停止结果。
-
-LoopX 不持久化 Host scheduler state，也不接受 ACK/failure follow-up。每轮根据当前 profile 与
-decision 重新推导 target，调用方提供的 Host RRULE 用于避免重复 update。Cadence 变化属于控制面
-housekeeping，不产生 delivery quota spend。
+`scheduler_hint` 是 scheduling policy，不是 Host 已改变 schedule 的证据。先读取 typed execution
+context。本地 scheduler 可以应用 `reset_policy` 及其 cold-path local interval，再自行 readback。
+Host-specific schedule mutation 由 provider 持有，LoopX 不投影也不授权该操作。
+Cadence 变化属于控制面 housekeeping，不产生 delivery quota spend。
 
 ### 多 Monitor 交错时的 per-lane 计数
 

@@ -25,13 +25,13 @@ AGENT_SCOPE_ACTIONS = {
     "reassignment_required",
     "successor_replan_required",
 }
-APP_CONTEXT = scheduler_execution_context_for_runtime_profile("codex_app_heartbeat")
+GENERIC_CONTEXT = scheduler_execution_context_for_runtime_profile("generic_cli")
 
 
-def _app_scheduler_hint(payload: dict, **kwargs) -> dict:
+def _scheduler_hint(payload: dict, **kwargs) -> dict:
     return build_scheduler_hint(
         payload,
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
         **kwargs,
     )
 
@@ -186,7 +186,7 @@ def test_interaction_contract_drives_scheduler(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -261,10 +261,10 @@ def test_nonblocking_user_action_preserves_required_non_delivery_work(
 
     payload["interaction_contract"] = build_interaction_contract(
         payload,
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
     contract = payload["interaction_contract"]
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -315,10 +315,10 @@ def test_true_user_gate_still_blocks_required_non_delivery_work() -> None:
 
     payload["interaction_contract"] = build_interaction_contract(
         payload,
-        scheduler_execution_context=APP_CONTEXT,
+        scheduler_execution_context=GENERIC_CONTEXT,
     )
     contract = payload["interaction_contract"]
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -328,8 +328,7 @@ def test_true_user_gate_still_blocks_required_non_delivery_work() -> None:
     assert contract["agent_channel"]["must_attempt"] is False
     assert contract["response_plan"]["action_sequence"] == ["notify", "wait"]
     assert hint["action"] == "backoff_waiting_for_user"
-    assert hint["codex_app"]["recommended_interval_minutes"] == 30
-    assert "example_progression_minutes" not in hint["codex_app"]
+    assert hint["reset_policy"]["local_scheduler_initial_interval_minutes"] == 30
 
 
 def test_human_gate_respects_a_tighter_continuous_monitor_deadline(
@@ -361,7 +360,7 @@ def test_human_gate_respects_a_tighter_continuous_monitor_deadline(
         ]
     }
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
         include_detail=True,
@@ -369,10 +368,8 @@ def test_human_gate_respects_a_tighter_continuous_monitor_deadline(
 
     assert hint["action"] == "backoff_waiting_for_user"
     assert hint["cadence_class"] == "human_gate"
-    assert hint["codex_app"]["recommended_interval_minutes"] == 3
-    assert "example_progression_minutes" not in hint["codex_app"]
     assert hint["cold_path_detail"]["cadence_context"]["cap_minutes"] == 3
-    assert hint["reset_policy"]["app_automation_initial_interval_minutes"] == 3
+    assert hint["reset_policy"]["local_scheduler_initial_interval_minutes"] == 3
 
 
 def test_raw_should_run_cannot_override_blocking_gate() -> None:
@@ -385,7 +382,7 @@ def test_raw_should_run_cannot_override_blocking_gate() -> None:
         quiet_noop_allowed=False,
     )
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -405,7 +402,7 @@ def test_raw_should_run_false_cannot_silently_cancel_final_contract_delivery() -
         quiet_noop_allowed=False,
     )
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -428,7 +425,7 @@ def test_branch_order_mutation_is_killed_by_final_contract() -> None:
     mutated["automation_liveness"]["automation_action"] = "execute_bounded_work"
     mutated["execution_obligation"]["must_attempt_work"] = True
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         mutated,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -448,7 +445,7 @@ def test_raw_terminal_liveness_cannot_override_active_final_contract() -> None:
     )
     payload["automation_liveness"]["automation_action"] = "stop_terminal_no_followup"
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -490,7 +487,7 @@ def test_terminal_contract_with_open_action_fails_closed() -> None:
         quiet_noop_allowed=False,
     )
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
@@ -502,7 +499,7 @@ def test_terminal_contract_with_open_action_fails_closed() -> None:
     )
 
 
-def test_blocked_peer_coordination_uses_stateful_backoff() -> None:
+def test_blocked_peer_coordination_uses_bounded_local_backoff() -> None:
     payload = _payload(
         mode="peer_coordination_blocked",
         should_run=False,
@@ -512,17 +509,14 @@ def test_blocked_peer_coordination_uses_stateful_backoff() -> None:
         quiet_noop_allowed=True,
     )
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )
 
     assert hint["action"] == "backoff_until_reassigned"
     assert hint["cadence_class"] == "peer_coordination_wait"
-    assert hint["codex_app"]["host_action"] == "update_current_heartbeat_rrule"
-    assert hint["codex_app"]["stateful_backoff"]["apply_needed"] is True
-    assert hint["codex_app"]["recommended_interval_minutes"] == 10
-    assert "example_progression_minutes" not in hint["codex_app"]
+    assert hint["reset_policy"]["local_scheduler_initial_interval_minutes"] == 10
     assert hint["unchanged_poll"]["final_quota_replan_check_enabled"] is True
 
 
@@ -537,7 +531,7 @@ def test_structurally_invalid_contract_fails_closed() -> None:
     )
     del payload["interaction_contract"]["agent_channel"]["quiet_noop_allowed"]
 
-    hint = _app_scheduler_hint(
+    hint = _scheduler_hint(
         payload,
         agent_scope_frontier_actions=AGENT_SCOPE_ACTIONS,
     )

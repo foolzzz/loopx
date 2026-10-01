@@ -41,8 +41,8 @@ FUTURE_DUE_AT = "2999-01-01T00:00:00+00:00"
 FUTURE_EXPIRY_AT = "2999-12-31T00:00:00+00:00"
 WATCH_FRONTIER_ID = "fixture-monitor-target"
 WATCH_TODO_ID = "todo_monitor_wait"
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -1568,7 +1568,7 @@ def assert_monitor_schedule_gap_requires_bounded_repair() -> None:
         status_payload([monitor_item(cadence=None, next_due_at=None)], replan_obligation=None),
         goal_id=GOAL_ID,
         agent_id=SIDE_AGENT,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert guard["decision"] == "run", guard
     assert guard["effective_action"] == "normal_run", guard

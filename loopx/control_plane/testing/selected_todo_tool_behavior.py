@@ -266,7 +266,7 @@ def _build_fixture(
         agent_id=SELECTED_TODO_TOOL_FIXTURE_AGENT_ID,
         registered_agents=[SELECTED_TODO_TOOL_FIXTURE_AGENT_ID],
         available_capabilities=["shell", "filesystem_read"],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
     quota_guard_command = str(prompt["quota_guard_command"])
     if quota_guard_command not in str(prompt["task_body"]):
@@ -314,7 +314,7 @@ def _is_quota_guard(command: str) -> bool:
         == SELECTED_TODO_TOOL_FIXTURE_GOAL_ID
         and argument_value(tokens, "--agent-id")
         == SELECTED_TODO_TOOL_FIXTURE_AGENT_ID
-        and "--codex-app" in tokens
+        and argument_value(tokens, "--runtime-profile") == "generic_cli"
         and argument_value(tokens, "--turn-instance-id")
     )
 

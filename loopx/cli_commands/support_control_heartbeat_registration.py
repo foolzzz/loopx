@@ -77,22 +77,6 @@ def register_heartbeat_control_commands(
         ),
     )
     heartbeat_prompt_parser.add_argument(
-        "--codex-app",
-        action="store_true",
-        help=(
-            "Compact explicit alias for --runtime-profile "
-            "codex_app_heartbeat in generated heartbeat commands."
-        ),
-    )
-    heartbeat_prompt_parser.add_argument(
-        "--trae_app",
-        action="store_true",
-        help=(
-            "Compact explicit alias for --runtime-profile "
-            "trae_app in generated heartbeat commands."
-        ),
-    )
-    heartbeat_prompt_parser.add_argument(
         "--visible-goal-host",
         choices=["traex-cli"],
         help=(
@@ -105,9 +89,7 @@ def register_heartbeat_control_commands(
         "--host-surface",
         choices=[
             "ark_managed_agent",
-            "codex_app",
             "codex_cli",
-            "trae_app",
             "generic_cli",
             "claude_code",
             "local_scheduler",

@@ -213,7 +213,7 @@ def register_refresh_state_command(
         "--reward-memory-reflection-json",
         help=(
             "Optional compact turn_reward_memory_reflection_v1 JSON for a "
-            "Todo-bound accountable Codex App refresh. LoopX stages it privately, "
+            "Todo-bound accountable Turn refresh. LoopX stages it privately, "
             "requires the Todo's caller-declared validator to attest the exact "
             "reflection and evidence, and performs no provider write until the "
             "matching quota spend is read back."

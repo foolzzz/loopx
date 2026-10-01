@@ -24,8 +24,8 @@ from loopx.status import compact_todo_group  # noqa: E402
 
 GOAL_ID = "terminal-no-followup-fixture"
 AGENT_ID = "codex-main-control"
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -113,7 +113,7 @@ def assert_terminal_guard_stops_recurring_automation() -> None:
         status_payload(),
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert guard["status"] == "active", guard
     assert guard["state"] == "terminal_no_followup", guard
@@ -142,11 +142,9 @@ def assert_terminal_guard_stops_recurring_automation() -> None:
 
     scheduler = guard["scheduler_hint"]
     assert scheduler["action"] == "stop_until_explicit_resume", guard
-    assert scheduler["codex_app"]["apply"] == "pause_or_delete_current_heartbeat_if_possible", guard
-    assert scheduler["codex_app"]["host_action_required"] is True, guard
-    assert scheduler["codex_app"]["attempt_limit"] == 1, guard
-    assert scheduler["codex_app"]["verify_host_result"] is True, guard
-    assert "ack_required" not in scheduler["codex_app"], guard
+    assert scheduler["execution_phase"]["completed"] is True, guard
+    assert "codex_app" not in scheduler, guard
+    assert "app_automation" not in scheduler, guard
     assert scheduler["unchanged_poll"]["codex_cli_tui"] == "exit", guard
 
 

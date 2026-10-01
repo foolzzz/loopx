@@ -114,7 +114,7 @@ def _should_run(
         runtime,
         "quota",
         "should-run",
-        "--codex-app",
+        "--runtime-profile", "generic_cli",
         "--goal-id",
         GOAL_ID,
         "--agent-id",

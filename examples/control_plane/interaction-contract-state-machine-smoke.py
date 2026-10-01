@@ -31,8 +31,8 @@ from loopx.control_plane.work_items.work_lane import build_work_lane_contract  #
 
 GOAL_ID = "interaction-state-machine-goal"
 AGENT_ID = "codex-product-capability"
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 
 
@@ -181,10 +181,13 @@ def base_payload(
     return payload
 
 
-def finalize(payload: dict[str, Any]) -> dict[str, Any]:
+def finalize(
+    payload: dict[str, Any], *, turn_instance_id: str | None = None
+) -> dict[str, Any]:
     payload["interaction_contract"] = build_interaction_contract(
         payload,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
+        turn_instance_id=turn_instance_id,
     )
     payload["scheduler_hint"] = build_scheduler_hint(
         payload,
@@ -192,7 +195,7 @@ def finalize(payload: dict[str, Any]) -> dict[str, Any]:
         agent_scope_frontier_actions=[
             action.value for action in AgentScopeFrontierAction
         ],
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     return payload
 
@@ -291,7 +294,7 @@ def _assert_cross_layer_case(
     assert contract["agent_channel"]["quiet_noop_allowed"] is quiet, (name, contract)
     assert contract["cli_channel"]["spend_after_validation"] is spend, (name, contract)
     assert scheduler_hint["action"] == scheduler, (name, scheduler_hint)
-    assert scheduler_hint["codex_app"]["recommended_interval_minutes"] == interval, (
+    assert scheduler_hint["reset_policy"]["local_scheduler_initial_interval_minutes"] == interval, (
         name,
         scheduler_hint,
     )
@@ -488,7 +491,7 @@ def assert_gate_cooldown_suppresses_non_blocking_notice() -> None:
     }
     contract = build_interaction_contract(
         payload,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     user_channel = contract["user_channel"]
     assert contract["mode"] == "user_gate_cooldown_wait", contract
@@ -535,7 +538,9 @@ def assert_autonomous_replan_projects_accountable_settlement() -> None:
         "obligation_id": "replan-0000000000000001",
         "writeback_contract": {},
     }
-    payload = finalize(payload)
+    payload = finalize(
+        payload, turn_instance_id="turn-interaction-state-machine-replan"
+    )
     contract = payload["interaction_contract"]
     assert contract["mode"] == "autonomous_replan", payload
     assert contract["agent_channel"]["must_attempt"] is True, contract

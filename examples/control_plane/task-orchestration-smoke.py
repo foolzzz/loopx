@@ -274,7 +274,7 @@ def main() -> int:
             agent_id=coordinator,
             scheduler_execution_context=(
                 scheduler_execution_context_for_runtime_profile(
-                    SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+                    SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
                 )
             ),
         )
@@ -301,10 +301,10 @@ def main() -> int:
         assert blocked_turn["scheduler_hint"]["cadence_class"] == (
             "peer_coordination_wait"
         ), blocked_turn
-        assert blocked_turn["scheduler_hint"]["codex_app"][
-            "recommended_interval_minutes"
+        assert blocked_turn["scheduler_hint"]["reset_policy"][
+            "local_scheduler_initial_interval_minutes"
         ] == 10, blocked_turn
-        assert "example_progression_minutes" not in blocked_turn["scheduler_hint"]["codex_app"], blocked_turn
+        assert "codex_app" not in blocked_turn["scheduler_hint"], blocked_turn
         assert blocked_turn["scheduler_hint"]["unchanged_poll"]["limits"][
             "local_scheduler"
         ] == 3, blocked_turn

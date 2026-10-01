@@ -168,8 +168,6 @@ class _QuotaDecisionPreparation:
     projection_gap: dict[str, Any] | None
     boundary_projection_repair: dict[str, Any] | None
     include_scheduler_detail: bool
-    codex_app_current_rrule: Any
-    codex_app_automation_id: Any
     resolved_scheduler_context: SchedulerExecutionContextResolution
     delivery_continuity_anchor: dict[str, Any] | None
     delivery_continuity_todo: dict[str, Any] | None
@@ -511,8 +509,6 @@ def _prepare_quota_should_run_item(
     requested_agent_id: str | None,
     available_capabilities: Any,
     include_scheduler_detail: bool,
-    codex_app_current_rrule: Any,
-    codex_app_automation_id: Any = None,
     resolved_scheduler_context: SchedulerExecutionContextResolution,
     operator_inbox_urgency_projector: Callable[..., dict[str, Any]] | None,
     registry_goal: dict[str, Any],
@@ -958,8 +954,6 @@ def _prepare_quota_should_run_item(
         projection_gap=projection_gap,
         boundary_projection_repair=boundary_projection_repair,
         include_scheduler_detail=include_scheduler_detail,
-        codex_app_current_rrule=codex_app_current_rrule,
-        codex_app_automation_id=codex_app_automation_id,
         resolved_scheduler_context=resolved_scheduler_context,
         delivery_continuity_anchor=delivery_continuity_anchor,
         delivery_continuity_todo=delivery_continuity_todo,

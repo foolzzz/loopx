@@ -26,11 +26,6 @@ def reward_memory_host_coverage() -> list[dict[str, str]]:
             "automatic_ingest": "uncovered",
         },
         {
-            "host_id": "codex_app_quota",
-            "automatic_recall": "connected",
-            "automatic_ingest": "connected_refresh_spend_post_settlement",
-        },
-        {
             "host_id": "lark",
             "automatic_recall": "status_projection_only",
             "automatic_ingest": "uncovered",

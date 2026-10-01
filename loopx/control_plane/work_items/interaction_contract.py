@@ -21,8 +21,8 @@ from ..quota.spend_sources import (
     quota_spend_source_for_execution_context,
 )
 from ..scheduler.execution_context import (
-    APP_HEARTBEAT_SETTLEMENT_RUNTIME_PROFILES,
     SchedulerExecutionContextResolution,
+    SchedulerRuntimeProfile,
     render_scheduler_execution_args,
     scheduler_runtime_profile_for_execution_context,
 )
@@ -760,7 +760,7 @@ def interaction_next_cli_actions(
         scheduler_runtime_profile_for_execution_context(
             scheduler_execution_context
         )
-        in APP_HEARTBEAT_SETTLEMENT_RUNTIME_PROFILES
+        is SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
     )
     if mode == "governed_capability_intent":
         projection = (

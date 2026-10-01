@@ -58,7 +58,7 @@ not be composed manually as a second control plane.
 | Workspace isolation | Agent obeys workspace guard and repository policy | Caller supplies an explicit project; repository worktree policy remains external | Integrate a first-class workspace guard before write-capable hosts |
 | Bounded execution | Heartbeat prompt asks for one validated segment | Built-in and generic hosts require typed results and explicit timeout | Qualify longer repository turns and interactive interruption |
 | Validation and writeback | Validate, refresh, then spend one slot | Independent command validation gates durable writeback and one spend | Keep validators task-specific and outside the host |
-| Scheduler/backoff | App RRULE is applied without spend | Final live scheduler check is part of the Turn receipt | External recurring hosts must apply required host actions without overlap |
+| Scheduler/backoff | Provider-owned host loop; scheduler changes do not spend | Final live scheduler check is part of the Turn receipt | External recurring hosts must apply owner-scoped policy without overlap |
 | Repair/replan | Typed control state can preserve, repair, or replace the current route | Host and validation failures route to typed repair/replan; two stalls require a todo or vision delta | Expand real-host negative-path qualification |
 | Privacy | Raw host material stays outside LoopX state | Existing boundaries are strong | Preserve current boundary and add a typed result channel |
 
@@ -172,14 +172,14 @@ or local artifact paths.
 
 ## Rollback And Non-goals
 
-The adapter must be disableable without changing LoopX goal state, normal CLI
-commands, or Codex App heartbeat operation. Old probe commands may remain as
+The adapter must be disableable without changing LoopX goal state or normal CLI
+commands. Old probe commands may remain as
 diagnostics until the consolidated driver covers their durable boundaries; they
 must not be the default product narrative.
 
 This route does not:
 
-- replace Codex App before measured parity evidence exists;
+- replace another host before measured parity evidence exists;
 - make Codex CLI session data authoritative;
 - silently answer user gates or handle credentials;
 - launch benchmark jobs, upload artifacts, or submit leaderboard results; or

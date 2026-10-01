@@ -82,7 +82,7 @@ def test_emitted_heartbeat_bootstrap_expands_turn_before_real_guard(shell, tmp_p
     runner = module_from_spec(spec)
     spec.loader.exec_module(runner)
     project, _, launcher = runner.setup(tmp_path)
-    packet = runner.cli(launcher, "heartbeat-prompt", "--thin", "--codex-app",
+    packet = runner.cli(launcher, "heartbeat-prompt", "--thin", "--runtime-profile", "generic_cli",
                         "--goal-id", runner.GOAL, "--agent-id", runner.AGENT,
                         "--cli-bin", str(launcher))
     script = re.search(r"```sh\n(.*?)\n```", packet["task_body"], re.S).group(1)

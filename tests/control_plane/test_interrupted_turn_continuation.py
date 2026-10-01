@@ -16,7 +16,7 @@ def test_original_turn_can_resume_and_settle_without_mutating_todo(tmp_path: Pat
 
     def guard(turn: str):
         rc, result = _run_cli(
-            registry, runtime, "quota", "should-run", "--codex-app",
+            registry, runtime, "quota", "should-run", "--runtime-profile", "generic_cli",
             "--goal-id", GOAL_ID, "--agent-id", AGENT_ID,
             "--turn-instance-id", turn, "--todo-id", TODO_ID,
             "--scan-path", str(project),

@@ -388,7 +388,6 @@ def build_live_quota_should_run_decision(
     available_capabilities: list[str] | None,
     include_scheduler_detail: bool,
     include_agent_todo_detail: bool = False,
-    codex_app_current_rrule: str | None,
     registry_path: Path,
     runtime_root: Path,
     route_source: str = "quota_cli_invocation",
@@ -408,7 +407,6 @@ def build_live_quota_should_run_decision(
 ) -> dict[str, Any]:
     """Build one live CLI decision while keeping host observation injectable."""
     resolved_context = resolve_scheduler_execution_context(scheduler_execution_context)
-    observed_rrule = str(codex_app_current_rrule or "").strip()
     decision_status_payload = {
         **status_payload,
         "runtime_root": str(runtime_root),
@@ -478,8 +476,6 @@ def build_live_quota_should_run_decision(
         available_capabilities=available_capabilities,
         include_scheduler_detail=include_scheduler_detail,
         include_agent_todo_detail=include_agent_todo_detail,
-        codex_app_current_rrule=observed_rrule,
-        codex_app_automation_id=None,
         scheduler_execution_context=resolved_context,
         operator_inbox_urgency_projector=(
             _fresh_read_covers_all_pending_material(

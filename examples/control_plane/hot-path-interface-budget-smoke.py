@@ -39,8 +39,8 @@ from loopx.control_plane.scheduler.execution_context import (  # noqa: E402
 
 
 GOAL_ID = "interface-budget-goal"
-APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    "codex_app_heartbeat"
+GENERIC_CLI_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    "generic_cli"
 )
 CONTRACT_DOC = REPO_ROOT / "docs" / "reference" / "contracts" / "interface-budget-contract.md"
 SURFACE_BUDGETS = {
@@ -68,8 +68,7 @@ SURFACE_BUDGETS = {
         "owner": "quota guard",
         "consumer": "decide whether the selected goal may spend compute",
         "cold_path": "status, history, or active state",
-        # Codex keeps a lossless codex_app compatibility alias while the
-        # provider-neutral app_automation packet becomes canonical.
+        # Generic scheduler context remains compact on the hot path.
         # Pre-limit work counts add useful scope/completeness evidence; allow
         # modest headroom after removing the redundant observed-row count.
         "max_json_chars": 14_500,
@@ -366,7 +365,7 @@ def assert_cadence_projection(
     quota_payload = build_quota_should_run(
         status_payload,
         goal_id=GOAL_ID,
-        scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+        scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
     )
     assert quota_payload["should_run"] is True, quota_payload
     assert quota_payload["interface_budget_cadence"]["overdue"] is False, quota_payload
@@ -397,7 +396,7 @@ def main() -> int:
         quota_payload = build_quota_should_run(
             status_payload,
             goal_id=GOAL_ID,
-            scheduler_execution_context=APP_SCHEDULER_CONTEXT,
+            scheduler_execution_context=GENERIC_CLI_SCHEDULER_CONTEXT,
         )
         review_packet = build_review_packet(status_payload, goal_id=GOAL_ID, action_kind="codex")
         handoff_payload = review_packet_handoff_only_payload(review_packet)
@@ -405,7 +404,7 @@ def main() -> int:
             build_heartbeat_prompt(
                 goal_id=GOAL_ID,
                 thin=True,
-                runtime_profile="codex_app_heartbeat",
+                runtime_profile="generic_cli",
             )
         )
         # Real automations normally bind an agent; the unbound fixture alone
@@ -417,14 +416,14 @@ def main() -> int:
             assert_surface("heartbeat_prompt_json", build_heartbeat_prompt(
                 goal_id=GOAL_ID,
                 thin=True,
-                runtime_profile="codex_app_heartbeat",
+                runtime_profile="generic_cli",
                 **binding,
             ))
 
         assert quota_payload["should_run"] is True, quota_payload
         reset_policy = quota_payload["scheduler_hint"]["reset_policy"]
         assert reset_policy["reset_token"], reset_policy
-        assert reset_policy["app_automation_initial_rrule"], reset_policy
+        assert reset_policy["local_scheduler_initial_interval_minutes"], reset_policy
         assert "host_state_key" not in reset_policy, reset_policy
         assert "identity_snapshot" not in reset_policy, reset_policy
         assert "profile_snapshot" not in reset_policy, reset_policy

@@ -253,7 +253,7 @@ def test_weak_turn_actor_executes_required_successor_replan_with_user_notice() -
         agent_id=agent_id,
         scheduler_execution_context=(
             scheduler_execution_context_for_runtime_profile(
-                "codex_app_heartbeat"
+                "generic_cli"
             )
         ),
     )

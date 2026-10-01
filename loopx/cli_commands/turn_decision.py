@@ -92,7 +92,6 @@ def _build_turn_decision(
             agent_id=args.agent_id,
             available_capabilities=args.available_capabilities,
             include_scheduler_detail=False,
-            codex_app_current_rrule=None,
             registry_path=registry_path,
             runtime_root=runtime_root,
             route_source=TURN_DECISION_ROUTE_SOURCE,

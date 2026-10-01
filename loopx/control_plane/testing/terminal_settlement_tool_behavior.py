@@ -231,7 +231,7 @@ def _build_fixture(root: Path) -> _TerminalSettlementFixture:
             "filesystem_read",
             "filesystem_write",
         ],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
     quota_guard_command = str(prompt["quota_guard_command"])
     if quota_guard_command not in str(prompt["task_body"]):

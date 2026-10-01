@@ -59,7 +59,7 @@ def probe_messages(mode: str, packet: dict) -> list[dict]:
     prompt = build_heartbeat_prompt(
         goal_id="host-prompt-fixture", active_state=Path("ACTIVE_GOAL_STATE.md"),
         agent_id="worker-a", registered_agents=["worker-a"],
-        runtime_profile="codex_app_heartbeat", **{mode: True},
+        runtime_profile="generic_cli", **{mode: True},
     )
     if not prompt["ok"] or not prompt["interface_budget"]["within_budget"]:
         raise ValueError("production prompt exceeds its declared budget")

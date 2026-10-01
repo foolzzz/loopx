@@ -1,6 +1,6 @@
 import {planStateEventReplay} from "./goals/state_event_replay.ts";
 import {projectTodoSummary} from "./todos/summary_projection.ts";
-import {admitAutomationStart, confirmAutomationStart, manageAutomationCadence, projectCadenceSchedule} from "./quota/automation_cadence.ts";
+import {admitAutomationStart, confirmAutomationStart, manageAutomationCadence} from "./quota/automation_cadence.ts";
 import {deliverShadowEntry} from "./coordination/shadow_entry_delivery.ts";
 import {readShadowDrainPlan} from "./coordination/shadow_drain_plan.ts";
 import {readCanonicalSnapshotPage} from "./coordination/canonical_snapshot_page.ts";
@@ -495,7 +495,6 @@ export function createEffectRuntimeHandlers(
     ["quota.automation_cadence.manage", manageAutomationCadence],
     ["quota.automation_cadence.admit", admitAutomationStart],
     ["quota.automation_cadence.confirm_start", confirmAutomationStart],
-    ["quota.automation_cadence.schedule", projectCadenceSchedule],
     ["scheduler.state.evaluate", evaluateSchedulerStateOperation],
     ["turn.delivery_route.evaluate", evaluateDeliveryRoute],
     ["work_item.action_portfolio.project", projectQuotaActionPortfolio],

@@ -14,7 +14,7 @@ from loopx.control_plane.effect_program import (
     SettlementStepKind,
 )
 from loopx.control_plane.quota.settlement import (
-    build_codex_app_settlement_plan,
+    build_turn_scoped_cli_settlement_plan,
     read_heartbeat_settlement,
 )
 from loopx.control_plane.turn_driver.settlement import (
@@ -116,13 +116,13 @@ def _write_run_index(
 
 
 def _run_quota_adapter(runtime_root: Path, scenario: str) -> AdapterObservation:
-    plan = build_codex_app_settlement_plan(
+    plan = build_turn_scoped_cli_settlement_plan(
         goal_id=GOAL_ID,
         agent_id=AGENT_ID,
         todo_id=TODO_ID,
         scoped_cli_args=f" --agent-id {AGENT_ID}",
         lifecycle_actor_args=f" --agent-id {AGENT_ID}",
-        turn_instance_id_ref=TURN_ID,
+        turn_instance_id=TURN_ID,
     ).as_dict()
     identity = SettlementIdentity(GOAL_ID, AGENT_ID, TODO_ID, TURN_ID)
     guard_effect_id = (

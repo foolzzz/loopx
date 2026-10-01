@@ -778,7 +778,7 @@ def build_actual_default_model_behavior_scenario_inputs(
 def build_actual_default_model_behavior_scenario_packets(
     root: Path,
 ) -> dict[str, dict[str, Any]]:
-    """Build the default packets used by Codex App automation qualification."""
+    """Build the default packets used by host-loop behavior qualification."""
 
     _, packets = build_actual_default_model_behavior_scenario_inputs(root)
     return packets

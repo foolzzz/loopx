@@ -26,7 +26,7 @@ def session(tmp_path, monkeypatch, capsys):
         assert rc == expected, stdout
         return json.loads(stdout)
 
-    assert run(["quota", "should-run", "--codex-app", *binding,
+    assert run(["quota", "should-run", "--runtime-profile", "generic_cli", *binding,
                 "--scan-path", str(project)])["decision"] == "run"
     args = ["refresh-state", *binding, "--classification", "validated_change",
             "--delivery-outcome", "outcome_progress", "--no-global-sync"]

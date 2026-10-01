@@ -36,13 +36,13 @@ from work_lane_contract_fixtures import (  # noqa: E402 - standalone smoke boots
 )
 
 
-CODEX_APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
-    SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
+GENERIC_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
+    SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP
 )
 
 
 def build_quota_should_run(*args, **kwargs):
-    kwargs.setdefault("scheduler_execution_context", CODEX_APP_SCHEDULER_CONTEXT)
+    kwargs.setdefault("scheduler_execution_context", GENERIC_SCHEDULER_CONTEXT)
     return _build_quota_should_run(*args, **kwargs)
 
 

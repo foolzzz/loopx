@@ -201,26 +201,6 @@ export function projectCadenceProgression(p: JsonObject): JsonObject {
   return {progression, effective_interval_minutes: progression[0], min_interval_minutes: floor,
     reason: floor > 0 ? "owner_floor_applied_after_backoff" : "unconfigured"};
 }
-/** Apply one policy snapshot to both scheduler projections in one transport call. */
-export function projectCadenceSchedule(p: JsonObject): JsonObject {
-  const floor = minutes(p.min_interval_minutes);
-  return {
-    local: projectCadenceProgression({progression: p.local, min_interval_minutes: floor}).progression,
-    app: projectCadenceProgression({progression: p.app, min_interval_minutes: floor}).progression,
-    local_max: Math.max(integer(p.local_max, "local_max"), floor),
-    app_max: Math.max(integer(p.app_max, "app_max"), floor),
-    floor,
-    guarantee: {
-      pre_model_atomic_admission: "not_qualified",
-      model_wakeup_tokens_prevented: false,
-      schedule_readback_required: true,
-      unsupported_schedule_action: "pause_affected_automation",
-      boundary: "schedule recommendation only; App hook coverage is not qualified",
-      on_apply_failure: "pause_affected_automation_do_not_shorten_interval",
-    },
-  };
-}
-
 /** Local owner CLI boundary. Same-UID filesystem access is not an authentication sandbox. */
 export async function manageAutomationCadence(p: JsonObject): Promise<JsonObject> {
   const operation = requireStringLiteral(p.operation, ["read", "configure"] as const, "operation");

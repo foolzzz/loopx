@@ -28,34 +28,21 @@ def registry(tmp_path):
     ["--runtime-profile", "codex_cli"],
     ["--runtime-profile", "ark_managed_agent_goal"],
     ["--runtime-profile", "generic_cli", "--visible-goal-host", "traex-cli"],
-    ["--codex-app"],
 ])
 def test_bootstrap_real_cli_load_is_one_level_and_retains_host(registry, flags):
     initial = cli(registry, "--bootstrap", *flags)
     assert initial["ok"] and initial["bootstrap"]
-    if flags == ["--codex-app"]:
-        assert initial["task_body"].startswith(
-            "LoopX managed heartbeat bootstrap v2\n每次唤醒先执行：\n"
-        )
-    else:
-        assert initial["task_body"].startswith("LoopX managed host bootstrap v1\n")
-        assert "不创建新 Goal、不接管宿主调度" in initial["task_body"]
+    assert initial["task_body"].startswith("LoopX managed host bootstrap v1\n")
+    assert "不创建新 Goal、不接管宿主调度" in initial["task_body"]
     assert "refresh-state" not in initial["task_body"]
     command = shlex.split(initial["task_body"].split("```sh\n")[1].split("\n```", 1)[0])
     assert "--bootstrap" not in command
-    if flags == ["--codex-app"]:
-        assert command[command.index("heartbeat-prompt") + 2] == "--codex-app"
-        assert command[command.index("heartbeat-prompt") + 3] == "--goal-id"
     loaded = subprocess.run([sys.executable, "-m", "loopx.cli", *command[1:]],
         capture_output=True, text=True, timeout=60, check=True)
     body = json.loads(loaded.stdout)
     direct = cli(registry, *flags)
     assert body["task_body"] == direct["task_body"]
-    if flags == ["--codex-app"]:
-        assert body["schema_version"] == direct["schema_version"] == "heartbeat_agent_input_v1"
-        assert "runtime_profile" not in body
-    else:
-        assert body["runtime_profile"] == direct["runtime_profile"]
+    assert body["runtime_profile"] == direct["runtime_profile"]
     assert body.get("bootstrap") is not True
     assert "interaction_contract" in body["task_body"]
 
@@ -69,31 +56,6 @@ def test_bootstrap_preserves_explicit_policy_and_does_not_freeze_registry_scope(
     assert "--active-state" not in command
     assert "--agent-scope" not in command
     assert packet["interface_budget"]["char_count"] == len(packet["task_body"])
-
-
-def test_trae_app_bootstrap_round_trips_its_host_identity(registry):
-    initial = cli(registry, "--bootstrap", "--trae_app")
-    assert initial["ok"] and initial["bootstrap"]
-    prompt = initial["task_body"]
-    assert prompt.startswith(
-        "LoopX managed heartbeat bootstrap v2\n每次唤醒先执行：\n"
-    )
-    command = shlex.split(prompt.split("```sh\n")[1].split("\n```", 1)[0])
-    heartbeat_index = command.index("heartbeat-prompt")
-    assert command[heartbeat_index + 2] == "--trae_app"
-    assert "--codex-app" not in command
-    loaded = subprocess.run(
-        [sys.executable, "-m", "loopx.cli", *command[1:]],
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=True,
-    )
-    body = json.loads(loaded.stdout)
-    direct = cli(registry, "--trae_app")
-    assert body["task_body"] == direct["task_body"]
-    assert body["schema_version"] == direct["schema_version"] == "heartbeat_agent_input_v1"
-    assert "--trae_app" in body["task_body"]
 
 
 def test_saved_goal_bootstrap_reloads_changed_state_and_rejects_removed_agent(registry, tmp_path):
@@ -168,11 +130,17 @@ def test_heartbeat_prompt_rejects_retired_hierarchy_before_profile_projection(
 
 
 def test_bootstrap_rejects_persisted_turn_and_invalid_binding(registry):
-    assert not cli(registry, "--bootstrap", "--codex-app", "--turn-instance-id", "fixed-turn")["ok"]
-    assert not cli(registry, "--bootstrap", "--codex-app", "--runtime-profile", "codex_cli")["ok"]
+    assert not cli(
+        registry,
+        "--bootstrap",
+        "--runtime-profile",
+        "generic_cli",
+        "--turn-instance-id",
+        "fixed-turn",
+    )["ok"]
 
 
-def test_app_brief_with_registry_profile_keeps_budget_and_current_settlement(registry):
+def test_generic_brief_with_registry_profile_keeps_budget_and_current_settlement(registry):
     scopes = [
         "Maintain shared runtime contracts and validate compatibility across hosts. "
         "Use isolated worktrees and exercise public entrypoints.",
@@ -185,7 +153,7 @@ def test_app_brief_with_registry_profile_keeps_budget_and_current_settlement(reg
         "agent_profiles": {"worker-a": {"schema_version": "agent_profile_v1", "scopes": scopes}},
     }
     registry.write_text(json.dumps(saved))
-    packet = cli(registry, "--brief", "--codex-app")
+    packet = cli(registry, "--brief", "--runtime-profile", "generic_cli")
     assert packet["ok"], packet.get("error")
     body = packet["task_body"]
     assert all(scope.rstrip(".!?") in body for scope in scopes)
@@ -193,7 +161,7 @@ def test_app_brief_with_registry_profile_keeps_budget_and_current_settlement(reg
     assert packet["interface_budget"]["max_chars"] == 4300
     assert packet["interface_budget"]["within_budget"], packet["interface_budget"]
     assert packet["cli_preflight"] in body
-    assert "--codex-app" in body
+    assert "--runtime-profile generic_cli" in body
     assert "execution_obligation.must_attempt_work" in body
     assert "heartbeat_recommendation.agent_must_attempt" in body
     assert "interaction_contract.cli_channel.settlement_plan.ordered_steps" in body
