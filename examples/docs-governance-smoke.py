@@ -553,8 +553,31 @@ def assert_retired_app_scheduler_contracts_are_current() -> None:
             operations,
             "There is no scheduler ACK command or persisted per-App apply state",
         ),
+        (
+            operations,
+            "apply the desired schedule once with the App's `automation_update` tool",
+        ),
+        (
+            operations,
+            "view that same automation and compare its actual schedule",
+        ),
+        (
+            operations,
+            "Pass the observed RRULE to the next normal `quota should-run` call with "
+            "`--app-automation-current-rrule`",
+        ),
+        (
+            operations,
+            "an exact match produces `apply_needed=false` and skips a no-op update",
+        ),
     ):
         assert required in document, required
+
+    for retired_instruction in (
+        "apply/ACK state",
+        "before running the returned ACK command",
+    ):
+        assert retired_instruction not in operations, retired_instruction
 
 
 def assert_contributor_task_links_are_current() -> None:
