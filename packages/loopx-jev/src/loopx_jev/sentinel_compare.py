@@ -76,12 +76,18 @@ def recording_transport(
     responses.mkdir(parents=True, exist_ok=True)
 
     def transport(request: dict[str, Any], config: Config, key: str) -> dict[str, Any]:
-        path = responses / f"{recording_key(request)}.json"
+        request_key = recording_key(request)
+        path = responses / f"{request_key}.json"
         if not live:
             if not path.is_file():
                 raise TransportFailure("no_recorded_response", "not_sent")
             recorded = strict_json(path.read_bytes())
-            if not isinstance(recorded, dict) or "response" not in recorded:
+            if (
+                not isinstance(recorded, dict)
+                or recorded.get("schema") != "loopx_jev_recorded_response_v0"
+                or recorded.get("request_key") != request_key
+                or "response" not in recorded
+            ):
                 raise TransportFailure("invalid_recorded_response", "not_sent")
             return {"response": recorded["response"], "replayed_recording": True}
         envelope = send(request, config, key)
@@ -96,7 +102,7 @@ def recording_transport(
                 path,
                 {
                     "schema": "loopx_jev_recorded_response_v0",
-                    "request_key": recording_key(request),
+                    "request_key": request_key,
                     "recorded_at": time.time(),
                     "response": sanitized,
                     "worker_timing_ns": envelope.get("worker_timing_ns"),

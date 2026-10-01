@@ -162,27 +162,35 @@ For every recorded sequence it reports the first round at which the typed
 repeat fuse would fire (never, within the sequence, for self-declared
 advancement), the first round at which each receipt signal flags drift, and the
 false flags on sequences whose gold label is on-goal. Without `--live` it
-replays committed provider responses, so the numbers reproduce in CI without a
-key. `python -m pytest packages/loopx-jev/tests/test_sentinel.py -q` runs the same replay.
+replays committed provider responses, so the current replay numbers reproduce
+in CI without a key. `python -m pytest packages/loopx-jev/tests/test_sentinel.py -q`
+runs the same replay.
 
 ## Recorded differential
 
-The committed live recording of the 16-sequence matrix (question set
-`scoped-progress-sentinel-v2`, `jev-1.13.0`, 35 rounds, every round
-self-reporting `advanced`; one answer rejected by the strict decoder):
+The current 16-sequence matrix contains 9 drift sequences, 6 exact real on-goal
+commits, and 1 sanitized derivative of an on-goal commit. The derivative removes
+retired App scheduler commands and has no recording for its new request identity,
+so the committed replay fails it closed rather than reusing an answer for different
+source. The current replay has 33 completed rounds and 2 failed-closed rounds:
 
 | | Typed repeat fuse | `noul` receipts | `choice` receipts |
 | --- | --- | --- | --- |
 | Drift sequences flagged at their gold round | 0/9 | 9/9 | 5/9 |
 | Reaching the `assist` obligation at threshold 2 | 0/9 | 9/9 | 2/9 |
-| Real on-goal upstream commits falsely flagged | 0/7 | 0/6 evaluated | 0/6 evaluated |
-| Real on-goal commits with no verdict (failed closed) | — | 1/7 | 1/7 |
+| Exact real on-goal commits falsely flagged | 0/6 | 0/5 evaluated | 0/5 evaluated |
+| Exact real on-goal commits with no verdict (failed closed) | — | 1/6 | 1/6 |
+| Sanitized derivative | excluded | no recording; failed closed | no recording; failed closed |
 
-Purely cosmetic sequences were flagged at round 1, mixed sequences at their
-drift round; a second independent live run reproduced every outcome. The v2
-wording was revised after the earlier recording missed post-implementation
-churn on these constructed sequences, so they are no longer held-out for the
-wording; the seven real commits were not used to tune anything. See the
+The historical live run used the exact pre-sanitization matrix with 7 real
+on-goal commits: 34 of 35 rounds completed, one failed closed, and the evaluated
+on-goal result was 0/6 false flags for both receipt signals. A second independent
+live run completed all 35 rounds and reproduced every first-flag and obligation
+round. Purely cosmetic sequences were flagged at round 1 and mixed sequences at
+their drift round. The v2 wording was revised after the earlier recording missed
+post-implementation churn on the constructed sequences, so they are no longer
+held-out for the wording; the 7 pre-sanitization real commits were not used to
+tune anything. See the
 [operation guide](../../../packages/loopx-jev/DRIFT_SHADOW.md) for the full
 table, latency, variance and what remains unproven.
 
