@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import test from "node:test";
@@ -59,7 +59,11 @@ test("a worktree venv wins over an unusable system python3", t => {
   const fakeBin = join(directory, "bin");
   mkdirSync(fakeBin);
   copyFileSync(join(root, "scripts", "loopx-python.sh"), join(directory, "scripts", "loopx-python.sh"));
-  symlinkSync(resolveTestPython(), join(directory, ".venv", "bin", "python"));
+  const venvPython = join(directory, ".venv", "bin", "python");
+  const canonicalPython = join(directory, "canonical", "python3.14");
+  writeFileSync(venvPython, `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify({
+    executable: canonicalPython, version: [3, 14],
+  })}'\n`, { mode: 0o755 });
   const systemMarker = join(directory, "system-python-was-used");
   const fakeSystem = join(fakeBin, "python3");
   writeFileSync(fakeSystem, `#!/bin/sh\ntouch '${systemMarker}'\nexit 1\n`, { mode: 0o755 });
@@ -70,7 +74,7 @@ test("a worktree venv wins over an unusable system python3", t => {
   delete env.LOOPX_PYTHON;
   delete env.VIRTUAL_ENV;
   const selected = resolveTestPython({ env, repoRoot: directory });
-  assert.equal(selected, join(directory, ".venv", "bin", "python"));
+  assert.equal(selected, venvPython);
   assert.equal(existsSync(systemMarker), false);
 });
 

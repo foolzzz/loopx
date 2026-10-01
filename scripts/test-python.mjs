@@ -7,8 +7,8 @@ const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const versionProbe = "import json,sys; print(json.dumps({'executable':sys.executable,'version':list(sys.version_info[:2])}))";
 
 function probe(candidate, root, env, prefix = []) {
-  const command = candidate.includes("/") || candidate.includes("\\")
-    ? resolve(root, candidate) : candidate;
+  const pathCandidate = candidate.includes("/") || candidate.includes("\\");
+  const command = pathCandidate ? resolve(root, candidate) : candidate;
   const result = spawnSync(command, [...prefix, "-c", versionProbe], {
     cwd: root, env, encoding: "utf8", timeout: 5_000,
   });
@@ -17,7 +17,7 @@ function probe(candidate, root, env, prefix = []) {
     const { executable, version } = JSON.parse(result.stdout.trim());
     if (isAbsolute(executable) && Array.isArray(version)
       && (version[0] > 3 || (version[0] === 3 && version[1] >= 11))) {
-      return executable;
+      return pathCandidate ? command : executable;
     }
   } catch { /* A candidate that cannot report its runtime is not usable. */ }
   return null;
