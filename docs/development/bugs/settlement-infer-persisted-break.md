@@ -5,9 +5,14 @@
 
 ## 不变量
 
-结算身份恢复缝只跳过**显式 typed、quota-neutral** 的 run（`quota_slot_voided`、
-无 `material_change` 的 `quota_monitor_poll`、非 accountable 的 `state_refreshed`），
-并取最近一次同 agent 的 `quota_slot_spent` 或 accountable delivery outcome 作为候选。
+聚合身份恢复路径只跳过**显式 typed、quota-neutral** 的 run（`quota_slot_voided`、
+无 `material_change` 的 `quota_monitor_poll`、非 accountable 的 `state_refreshed`），并可从
+最近一次同 agent 的 `quota_slot_spent` 或可结算 delivery outcome 恢复已持久化 identity。
+
+`slot_accounting._latest_unspent_turn_settlement_run` 查找的是仍待记账的候选：accountable
+delivery outcome，以及带 blocked observation、evidence 和 Todo 或 replan-obligation identity
+的 typed blocked `outcome_gap` 都可作为候选。`quota_slot_spent` 不是候选，而是已花费边界；
+命中同 agent、同 settlement scope 的 spend 时 helper 返回 `None`，不会穿透到更旧的 run。
 
 任何**未知或不完整**的同 agent 非中性记录都不是可穿透的「中性」记录：它构成恢复边界，
 读取在该处 fail-closed（返回 `None`，回退到 frontier 规则），绝不跨越它去恢复更旧的
