@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tomllib
@@ -275,6 +274,20 @@ def test_selected_parser_matches_full_help_and_diagnostics() -> None:
 	assert selected == full
 
 
+def test_retired_app_scheduler_commands_are_rejected() -> None:
+	commands = ("scheduler-ack", "scheduler-ack-current", "scheduler-fail-current")
+	argv_cases = [["quota", command] for command in commands]
+	selected = run_cli_batch("loopx.entrypoint", argv_cases)
+	full = run_cli_batch("loopx.cli", argv_cases)
+
+	assert selected == full
+	for command, result in zip(commands, selected, strict=True):
+		assert result["returncode"] == 2
+		assert result["stdout"] == ""
+		assert "invalid choice" in str(result["stderr"])
+		assert command in str(result["stderr"])
+
+
 def test_selected_todo_execution_matches_full_cli(tmp_path: Path) -> None:
 	registry, runtime_root = write_command_fixture(tmp_path)
 	argv = [
@@ -320,102 +333,3 @@ def test_release_launchers_use_lightweight_entrypoint() -> None:
 	assert '"loopx.entrypoint"' in windows_entry
 	assert 'else "loopx.cli"' in posix_launcher
 	assert 'else "loopx.cli"' in windows_entry
-
-
-def test_console_entrypoint_selects_only_receipt_bound_native_scheduler_followup(
-    monkeypatch,
-) -> None:
-    from loopx import entrypoint
-
-    monkeypatch.setattr(
-        shutil, "which", lambda value: "/fixture/node" if value == "node" else None
-    )
-    args = [
-        "--format",
-        "json",
-        "--runtime-root",
-        "runtime",
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        "goal",
-        "--agent-id",
-        "agent",
-        "--scheduler-host-facts-chunk",
-        "facts",
-        "--turn-instance-id",
-        "turn",
-        "--execute",
-    ]
-
-    native = entrypoint._native_scheduler_followup_argv(args)
-
-    assert native is not None
-    assert native[:3] == [
-        "/fixture/node",
-        "--no-warnings",
-        "--experimental-strip-types",
-    ]
-    assert native[-len(args) :] == args
-    assert (
-        entrypoint._native_scheduler_followup_argv(
-            [
-                value
-                for value in args
-                if value != "facts" and value != "--scheduler-host-facts-chunk"
-            ]
-        )
-        is None
-    )
-    assert (
-        entrypoint._native_scheduler_followup_argv(
-            [value for value in args if value not in {"turn", "--turn-instance-id"}]
-        )
-        is None
-    )
-
-
-def test_explicit_main_argv_remains_an_in_process_compatibility_call(
-    monkeypatch,
-) -> None:
-    from loopx import entrypoint
-
-    seen: list[list[str]] = []
-    monkeypatch.setattr(
-        entrypoint,
-        "_native_scheduler_followup_argv",
-        lambda _args: (_ for _ in ()).throw(AssertionError("must not process-replace")),
-    )
-    monkeypatch.setattr(
-        "loopx.cli_runtime.main",
-        lambda args: seen.append(list(args)) or 0,
-    )
-
-    assert entrypoint.main(["--format", "json", "version"]) == 0
-    assert seen == [["--format", "json", "version"]]
-
-
-def test_console_native_scheduler_followup_fails_closed_without_node(
-    monkeypatch, capsys
-) -> None:
-    from loopx import entrypoint
-
-    monkeypatch.setattr(shutil, "which", lambda _value: None)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "loopx",
-            "--runtime-root",
-            "runtime",
-            "quota",
-            "scheduler-ack-current",
-            "--scheduler-host-facts-chunk",
-            "facts",
-            "--turn-instance-id",
-            "turn",
-        ],
-    )
-
-    assert entrypoint.main() == 2
-    assert "requires Node.js 22.22.3 or newer" in capsys.readouterr().err

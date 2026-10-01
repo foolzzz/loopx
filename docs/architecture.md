@@ -58,7 +58,7 @@ and compact run summaries. The decision is the effect interpreter
 (`A => F[QuotaDecision]`): quota, interaction contract, capability gates,
 work-lane routing, and scheduler hints decide whether and how the next effect
 may run. The data-encoded handler is the `next_effect` in the quota packet:
-CLI actions, scheduler ACK/failure hints, writeback, and spend.
+CLI actions, scheduler cadence, writeback, and spend.
 
 This is the same lens as the
 [Agent Loop Effect Interpreter RFC](architecture/rfcs/agent-loop-effect-interpreter-v0.md)

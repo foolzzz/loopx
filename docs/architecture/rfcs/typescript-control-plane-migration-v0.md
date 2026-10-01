@@ -1411,9 +1411,9 @@ choice is now implemented rather than hypothetical.
 | Slice | Canonical TypeScript ownership now shipped | Remaining migration debt |
 | --- | --- | --- |
 | Effect runtime and Turn journal ([#3416](https://github.com/huangruiteng/loopx/pull/3416)) | Effect algebra, settlement rules, runtime lifecycle, typed Turn-journal interpretation, and durable checkpoint effects | Python settlement facades still expose fine-grained calls and duplicate DTO/enum shapes |
-| Todo, quota, and scheduler proof slices ([#3431](https://github.com/huangruiteng/loopx/pull/3431)–[#3434](https://github.com/huangruiteng/loopx/pull/3434)) | Completion fence/state, workspace causality, and scheduler transitions each have one TS rule owner | The cuts are mostly leaf-shaped; Python still composes several product transactions |
-| Scheduler durable state ([#3440](https://github.com/huangruiteng/loopx/pull/3440)) | State normalization, persistence, replay, and one coarse transition are TS-owned | The Python compatibility path still pays a cross-runtime transport tax |
-| Scheduler heartbeat/state transaction | TypeScript owns receipt freshness, ACK and host-failure validation, state construction, failure-cache transitions, replay/CAS fencing, atomic writes, and the public JSON/Markdown projection | Generated, receipt-bound host follow-up runs through the native TS CLI; Python remains only for unbound/manual compatibility calls and external host mutation |
+| Todo, quota, and scheduler proof slices ([#3431](https://github.com/huangruiteng/loopx/pull/3431)–[#3434](https://github.com/huangruiteng/loopx/pull/3434)) | Completion fence/state and workspace causality retain TS rule owners; the scheduler proof was retired after App cadence became stateless | The remaining cuts are mostly leaf-shaped; Python still composes several product transactions |
+| App scheduler durable state and transition proof ([#3440](https://github.com/huangruiteng/loopx/pull/3440)) | Retired with the App scheduler ACK/failure follow-up; only monitor due-time projection and owner-policy path helpers remain | None |
+| Scheduler heartbeat/state transaction | Retired with the App scheduler ACK/failure follow-up | None |
 | Quota spend commit transaction | TypeScript owns final spend-transition validation, typed event construction, effect replay/CAS fencing, crash repair, and the JSON/Markdown/index write set | Python still projects `should-run` and settlement readback facts, and holds the legacy cross-writer index lock until the CLI/index writers move in-process |
 | Quota void commit transaction | TypeScript owns spend-target resolution, before/after reduction, canonical correction construction, effect replay/index CAS, prepared-receipt repair, and the JSON/Markdown/index write set | Python retains `should-run` facts, clock/effect identity, the legacy cross-writer index lock, one transport call, and compatibility entry points |
 | Quota monitor-poll commit transaction | TypeScript owns monitor admission revalidation, target/event/result construction, effect replay/index CAS, provider intent, and repairable JSON/Markdown/index persistence | Python projects compact `should-run` facts, invokes the real Todo provider between at most two reductions, reloads legacy status, and holds the cross-writer index lock |
@@ -1421,19 +1421,9 @@ choice is now implemented rather than hypothetical.
 | Transaction payoff ([#3464](https://github.com/huangruiteng/loopx/pull/3464), [#3481](https://github.com/huangruiteng/loopx/pull/3481), and Todo completion) | Turn settlement, quota delivery routing, and Todo completion each cross one coarse TS boundary; the Todo transaction owns identity, replay fencing, validation planning/result reduction, continuation/recovery, and completion metadata | Python still executes explicitly external providers and materializes legacy Markdown/event results; other domains still need their own bounded cutovers |
 | Promoted-authority Todo claim | TypeScript owns the provider-head read, lifecycle validation, complete-record update, hard-lease check, CAS, receipt, and readback-safe result for claims after authority promotion | Default local Markdown mode remains on the legacy writer; other Todo mutations and Markdown regeneration remain bounded follow-ups |
 
-The scheduler facade exit now includes its first bounded Stage 3 route. A
-versioned `heartbeat_followup_cli.ts` accepts bounded compact host facts from
-the generated ACK/failure hint, verifies the originating heartbeat receipt,
-and runs state validation, replay/CAS fencing, the locked write, and public
-JSON/Markdown projection in one Node process. The Unix, Windows, and installed
-console launchers select this route only for exact receipt-bound commands, so
-the recurring host path no longer starts Python or pays a Python-to-Node
-request/response. The deleted Python ACK rule and adapter-only tests no longer
-form a second semantic owner. A decision-free Python compatibility adapter
-remains for explicit in-process and manually constructed unbound calls. It can
-be deleted after those callers consume generated receipt-bound hints. The host
-automation adapter and its TOML/SQLite writes intentionally remain Python and
-external to this transaction.
+The scheduler facade exit's first bounded Stage 3 route, a native
+receipt-bound ACK/failure follow-up CLI, was retired together with the App
+scheduler follow-up.
 
 These slices proved correctness, packaging, Windows lifecycle, crash recovery,
 real TS-owned writes, and acceptable warm primitive-call latency. They also
@@ -1490,11 +1480,12 @@ are removed, while coarse readback/projection remains bounded Stage 2B work.
 
 ### Stage 2A — Bounded rule-owner proofs (shipped; do not repeat as a pattern)
 
-Todo completion, quota workspace causality, scheduler transitions, and
-scheduler durable state established that a Python caller can safely switch to
-a single TS semantic owner. Their characterization and facade layers were
-appropriate migration evidence, but copying the same leaf pattern across more
-domains would now increase total complexity.
+Todo completion, quota workspace causality, and the now-retired scheduler
+transition/durable-state proof established that a Python caller can safely
+switch to a single TS semantic owner. The scheduler proof was migration
+evidence, not a permanent App state contract; its facade, characterization,
+and runtime operation were removed when App cadence became stateless. Copying
+the same leaf pattern across more domains would now increase total complexity.
 
 ### Stage 2B — Complete transaction cutovers (active)
 
@@ -1546,16 +1537,10 @@ shipped Stage 2B cutovers are in place:
   actor/lease admission, preserving legacy error priority without a leaf
   runtime call inside the writer critical section. Materialized and
   event-projected writes consume the same typed result.
-- Scheduler heartbeat/state: TypeScript owns receipt freshness, ACK and
-  host-failure validation, identity-aware progression, failure-cache
-  retention/counting, replay and CAS fencing, preview reduction, the locked
-  atomic write, and the legacy-compatible JSON/Markdown result. Generated
-  receipt-bound ACK/failure hints carry a versioned bounded fact packet and
-  enter that transaction directly through the native CLI. Python no longer
-  participates in the recurring path. Its decision-free compatibility adapter
-  remains only for explicit in-process and unbound manual callers and exits
-  when those callers adopt the generated route. Host automation mutation stays
-  an external Python effect.
+- Scheduler heartbeat/state: retired with the App scheduler ACK/failure
+  follow-up. App cadence is projected directly from the current profile and
+  observed Host RRULE; TypeScript retains only the independent monitor
+  due-time projection and the owner-policy path helper.
 - Quota spend commit: TypeScript revalidates the compact before/after transition,
   constructs the canonical public-safe spend event, fences the effect with a
   locked index CAS, and commits JSON, Markdown, index, and transaction receipt
@@ -1725,10 +1710,8 @@ selected authority path: direct in-process execution for CLI-only use, or the
 managed daemon when the App/scheduler already owns the workspace. Remove the
 Python bridge and its protocol after no production caller needs them.
 
-The receipt-bound scheduler ACK/failure route is the first bounded native-CLI
-slice in this stage. It is an exact launcher dispatch, not a generic Node
-router, and leaves `quota should-run`, host automation mutation, and broader
-quota policy in their existing owners.
+The first bounded native-CLI slice in this stage, the receipt-bound scheduler
+ACK/failure route, was retired with the App scheduler follow-up.
 
 ### Stage 4 — Distribution cleanup
 

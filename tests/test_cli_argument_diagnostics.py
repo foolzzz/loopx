@@ -441,15 +441,6 @@ def test_quota_collection_failure_verbose_surfaces_raw_exception(
             "`loopx quota should-run` requires --goal-id",
         ),
         (
-            "scheduler-ack-current",
-            "goal",
-            None,
-            None,
-            False,
-            False,
-            "`loopx quota scheduler-ack-current` requires --agent-id",
-        ),
-        (
             "spend-slot",
             "goal",
             None,

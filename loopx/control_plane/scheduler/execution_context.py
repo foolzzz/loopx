@@ -555,7 +555,6 @@ def apply_scheduler_execution_context(
             backoff.get("apply_needed") is True
             or app_automation.get("host_action_required") is True
         )
-        ack_needed = backoff.get("ack_needed") is True
         result["app_automation"] = app_automation
         if context.host_surface is HostSurface.CODEX_APP:
             codex_app = result.get("codex_app")
@@ -599,12 +598,10 @@ def apply_scheduler_execution_context(
             "host_surface": context.host_surface.value,
             "scheduler_owner": context.scheduler_owner.value,
             "disposition": (
-                "host_action_required" if apply_needed or ack_needed else "not_required"
+                "host_action_required" if apply_needed else "not_required"
             ),
-            "completed": not (apply_needed or ack_needed),
+            "completed": not apply_needed,
             "apply_needed": apply_needed,
-            "ack_needed": ack_needed,
-            "acknowledged": False,
         }
         cold_path = result.get("cold_path_detail")
         if isinstance(cold_path, dict):
@@ -627,7 +624,6 @@ def apply_scheduler_execution_context(
         "reason_code": f"cadence_owned_by_{context.scheduler_owner.value}",
         "apply": "none",
         "host_action": "none",
-        "ack_required": False,
         "no_spend_for_cadence_change": True,
     }
     # Preserve the historical non-App response exactly. Provider-neutral App
@@ -657,10 +653,8 @@ def apply_scheduler_execution_context(
         "disposition": f"{owner}_owned",
         "completed": True,
         "apply_needed": False,
-        "ack_needed": False,
-        "acknowledged": False,
         "completion_reason": (
-            "selected scheduler owner requires no Codex App apply or ACK"
+            "selected scheduler owner requires no App cadence update"
         ),
     }
     if goal_runtime_continuation is not None:

@@ -26,7 +26,7 @@ When the user provides text after `/loopx`, the host should:
    - `trae_app`: create or update the Trae App heartbeat automation from the
      generated `heartbeat-prompt` task body. The `trae_app` runtime
      profile preserves Trae host identity while consuming the provider-neutral
-     `scheduler_hint.app_automation` cadence, ACK, and terminal-stop contract.
+     `scheduler_hint.app_automation` cadence and terminal-stop contract.
      Its packet carries `host_surface=trae_app` and never requires a Codex
      automation-store fallback. A settled non-terminal turn keeps
      the automation active so the next wake can select the successor.

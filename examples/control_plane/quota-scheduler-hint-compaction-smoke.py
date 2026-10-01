@@ -35,7 +35,6 @@ RUNTIME_KEYS = (
 BASE_RUNTIME_KEYS = tuple(
     key for key in RUNTIME_KEYS if key != "codex_app_ssh_goal"
 )
-SCHEDULER_HOST_FACTS_CHUNK_FLAG = "--scheduler-host-facts-chunk"
 APP_SCHEDULER_CONTEXT = scheduler_execution_context_for_runtime_profile(
     SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
 )
@@ -89,154 +88,32 @@ def json_size(value: dict) -> int:
     return len(json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":")))
 
 
-def scheduler_host_fact_chunks(args: list[str]) -> list[str]:
-    chunks: list[str] = []
-    index = 0
-    bound_prefix = f"{SCHEDULER_HOST_FACTS_CHUNK_FLAG}="
-    while index < len(args):
-        token = args[index]
-        if token.startswith(bound_prefix):
-            chunk = token[len(bound_prefix) :]
-            assert chunk, args
-            chunks.append(chunk)
-            index += 1
-            continue
-        if token == SCHEDULER_HOST_FACTS_CHUNK_FLAG:
-            assert index + 1 < len(args), args
-            chunk = args[index + 1]
-            assert chunk and not chunk.startswith("-"), args
-            chunks.append(chunk)
-            index += 2
-            continue
-        assert token in {"--surface", "--state-key"}, args
-        assert index + 1 < len(args), args
-        assert args[index + 1] and not args[index + 1].startswith("-"), args
-        index += 2
-    return chunks
-
-
-def assert_compact_runtime_policy_complete(
-    name: str,
-    compact: dict,
-    *,
-    expected_goal_id: str,
-    expected_agent_id: str,
-    expected_registry_path: Path | None = None,
-    expected_runtime_root: Path | None = None,
-) -> None:
+def assert_compact_runtime_policy_complete(name: str, compact: dict) -> None:
     app_automation = compact["app_automation"]
     unchanged_poll = compact["unchanged_poll"]
     stateful_backoff = app_automation["stateful_backoff"]
-    ack_hint = app_automation["ack_hint"]
-    failure_hint = app_automation["failure_hint"]
-    ack_args = ack_hint["args"]
-    ack_cli_args = ack_hint["cli_args"]
     assert app_automation["recommended_interval_minutes"], (name, compact)
     assert app_automation["recommended_rrule"], (name, compact)
     assert app_automation["max_interval_minutes"], (name, compact)
-    assert isinstance(app_automation["example_progression_minutes"], list), (name, compact)
+    assert "example_progression_minutes" not in app_automation, (name, compact)
     assert app_automation["host_tool"] == "automation_update", (name, compact)
     assert app_automation["host_action"] == "update_current_heartbeat_rrule", (name, compact)
     assert "automation_update" in app_automation["host_action_contract"], (name, compact)
     assert app_automation["rrule_source"] == "scheduler_hint.app_automation.recommended_rrule", (name, compact)
     assert stateful_backoff["schema_version"] == "app_automation_stateful_backoff_v0", (name, compact)
-    assert stateful_backoff["state_key"] == "scheduler_hint.app_automation.stateful_backoff", (name, compact)
-    assert stateful_backoff["identity_signature"] == compact["reset_policy"]["identity_signature"], (
-        name,
-        compact,
-    )
+    assert stateful_backoff["state_policy"] == "ephemeral_no_app_scheduler_state", (name, compact)
     assert stateful_backoff["reset_token"] == compact["reset_policy"]["reset_token"], (name, compact)
     assert stateful_backoff["apply_needed"] is True, (name, compact)
     assert stateful_backoff["current_rrule"] == app_automation["recommended_rrule"], (name, compact)
-    assert stateful_backoff["state_status"] == "missing", (name, compact)
-    assert ack_hint["schema_version"] == "app_automation_scheduler_ack_hint_v0", (name, compact)
-    assert ack_hint["after"] == "automation_update_rrule_success", (name, compact)
-    assert ack_hint["command"] == "quota scheduler-ack-current", (name, compact)
-    assert ack_hint["execute"] is True, (name, compact)
-    assert ack_hint["uses_current_hint"] is True, (name, compact)
-    assert ack_hint["no_spend"] is True, (name, compact)
-    assert ack_args["goal_id"] == expected_goal_id, (name, compact)
-    assert ack_args["agent_id"] == expected_agent_id, (name, compact)
-    assert ack_args["surface"] == "codex_app", (name, compact)
-    assert ack_args["state_key"] == stateful_backoff["state_key"], (name, compact)
-    assert ack_args["applied_rrule"] == app_automation["recommended_rrule"], (name, compact)
-    assert ack_args["reset_token"] == stateful_backoff["reset_token"], (name, compact)
-    assert ack_args["identity_signature"] == stateful_backoff["identity_signature"], (name, compact)
-    assert ack_args["host_match_observed"] is True, (name, compact)
-    expected_cli_prefix = [
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        ack_args["goal_id"],
-        "--agent-id",
-        ack_args["agent_id"],
-        "-A",
-    ]
-    expected_cli_suffix = [
-        "--applied-rrule",
-        ack_args["applied_rrule"],
-        "--host-match-observed",
-        "--reset-token",
-        ack_args["reset_token"],
-        "--identity-signature",
-        ack_args["identity_signature"],
-        "--execute",
-    ]
-    if expected_registry_path is not None and expected_runtime_root is not None:
-        expected_cli_prefix = [
-            "--registry",
-            str(expected_registry_path.resolve()),
-            "--runtime-root",
-            str(expected_runtime_root.resolve()),
-            *expected_cli_prefix,
-        ]
-        assert ack_hint["route_binding"] == {
-            "schema_version": "scheduler_ack_cli_route_v0",
-            "source": "quota_cli_invocation",
-            "registry_bound": True,
-            "runtime_root_bound": True,
-            "turn_instance_bound": False,
-        }, (name, compact)
-    else:
-        assert "route_binding" not in ack_hint, (name, compact)
-    assert ack_cli_args[: len(expected_cli_prefix)] == expected_cli_prefix, (name, compact)
-    assert ack_cli_args[-len(expected_cli_suffix) :] == expected_cli_suffix, (name, compact)
-    host_fact_args = ack_cli_args[len(expected_cli_prefix) : -len(expected_cli_suffix)]
-    assert scheduler_host_fact_chunks(host_fact_args), (name, compact)
-    failure_cli_args = failure_hint["cli_args"]
-    assert failure_hint["schema_version"] == "app_automation_scheduler_failure_hint_v0", (
-        name,
-        compact,
-    )
-    expected_failure_prefix = [
-        "quota",
-        "scheduler-fail-current",
-        "--goal-id",
-        expected_goal_id,
-        "--agent-id",
-        expected_agent_id,
-        "-A",
-    ]
-    if expected_registry_path is not None and expected_runtime_root is not None:
-        expected_failure_prefix = [
-            "--registry",
-            str(expected_registry_path.resolve()),
-            "--runtime-root",
-            str(expected_runtime_root.resolve()),
-            *expected_failure_prefix,
-        ]
-        assert failure_hint["route_binding"]["schema_version"] == (
-            "scheduler_failure_cli_route_v0"
-        ), (name, compact)
-    assert failure_cli_args[: len(expected_failure_prefix)] == expected_failure_prefix, (
-        name,
-        compact,
-    )
-    assert failure_cli_args[-1] == "--execute", (name, compact)
+    assert "ack_hint" not in app_automation, (name, compact)
+    assert "failure_hint" not in app_automation, (name, compact)
     for omitted in (
+        "state_key",
+        "identity_signature",
+        "progression_index",
+        "state_status",
         "progression_minutes",
         "current_interval_minutes",
-        "ack_required_after_apply",
         "persist",
         "same_identity_action",
         "reset_action",
@@ -307,12 +184,7 @@ def assert_compact_scheduler(name: str, source_payload: dict) -> None:
     assert compact["detail_ref"]["omitted_by_default"] is True, (name, compact)
     assert compact["detail_ref"]["execution_required"] is False, (name, compact)
     assert compact["detail_ref"]["request"] == "loopx quota should-run --include-detail scheduler", (name, compact)
-    assert_compact_runtime_policy_complete(
-        name,
-        compact,
-        expected_goal_id=source_payload["goal_id"],
-        expected_agent_id=source_payload["agent_identity"]["agent_id"],
-    )
+    assert_compact_runtime_policy_complete(name, compact)
     assert compact["reset_policy"]["reset_token"], (name, compact)
     assert compact["reset_policy"]["app_automation_initial_rrule"] == compact["app_automation"]["recommended_rrule"], (
         name,
@@ -336,17 +208,8 @@ def assert_compact_scheduler(name: str, source_payload: dict) -> None:
     )
     assert cold_path["claude_code_loop"]["after_limit"], (name, detailed)
     stateful_detail = cold_path["stateful_backoff_detail"]
-    assert stateful_detail["progression_minutes"] == compact["app_automation"]["example_progression_minutes"], (
-        name,
-        detailed,
-    )
-    assert stateful_detail["ack_required_after_apply"] is True, (name, detailed)
-    expected_same_identity_action = (
-        "keep_initial_interval_while_active_work"
-        if compact["cadence_class"] == "active_work"
-        else "advance_index_after_applied_interval_elapsed"
-    )
-    assert stateful_detail["same_identity_action"] == expected_same_identity_action, (
+    assert "progression_minutes" not in stateful_detail, (name, detailed)
+    assert stateful_detail["state_policy"] == "ephemeral_no_app_scheduler_state", (
         name,
         detailed,
     )
@@ -356,10 +219,8 @@ def assert_compact_scheduler(name: str, source_payload: dict) -> None:
     assert "automation_update" in reset_detail["app_automation_apply"], (name, detailed)
     assert len(reset_detail["profile_signature"]) == 12, (name, detailed)
     assert json_size(compact) < json_size(detailed), (name, json_size(compact), json_size(detailed))
-    # Native scheduler follow-up embeds bounded host-fact chunks in the ack and
-    # failure argv. Keep the compact packet bounded while allowing that signed
-    # transport payload and path variance.
-    assert json_size(compact) <= 16_000, (name, json_size(compact))
+    # The App packet and its Codex copy dominate the compact hot path.
+    assert json_size(compact) <= 4_000, (name, json_size(compact))
 
 
 def run_should_run_cli(
@@ -421,14 +282,7 @@ def assert_cli_compact_and_detail_contract() -> None:
             agent_id=fixture.SCOPED_AGENT_ID,
         )["scheduler_hint"]
 
-    assert_compact_runtime_policy_complete(
-        "cli-default",
-        compact,
-        expected_goal_id="needs-operator",
-        expected_agent_id=fixture.SCOPED_AGENT_ID,
-        expected_registry_path=registry_path,
-        expected_runtime_root=runtime,
-    )
+    assert_compact_runtime_policy_complete("cli-default", compact)
     for key in RUNTIME_KEYS:
         assert key not in compact, (key, compact)
         assert key not in detailed, (key, detailed)
@@ -453,9 +307,7 @@ def assert_cli_compact_and_detail_contract() -> None:
         compact["unchanged_poll"]["after_limits"]["claude_code_loop"]
     ), detailed
     assert detailed["cold_path_detail"]["reset_policy_detail"]["app_automation_tool"] == "automation_update", detailed
-    assert detailed["cold_path_detail"]["stateful_backoff_detail"]["progression_minutes"] == (
-        compact["app_automation"]["example_progression_minutes"]
-    ), detailed
+    assert "progression_minutes" not in detailed["cold_path_detail"]["stateful_backoff_detail"], detailed
 
 
 def main() -> int:

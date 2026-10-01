@@ -120,7 +120,7 @@ FORMAL_DOMAIN_SELECTORS: dict[str, Callable[[dict[str, Any]], tuple[int, int]]] 
     # declaration; counting it as its own evidence let a projection whose owner
     # function does not exist report itself verified. An unexecuted entry now
     # raises ``registered`` without raising ``verified``, the same way F1
-    # reports 6 of 26.
+    # reports 7 of 24.
     "projections[*]": lambda registry: (
         sum(1 for name in registry["projections"] if name in EXECUTED_PROJECTIONS),
         len(registry["projections"]),
@@ -185,8 +185,8 @@ FORMAL_CANDIDATE_DECISIONS = {
 # anchor. A `<=` comparison would let every tightening below the anchor be undone
 # silently; that is the gap the anchor exists to close.
 COVERAGE_ANCHOR = {
-    "vocabularies": 26,
-    "owner_symbols": 51,
+    "vocabularies": 24,
+    "owner_symbols": 47,
     "literal_scan_fields": 1,
     "projections": 1,
     "relations": 9,

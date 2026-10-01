@@ -58,7 +58,7 @@ not be composed manually as a second control plane.
 | Workspace isolation | Agent obeys workspace guard and repository policy | Caller supplies an explicit project; repository worktree policy remains external | Integrate a first-class workspace guard before write-capable hosts |
 | Bounded execution | Heartbeat prompt asks for one validated segment | Built-in and generic hosts require typed results and explicit timeout | Qualify longer repository turns and interactive interruption |
 | Validation and writeback | Validate, refresh, then spend one slot | Independent command validation gates durable writeback and one spend | Keep validators task-specific and outside the host |
-| Scheduler/backoff | App RRULE is applied and acknowledged without spend | Final live scheduler check is part of the Turn receipt | External recurring hosts must apply required host actions without overlap |
+| Scheduler/backoff | App RRULE is applied without spend | Final live scheduler check is part of the Turn receipt | External recurring hosts must apply required host actions without overlap |
 | Repair/replan | Typed control state can preserve, repair, or replace the current route | Host and validation failures route to typed repair/replan; two stalls require a todo or vision delta | Expand real-host negative-path qualification |
 | Privacy | Raw host material stays outside LoopX state | Existing boundaries are strong | Preserve current boundary and add a typed result channel |
 
@@ -122,7 +122,7 @@ the host-neutral mechanism.
 5. Start or resume one Codex turn with the thin task body and TurnEnvelope.
 6. Require a typed result; validate the material artifact or state change.
 7. Update/complete the todo or write a repair/replan delta; refresh state.
-8. Spend once only for validated delivery; apply and ack scheduler state.
+8. Spend once only for validated delivery; apply the scheduler cadence hint when needed.
 ```
 
 The host adapter may use existing session proof, runtime idle, timeout, and

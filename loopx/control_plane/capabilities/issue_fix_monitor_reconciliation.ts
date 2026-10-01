@@ -7,7 +7,7 @@ import {authorityUnicodeCompare} from "../coordination/authority_store_codec.ts"
 import {normalizeWriteScopes} from "../work_items/task_lease_acquire.ts";
 import {EffectRuntimeRequestError} from "../effect_runtime_errors.ts";
 import {parseTodoTimestampMicros} from "../runtime_timestamp.ts";
-import {evaluateSchedulerStateTransition, SCHEDULER_STATE_TRANSITION_REQUEST_SCHEMA} from "../scheduler/state_transition_rules.ts";
+import {MONITOR_SCHEDULE_REQUEST_SCHEMA, projectMonitorSchedule} from "../scheduler/monitor_schedule.ts";
 
 export const ISSUE_FIX_MONITOR_PLAN_REQUEST = "loopx_issue_fix_monitor_plan_request_v0";
 export const ISSUE_FIX_MONITOR_PLAN_RESULT = "loopx_issue_fix_monitor_plan_result_v0";
@@ -66,9 +66,9 @@ export function planIssueFixMonitorReconciliation(value: unknown): JsonObject {
   const generatedAt = requireNonEmptyString(request.generated_at, "generated_at");
   const observedAt = timestamp(generatedAt, "generated_at");
   const cadence = requireNonEmptyString(request.cadence, "cadence");
-  const schedule = evaluateSchedulerStateTransition({schema_version: SCHEDULER_STATE_TRANSITION_REQUEST_SCHEMA,
-    operation: "monitor_schedule", generated_at: generatedAt, cadence, explicit_next_due_at: null});
-  if (schedule.operation !== "monitor_schedule" || schedule.next_due_at === null) {
+  const schedule = projectMonitorSchedule({schema_version: MONITOR_SCHEDULE_REQUEST_SCHEMA,
+    generated_at: generatedAt, cadence, explicit_next_due_at: null});
+  if (schedule.next_due_at === null) {
     return fail("issue-fix grouped monitor cadence must be parseable");
   }
   const groups = groupsFromLedger(rows(request.ledger_rows, "ledger_rows"));

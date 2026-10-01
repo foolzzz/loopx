@@ -334,7 +334,7 @@ def assert_quota_neutral_events_do_not_hide_same_agent_delivery(agent_id: str) -
             },
             {
                 "generated_at": "2026-01-01T00:02:00+00:00",
-                "classification": "quota_scheduler_ack",
+                "classification": "quota_slot_voided",
                 "agent_id": agent_id,
             },
         ]

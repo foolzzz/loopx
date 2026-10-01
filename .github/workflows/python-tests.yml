@@ -660,11 +660,9 @@ jobs:
       - name: Run SQLite CLI integration
         run: python -m pytest -q tests/control_plane/test_sqlite_authority_cli.py
 
-      - name: Run native scheduler and SQLite authority tests
+      - name: Run SQLite authority tests
         run: >-
           node --no-warnings --experimental-sqlite --experimental-strip-types --test
-          tests/control_plane_ts/scheduler_heartbeat_commit.test.ts
-          tests/control_plane_ts/scheduler_heartbeat_commit_cli.test.ts
           tests/control_plane_ts/sqlite_authority_store.test.ts
           tests/control_plane_ts/local_authority_provider.test.ts
           tests/control_plane_ts/sqlite_runtime_admission.test.ts

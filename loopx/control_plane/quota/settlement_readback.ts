@@ -577,7 +577,6 @@ function inferPersistedIdentity(
     const classification = String(run.classification ?? "").trim();
     if (
       classification === "quota_slot_voided" ||
-      classification === "quota_scheduler_ack" ||
       (classification === "quota_monitor_poll" && !isMaterialMonitorPoll(run)) ||
       (classification === "state_refreshed" &&
         !isTurnScopedSettlementOutcome(

@@ -150,7 +150,7 @@ def goal_semantic_history_from_runs(
             continue
         todo_id = str(run.get("todo_id") or "").strip()
         classification = str(run.get("classification") or "")
-        if todo_id and not classification.startswith(("quota_slot_", "quota_scheduler_")):
+        if todo_id and not classification.startswith("quota_slot_"):
             key = (agent_id, todo_id)
             if key not in seen_retry_todos:
                 seen_retry_todos.add(key)

@@ -600,7 +600,7 @@ def main() -> int:
         "user Todo unprojected",
         "Observed capabilities -> `--available-capability`; never user gates",
         "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend)",
-        "else RRULE/ack/fail",
+        "else RRULE once",
         "no-change=surface_only/no spend",
         "unchanged->truthful --vision-unchanged-reason",
         "guard; 2 stalls->replan",
@@ -702,7 +702,7 @@ def main() -> int:
         "Missing NOTIFY action:",
         "user Todo unprojected",
         "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend)",
-        "else RRULE/ack/fail",
+        "else RRULE once",
         "no-change=surface_only/no spend",
         "unchanged->truthful --vision-unchanged-reason",
         "guard; 2 stalls->replan",
@@ -1031,14 +1031,11 @@ def main() -> int:
     assert "scheduler_hint.action=stop_until_explicit_resume" in doc, doc
     assert "host_action=pause_or_delete_current_heartbeat" in doc, doc
     assert "apply_needed=true" in doc, doc
-    assert "app_automation.ack_hint.cli_args" in doc, doc
-    assert "quota scheduler-ack-current" in doc, doc
-    assert "scheduler_hint.app_automation.failure_hint.cli_args" in doc, doc
     assert "recommended_rrule" in doc, doc
     normalized_doc = normalized(doc)
     assert "Attempt the host update at most once per hint and turn" in normalized_doc, doc
-    assert "do not retry or ACK" in normalized_doc, doc
-    assert "Exact repeats are then suppressed" in normalized_doc, doc
+    assert "do not retry" in normalized_doc, doc
+    assert "no scheduler ACK or failure follow-up" in normalized_doc, doc
     assert "must_attempt_work=true" in doc, doc
     assert "not an execution gate" in normalized(doc), doc
     assert "loopx heartbeat-prompt" in doc, doc
@@ -1098,14 +1095,11 @@ def main() -> int:
     assert "scheduler_hint.action=stop_until_explicit_resume" in project_skill, project_skill
     assert "host_action=pause_or_delete_current_heartbeat" in project_skill, project_skill
     assert "apply_needed=true" in project_skill, project_skill
-    assert "app_automation.ack_hint.cli_args" in project_skill, project_skill
-    assert "quota scheduler-ack-current" in project_skill, project_skill
-    assert "scheduler_hint.app_automation.failure_hint.cli_args" in project_skill, project_skill
     assert "recommended_rrule" in project_skill, project_skill
     normalized_project_skill = normalized(project_skill)
     assert "Attempt the host update at most once per hint and turn" in normalized_project_skill, project_skill
-    assert "do not retry or ACK" in normalized_project_skill, project_skill
-    assert "suppress the exact repeat" in normalized_project_skill, project_skill
+    assert "do not retry" in normalized_project_skill, project_skill
+    assert "no scheduler ACK or failure follow-up" in normalized_project_skill, project_skill
     assert "must_attempt_work=true" in project_skill, project_skill
     assert "not an execution gate" in normalized(project_skill), project_skill
     assert "mapped_noop_if_unchanged" in project_skill, project_skill

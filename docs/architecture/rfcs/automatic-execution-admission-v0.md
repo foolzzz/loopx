@@ -112,7 +112,7 @@ protection against clock manipulation.
 | --- | --- | --- |
 | Managed `turn run-once` | Atomic admission before a new host attempt, including failed-result recovery | M2 candidate; isolated CLI, concurrency and crash-recovery tests, no external host promotion |
 | Local legacy scheduler / external launchers | Route launches through admitted Turn or implement the same owner call | Not yet qualified; do not advertise enforcement |
-| Codex App automation | Apply floor-compatible timer, read actual schedule, ACK only matching facts | M1 schedule recommendation floor; hook coverage not qualified |
+| Codex App automation | Apply a floor-compatible timer and read the actual schedule | M1 schedule recommendation floor; hook coverage not qualified |
 | Attached interactive/manual session | Explicit manual intent; existing authority gates remain | Caller records reason; automatic continuation cannot masquerade as manual |
 
 For App, show desired versus observed schedule and apply failure. Unsupported

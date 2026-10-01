@@ -407,7 +407,6 @@ def test_start_goal_guided_previews_transaction_without_mutation() -> None:
             "refresh_state",
             "activate_host_loop",
             "quota_guard",
-            "scheduler_ack_when_needed",
         ]
         assert transaction["idempotency_policy"]["safe_to_rerun_preview"] is True
         assert "do not duplicate" in transaction["idempotency_policy"]["do_not_duplicate_existing_todos"].lower()

@@ -80,9 +80,6 @@ from ..scheduler.external_evidence_observation import (
     build_external_evidence_observation_obligation,
 )
 from ..scheduler.scheduler_hint import build_scheduler_hint
-from ..scheduler.state import (
-    load_app_automation_scheduler_state,
-)
 from ..todos.contract import (
     normalize_todo_claimed_by,
     normalize_todo_id,
@@ -186,9 +183,7 @@ def _compact_autonomous_candidate_context(
 
 
 def _scheduler_hint(
-    payload: dict[str, Any], *, include_detail: bool = False,
-    codex_app_scheduler_state: dict[str, Any] | None = None, available_capabilities: Any = None, codex_app_current_rrule: Any = None,
-    codex_app_automation_id: Any = None,
+    payload: dict[str, Any], *, include_detail: bool = False, codex_app_current_rrule: Any = None,
     scheduler_execution_context: Mapping[str, Any] | SchedulerExecutionContextResolution | None = None,
 ) -> dict[str, Any]:
     return build_scheduler_hint(
@@ -196,29 +191,8 @@ def _scheduler_hint(
         user_action_required=_user_channel_action_required(payload),
         agent_scope_frontier_actions=[action.value for action in AgentScopeFrontierAction],
         include_detail=include_detail,
-        codex_app_scheduler_state=codex_app_scheduler_state,
-        available_capabilities=available_capabilities, codex_app_current_rrule=codex_app_current_rrule,
-        codex_app_automation_id=codex_app_automation_id,
+        codex_app_current_rrule=codex_app_current_rrule,
         scheduler_execution_context=scheduler_execution_context,
-    )
-
-
-def _load_app_automation_scheduler_state(
-    status_payload: dict[str, Any],
-    *,
-    goal_id: str,
-    agent_id: str | None,
-    surface: str,
-) -> dict[str, Any] | None:
-    raw_runtime_root = status_payload.get("runtime_root")
-    safe_agent_id = normalize_todo_claimed_by(agent_id)
-    if not raw_runtime_root or not safe_agent_id:
-        return None
-    return load_app_automation_scheduler_state(
-        Path(str(raw_runtime_root)).expanduser(),
-        goal_id=goal_id,
-        agent_id=safe_agent_id,
-        surface=surface,
     )
 
 
@@ -1499,22 +1473,7 @@ def _build_quota_should_run_payload(
     payload["scheduler_hint"] = _scheduler_hint(
         payload,
         include_detail=prepared.include_scheduler_detail,
-        available_capabilities=prepared.runtime_available_capabilities,
-        codex_app_scheduler_state=(
-            _load_app_automation_scheduler_state(
-                prepared.status_payload,
-                goal_id=prepared.safe_goal_id,
-                agent_id=quota_decision_agent_id(payload)
-                or prepared.requested_agent_id,
-                surface=prepared.resolved_scheduler_context.context.host_surface.value,
-            )
-            if prepared.resolved_scheduler_context.ok
-            and prepared.resolved_scheduler_context.context is not None
-            and prepared.resolved_scheduler_context.context.app_automation_applicable
-            else None
-        ),
         codex_app_current_rrule=prepared.codex_app_current_rrule,
-        codex_app_automation_id=prepared.codex_app_automation_id,
         scheduler_execution_context=prepared.resolved_scheduler_context,
     )
     finalize_user_gate_notification_cooldown(

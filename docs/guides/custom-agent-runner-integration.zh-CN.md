@@ -88,7 +88,7 @@ re-entry instruction，要求 Agent：
 2. 遵守 `interaction_contract`、`goal_boundary` 和 selected todo；
 3. 只做一次有界动作，并验证真实 postcondition；
 4. 通过 LoopX 写回结果；
-5. 在下次唤醒前应用并 ACK scheduler hint。
+5. 在下次唤醒前应用 scheduler hint。
 
 这段 re-entry instruction 应保持稳定，不能缓存上一轮 CLI packet、todo 列表、cadence 或
 项目 policy。
@@ -121,8 +121,8 @@ loopx --format json \
    再运行 `refresh-state`。
 7. **计费：** 只有验证通过并完成持久 writeback 后才 spend。validator 失败、cadence 更新、
    quiet monitor poll 和 no-op retry 都不 spend。
-8. **调度：** runner 应用当前 scheduler hint，readback 实际生效值，再执行 packet 返回的
-   ACK CLI。
+8. **调度：** runner 在下次唤醒前应用当前 scheduler hint；cadence 变化无需 ACK，也不
+   spend。
 
 非平凡交付前，先读取 goal 的 change-quality policy。启用后运行
 `change-quality prepare`，review 精确 final diff，并记录 receipt。没有 skill 系统的
@@ -143,7 +143,7 @@ LoopX Turn:              决策 -> 执行 -> 验证 -> 提交
 
 | 路径 | 适用情况 | 边界 |
 | --- | --- | --- |
-| **直接编排 CLI** | 你的 runner 已经会调用 Agent，并能独立验证结果 | runner 消费 `quota should-run`、todo lifecycle、refresh、spend 和 scheduler ACK 合同 |
+| **直接编排 CLI** | 你的 runner 已经会调用 Agent，并能独立验证结果 | runner 消费 `quota should-run`、todo lifecycle、refresh、spend 和 scheduler hint 合同 |
 | **LoopX Turn adapter（experimental）** | 希望由一条 typed command 完成 plan、调用一次 bounded host、验证和 commit | 使用 `turn run-once` 的内置 `codex-cli` adapter，或薄 `generic-cli` adapter |
 
 直接编排 CLI 是当前兼容基线；LoopX Turn 是 runner 内部 experimental 的
@@ -153,7 +153,7 @@ decide、validate、writeback 和 spend owner；同一逻辑动作不能同时�
 
 新的 Turn 接入应被视为开发与 qualification 工作。依赖它之前，需要证明 host adapter
 能返回 typed result contract、validator 与执行器独立、retry/resume/replay 不会重复产生
-effect，并且外层 runner 能正确应用和 ACK scheduler state。这些正是继续提升 Turn
+effect，并且外层 runner 能正确应用 scheduler hint。这些正是继续提升 Turn
 成熟度的 extension / contribution surface；Agent 进程退出码或从 transcript 猜结果不能
 替代这些证明。
 
@@ -165,7 +165,7 @@ effect，并且外层 runner 能正确应用和 ACK scheduler state。这些正�
 - 具体 user action 会被投影，同时无关的安全 todo 仍可继续；
 - 两个 Agent 不会静默认领同一份工作；
 - 验证失败不能完成 todo 或 spend quota；
-- scheduler 应用和 ACK 幂等；
+- scheduler 应用幂等；
 - raw transcript、credentials、私有路径和无界日志不进入 LoopX state；
 - Agent 能通过 successor todo 接力，不依赖常驻 leader。
 

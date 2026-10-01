@@ -133,8 +133,6 @@ class EffectNext:
     execution_mode: str | None = None
     scheduler_action: str | None = None
     cadence_class: str | None = None
-    ack_cli_args: tuple[str, ...] = ()
-    failure_cli_args: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -728,12 +726,6 @@ def _effect_turn_from_payload(payload: Any) -> EffectTurn:
                 str(next_effect["cadence_class"])
                 if next_effect.get("cadence_class") is not None
                 else None
-            ),
-            ack_cli_args=tuple(
-                str(item) for item in next_effect.get("ack_cli_args", [])
-            ),
-            failure_cli_args=tuple(
-                str(item) for item in next_effect.get("failure_cli_args", [])
             ),
         ),
     )

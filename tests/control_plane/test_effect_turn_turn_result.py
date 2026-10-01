@@ -63,16 +63,6 @@ def test_turn_result_failure_preserves_failed_phase() -> None:
     packet["scheduler_hint"] = {
         "action": "failure_settle",
         "cadence_class": "repair",
-        "codex_app": {
-            "failure_hint": {
-                "cli_args": [
-                    "quota",
-                    "scheduler-ack-current",
-                    "--failure",
-                    "--execute",
-                ]
-            }
-        },
     }
     turn = interpret_turn_result_packet(packet, goal_id=GOAL_ID)
 
@@ -81,9 +71,3 @@ def test_turn_result_failure_preserves_failed_phase() -> None:
     assert turn.observation.should_run is False
     assert turn.next_effect.scheduler_action == "failure_settle"
     assert turn.next_effect.cadence_class == "repair"
-    assert turn.next_effect.failure_cli_args == (
-        "quota",
-        "scheduler-ack-current",
-        "--failure",
-        "--execute",
-    )

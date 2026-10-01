@@ -98,7 +98,7 @@ and keep one short re-entry instruction that tells the Agent to:
 2. follow `interaction_contract`, `goal_boundary`, and the selected todo;
 3. perform one bounded action and validate the real postcondition;
 4. write the result through LoopX; and
-5. apply and acknowledge any scheduler hint before the next wake.
+5. apply any scheduler hint before the next wake.
 
 The re-entry instruction stays stable. It must not cache a previous CLI packet,
 todo list, cadence, or project policy.
@@ -133,8 +133,8 @@ Then follow this loop:
    record compact evidence; then run `refresh-state`.
 7. **Account:** Spend quota only after validated durable writeback. A failed
    validator, cadence update, quiet monitor poll, or no-op retry does not spend.
-8. **Schedule:** Apply the current scheduler hint in the runner, read back the
-   value actually applied, and ACK it through the returned CLI command.
+8. **Schedule:** Apply the current scheduler hint in the runner before the next
+   wake; cadence changes need no ACK and never spend.
 
 Before a non-trivial delivery, inspect the goal's change-quality policy. When
 enabled, run `change-quality prepare`, review the exact final diff, and record
@@ -158,7 +158,7 @@ LoopX Turn:             decide -> execute -> validate -> commit
 
 | Path | Use it when | Boundary |
 | --- | --- | --- |
-| **Direct CLI orchestration** | Your runner already invokes Agents and validates their work | The runner consumes `quota should-run`, todo lifecycle, refresh, spend, and scheduler ACK contracts |
+| **Direct CLI orchestration** | Your runner already invokes Agents and validates their work | The runner consumes `quota should-run`, todo lifecycle, refresh, spend, and scheduler hint contracts |
 | **LoopX Turn adapter (experimental)** | You want one typed command to plan, invoke one bounded host segment, validate, and commit | Use `turn run-once` with the built-in `codex-cli` adapter or a thin `generic-cli` adapter |
 
 Direct CLI orchestration is the current compatibility baseline. LoopX Turn is
@@ -170,7 +170,7 @@ writeback, and spend in each tick: do not run the direct sequence and
 Treat a new Turn integration as development and qualification work. Before
 depending on it, prove the host adapter emits the typed result contract, the
 validator is independent, retry/resume/replay cannot duplicate effects, and
-the outer runner applies and acknowledges scheduler state correctly. Those are
+the outer runner applies scheduler hints correctly. Those are
 useful extension and contribution surfaces for making Turn more mature; an
 Agent process exit code or scraped transcript is not a substitute for them.
 
@@ -183,7 +183,7 @@ Before calling the integration autonomous, prove that:
   run;
 - two Agents cannot silently claim the same work;
 - validation failure cannot complete a todo or spend quota;
-- scheduler application and ACK are idempotent;
+- scheduler application is idempotent;
 - raw transcripts, credentials, private paths, and unbounded logs stay outside
   LoopX state; and
 - the Agent can hand off through a successor todo without a permanent leader.

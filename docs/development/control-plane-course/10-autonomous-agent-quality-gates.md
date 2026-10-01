@@ -63,7 +63,7 @@ Explore Graph 只能消费第二组 oracle 已接受的 finding；Explore Harnes
 - 把其他 peer 的 gate 当成自己的 gate；
 - 把非阻塞提醒误当成用户授权；
 - 在 monitor 没有新证据时重复 spend；
-- 丢失 host scheduler ACK，仍声称 cadence 已应用；
+- 把 scheduler hint 当成 host 已应用的 cadence；
 - 缩短 agent-facing packet 时删掉决定下一步行为的字段；
 - 用旧 commit 的测试结果给新 tag 背书。
 
@@ -719,7 +719,7 @@ outcome baseline 可以消费 readiness receipt，但不能反过来用一个分
 5. `loopx/control_plane/testing/release_commit_qualification.py`
 6. `tests/control_plane/test_cli_output_budget.py`
 7. `tests/control_plane/test_actual_default_model_behavior_portfolio.py`
-8. `tests/control_plane/test_scheduler_ack_decision_table.py`
+8. `tests/control_plane/test_scheduler_backoff_convergence.py`
 9. `tests/control_plane/test_goal_frontier_replan_rules.py`
 10. `examples/control_plane/quota-agent-scoped-user-gate-smoke.py`
 11. `tests/control_plane/test_goal_vision_blocked_successor.py`

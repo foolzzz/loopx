@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
 from loopx.control_plane.todos.user_gate import apply_scoped_user_gate_fallback_projection
-from loopx.control_plane.quota.scheduler_ack import (
-    record_quota_scheduler_ack_for_decision,
-)
 from loopx.control_plane.quota.stall_repair import (
     build_runtime_capability_user_gate_repair_hint,
 )
@@ -18,9 +14,6 @@ from loopx.control_plane.scheduler.execution_context import (
     scheduler_execution_context_for_runtime_profile,
 )
 from loopx.control_plane.scheduler.scheduler_hint import build_scheduler_hint
-from loopx.control_plane.scheduler.state import (
-    SCHEDULER_HOST_UPDATE_FAILURE_SCHEMA_VERSION,
-)
 from loopx.control_plane.testing.quota_fixtures import (
     quota_status_payload,
     quota_todo_item,
@@ -270,21 +263,14 @@ def test_blocking_user_gate_backs_off_instead_of_polling_as_active_work() -> Non
     next_hint = build_scheduler_hint(
         payload,
         user_action_required=True,
-        codex_app_scheduler_state={
-            "reset_token": initial_backoff["reset_token"],
-            "identity_signature": initial_backoff["identity_signature"],
-            "progression_index": initial_backoff["progression_index"],
-            "last_applied_rrule": initial_backoff["current_rrule"],
-        },
         codex_app_current_rrule=initial_backoff["current_rrule"],
         scheduler_execution_context=APP_CONTEXT,
     )
 
     assert next_hint["cadence_class"] == "human_gate"
-    assert next_hint["codex_app"]["recommended_interval_minutes"] == 60
-    assert next_hint["codex_app"]["stateful_backoff"]["progression_index"] == 1
-    assert next_hint["codex_app"]["stateful_backoff"]["apply_needed"] is True
-    assert next_hint["codex_app"]["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=60"
+    assert next_hint["codex_app"]["recommended_interval_minutes"] == 30
+    assert next_hint["codex_app"]["stateful_backoff"]["apply_needed"] is False
+    assert "recommended_rrule" not in next_hint["codex_app"]
 
 
 def _runtime_recovery_gate_status(
@@ -424,9 +410,8 @@ def test_runtime_recovery_gate_with_owner_capability_remains_owner_gate() -> Non
     assert payload["interaction_contract"]["user_channel"]["action_required"] is True
 
 
-def test_acked_human_gate_advances_despite_unrelated_historical_host_failure(
+def test_matched_human_gate_ignores_unpersisted_historical_host_failure(
     monkeypatch,
-    tmp_path: Path,
 ) -> None:
     now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(scheduler_hint_module, "now_utc", lambda: now)
@@ -439,64 +424,29 @@ def test_acked_human_gate_advances_despite_unrelated_historical_host_failure(
     first_rrule = payload["scheduler_hint"]["codex_app"]["stateful_backoff"][
         "current_rrule"
     ]
-    historical_failure = {
-        "schema_version": SCHEDULER_HOST_UPDATE_FAILURE_SCHEMA_VERSION,
-        "target_rrule": "FREQ=MINUTELY;INTERVAL=3",
-        "observed_host_rrule": first_rrule,
-        "failure_kind": "timeout",
-        "failure_count": 1,
-        "failed_at": now.isoformat(),
-    }
-
     host_matched = build_scheduler_hint(
         payload,
         user_action_required=True,
-        codex_app_scheduler_state={
-            "reset_token": "previous-active-work",
-            "identity_signature": "previous-active-work",
-            "progression_index": 0,
-            "progression_minutes": [3, 6, 10],
-            "last_applied_rrule": first_rrule,
-            "updated_at": now.isoformat(),
-            "host_update_failures": [historical_failure],
-        },
         codex_app_current_rrule=first_rrule,
         scheduler_execution_context=APP_CONTEXT,
     )
     matched_app = host_matched["codex_app"]
     assert matched_app["stateful_backoff"]["apply_needed"] is False
-    assert matched_app["stateful_backoff"]["ack_needed"] is True
-    assert matched_app["ack_hint"]["after"] == "matching_host_rrule_observed"
-
-    backoff = matched_app["stateful_backoff"]
-    fallback_ack = record_quota_scheduler_ack_for_decision(
-        {"goal_id": GOAL_ID, "scheduler_hint": host_matched},
-        runtime_root=tmp_path,
-        goal_id=GOAL_ID,
-        agent_id=AGENT_ID,
-        execute=True,
-        applied_rrule=first_rrule,
-        reset_token=backoff["reset_token"],
-        identity_signature=backoff["identity_signature"],
-        host_match_observed=True,
-        generated_at=now.isoformat(),
-    )
-    assert fallback_ack["ok"] is True, fallback_ack
-    settled_state = fallback_ack["scheduler_ack_event"]["scheduler_state"]
-    assert settled_state["last_applied_rrule"] == first_rrule
-    assert settled_state["host_update_failures"] == [historical_failure]
+    assert "ack_needed" not in matched_app["stateful_backoff"]
 
     elapsed = now + timedelta(minutes=30)
     monkeypatch.setattr(scheduler_hint_module, "now_utc", lambda: elapsed)
     next_hint = build_scheduler_hint(
         payload,
         user_action_required=True,
-        codex_app_scheduler_state=settled_state,
         codex_app_current_rrule=first_rrule,
         scheduler_execution_context=APP_CONTEXT,
     )
 
     next_app = next_hint["codex_app"]
-    assert next_app["stateful_backoff"]["progression_index"] == 1
-    assert next_app["recommended_rrule"] == "FREQ=MINUTELY;INTERVAL=60"
-    assert next_app["stateful_backoff"]["apply_needed"] is True
+    assert next_app["recommended_interval_minutes"] == 30
+    assert next_app["stateful_backoff"]["apply_needed"] is False
+    assert next_app["stateful_backoff"]["state_policy"] == (
+        "ephemeral_no_app_scheduler_state"
+    )
+    assert "recommended_rrule" not in next_app

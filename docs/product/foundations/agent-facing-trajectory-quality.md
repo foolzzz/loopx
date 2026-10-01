@@ -34,7 +34,7 @@ LoopX 需要同时保留两种不同形态的信息：
 
 ### 控制事件多于任务事件
 
-quota spend、scheduler acknowledgement、unchanged monitor poll 和 state refresh 对审计有价值，但它们不等于新的任务进展。控制事件密度持续上升时，Agent-facing 上下文和 run history 都会变得难以阅读，action 与 outcome 的对应关系也更难追踪。
+quota spend、unchanged monitor poll 和 state refresh 对审计有价值，但它们不等于新的任务进展。控制事件密度持续上升时，Agent-facing 上下文和 run history 都会变得难以阅读，action 与 outcome 的对应关系也更难追踪。
 
 ## 3. 三层质量架构
 
@@ -64,7 +64,7 @@ Registry、active state、todo、gate、quota decision、run history 和可选 t
 - required reads；
 - write scope、approval、workspace/capability guard 与 stop rule；
 - validation、writeback 与 quota spend policy；
-- scheduler action 和必要的 cadence acknowledgement。
+- scheduler action 和 cadence recommendation。
 
 TurnEnvelope 是 additive read model，目前仍为 opt-in，不改变 quota selection、todo routing 或默认完整输出。协议见 [TurnEnvelope v0](../../reference/protocols/turn-envelope-v0.md)。
 

@@ -123,7 +123,7 @@
       "consumer_sites": [
         "loopx/control_plane/quota/heartbeat_receipt.py::find_heartbeat_receipt"
       ],
-      "effect_boundary": "loopx/control_plane/scheduler/heartbeat_commit.ts::evaluateSchedulerHeartbeatCommit",
+      "effect_boundary": "loopx/control_plane/quota/heartbeat_receipt.py::ensure_turn_heartbeat_settlement_receipt",
       "authority_role": "scheduler_receipt_binding",
       "current_identity_strength": "goal_alias_only",
       "cleanup_support": "receipt_failure_and_terminalization",

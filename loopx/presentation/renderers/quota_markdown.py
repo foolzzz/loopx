@@ -276,67 +276,6 @@ def render_quota_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_quota_scheduler_ack_markdown(payload: dict[str, Any]) -> str:
-    event = as_dict(payload.get("scheduler_ack_event"))
-    state = as_dict(event.get("scheduler_state"))
-    before = as_dict(event.get("before"))
-    lines = [
-        "# LoopX Quota Scheduler Ack",
-        "",
-        f"- goal_id: `{payload.get('goal_id')}`",
-        f"- classification: `{payload.get('classification')}`",
-        f"- agent_id: `{payload.get('agent_id') or event.get('agent_id') or state.get('agent_id') or ''}`",
-        f"- surface: `{payload.get('surface') or event.get('surface')}`",
-        f"- state_key: `{payload.get('state_key') or event.get('state_key')}`",
-        f"- applied_rrule: `{payload.get('applied_rrule') or event.get('applied_rrule')}`",
-        f"- progression_index: `{state.get('progression_index')}`",
-        f"- reset_token: `{state.get('reset_token') or ''}`",
-        f"- identity_signature: `{state.get('identity_signature') or ''}`",
-        f"- appended: `{payload.get('appended')}`",
-        f"- registry_mutated: `{payload.get('registry_mutated')}`",
-        f"- effective_action: `{before.get('effective_action')}`",
-        f"- state: `{before.get('state')}`",
-        f"- should_run: `{before.get('should_run')}`",
-        f"- health_check: {payload.get('health_check') or 'scheduler ack state updated; no quota spend'}",
-    ]
-    if payload.get("scheduler_state_path"):
-        lines.append(f"- scheduler_state_path: `{payload.get('scheduler_state_path')}`")
-    if payload.get("reason"):
-        lines.append(f"- reason: {payload.get('reason')}")
-    append_operator_action_markdown(lines, payload)
-    return "\n".join(lines)
-
-
-def render_quota_scheduler_failure_markdown(payload: dict[str, Any]) -> str:
-    event = as_dict(payload.get("scheduler_failure_event"))
-    state = as_dict(event.get("scheduler_state"))
-    failure = as_dict(state.get("host_update_failure"))
-    before = as_dict(event.get("before"))
-    lines = [
-        "# LoopX Quota Scheduler Host Update Failure",
-        "",
-        f"- goal_id: `{payload.get('goal_id')}`",
-        f"- classification: `{payload.get('classification')}`",
-        f"- agent_id: `{payload.get('agent_id') or state.get('agent_id') or ''}`",
-        f"- surface: `{payload.get('surface') or event.get('surface')}`",
-        f"- state_key: `{payload.get('state_key') or event.get('state_key')}`",
-        f"- failed_rrule: `{payload.get('failed_rrule') or failure.get('target_rrule')}`",
-        f"- observed_host_rrule: `{payload.get('observed_host_rrule') or failure.get('observed_host_rrule') or ''}`",
-        f"- failure_kind: `{payload.get('failure_kind') or failure.get('failure_kind')}`",
-        f"- failure_count: `{failure.get('failure_count')}`",
-        f"- scheduler_state_mutated: `{payload.get('scheduler_state_mutated')}`",
-        f"- effective_action: `{before.get('effective_action')}`",
-        f"- should_run: `{before.get('should_run')}`",
-        f"- health_check: {payload.get('health_check') or 'scheduler host update failure recorded; no quota spend'}",
-    ]
-    if payload.get("scheduler_state_path"):
-        lines.append(f"- scheduler_state_path: `{payload.get('scheduler_state_path')}`")
-    if payload.get("reason"):
-        lines.append(f"- reason: {payload.get('reason')}")
-    append_operator_action_markdown(lines, payload)
-    return "\n".join(lines)
-
-
 def render_quota_should_run_markdown(payload: dict[str, Any]) -> str:
     quota = as_dict(payload.get("quota"))
     lines = [
@@ -918,7 +857,6 @@ def render_quota_should_run_markdown(payload: dict[str, Any]) -> str:
             f"app_automation_minutes={app_automation.get('recommended_interval_minutes')} "
             f"app_automation_rrule={app_automation.get('recommended_rrule')} "
             f"app_automation_apply_needed={(app_automation.get('stateful_backoff') or {}).get('apply_needed') if isinstance(app_automation.get('stateful_backoff'), dict) else None} "
-            f"app_automation_progression={app_automation.get('example_progression_minutes')} "
             f"cli_unchanged_limit={cli_unchanged_limit} "
             f"claude_unchanged_limit={claude_unchanged_limit}"
         )

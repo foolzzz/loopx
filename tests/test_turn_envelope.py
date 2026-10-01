@@ -169,19 +169,10 @@ def _full_decision() -> dict[str, object]:
                 "recommended_rrule": "FREQ=MINUTELY;INTERVAL=3",
                 "no_spend_for_cadence_change": True,
                 "stateful_backoff": {
-                    "state_key": "scheduler_hint.codex_app.stateful_backoff",
+                    "reset_token": "reset-1",
                     "current_rrule": "FREQ=MINUTELY;INTERVAL=60",
                     "apply_needed": True,
-                    "state_status": "reset_required",
-                },
-                "ack_hint": {
-                    "cli_args": [
-                        "quota",
-                        "scheduler-ack-current",
-                        "--goal-id",
-                        "fixture-goal",
-                        "--execute",
-                    ]
+                    "state_policy": "ephemeral_no_app_scheduler_state",
                 },
             },
         },
@@ -392,7 +383,6 @@ def test_turn_envelope_derives_canonical_slots_through_effect_turn() -> None:
     assert (
         envelope["scheduler"]["codex_app"]["stateful_backoff"]["apply_needed"] is True
     )
-    assert envelope["scheduler"]["codex_app"]["ack_cli_args"][0] == "quota"
     assert (
         envelope["contract_capsule"]["work_lane_contract"]["lane"] == "advancement_task"
     )
@@ -638,83 +628,6 @@ def test_turn_envelope_unbound_full_decision_is_not_executable() -> None:
     assert "quota should-run" not in full_decision
 
 
-def test_turn_envelope_preserves_exact_scheduler_ack_argv() -> None:
-    source = _full_decision()
-    capabilities = [
-        "network",
-        "github",
-        "github_cli",
-        "external_evidence_poll",
-        "external_write",
-        "lark_user",
-        "lark_bot",
-        "browser",
-    ]
-    cli_args = [
-        "--registry",
-        "/tmp/registry.global.json",
-        "--runtime-root",
-        "/tmp/runtime",
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        "fixture-goal",
-        "--agent-id",
-        "codex-fixture",
-    ]
-    for capability in capabilities:
-        cli_args.extend(["--available-capability", capability])
-    cli_args.extend(
-        [
-            "--surface",
-            "codex_app",
-            "--state-key",
-            "scheduler_hint.codex_app.stateful_backoff",
-            "--applied-rrule",
-            "FREQ=MINUTELY;INTERVAL=3",
-            "--host-match-observed",
-            "--reset-token",
-            "reset-token",
-            "--identity-signature",
-            "identity-signature",
-            "--execute",
-        ]
-    )
-    source["scheduler_hint"]["codex_app"]["ack_hint"]["cli_args"] = cli_args
-
-    envelope = build_turn_envelope(source)
-    compact_args = envelope["scheduler"]["codex_app"]["ack_cli_args"]
-
-    assert compact_args == cli_args
-    assert compact_args.count("--available-capability") == len(capabilities)
-    assert compact_args[-6:] == [
-        "--host-match-observed",
-        "--reset-token",
-        "reset-token",
-        "--identity-signature",
-        "identity-signature",
-        "--execute",
-    ]
-
-
-def test_turn_envelope_omits_oversized_scheduler_argv_instead_of_truncating() -> None:
-    source = _full_decision()
-    source["scheduler_hint"]["codex_app"]["ack_hint"]["cli_args"] = [
-        "quota",
-        "x" * 513,
-        "--execute",
-    ]
-
-    envelope = build_turn_envelope(source)
-    codex_app = envelope["scheduler"]["codex_app"]
-
-    assert "ack_cli_args" not in codex_app
-    assert codex_app["ack_cli_args_detail_ref"] == {
-        "reason": "omitted_to_preserve_executable_argv",
-        "request": "loopx quota should-run --include-detail scheduler",
-    }
-
-
 def test_turn_envelope_stays_actionable_during_scheduler_reset() -> None:
     source = _full_decision()
     todo_text = (
@@ -767,61 +680,14 @@ def test_turn_envelope_stays_actionable_during_scheduler_reset() -> None:
             "active with a concrete successor when evidence remains incomplete"
         ),
     }
-    capabilities = ["network", "shell", "filesystem_read", "filesystem_write"]
-    ack_cli_args = [
-        "--registry",
-        "registry.json",
-        "--runtime-root",
-        ".runtime",
-        "quota",
-        "scheduler-ack-current",
-        "--goal-id",
-        "fixture-goal",
-        "--agent-id",
-        "codex-fixture",
-    ]
-    for capability in capabilities:
-        ack_cli_args.extend(["--available-capability", capability])
-    ack_cli_args.extend(
-        [
-            "--surface",
-            "codex_app",
-            "--state-key",
-            "scheduler_hint.codex_app.stateful_backoff",
-            "--applied-rrule",
-            "FREQ=MINUTELY;INTERVAL=3",
-            "--execute",
-        ]
-    )
-    failure_cli_args = [
-        *ack_cli_args[:4],
-        "quota",
-        "scheduler-fail-current",
-        *ack_cli_args[6:-4],
-        "--failed-rrule",
-        "FREQ=MINUTELY;INTERVAL=3",
-        "--codex-app-current-rrule",
-        "FREQ=MINUTELY;INTERVAL=3",
-        "--execute",
-    ]
-    codex_app = source["scheduler_hint"]["codex_app"]
-    codex_app["ack_hint"]["cli_args"] = ack_cli_args
-    codex_app["failure_hint"] = {"cli_args": failure_cli_args}
     source["protocol_action_packet"] = _legacy_protocol_packet(source)
 
     envelope = build_turn_envelope(source)
-    compact_app = envelope["scheduler"]["codex_app"]
 
     assert envelope["action"]["selected_todo"]["text_ref"] == (
         "action.recommended_action"
     )
     assert "text" not in envelope["action"]["selected_todo"]
-    assert compact_app["ack_cli_args"] == ack_cli_args
-    assert "failure_cli_args" not in compact_app
-    assert compact_app["failure_cli_args_detail_ref"] == {
-        "reason": "cold_path_until_host_update_failure",
-        "request": "loopx quota should-run --include-detail scheduler",
-    }
     assert envelope["action_signature"]["matches"] is True
     assert envelope["compaction"]["within_budget"] is True
     assert envelope["compaction"]["envelope_json_bytes"] <= TURN_ENVELOPE_BUDGET_BYTES

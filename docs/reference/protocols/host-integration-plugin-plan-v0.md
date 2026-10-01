@@ -38,7 +38,7 @@ The eventual host plugin should be small and explicit:
 | Lifecycle reads | Surface status, quota, review packet, and command-pack output as compact host packets. | CLI JSON from `status`, `quota should-run`, `review-packet`, and `bootstrap-command-pack`. |
 | Controlled writes | Offer only CLI-equivalent todo/gate/reward/refresh/spend operations, with dry-run when required. | LoopX CLI commands and active-state/event ledger writes. |
 | Automation install | Create or refresh the host heartbeat using `heartbeat-prompt --thin` and scoped agent identity. | Generated heartbeat prompt and registry coordination fields. |
-| Scheduler adapter | Apply `scheduler_hint.app_automation.recommended_rrule` through `automation_update` only when `stateful_backoff.apply_needed=true`, then run `app_automation.ack_hint.cli_args`; when only `ack_needed=true`, skip the host write and run the bound ack directly. | `quota should-run.scheduler_hint`, `quota scheduler-ack-current`. |
+| Scheduler adapter | Apply `scheduler_hint.app_automation.recommended_rrule` through `automation_update` only when `stateful_backoff.apply_needed=true`; no scheduler ACK follows. | `quota should-run.scheduler_hint`. |
 | Privacy guard | Redact local paths and reject raw transcript/session-file/credential payloads. | Public/private boundary plus host projection boundary checks. |
 
 ## Phased Path
@@ -108,14 +108,9 @@ The host applies `quota should-run.scheduler_hint` after each heartbeat result:
 - wait/backoff states expose `app_automation.recommended_rrule` only when host update
   work is needed.
 - `app_automation.stateful_backoff.apply_needed=true` means call `automation_update`
-  for that RRULE; after success, run `app_automation.ack_hint.cli_args` so LoopX
-  persists reset token, identity signature,
-  progression index, and
-  last applied RRULE.
+  once for that RRULE; LoopX persists no App cadence state and takes no ACK.
 - `apply_needed=false` means the desired RRULE is already applied; skip the host
-  update. If `ack_needed=true`, run the bound `ack_hint.cli_args` directly so
-  LoopX persists the matching host readback; otherwise no scheduler action is
-  needed.
+  update.
 - Codex CLI TUI and Claude Code loops run the final quota/replan check before
   self-stop.
 

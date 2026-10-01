@@ -147,7 +147,7 @@ tables including monitor-poll.
 | 1 — Effect Program, managed runtime (#3416) | shipped | Confirmed; Stage 1 settlement-facade cleanup complete |
 | 2A — bounded rule-owner proofs (#3431–#3434, #3440) | shipped, pattern not to be repeated | Confirmed |
 | 2B — complete transaction cutovers | active | Sixteen merged families (below) |
-| 3 — CLI/App convergence | first bounded slice (receipt-bound scheduler ACK/failure native route) | Confirmed as `heartbeat_followup_cli.ts`; broader Stage 3 pending |
+| 3 — CLI/App convergence | first bounded slice (receipt-bound scheduler ACK/failure native route) | Retired with the App scheduler follow-up; broader Stage 3 pending |
 | 4 — distribution cleanup | not started | Confirmed |
 
 Merged Stage 2B transaction families verified in history: Turn settlement

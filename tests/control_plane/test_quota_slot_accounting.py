@@ -345,7 +345,7 @@ def test_interleaved_peer_spend_does_not_hide_scoped_delivery(tmp_path: Path) ->
 
 @pytest.mark.parametrize(
     "neutral_classification",
-    ["state_refreshed", "quota_scheduler_ack"],
+    ["state_refreshed", "quota_slot_voided"],
 )
 def test_same_agent_neutral_event_does_not_hide_scoped_delivery(
     tmp_path: Path,

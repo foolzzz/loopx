@@ -181,6 +181,35 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   - `backup-state --no-automations` and the `$CODEX_HOME/automations`
     backup target;
   - the Codex App guides and runtime pages outside the pinned dev book.
+- **App scheduler ACK and failure follow-up.** LoopX no longer records which
+  RRULE a Codex App or Trae App heartbeat applied. Removed:
+  - the `quota scheduler-ack`, `scheduler-ack-current` and
+    `scheduler-fail-current` commands and their flags (`--surface`,
+    `--state-key`, `--applied-rrule`, `--failed-rrule`,
+    `--host-match-observed`, `--failure-kind`, `--reset-token`,
+    `--identity-signature`, `--use-current-hint`,
+    `--scheduler-host-facts-chunk`);
+  - `scheduler_hint.app_automation.ack_hint` and `failure_hint`, their
+    `scheduler_hint.codex_app` copies and CLI route binding, and the Turn
+    envelope's `ack_cli_args` and `*_detail_ref` fields;
+  - `ack_cli_args` and `failure_cli_args` in `EffectTurn.next_effect`;
+  - the native Node fast path for those commands in the `loopx` launchers
+    (`scripts/loopx`, `scripts/loopx.ps1`, the console entry point) and its
+    TypeScript transaction;
+  - the obsolete App cadence progression/ACK/failure transition runtime,
+    failure-cache helpers, canonical enums, and characterization fixtures;
+  - the producer of `user_gate_notification_cooldown_v0`, which only fired
+    after a failed App cadence update;
+  - the `quota_scheduler_ack` run classification. Run rows with it that an
+    older release wrote are no longer treated as quota-neutral.
+
+  LoopX no longer reads or writes App scheduler state, so each poll projects
+  the App cadence from the profile's initial interval. The App state files
+  under `<runtime_root>/goals/<goal>/scheduler-state/<agent>/codex_app-*/` and
+  `.../trae_app-*/` are orphaned and can be deleted by hand; there is no
+  migration. Keep `scheduler-state/owner-policy-*/`, which holds the
+  automation cadence policy. The canary `scheduler-ack-route` surface and
+  profile become `scheduler-cadence`.
 
 ## [2.0.0] - 2026-09-29 - Fork v0: role-based multi-agent orchestration
 

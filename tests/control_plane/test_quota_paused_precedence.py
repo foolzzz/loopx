@@ -185,7 +185,7 @@ def test_paused_quota_stops_codex_app_heartbeat_until_explicit_resume() -> None:
     assert codex_app["apply"] == "pause_or_delete_current_heartbeat_if_possible"
     assert codex_app["host_action"] == "pause_or_delete_current_heartbeat"
     assert codex_app["host_action_required"] is True
-    assert codex_app["ack_required"] is False
+    assert "ack_required" not in codex_app
     assert codex_app["resume_trigger"] == "explicit quota resume with quota.compute > 0"
     assert "recommended_rrule" not in codex_app
 

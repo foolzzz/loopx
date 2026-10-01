@@ -304,9 +304,7 @@ def main() -> int:
         assert blocked_turn["scheduler_hint"]["codex_app"][
             "recommended_interval_minutes"
         ] == 10, blocked_turn
-        assert blocked_turn["scheduler_hint"]["codex_app"][
-            "example_progression_minutes"
-        ] == [10, 20, 30, 60], blocked_turn
+        assert "example_progression_minutes" not in blocked_turn["scheduler_hint"]["codex_app"], blocked_turn
         assert blocked_turn["scheduler_hint"]["unchanged_poll"]["limits"][
             "local_scheduler"
         ] == 3, blocked_turn

@@ -286,7 +286,7 @@ def build_ready_score_report(
             f"should_run={should_run}, quota_state={quota_state}, "
             f"effective_action={effective_action or 'unknown'}, scheduler_apply_needed={scheduler_apply_needed}"
         ),
-        action=None if quota_status == "pass" else "rerun quota should-run with the registered agent id and apply scheduler ack if requested",
+        action=None if quota_status == "pass" else "rerun quota should-run with the registered agent id and apply the scheduler hint if requested",
     )
 
     run_count = _int(status_payload.get("run_count"))

@@ -47,12 +47,7 @@ from .presentation.renderers.quota_event_markdown import (
 )
 from .presentation.renderers.quota_markdown import (
     render_quota_markdown as render_quota_markdown,
-    render_quota_scheduler_ack_markdown as render_quota_scheduler_ack_markdown,
     render_quota_should_run_markdown as render_quota_should_run_markdown,
-)
-from .control_plane.quota.scheduler_ack import (
-    QUOTA_SCHEDULER_ACK_CLASSIFICATION,
-    record_quota_scheduler_ack_for_decision,
 )
 from .control_plane.quota.settlement import (
     read_heartbeat_settlement,
@@ -93,10 +88,6 @@ from .control_plane.runtime.time import parse_timestamp as _parse_timestamp
 from .control_plane.scheduler.execution_context import (
     SchedulerExecutionContextResolution,
 )
-from .control_plane.scheduler.state import (
-    CODEX_APP_STATEFUL_BACKOFF_STATE_KEY,
-    CODEX_APP_SURFACE,
-)
 from .control_plane.todos.contract import (
     TODO_TASK_CLASS_ADVANCEMENT,
     TODO_TASK_CLASS_MONITOR,
@@ -122,7 +113,6 @@ _PUBLIC_COMPAT_REEXPORTS = {
     "QUOTA_MONITOR_POLL_CLASSIFICATION": "loopx.control_plane.quota.monitor_poll",
     "build_quota_monitor_poll_event": "loopx.control_plane.quota.monitor_poll",
     "render_quota_markdown": "loopx.presentation.renderers.quota_markdown",
-    "render_quota_scheduler_ack_markdown": "loopx.presentation.renderers.quota_markdown",
     "render_quota_should_run_markdown": "loopx.presentation.renderers.quota_markdown",
     "build_quota_slot_void_event": "loopx.control_plane.quota.void_commit",
     "record_quota_slot_void_from_preview": "loopx.control_plane.quota.void_commit",
@@ -133,7 +123,6 @@ _PUBLIC_COMPAT_REEXPORTS = {
 AUTONOMOUS_REPLAN_ACK_NEUTRAL_CLASSIFICATIONS = {
     QUOTA_SLOT_SPENT_CLASSIFICATION,
     QUOTA_SLOT_VOIDED_CLASSIFICATION,
-    QUOTA_SCHEDULER_ACK_CLASSIFICATION,
     "delivery_completion_spend_accounted_v0",
 }
 
@@ -978,63 +967,6 @@ def build_quota_slot_preview(
     if not effect_ref:
         return preview
     return {**preview, "effect_ref": str(effect_ref).strip()}
-
-
-def record_quota_scheduler_ack(
-    status_payload: dict[str, Any],
-    *,
-    goal_id: str,
-    execute: bool = False,
-    agent_id: str | None = None,
-    available_capabilities: Any = None,
-    surface: str = CODEX_APP_SURFACE,
-    state_key: str = CODEX_APP_STATEFUL_BACKOFF_STATE_KEY,
-    applied_rrule: str | None = None,
-    reset_token: str | None = None,
-    identity_signature: str | None = None,
-    reason_summary: str | None = None,
-    use_current_hint: bool = False,
-    host_match_observed: bool = False,
-    scheduler_execution_context: Mapping[str, Any]
-    | SchedulerExecutionContextResolution
-    | None = None,
-    operator_inbox_urgency_projector: Callable[..., dict[str, Any]] | None = None,
-    before_decision: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    safe_goal_id = _validate_goal_id_path_segment(str(goal_id or ""))
-    safe_agent_id = normalize_todo_claimed_by(agent_id)
-    before = (
-        dict(before_decision)
-        if isinstance(before_decision, Mapping)
-        else build_quota_should_run(
-            status_payload,
-            goal_id=safe_goal_id,
-            agent_id=safe_agent_id,
-            available_capabilities=available_capabilities,
-            codex_app_current_rrule=(applied_rrule if host_match_observed else None),
-            scheduler_execution_context=scheduler_execution_context,
-            operator_inbox_urgency_projector=operator_inbox_urgency_projector,
-        )
-    )
-    raw_runtime_root = status_payload.get("runtime_root")
-    if not raw_runtime_root:
-        raise ValueError("status payload does not include runtime_root")
-    runtime_root = Path(str(raw_runtime_root)).expanduser()
-    return record_quota_scheduler_ack_for_decision(
-        before,
-        runtime_root=runtime_root,
-        goal_id=safe_goal_id,
-        agent_id=safe_agent_id,
-        execute=execute,
-        surface=str(surface or CODEX_APP_SURFACE).strip() or CODEX_APP_SURFACE,
-        state_key=str(state_key or CODEX_APP_STATEFUL_BACKOFF_STATE_KEY).strip(),
-        applied_rrule=applied_rrule,
-        reset_token=reset_token,
-        identity_signature=identity_signature,
-        reason_summary=reason_summary,
-        use_current_hint=use_current_hint,
-        host_match_observed=host_match_observed,
-    )
 
 
 def build_quota_slot_spend_event(

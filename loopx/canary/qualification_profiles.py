@@ -93,7 +93,6 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
             "goal_frontier",
             "automation_liveness",
             "spend-slot",
-            "scheduler-ack",
             "monitor_target",
             "monitor_poll_writeback",
             "interaction_contract.py",
@@ -120,7 +119,7 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
                 "tier": "deep",
                 "reason": (
                     "samples the full event-sourced todo projection, status, quota interaction contract, "
-                    "work-lane contract, scheduler ack, refresh-state, spend-slot, and review-packet handoff path; "
+                    "work-lane contract, refresh-state, spend-slot, and review-packet handoff path; "
                     "kept deep because it is a slow end-to-end fixture"
                 ),
             },
@@ -129,7 +128,7 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
                 "tier": "default",
                 "reason": (
                     "guards peer self-merge continuation through successor todo selection, "
-                    "agent-lane refresh, scheduler ack, quota spend, and preserved goal next action"
+                    "agent-lane refresh, quota spend, and preserved goal next action"
                 ),
             },
             {
@@ -144,11 +143,6 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/control_plane/heartbeat-quota-flow-smoke.py",
                 "tier": "default",
                 "reason": "guards the heartbeat writeback then spend lifecycle that the composition canary executes",
-            },
-            {
-                "command": "python3 examples/control_plane/quota-scheduler-state-ack-smoke.py",
-                "tier": "default",
-                "reason": "guards scheduler_hint stateful ack progression and no-spend cadence transitions",
             },
             {
                 "command": "python3 examples/control_plane/work-lane-contract-smoke.py",
@@ -195,48 +189,40 @@ CONTROL_PLANE_QUALIFICATION_PROFILES: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "id": "scheduler-ack-route",
-        "title": "Scheduler ACK state and route binding",
+        "id": "scheduler-cadence",
+        "title": "Scheduler cadence projection and local backoff",
         "quality_risk": "high",
         "purpose": (
-            "Qualify scheduler ACK state progression and originating registry/runtime "
-            "routing as independent contracts without nested smoke execution."
+            "Qualify stateless App cadence convergence, monitor due-time projection, "
+            "and real local scheduler backoff without nested smoke execution."
         ),
         "catalog_families": [
             "Work Routing",
             "State And Boundary",
         ],
         "trigger_hints": (
-            "scheduler-ack",
-            "scheduler ack",
+            "scheduler cadence",
             "scheduler_hint",
-            "ack_cli_args",
-            "route_binding",
-            "loopx/control_plane/scheduler/ack.py",
+            "stateful_backoff",
+            "reset_policy",
             "loopx/control_plane/scheduler/scheduler_hint.py",
             "loopx/control_plane/scheduler/monitor_wait.py",
             "loopx/control_plane/scheduler/state.py",
-            "loopx/control_plane/scheduler/state_transition_rules.py",
-            "loopx/cli_commands/quota",
-            "quota-scheduler-state-ack-smoke.py",
-            "quota-scheduler-registry-route-smoke.py",
+            "loopx/control_plane/scheduler/state_store.ts",
+            "loopx/control_plane/scheduler/monitor_schedule.py",
+            "loopx/control_plane/scheduler/monitor_schedule.ts",
             "monitor-scheduler-contract-smoke.py",
         ),
         "checks": [
             {
-                "command": "python3 examples/control_plane/quota-scheduler-state-ack-smoke.py",
-                "tier": "default",
-                "reason": "guards scheduler_hint stateful ACK progression and no-spend cadence transitions",
-            },
-            {
-                "command": "python3 examples/control_plane/quota-scheduler-registry-route-smoke.py",
-                "tier": "default",
-                "reason": "guards ACK writes on the registry/runtime route that emitted the hint",
-            },
-            {
                 "command": "python3 examples/control_plane/monitor-scheduler-contract-smoke.py",
                 "tier": "default",
-                "reason": "guards multi-monitor cadence selection and current-agent lane independence",
+                "reason": "guards stateless App cadence and multi-monitor lane selection",
+            },
+            {
+                "command": "python3 examples/codex-cli-local-scheduler-tick-smoke.py",
+                "tier": "deep",
+                "reason": "guards the real local scheduler unchanged-poll backoff path",
             },
         ],
     },

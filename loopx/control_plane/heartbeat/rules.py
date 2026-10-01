@@ -52,15 +52,15 @@ REWARD_MEMORY_OUTCOME_COMPACT_RULE = (
 SCHEDULER_HINT_APPLICATION_RULE = (
     "`scheduler_hint` no-spend. host_action=pause_or_delete_current_heartbeat -> "
     "automation_update stop once, verify, end; else apply_needed -> RRULE via "
-    "automation_update, then ack; failure -> failure_hint; ack_needed -> ack."
+    "automation_update once; failure -> keep the observed host cadence."
 )
 SCHEDULER_HINT_COMPACT_RULE = (
     "host_action=pause_or_delete_current_heartbeat: automation_update stop; "
-    "else RRULE apply via automation_update, then ack/fail. No spend."
+    "else RRULE apply via automation_update once. No spend."
 )
 SCHEDULER_HINT_THIN_RULE = (
     "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend); "
-    "else RRULE/ack/fail."
+    "else RRULE once."
 )
 RUNTIME_CAPABILITY_PROJECTION_THIN_RULE = (
     "Observed capabilities -> `--available-capability`; never user gates."

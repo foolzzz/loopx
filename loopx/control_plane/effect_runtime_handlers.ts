@@ -107,14 +107,10 @@ import {
   normalizeTodoResumeWhen,
   planTodoExternalWaitTransition,
 } from "./todos/resume_condition.ts";
-import { evaluateSchedulerStateTransition } from "./scheduler/state_transition_rules.ts";
+import { projectMonitorSchedule } from "./scheduler/monitor_schedule.ts";
 import { projectTodoResumePlanning } from "./todos/resume_planning.ts";
 import { projectTodoQuotaPlanning } from "./todos/quota_selection.ts";
-import {
-  evaluateSchedulerStateOperation,
-  loadSchedulerState,
-  writeSchedulerState,
-} from "./scheduler/state_store.ts";
+import { evaluateSchedulerStateOperation } from "./scheduler/state_store.ts";
 import { buildVisionCheckpoint } from "./goals/vision_checkpoint.ts";
 import {evaluateCheckpointReadContext} from "./goals/checkpoint_read_context.ts";
 import {readCheckpointAuthority} from "./goals/checkpoint_authority.ts";
@@ -495,14 +491,12 @@ export function createEffectRuntimeHandlers(
     ["todo.frontier_revision.project", projectAdvancementFrontier],
     ["goal.long_todo_chain.evaluate", evaluateLongTodoChain],
     ["todo.external_wait.plan", planTodoExternalWaitTransition],
-    ["scheduler.state_transition.evaluate", evaluateSchedulerStateTransition],
+    ["monitor.schedule.project", projectMonitorSchedule],
     ["quota.automation_cadence.manage", manageAutomationCadence],
     ["quota.automation_cadence.admit", admitAutomationStart],
     ["quota.automation_cadence.confirm_start", confirmAutomationStart],
     ["quota.automation_cadence.schedule", projectCadenceSchedule],
     ["scheduler.state.evaluate", evaluateSchedulerStateOperation],
-    ["scheduler.state.load", loadSchedulerState],
-    ["scheduler.state.write", writeSchedulerState],
     ["turn.delivery_route.evaluate", evaluateDeliveryRoute],
     ["work_item.action_portfolio.project", projectQuotaActionPortfolio],
     ["work_item.action_selection.qualify", qualifyActionSelection],

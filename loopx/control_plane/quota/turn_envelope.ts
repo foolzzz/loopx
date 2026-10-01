@@ -22,10 +22,6 @@ export const ACTION_SIGNATURE_COVERAGE_V3 = "turn_envelope_action_dimensions_v3"
 export const ACTION_SIGNATURE_COVERAGE_V4 = "turn_envelope_action_dimensions_v4";
 export const ACTION_SIGNATURE_COVERAGE = ACTION_SIGNATURE_COVERAGE_V0;
 
-const EXECUTABLE_CLI_ARGS_MAX_ITEMS = 64;
-const EXECUTABLE_CLI_ARGS_MAX_ITEM_CHARS = 512;
-const EXECUTABLE_CLI_ARGS_MAX_TOTAL_CHARS = 2_048;
-const SCHEDULER_DETAIL_REQUEST = "loopx quota should-run --include-detail scheduler";
 const PROTOCOL_ACTION_PACKET_LLM_POLICY = "no_api";
 const PLANNING_HORIZON_DETAIL_REFS_REF = "$.detail_ref";
 
@@ -141,23 +137,6 @@ function textList(value: unknown, limit: number, itemLimit = 240): string[] {
     if (!rendered || result.includes(rendered)) continue;
     result.push(rendered);
     if (result.length >= limit) break;
-  }
-  return result;
-}
-
-function executableCliArgs(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > EXECUTABLE_CLI_ARGS_MAX_ITEMS) {
-    return [];
-  }
-  const result: string[] = [];
-  let totalChars = 0;
-  for (const item of value) {
-    if (typeof item !== "string" || !item || item.length > EXECUTABLE_CLI_ARGS_MAX_ITEM_CHARS) {
-      return [];
-    }
-    totalChars += item.length + 1;
-    if (totalChars > EXECUTABLE_CLI_ARGS_MAX_TOTAL_CHARS) return [];
-    result.push(item);
   }
   return result;
 }
@@ -409,34 +388,10 @@ function scheduler(payload: JsonObject, turn: ReturnType<typeof interpretQuotaSh
   const state = object(sourceApp.stateful_backoff);
   if (Object.keys(state).length > 0) {
     const compactState: JsonObject = {};
-    for (const field of ["state_key", "current_rrule", "apply_needed", "ack_needed", "state_status"]) {
+    for (const field of ["reset_token", "current_rrule", "apply_needed", "state_policy"]) {
       if (state[field] !== null && state[field] !== undefined) compactState[field] = state[field];
     }
-    const failure = object(state.host_update_failure);
-    if (Object.keys(failure).length > 0) {
-      compactState.host_update_failure = Object.fromEntries(
-        ["target_rrule", "observed_host_rrule", "failure_kind", "failure_count"]
-          .filter((field) => failure[field] !== null && failure[field] !== undefined)
-          .map((field) => [field, failure[field]]),
-      );
-    }
     app.stateful_backoff = compactState;
-  }
-  const ack = object(sourceApp.ack_hint);
-  const cliArgs = executableCliArgs(ack.cli_args);
-  if (cliArgs.length > 0) {
-    app.ack_cli_args = cliArgs;
-  } else if (ack.cli_args) {
-    app.ack_cli_args_detail_ref = {
-      reason: "omitted_to_preserve_executable_argv",
-      request: SCHEDULER_DETAIL_REQUEST,
-    };
-  }
-  if (object(sourceApp.failure_hint).cli_args) {
-    app.failure_cli_args_detail_ref = {
-      reason: "cold_path_until_host_update_failure",
-      request: SCHEDULER_DETAIL_REQUEST,
-    };
   }
   if (Object.keys(app).length > 0) {
     if (Object.keys(appAutomation).length > 0) result.app_automation = app;

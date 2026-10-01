@@ -24,10 +24,6 @@ from ..control_plane.scheduler.execution_context import (
     scheduler_runtime_profile_for_execution_context,
     resolve_scheduler_execution_context,
 )
-from ..control_plane.scheduler.state import (
-    APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY,
-    CODEX_APP_STATEFUL_BACKOFF_STATE_KEY,
-)
 from ..status import AUTONOMOUS_REPLAN_PERIODIC_LOOKBACK, collect_status
 from ..turn_identity import mint_turn_instance_id, normalize_turn_instance_id
 from .quota_request import (
@@ -41,14 +37,8 @@ QUOTA_SCHEDULER_COMMANDS = frozenset(
     {
         "should-run",
         "monitor-poll",
-        "scheduler-ack",
-        "scheduler-ack-current",
-        "scheduler-fail-current",
         "spend-slot",
     }
-)
-QUOTA_SCHEDULER_FOLLOWUP_COMMANDS = frozenset(
-    {"scheduler-ack", "scheduler-ack-current", "scheduler-fail-current"}
 )
 
 
@@ -164,15 +154,11 @@ def validate_quota_command_context_request(
     if heartbeat_turn_id and command not in {
         "should-run",
         "monitor-poll",
-        "scheduler-ack",
-        "scheduler-ack-current",
-        "scheduler-fail-current",
         "spend-slot",
     }:
         raise QuotaCommandValidationError(
             "--turn-instance-id is only valid with `quota should-run`, "
-            "`quota monitor-poll`, scheduler ACK/failure follow-ups, or "
-            "`quota spend-slot`"
+            "`quota monitor-poll`, or `quota spend-slot`"
         )
     if getattr(args, "replan_obligation_id", None) and command != "spend-slot":
         raise QuotaCommandValidationError(
@@ -212,37 +198,6 @@ def validate_quota_command_context_request(
             "Trae App uses --app-automation-current-rrule, not the Codex compatibility alias"
         )
     args.app_automation_current_rrule = neutral_rrule or legacy_codex_rrule or None
-    if command in QUOTA_SCHEDULER_FOLLOWUP_COMMANDS:
-        selected_surface = (
-            resolved_scheduler_context.context.host_surface.value
-            if resolved_scheduler_context.ok
-            and resolved_scheduler_context.context is not None
-            and resolved_scheduler_context.context.app_automation_applicable
-            else "codex_app"
-        )
-        supplied_surface = str(getattr(args, "surface", None) or "").strip()
-        if supplied_surface and supplied_surface != selected_surface:
-            raise QuotaCommandValidationError(
-                f"--surface {supplied_surface} does not match selected App runtime {selected_surface}"
-            )
-        args.surface = selected_surface
-        supplied_state_key = str(
-            getattr(args, "state_key", None) or ""
-        ).strip()
-        default_state_key = (
-            APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY
-            if selected_surface == HostSurface.TRAE_APP.value
-            else CODEX_APP_STATEFUL_BACKOFF_STATE_KEY
-        )
-        if (
-            selected_surface == HostSurface.TRAE_APP.value
-            and supplied_state_key
-            and supplied_state_key != APP_AUTOMATION_STATEFUL_BACKOFF_STATE_KEY
-        ):
-            raise QuotaCommandValidationError(
-                "Trae App scheduler follow-up requires the app_automation state key"
-            )
-        args.state_key = supplied_state_key or default_state_key
     validate_quota_command_request(args)
     if begin_turn:
         profile = scheduler_runtime_profile_for_execution_context(scheduler_context)

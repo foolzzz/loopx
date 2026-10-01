@@ -58,10 +58,6 @@ test("Turn-result verdicts and host actions never become quota actions", () => {
         next_cli_actions: ["loopx status"],
         scheduler_hint: {
           action: "apply_rrule", cadence_class: "repair",
-          codex_app: {
-            ack_hint: { cli_args: ["quota", "scheduler-ack-current"] },
-            failure_hint: { cli_args: ["quota", "scheduler-ack-current", "--failure"] },
-          },
         },
       };
       const before = structuredClone(packet);
@@ -77,8 +73,6 @@ test("Turn-result verdicts and host actions never become quota actions", () => {
       assert.deepEqual(turn.next_effect, {
         cli_actions: ["loopx status"], execution_mode: null,
         scheduler_action: "apply_rrule", cadence_class: "repair",
-        ack_cli_args: ["quota", "scheduler-ack-current"],
-        failure_cli_args: ["quota", "scheduler-ack-current", "--failure"],
       });
       assert.equal(JSON.parse(JSON.stringify(turn)).observation.effective_action, null);
       assert.deepEqual(packet, before);

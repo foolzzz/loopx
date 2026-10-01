@@ -431,6 +431,10 @@ autonomous replan obligation。它防止旧 Turn、其他 Agent 或其他工作�
 2. durable writeback 缺失或被拒绝时不能 spend；
 3. scheduler apply 没有 ACK 或 fail receipt 时不能假装 Host 已更新。
 
+这里的 receipt 是通用 Turn journal 契约，与 App cadence projection 分属不同边界。App
+automation 没有 scheduler ACK/failure follow-up 命令，也不持久化每 App scheduler state；
+每次无状态 proposal 只依据 Host 直接更新结果或 authoritative readback。
+
 失败不是删掉 transaction。`receipt_missing`、`identity_mismatch`、`writeback_rejected`、
 `quota_spend_rejected` 等失败种类会把控制权交给 repair/retry，并保留 effect identity 以实现幂等。
 如果 journal 留下 prepared provider effect，恢复器必须先按相同 `effect_ref` 做 provider readback：
@@ -470,15 +474,16 @@ flowchart TD
   Decision["resolved interaction contract"] --> Hint["scheduler hint"]
   Hint --> Apply{"host cadence already matches?"}
   Apply -->|否| HostUpdate["apply host update"]
-  Apply -->|是| Ack["record host-match ACK"]
-  HostUpdate -->|成功| Ack
-  HostUpdate -->|失败| Fail["record failure receipt"]
-  Ack --> NextTick["next tick re-runs quota"]
-  Fail --> Retry["bounded retry / backoff"]
+  Apply -->|是| NextTick["next tick re-runs quota"]
+  HostUpdate -->|成功| Verify["verify host result"]
+  HostUpdate -->|失败| Keep["本轮保留 observed cadence"]
+  Verify --> NextTick
+  Keep --> NextTick
 ```
 
-`reset_token` 或 identity 改变时，cadence 回到初始档；同一 unchanged identity 才逐步 backoff。调度
-变化本身不 spend，也不能把一个 paused/blocked Goal 变成 eligible。
+每轮 App poll 都投影当前 profile 的初始间隔，并与 observed Host RRULE 比较。App automation 不持久化
+progression index、apply ACK 或 failure receipt；下一次唤醒从 canonical state 重新计算。local scheduler
+仍可使用有界 unchanged-poll backoff。调度变化本身不 spend，也不能把 paused/blocked Goal 变成 eligible。
 
 ### Continuous Monitor：观察也是有界状态机
 
@@ -604,7 +609,7 @@ flowchart TD
    必须通过 owner write API 持久化；聊天总结不是 writeback。
 3. **下一步有归宿吗？** 完成一个 Todo 后必须存在 runnable successor、明确 Gate、带
    `resume_when` / `next_due_at` 的等待、repair/replan obligation，或者有证据的 `no_followup`。
-4. **Host 知道继续还是停止吗？** scheduler apply 必须有 ACK 或 failure receipt；下一次唤醒重新读取
+4. **Host 知道继续还是停止吗？** projected RRULE 与 observed RRULE 不同时只 apply 一次并校验直接结果；下一次唤醒重新读取
    canonical source。`terminal_no_followup` 是因 Goal 完成而停止 recurring automation 的依据。Goal
    `stopped`、quota paused 或 peer coordination blocked 也可能产生 stop/return-to-owner，但这些不能
    反证 Goal 已闭环。
@@ -622,7 +627,7 @@ flowchart TD
 - Todo 已标记 done，但 acceptance 仍未满足，或 Vision checkpoint 缺失；
 - 外部操作成功，但 durable writeback 或 matching spend receipt 缺失；
 - 所有可见 Todo 都为空，但仍有 due monitor、blocked successor、Gate 或 retryable sink；
-- heartbeat 调整了 cadence，但 Host 没有 ACK，控制面却声称调度已生效。
+- heartbeat 更新失败或没有回读，但控制面却声称 Host cadence 已改变。
 
 真正的闭环也不要求结果一定是“成功”。经验证的 blocker、负向证据、rollback、retired 或
 coverage-backed `no_followup` 都可以诚实收口；关键是结果可追溯、状态已回写，而且下一步或终止
@@ -641,11 +646,12 @@ coverage-backed `no_followup` 都可以诚实收口；关键是结果可追溯�
 6. **写回：** Todo evidence 记录 revision、验证和 next action；如果完成则创建 successor 或
    `no_followup`。
 7. **计费：** writeback 成功后只 spend 一次。
-8. **调度：** 重新计算后，若只剩首页 Gate，则选择 human-gate backoff；Host apply 并 ACK。
+8. **调度：** 重新计算后，若只剩首页 Gate，则选择 human-gate 初始 cadence；observed RRULE 不同
+   时 Host 只 apply 一次，并校验直接结果。
 9. **投影：** Workspace 显示文档已完成、首页仍待决定。界面没有吞掉或扩大 Gate scope。
 
 如果第 5 步失败，流转停在 validation；如果第 6 步失败，不得进入 spend；如果第 8 步 Host 更新
-失败，记录 failure receipt 并有界重试，而不是宣称 cadence 已生效。
+失败，本轮保留 observed cadence，不能宣称 projected cadence 已生效；下一次唤醒从 canonical state 重算。
 
 ## 从症状定位 owner
 
@@ -655,7 +661,7 @@ coverage-backed `no_followup` 都可以诚实收口；关键是结果可追溯�
 | Gate 让整个 Goal 停住 | decision scope 与 selected fallback | 删除 Gate 或默认 approve | 修 scope，重新计算 contract |
 | blocker 已清除但 Agent 仍空转 | handoff state 与 successor relation | 手改 `gate_state` | 建 successor、reopen 或 `no_followup` |
 | 已 spend，但找不到产物 | settlement receipt 与 durable writeback | 补一段聊天说明 | repair/compensation，并修 spend path |
-| heartbeat 越等越久 | reset token、identity、ACK/failure receipt | 无条件缩短 cadence | 修 stale scheduler state |
+| heartbeat cadence 错误 | 当前 profile、projected initial RRULE、observed Host RRULE | 无条件缩短 cadence | 重算，并仅在 observed RRULE 不同时 apply 一次 |
 | Monitor 一直 poll | `next_due_at`、result hash、stop condition | 把每次 poll 当 delivery | 写 bounded no-change / closeout |
 | Monitor 有 observation，但没有期望的 successor | authority mode、operation receipt、material-change generation、projection outbox | 重跑 business mutation 或手改投影 | 回放同一 operation；只重试 pending projection，或用新 evidence 新建一代 |
 | replan 后路线没变 | Vision/Todo/acceptance delta | 用“已重新规划”清 obligation | 写 material patch 或 unchanged reason |

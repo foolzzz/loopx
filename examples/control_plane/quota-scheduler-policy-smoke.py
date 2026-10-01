@@ -83,7 +83,6 @@ def assert_policy_case(
     expected_action: str,
     expected_rrule: str,
     expected_progression: list[int] | None = None,
-    expected_same_identity_action: str = "advance_index_after_applied_interval_elapsed",
 ) -> None:
     quota_wrapper = _scheduler_hint(
         deepcopy(base_payload),
@@ -123,19 +122,22 @@ def assert_policy_case(
     )
     stateful_backoff = extracted["app_automation"]["stateful_backoff"]
     if expected_progression is not None:
-        assert extracted["app_automation"]["example_progression_minutes"] == expected_progression, (
+        assert detailed["cold_path_detail"]["local_scheduler"]["example_progression_minutes"] == expected_progression, (
             name,
-            extracted,
+            detailed,
         )
+    assert "example_progression_minutes" not in extracted["app_automation"], (name, extracted)
     assert stateful_backoff["schema_version"] == "app_automation_stateful_backoff_v0", (name, extracted)
-    assert stateful_backoff["state_key"] == "scheduler_hint.app_automation.stateful_backoff", (name, extracted)
+    assert stateful_backoff["state_policy"] == "ephemeral_no_app_scheduler_state", (name, extracted)
     assert stateful_backoff["apply_needed"] is True, (name, extracted)
     assert stateful_backoff["current_rrule"] == expected_rrule, (name, extracted)
-    assert stateful_backoff["state_status"] == "missing", (name, extracted)
     for omitted in (
+        "state_key",
+        "identity_signature",
+        "progression_index",
+        "state_status",
         "progression_minutes",
         "current_interval_minutes",
-        "ack_required_after_apply",
         "same_identity_action",
         "reset_action",
         "automation_update_scope",
@@ -150,14 +152,12 @@ def assert_policy_case(
     assert detailed["cold_path_detail"]["codex_cli_tui"]["final_quota_replan_check"], (name, detailed)
     assert detailed["cold_path_detail"]["claude_code_loop"]["after_limit"], (name, detailed)
     stateful_detail = detailed["cold_path_detail"]["stateful_backoff_detail"]
-    if expected_progression is not None:
-        assert stateful_detail["progression_minutes"] == expected_progression, (name, detailed)
-    assert stateful_detail["ack_required_after_apply"] is True, (name, detailed)
-    assert stateful_detail["same_identity_action"] == expected_same_identity_action, (
+    assert "progression_minutes" not in stateful_detail, (name, detailed)
+    assert stateful_detail["state_policy"] == "ephemeral_no_app_scheduler_state", (
         name,
         detailed,
     )
-    assert stateful_detail["reset_action"] == "clear_progression_index_apply_initial_rrule", (
+    assert stateful_detail["reset_action"] == "apply_profile_initial_rrule_when_observed_rrule_differs", (
         name,
         detailed,
     )
@@ -174,7 +174,6 @@ def assert_policy_case(
     assert "automation_update" in reset_detail["app_automation_apply"], (name, reset_detail)
     assert len(reset_detail["profile_signature"]) == 12, (name, reset_detail)
     assert stateful_backoff["reset_token"] == reset["reset_token"], (name, reset)
-    assert stateful_backoff["identity_signature"] == reset["identity_signature"], (name, reset)
     assert "identity_snapshot" not in reset, (name, reset)
     assert "profile_snapshot" not in reset, (name, reset)
 
@@ -185,7 +184,6 @@ def main() -> int:
         payload(should_run=True, effective_action="normal_run"),
         expected_action="run_now",
         expected_rrule="FREQ=MINUTELY;INTERVAL=3",
-        expected_same_identity_action="keep_initial_interval_while_active_work",
     )
     assert_policy_case(
         "mapped-noop",

@@ -185,17 +185,10 @@ Do not describe wrapper rollback as whole-system rollback.
 ## Scheduler convergence entrypoint
 
 When a Codex App packet reports `stateful_backoff.apply_needed=true`, have the Host apply
-`recommended_rrule`, read back the actual result, and then run the packet's full `ack_hint.cli_args`.
-The current route is typically:
-
-```bash
-loopx quota scheduler-ack-current <packet-bound-args...>
-```
-
-After an apply failure or timeout, do not ACK; run `failure_hint.cli_args` once. When
-`apply_needed=false` and `ack_needed=true`, exact Host readback already matches the target cadence, so skip
-the no-op update and run the bound ACK. Proposal, Host apply, readback, and ACK are all required for
-convergence, and cadence changes do not consume delivery spend.
+`recommended_rrule` once and read back the actual result. After a failure or timeout, do not retry in
+the same turn. When `apply_needed=false`, exact Host readback already matches the target cadence, so
+skip the no-op update. LoopX keeps no App scheduler state and accepts no ACK/failure follow-up; cadence
+changes do not consume delivery spend.
 
 ## Extension lifecycle entrypoints
 

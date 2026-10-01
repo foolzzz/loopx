@@ -259,7 +259,7 @@ def test_missing_scheduler_context_fails_closed() -> None:
     assert hint["execution_phase"]["disposition"] == "contract_error"
 
 
-def test_codex_app_runtime_profile_preserves_host_backoff() -> None:
+def test_codex_app_runtime_profile_preserves_host_cadence_projection() -> None:
     context = scheduler_execution_context_for_runtime_profile(
         SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
     )
@@ -285,29 +285,19 @@ def test_codex_app_runtime_profile_preserves_host_backoff() -> None:
     assert canonical["stateful_backoff"]["schema_version"] == (
         "app_automation_stateful_backoff_v0"
     )
-    assert canonical["stateful_backoff"]["state_key"] == (
-        "scheduler_hint.app_automation.stateful_backoff"
+    assert canonical["stateful_backoff"]["state_policy"] == (
+        "ephemeral_no_app_scheduler_state"
     )
-    assert canonical["ack_hint"]["schema_version"] == (
-        "app_automation_scheduler_ack_hint_v0"
-    )
-    assert legacy["stateful_backoff"]["schema_version"] == (
-        "codex_app_stateful_backoff_v0"
-    )
-    assert legacy["stateful_backoff"]["state_key"] == (
-        "scheduler_hint.codex_app.stateful_backoff"
-    )
-    assert legacy["ack_hint"]["schema_version"] == (
-        "codex_app_scheduler_ack_hint_v0"
-    )
-    assert legacy["rrule_source"] == "scheduler_hint.codex_app.recommended_rrule"
+    for packet in (canonical, legacy):
+        assert "ack_hint" not in packet
+        assert "failure_hint" not in packet
     assert legacy["stateful_backoff"]["apply_needed"] is True
     assert legacy["recommended_interval_minutes"] == 3
-    assert hint["reset_policy"]["reset_token"] == "3e649fb65bf246f9"
+    assert len(hint["reset_policy"]["reset_token"]) == 16
     assert hint["cold_path_detail"]["execution_phase"]["apply_needed"] is True
 
 
-def test_trae_app_runtime_profile_preserves_host_backoff_and_identity() -> None:
+def test_trae_app_runtime_profile_preserves_host_cadence_projection_and_identity() -> None:
     context = scheduler_execution_context_for_runtime_profile(
         SchedulerRuntimeProfile.TRAE_APP
     )
@@ -326,20 +316,20 @@ def test_trae_app_runtime_profile_preserves_host_backoff_and_identity() -> None:
     app = hint["app_automation"]
     assert app["host_surface"] == "trae_app"
     assert app["stateful_backoff"]["apply_needed"] is True
-    assert app["stateful_backoff"]["state_key"] == (
-        "scheduler_hint.app_automation.stateful_backoff"
+    assert app["stateful_backoff"]["state_policy"] == (
+        "ephemeral_no_app_scheduler_state"
     )
     assert app["recommended_interval_minutes"] == 3
     assert app["rrule_source"] == "scheduler_hint.app_automation.recommended_rrule"
     assert "fallback_hint" not in app
-    assert "--trae_app" in app["ack_hint"]["cli_args"]
-    assert "--surface" in app["ack_hint"]["cli_args"]
+    assert "ack_hint" not in app
+    assert "failure_hint" not in app
     assert hint["cold_path_detail"]["execution_phase"]["host_surface"] == (
         "trae_app"
     )
 
 
-def test_codex_app_monitor_reset_token_preserves_v0_profile_identity() -> None:
+def test_codex_app_monitor_reset_token_is_stable_without_app_scheduler_state() -> None:
     context = scheduler_execution_context_for_runtime_profile(
         SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT
     )
@@ -350,10 +340,21 @@ def test_codex_app_monitor_reset_token_preserves_v0_profile_identity() -> None:
         scheduler_execution_context=context,
     )
 
-    assert hint["reset_policy"]["reset_token"] == "704ba9bb4bd17d43"
+    repeated = build_scheduler_hint(
+        _monitor_wait_payload(),
+        include_detail=True,
+        scheduler_execution_context=context,
+    )
+
+    assert len(hint["reset_policy"]["reset_token"]) == 16
+    assert hint["reset_policy"]["reset_token"] == repeated["reset_policy"][
+        "reset_token"
+    ]
     reset_detail = hint["cold_path_detail"]["reset_policy_detail"]
-    assert reset_detail["profile_signature"] == "d8601294ac8d"
-    assert reset_detail["reset_profile_signature"] == "d8601294ac8d"
+    assert len(reset_detail["profile_signature"]) == 12
+    assert reset_detail["profile_signature"] == reset_detail[
+        "reset_profile_signature"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1374,48 +1375,6 @@ def test_observed_spawn_enters_next_cli_action_and_replay_admits_child() -> None
         assert contract["mode"] == "adaptive"
         assert contract["primary_todo_id"] == "todo_primary"
         assert contract["eligible_child_lanes"][0]["todo_id"] == "todo_child"
-
-
-def test_persisted_capabilities_do_not_enter_scheduler_ack() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        persisted_capabilities=["subagent_spawn", "subagent_resume"],
-    )
-
-    ack_cli_args = quota["scheduler_hint"]["codex_app"]["ack_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(ack_cli_args) == []
-
-
-def test_observed_spawn_enters_scheduler_ack() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        available_capabilities=["subagent_spawn"],
-    )
-
-    ack_cli_args = quota["scheduler_hint"]["codex_app"]["ack_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(ack_cli_args) == ["subagent_spawn"]
-
-
-def test_persisted_capabilities_do_not_enter_scheduler_failure() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        persisted_capabilities=["subagent_spawn", "subagent_resume"],
-    )
-
-    failure_cli_args = quota["scheduler_hint"]["codex_app"]["failure_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(failure_cli_args) == []
-
-
-def test_observed_spawn_enters_scheduler_failure() -> None:
-    _status, quota, _context = _child_capability_surface_case(
-        available_capabilities=["subagent_spawn"],
-    )
-
-    failure_cli_args = quota["scheduler_hint"]["codex_app"]["failure_hint"]["cli_args"]
-
-    assert _runtime_capabilities_from_cli_args(failure_cli_args) == [
-        "subagent_spawn"
-    ]
 
 
 def test_persisted_capabilities_do_not_enter_cooldown_rebuild() -> None:

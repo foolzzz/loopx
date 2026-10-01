@@ -463,7 +463,7 @@ Quota slot 表示一次有效推进，不是一次调用。
 
 - quota/status 只读；
 - guided preview；
-- scheduler ACK；
+- scheduler cadence 调整；
 - monitor no-change poll；
 - quiet no-op；
 - 只有“正在分析”的更新；
@@ -756,4 +756,4 @@ ACK 本身不改变 frontier，不能清除 obligation。
 4. 哪些 no-op 必须保持 automation active？
 5. 为什么 terminal closure 要检查 todo、monitor、successor、replan 和 acceptance gap？
 
-下一讲把内核决策交给 host：heartbeat prompt、Codex App automation、stateful backoff、scheduler ACK 和 terminal stop。
+下一讲把内核决策交给 host：heartbeat prompt、Codex App automation、stateful backoff、reset policy 和 terminal stop。

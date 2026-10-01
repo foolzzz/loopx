@@ -130,55 +130,48 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
         },
     },
     {
-        "surface_id": "scheduler-ack-route",
-        "title": "Scheduler ACK/failure state and native route binding",
+        "surface_id": "scheduler-cadence",
+        "title": "Scheduler cadence projection and local backoff",
         "risk": "high",
-        "canary_profile_id": "scheduler-ack-route",
+        "canary_profile_id": "scheduler-cadence",
         "owner_paths": [
-            "loopx/control_plane/quota/live_decision.py",
-            "loopx/control_plane/scheduler/heartbeat_commit.ts",
-            "loopx/control_plane/scheduler/heartbeat_followup.ts",
-            "loopx/control_plane/scheduler/heartbeat_followup_cli.ts",
             "loopx/control_plane/scheduler/monitor_wait.py",
             "loopx/control_plane/scheduler/scheduler_hint.py",
             "loopx/control_plane/scheduler/state.py",
-            "loopx/control_plane/scheduler/state_transition_rules.py",
+            "loopx/control_plane/scheduler/state_store.ts",
+            "loopx/control_plane/scheduler/monitor_schedule.py",
+            "loopx/control_plane/scheduler/monitor_schedule.ts",
         ],
         "semantic_oracle": {
             "source_kind": "specification",
             "refs": ["docs/status-data-contract.md"],
             "independence_rationale": (
-                "The status contract requires ACK arguments to retain the registry and "
-                "effective runtime-root route that emitted the scheduler hint, independently "
-                "of the binding and persistence implementations."
+                "The status contract specifies stateless App initial-cadence projection "
+                "and local unchanged-poll backoff independently of the transition kernel "
+                "implementation."
             ),
         },
         "layers": {
             "unit_contract": _covered(
-                "tests/test_loopx_turn_driver.py",
-                "tests/control_plane/test_scheduler_ack_decision_table.py",
                 "tests/control_plane/test_scheduler_backoff_convergence.py",
-                "tests/control_plane/test_scheduler_host_failure_cache.py",
-                "tests/control_plane/test_scheduler_host_followup_hint_transport.py",
-                "tests/control_plane/test_scheduler_state_transition_rules.py",
-                "tests/control_plane_ts/scheduler_heartbeat_followup.test.ts",
-                "tests/control_plane_ts/scheduler_heartbeat_followup_cli.test.ts",
+                "tests/control_plane/test_monitor_schedule.py",
+                "tests/control_plane_ts/scheduler_state_store.test.ts",
+                "tests/control_plane_ts/monitor_schedule.test.ts",
             ),
             "durable_smoke": _covered(
-                "examples/control_plane/quota-scheduler-state-ack-smoke.py",
-                "examples/control_plane/quota-scheduler-registry-route-smoke.py",
                 "examples/control_plane/monitor-scheduler-contract-smoke.py",
+                "examples/codex-cli-local-scheduler-tick-smoke.py",
             ),
-            "catalog_canary": _covered("scheduler-ack-route"),
-            "host_upgrade": _covered(
-                "tests/test_scheduler_native_launcher.py",
-                "tests/test_windows_install.py",
+            "catalog_canary": _covered("scheduler-cadence"),
+            "host_upgrade": _not_applicable(
+                "Cadence is computed by the control plane before any host applies it; "
+                "no launcher or installer path participates."
             ),
             "model_behavior": _not_applicable(
-                "Route binding and ACK state progression are deterministic safety invariants."
+                "App cadence projection and local backoff are deterministic scheduler invariants."
             ),
             "release_gate": _covered(
-                "loopx canary premerge --profile scheduler-ack-route"
+                "loopx canary premerge --profile scheduler-cadence"
             ),
         },
     },

@@ -28,7 +28,7 @@ remain supported for the v0 reader lifetime. The v0 envelope keeps:
 - write scope, approvals, guards, workspace/capability gates, and stop rule;
 - delivery, repair, safe-bypass, and blocked-action policy;
 - validation/writeback and quota-spend policy;
-- the current scheduler action and cadence acknowledgement command.
+- the current scheduler action and cadence recommendation.
 
 The envelope also carries a bounded `contract_capsule` for interaction mode,
 work-lane and execution obligations, successor/replan duties, automation
@@ -197,7 +197,7 @@ diagnostic targets, not permission to truncate fields or hard per-section caps:
 | action | 800 | action, user, required reads, replan packet, response plan |
 | boundary | 2,000 | boundary and execution policy |
 | writeback | 600 | validation/settlement commands and policy |
-| scheduler | 600 | scheduler action and acknowledgement |
+| scheduler | 600 | scheduler action and cadence recommendation |
 | contracts | 1,800 | contract capsule |
 | context | 1,400 | capability context and task orchestration |
 | transport | 992 | identity/metadata, signatures, cold-read commands, diagnostics |
@@ -226,11 +226,8 @@ Turn。按最终 UTF-8 字节数统计各部分占比，先压缩重复展示内
 Hot-path fields may use explicit references when the inline value would only
 repeat another authoritative field. In particular,
 `action.selected_todo.text_ref = action.recommended_action` means the selected
-todo text is already present as the recommended action. Scheduler reset plans
-keep the exact acknowledgement argv inline when it satisfies the executable
-argv limits; the failure argv stays behind `failure_cli_args_detail_ref` until
-the host update actually fails. Consumers must follow these references instead
-of treating the omitted duplicate as missing state.
+todo text is already present as the recommended action. Consumers must follow
+these references instead of treating the omitted duplicate as missing state.
 
 This contract is a projection only. It does not change quota selection, todo
 routing, scheduler state, history writes, or state transitions. Promoting it to

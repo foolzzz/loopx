@@ -319,58 +319,6 @@ def assert_bounded_delivery_state_machine_bundle(quota_payload: dict[str, Any]) 
     assert quota_payload["agent_lane_next_action"]["preserves_goal_next_action"] is True, quota_payload
 
 
-def assert_scheduler_ack_state_machine(
-    registry_path: Path,
-    runtime_root: Path,
-    quota_payload: dict[str, Any],
-) -> dict[str, Any]:
-    codex_app = quota_payload["scheduler_hint"]["codex_app"]
-    backoff = codex_app["stateful_backoff"]
-    ack_payload = run_cli(
-        registry_path,
-        runtime_root,
-        "quota",
-        "scheduler-ack",
-        "--goal-id",
-        GOAL_ID,
-        "--agent-id",
-        AGENT_ID,
-        "--codex-app",
-        "--surface",
-        "codex_app",
-        "--state-key",
-        backoff["state_key"],
-        "--applied-rrule",
-        codex_app["recommended_rrule"],
-        "--reset-token",
-        backoff["reset_token"],
-        "--identity-signature",
-        backoff["identity_signature"],
-        "--execute",
-    )
-    assert ack_payload["ok"] is True, ack_payload
-    assert ack_payload["mode"] == "scheduler-ack", ack_payload
-    assert ack_payload["dry_run"] is False, ack_payload
-
-    steady_payload = run_cli(
-        registry_path,
-        runtime_root,
-        "quota",
-        "should-run",
-        "--goal-id",
-        GOAL_ID,
-        "--agent-id",
-        AGENT_ID,
-        "--codex-app",
-    )
-    steady_codex_app = steady_payload["scheduler_hint"]["codex_app"]
-    assert steady_codex_app["stateful_backoff"]["apply_needed"] is False, steady_payload
-    assert steady_codex_app["stateful_backoff"]["state_status"] == "same_identity", steady_payload
-    assert steady_codex_app["host_action"] == "none", steady_payload
-    assert "recommended_rrule" not in steady_codex_app, steady_payload
-    return steady_payload
-
-
 def assert_event_todo_completion_successor_state_machine(
     registry_path: Path,
     runtime_root: Path,
@@ -849,7 +797,6 @@ def run_fixture_canary(root: Path) -> None:
         compact_quota=True,
     )
     assert_bounded_delivery_state_machine_bundle(quota_payload)
-    assert_scheduler_ack_state_machine(registry_path, runtime_root, quota_payload)
     successor_id = assert_event_todo_completion_successor_state_machine(registry_path, runtime_root)
     assert_refresh_and_spend_state_machine(registry_path, runtime_root, successor_id)
 

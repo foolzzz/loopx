@@ -176,13 +176,9 @@ If the result says `should_run=true`:
    `notify=DONT_NOTIFY`; quiet no-op needs `must_attempt_work=false` and
    `user_channel.notify=DONT_NOTIFY`. Use
    `scheduler_hint` for wakeup and unchanged-loop limits. For App automation:
-   `apply_needed=true` -> update `recommended_rrule` once; on success run
-   `ack_hint.cli_args`; on failure/timeout do not retry or ack, run
-   `failure_hint.cli_args` once. LoopX suppresses that target/host pair until
-   either changes; continue under the observed host cadence. Else
-   `ack_needed=true` -> run that bound ack directly; else skip.
-   LoopX owns reset/progression state. It is scheduling only, not delivery
-   permission.
+   `apply_needed=true` -> update `recommended_rrule` once; on failure/timeout
+   do not retry and continue under the observed host cadence; else skip.
+   It is scheduling only, not delivery permission.
 
    {reward_memory_rule}
    Then use

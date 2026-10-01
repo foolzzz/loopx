@@ -148,24 +148,6 @@ Receipt-bound phase of a Turn journal replay settlement.
 - typescript: [`RECEIPT_BOUND_REPLAY_PHASES`](../../loopx/control_plane/quota/settlement_phase.ts).
 - Values / 值: `open`, `settlement_pending`, `settled`.
 
-## scheduler_cadence_transition
-
-Legal scheduler cadence state transition.
-
-- Tier / 层级: `cross_runtime`; status / 状态: `canonical`.
-- python: [`SchedulerCadenceTransition`](../../loopx/control_plane/scheduler/state_transition_rules.py).
-- typescript: [`SCHEDULER_CADENCE_TRANSITIONS`](../../loopx/control_plane/scheduler/state_transition_rules.ts).
-- Values / 值: `initial`, `identity_reset`, `retry_unacknowledged_failure`, `hold_active_initial`, `advance_after_interval`, `hold_until_interval`.
-
-## scheduler_host_transition
-
-Legal scheduler host state transition.
-
-- Tier / 层级: `cross_runtime`; status / 状态: `canonical`.
-- python: [`SchedulerHostTransition`](../../loopx/control_plane/scheduler/state_transition_rules.py).
-- typescript: [`SCHEDULER_HOST_TRANSITIONS`](../../loopx/control_plane/scheduler/state_transition_rules.ts).
-- Values / 值: `apply_required`, `host_match_ack_required`, `recorded_failure_suppressed`, `settled`.
-
 ## settlement_binding_kind
 
 How a settlement step binds to its receipt.
