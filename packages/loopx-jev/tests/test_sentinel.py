@@ -277,6 +277,17 @@ def test_replay_reproduces_the_committed_live_summary(tmp_path: Path) -> None:
         replay({"model": "x", "state": {}, "questions": {}}, None, "key")
 
 
+def test_operation_guides_identify_both_expected_summary_evidence_tracks() -> None:
+    expected = json.loads((FIXTURES / "expected_summary.json").read_text(encoding="utf-8"))
+    package_root = FIXTURES.parents[2]
+
+    for guide_name in ("DRIFT_SHADOW.md", "DRIFT_SHADOW.zh-CN.md"):
+        guide = (package_root / guide_name).read_text(encoding="utf-8")
+        for track in ("current_replay", "historical_live"):
+            assert f"`{track}`" in guide
+            assert expected[track]["matrix_digest"] in guide
+
+
 def test_on_goal_summary_separates_failed_and_partial_evaluations() -> None:
     def case(statuses: list[str], signals: list[bool | None]) -> dict:
         rounds = [
