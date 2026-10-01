@@ -1121,7 +1121,7 @@ def render_prompt_text(
 7. 如果要给这个项目设置 recurring Codex App heartbeat，默认每 3 分钟一次，后续跟随 `quota should-run.scheduler_hint` 降频；不要手抄 guard 和 spend 协议；先生成 task body，再把输出复制进 automation：
 
 ```bash
-{cli_bin} heartbeat-prompt --goal-id {goal_id} --active-state {state_file}
+{cli_bin} heartbeat-prompt --goal-id {goal_id}
 ```
 
 8. 生成一个 read-only project map 或 first pre-tick run。不要启动线上任务、不同步外部系统、不要写生产状态，除非目标文档明确授权。通用接入优先跑：

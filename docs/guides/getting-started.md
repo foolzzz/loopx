@@ -63,7 +63,9 @@ Success looks like this:
 
 - `loopx doctor` passes;
 - the project has `.loopx/registry.json`;
-- the project has `.loopx/goals/<goal-id>/ACTIVE_GOAL_STATE.md`;
+- the registry goal's `state_file` exists under `.loopx/goals/<goal-id>/` by
+  default, or `.loopx/project-goals/<goal-id>/` when project and runtime roots
+  overlap;
 - `loopx status` shows the goal and who should act next;
 - local runtime state is ignored, not committed.
 
@@ -736,11 +738,15 @@ This creates or connects:
 ```text
 your-project/
   .loopx/registry.json
-  .loopx/goals/your-project-goal/ACTIVE_GOAL_STATE.md
+  .loopx/goals/your-project-goal/ACTIVE_GOAL_STATE.md          # default
+  .loopx/project-goals/your-project-goal/ACTIVE_GOAL_STATE.md  # when roots overlap
 
 ~/.loopx/
   goals/<goal-id>/runs/
 ```
+
+Only one project-owned active-state path applies. The registry goal's
+`state_file` is authoritative; read it instead of reconstructing either path.
 
 Treat live objective state and registries as local runtime data. Add these paths to
 the connected project `.gitignore` before committing:

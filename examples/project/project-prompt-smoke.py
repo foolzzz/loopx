@@ -17,6 +17,14 @@ from loopx.project_prompt import build_new_project_prompt  # noqa: E402
 
 
 DOC = REPO_ROOT / "docs/operations/new-project-codex-prompt.md"
+PROJECT_STATE_GUIDES = (
+    "docs/guides/getting-started.md",
+    "docs/integration.md",
+    "docs/operations/new-project-codex-prompt.md",
+    "docs/fork/usage.md",
+    "skills/loopx-project/SKILL.md",
+    "skills/loopx-doc-registry/SKILL.md",
+)
 GOAL_ID = "new-project-main-control"
 PROJECT = Path("/tmp/public-example-project")
 GOAL_DOC = Path("/tmp/public-example-project/GOAL.md")
@@ -83,7 +91,6 @@ HEARTBEAT_PROMPT_MUST_HAVE = (
     "如果要给这个项目设置 recurring Codex App heartbeat",
     "默认每 3 分钟一次",
     "loopx heartbeat-prompt",
-    "--active-state .loopx/goals/",
     "再把输出复制进 automation",
 )
 HANDOFF_MUST_HAVE = (
@@ -121,6 +128,19 @@ def assert_quota_guard(text: str) -> None:
         assert phrase in normalized, text
     for phrase in HEARTBEAT_PROMPT_MUST_HAVE:
         assert phrase in normalized, text
+
+
+def assert_project_state_path_guidance() -> None:
+    for relative_path in PROJECT_STATE_GUIDES:
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
+        assert ".loopx/goals/" in normalized, relative_path
+        assert ".loopx/project-goals/" in normalized, relative_path
+        assert "`state_file`" in normalized, relative_path
+        assert any(
+            marker in normalized
+            for marker in ("roots overlap", "roots are collocated", "根目录重合")
+        ), relative_path
 
 
 def run_cli(*extra_args: str) -> str:
@@ -187,7 +207,23 @@ def main() -> int:
     assert prompt.index(quota_spend) < prompt.rindex(state_only_refresh), prompt
     assert "不要默认或拔高成 `multi_surface` / `outcome_progress`" in prompt, prompt
     assert_quota_guard(payload["prompt"])
-    assert_quota_guard(DOC.read_text(encoding="utf-8"))
+    generated_heartbeat_step = prompt.split(
+        "7. 如果要给这个项目设置 recurring Codex App heartbeat", 1
+    )[1].split("8. 生成一个 read-only project map", 1)[0]
+    generated_heartbeat_command = generated_heartbeat_step.split("```bash", 1)[
+        1
+    ].split("```", 1)[0]
+    assert "--active-state" not in generated_heartbeat_command
+    doc = DOC.read_text(encoding="utf-8")
+    assert_quota_guard(doc)
+    doc_heartbeat_step = doc.split(
+        "6. 如果要给这个项目设置 recurring Codex App heartbeat", 1
+    )[1].split("7. 生成一个 read-only project map", 1)[0]
+    doc_heartbeat_command = doc_heartbeat_step.split("```bash", 1)[1].split(
+        "```", 1
+    )[0]
+    assert "--active-state" not in doc_heartbeat_command, doc_heartbeat_command
+    assert_project_state_path_guidance()
 
     cli_json = json.loads(run_cli("--format", "json", *cli_prompt_args()))
     assert cli_json["quota_guard_command"] == payload["quota_guard_command"], cli_json
