@@ -234,7 +234,6 @@ defines these main paths:
 | Host surface | Driver | Key limit |
 | --- | --- | --- |
 | Codex App | `$loopx <task>` plus App heartbeat | Cadence needs RRULE apply/readback/ACK |
-| Codex App over SSH | Visible `/goal` | Does not depend on App automation tools |
 | Codex CLI TUI | Generated bootstrap plus visible `/goal` | Stays visible and interruptible |
 | Claude Code | `/loopx` plus opt-in native `/loop` adapter | Uses the same quota and writeback |
 | OpenCode 1/2 | `/loopx` plus an opt-in Goal bridge or persistent worker | The bridge or worker preserves Host visibility and stop semantics |

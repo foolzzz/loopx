@@ -31,9 +31,6 @@ from .control_plane.goals.start_goal_todo_delta import (
     existing_runnable_agent_frontier,
     todo_authoring_steps,
 )
-from .control_plane.scheduler.execution_context import (
-    GUIDED_START_TURN_RUNTIME_PROFILES,
-)
 from .host_loop_activation import (
     agent_type_for_host_surface,
     build_host_loop_activation_packet,
@@ -66,7 +63,6 @@ GUIDED_COMMAND_PACK_PROJECTION_SCHEMA_VERSION = (
 GOAL_CAPABILITY_ROUTE_SCHEMA_VERSION = "loopx_goal_capability_route_v0"
 START_GOAL_CAPABILITY_ROUTES = ("issue-fix",)
 START_GOAL_HOST_SURFACES = (
-    "codex-app-ssh",
     "codex-cli-tui",
     "claude-code",
     "opencode",
@@ -600,12 +596,6 @@ def build_loopx_bootstrap_command_pack(
     heartbeat_prompt_command = activation_commands.get("heartbeat_prompt")
     heartbeat_prompt_json_command = activation_commands.get("heartbeat_prompt_json")
     scheduler_command_binding = scheduler_command_binding_for_agent_type(agent_type)
-    guided_start_begins_turn = bool(
-        explicit_goal_start
-        and selected_agent_id
-        and scheduler_command_binding.get("runtime_profile")
-        in {profile.value for profile in GUIDED_START_TURN_RUNTIME_PROFILES}
-    )
     quota_guard_command = (
         render_quota_guard_command(
             resolved_goal_id,
@@ -613,7 +603,6 @@ def build_loopx_bootstrap_command_pack(
             runtime_root=command_runtime_root,
             agent_id=str(selected_agent_id) if selected_agent_id else None,
             available_capabilities=available_capabilities,
-            begin_turn=guided_start_begins_turn,
             include_shared_registry=False,
             **scheduler_command_binding,
         )

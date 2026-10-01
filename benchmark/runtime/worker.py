@@ -41,7 +41,7 @@ def heartbeat_body(env: dict[str, str], turn_id: str, *, native_goal: bool) -> s
         "heartbeat-prompt",
         "--thin",
         "--runtime-profile",
-        "codex_app_ssh_goal" if native_goal else "generic_cli",
+        "codex_cli" if native_goal else "generic_cli",
         "--goal-id",
         env["LOOPX_GOAL_ID"],
         "--agent-id",

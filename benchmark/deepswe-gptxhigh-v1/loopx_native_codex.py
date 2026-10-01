@@ -85,7 +85,7 @@ _GOAL_ID = "deepswe-task"
 _AGENT_ID = "deepswe-codex"
 _PROJECT = "/app"
 _RUNTIME_PROFILES = {
-    "ssh-goal": "codex_app_ssh_goal",
+    "ssh-goal": "codex_cli",
     "codex-cli": "codex_cli",
     "heartbeat": "outer_controller",
 }
@@ -422,18 +422,7 @@ bootstrap_args = [
     "--adapter-status", "connected-read-only",
 ]
 if os.environ.get("LOOPX_WEN_COMPAT", "1") not in ("", "0"):
-    bootstrap_args += [
-        # Benchmark admission supplies one frozen task. Project-map onboarding
-        # todos otherwise outrank it and measure repository housekeeping rather
-        # than the requested software-engineering task.
-        "--no-onboarding-scan",
-        "--begin-autonomous-advance",
-        "--codex-app-heartbeat",
-        "yes" if a.runtime_profile == "codex_app_ssh_goal" else "no",
-        "--write-scope", a.project,
-    ]
-else:
-    bootstrap_args += ["--no-onboarding-scan", "--codex-app-heartbeat", "ask"]
+    bootstrap_args += ["--write-scope", a.project]
 run("bootstrap", bootstrap_args)
 run("configure_goal", ["configure-goal", "--goal-id", a.goal_id,
                        "--registered-agent", a.agent_id, "--execute"])

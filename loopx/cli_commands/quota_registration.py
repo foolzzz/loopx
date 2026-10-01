@@ -137,7 +137,6 @@ def register_quota_command(
         choices=[
             "ark_managed_agent",
             "codex_app",
-            "codex_app_ssh",
             "codex_cli",
             "trae_app",
             "generic_cli",
@@ -179,16 +178,6 @@ def register_quota_command(
             "`quota monitor-poll`, and `quota spend-slot`. The guard persists one "
             "idempotent receipt; reuse the same id through monitor writeback, "
             "refresh-state, spend, and retries."
-        ),
-    )
-    quota_parser.add_argument(
-        "--begin-turn",
-        action="store_true",
-        help=(
-            "For an initial Codex App `quota should-run`, mint and persist one "
-            "new Turn identity. Any explicit Todo-selection command returned by "
-            "the guard reuses the minted identity. Cannot be combined with "
-            "--turn-instance-id or --todo-id."
         ),
     )
     quota_parser.add_argument(

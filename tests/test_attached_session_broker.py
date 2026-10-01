@@ -21,7 +21,7 @@ from loopx.extensions.lark.goal_topic_runtime import answer_lark_goal_topic
 
 GOAL_ID = "sample-goal"
 AGENT_ID = "codex-sample-worker"
-HOST_SURFACE = "codex-app-ssh"
+HOST_SURFACE = "codex-cli-tui"
 HOST_SESSION_ID = "opaque-host-session"
 
 

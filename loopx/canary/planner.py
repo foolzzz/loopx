@@ -970,8 +970,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             "runtime connector catalog",
             "runtime-connector-catalog",
             "docs/integrations/runtime-connector-catalog.md",
-            "codex app ssh",
-            "codex_app_ssh_goal",
             "codex cli tui",
             "codex_cli_tui",
             "claude code loop",

@@ -16,7 +16,7 @@ def _registry_payload() -> dict[str, object]:
                     "registered_agents": ["codex-sample-worker"],
                     "thread_agent_bindings": [
                         {
-                            "host_surface": "codex-app-ssh",
+                            "host_surface": "codex-cli-tui",
                             "thread_id": "opaque-host-session",
                             "agent_id": "codex-sample-worker",
                         }
@@ -58,7 +58,7 @@ def test_attached_session_cli_bind_claim_and_complete(
                 "--agent-id",
                 "codex-sample-worker",
                 "--host-surface",
-                "codex-app-ssh",
+                "codex-cli-tui",
                 "--host-session-id",
                 "opaque-host-session",
                 "--executor-endpoint-id",
@@ -89,7 +89,7 @@ def test_attached_session_cli_bind_claim_and_complete(
                 "--session-id",
                 session_id,
                 "--host-surface",
-                "codex-app-ssh",
+                "codex-cli-tui",
                 "--host-session-id",
                 "opaque-host-session",
                 "--claim-id",
@@ -116,7 +116,7 @@ def test_attached_session_cli_bind_claim_and_complete(
                 "--turn-id",
                 str(queued["turn_id"]),
                 "--host-surface",
-                "codex-app-ssh",
+                "codex-cli-tui",
                 "--host-session-id",
                 "opaque-host-session",
                 "--claim-id",

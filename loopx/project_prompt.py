@@ -7,9 +7,7 @@ from typing import Any
 from .bootstrap import default_goal_id
 from .control_plane.scheduler.execution_context import (
     GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT,
-    SchedulerRuntimeProfile,
     render_scheduler_execution_args,
-    scheduler_runtime_profile_for_execution_context,
 )
 from .control_plane.todos.contract import normalize_required_capabilities
 from .install_contract import NO_CLONE_INSTALL_URL
@@ -185,23 +183,13 @@ def render_quota_guard_command(
     runtime_profile: str | None = None,
     scheduler_execution_context: dict[str, Any] | None = None,
     heartbeat_turn_receipt: bool = False,
-    begin_turn: bool = False,
+    host_turn_instance_id_placeholder: str | None = None,
     include_shared_registry: bool = True,
 ) -> str:
-    if not heartbeat_turn_receipt and agent_id and (
-        runtime_profile == SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE.value
-        or (
-            runtime_profile is None
-            and scheduler_runtime_profile_for_execution_context(
-                scheduler_execution_context
-            )
-            is SchedulerRuntimeProfile.CODEX_APP_SSH_VISIBLE
-        )
-    ):
-        begin_turn = True
-    if heartbeat_turn_receipt and begin_turn:
+    if heartbeat_turn_receipt and host_turn_instance_id_placeholder:
         raise ValueError(
-            "quota guard cannot both begin a Turn and reuse a heartbeat Turn identity"
+            "quota guard cannot reuse both a heartbeat Turn identity and a "
+            "host-owned Turn placeholder"
         )
     agent_arg = f" --agent-id {shell_arg(agent_id)}" if agent_id else ""
     capability_args = render_available_capability_args(available_capabilities)
@@ -211,8 +199,11 @@ def render_quota_guard_command(
     )
     if heartbeat_turn_receipt:
         turn_arg = ' --turn-instance-id "${LOOPX_TURN:?}"'
-    elif begin_turn:
-        turn_arg = " --begin-turn"
+    elif host_turn_instance_id_placeholder:
+        turn_arg = (
+            " --turn-instance-id "
+            f"{shell_arg(host_turn_instance_id_placeholder)}"
+        )
     else:
         turn_arg = ""
     registry_arg = (

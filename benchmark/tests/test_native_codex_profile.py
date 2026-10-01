@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import ast
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,6 +20,109 @@ from loopx.capabilities.benchmark_toolkit.native_codex_profile import (
     native_codex_profile_environment,
     render_native_codex_goal_prompt,
 )
+from loopx.cli import build_parser
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _embedded_product_bootstrap_source() -> str:
+    adapter = REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py"
+    tree = ast.parse(adapter.read_text(encoding="utf-8"), filename=str(adapter))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "_BOOTSTRAP"
+            for target in node.targets
+        ):
+            source = ast.literal_eval(node.value)
+            if isinstance(source, str):
+                return source
+    raise AssertionError("native Codex adapter has no literal _BOOTSTRAP source")
+
+
+def test_benchmark_preflight_tracks_the_current_bootstrap_contract() -> None:
+    preflight = (
+        REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/preflight_loopx_rerun.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"--write-scope", a.project' in preflight
+    for retired_flag in (
+        "--codex-app-heartbeat",
+        "--no-onboarding-scan",
+        "--begin-autonomous-advance",
+    ):
+        assert retired_flag not in preflight
+
+
+@pytest.mark.parametrize("wen_compat", [True, False])
+def test_embedded_product_bootstrap_emits_only_current_cli_arguments(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    wen_compat: bool,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    task_file = tmp_path / "task.txt"
+    task_file.write_text("Repair the fixture.", encoding="utf-8")
+    parser = build_parser()
+    parsed_commands: list[str] = []
+
+    def parse_without_executing(
+        command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        arguments = command[1:]
+        parsed = parser.parse_args(arguments)
+        parsed_commands.append(str(parsed.command))
+        payload: dict[str, object] = {"ok": True}
+        if parsed.command == "heartbeat-prompt":
+            payload["task_body"] = "Use the current LoopX contract."
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(payload),
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", parse_without_executing)
+    monkeypatch.setenv("LOOPX_WEN_COMPAT", "1" if wen_compat else "0")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "loopx_product_bootstrap.py",
+            "--profile-root",
+            str(tmp_path / "profile"),
+            "--project",
+            str(project),
+            "--goal-id",
+            "benchmark-goal",
+            "--agent-id",
+            "benchmark-agent",
+            "--goal-doc-file",
+            str(tmp_path / "goal.md"),
+            "--task-file",
+            str(task_file),
+            "--runtime-profile",
+            "codex_cli",
+            "--objective-out",
+            str(tmp_path / "objective.txt"),
+            "--receipt-out",
+            str(tmp_path / "receipt.json"),
+        ],
+    )
+
+    source = _embedded_product_bootstrap_source()
+    with pytest.raises(SystemExit) as stopped:
+        exec(compile(source, "<loopx_product_bootstrap>", "exec"), {})
+
+    assert stopped.value.code == 0
+    expected_commands = ["bootstrap", "configure-goal", "todo"]
+    if wen_compat:
+        expected_commands.append("configure-goal")
+    expected_commands.append("heartbeat-prompt")
+    assert parsed_commands == expected_commands
 
 
 def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfile:
@@ -24,7 +130,7 @@ def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfil
     cli = root / "bin" / "loopx"
     cli.parent.mkdir(parents=True)
     task_body = (
-        'f"Use {cli} with \\"$HOME/.codex/loopx/registry.global.json\\"."'
+        'f"Use {cli} with runtime root {runtime}."'
         if bind_cli
         else '"No installed CLI reference."'
     )
@@ -33,10 +139,11 @@ def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfil
         "import json\n"
         "import sys\n"
         "cli = sys.argv[sys.argv.index('--cli-bin') + 1]\n"
+        "runtime = sys.argv[sys.argv.index('--runtime-root') + 1]\n"
         f"task_body = {task_body}\n"
         "print(json.dumps({\n"
         "    'ok': True,\n"
-        "    'runtime_profile': 'codex_app_ssh_goal',\n"
+        "    'runtime_profile': 'codex_cli',\n"
         "    'interface_budget': {'within_budget': True},\n"
         "    'task_body': task_body,\n"
         "}))\n",
@@ -128,7 +235,7 @@ def test_native_codex_app_server_shell_policy_rejects_unsafe_keys(
         )
 
 
-def test_installed_cli_renders_and_rebinds_the_real_goal_prompt(tmp_path: Path) -> None:
+def test_installed_cli_renders_and_binds_the_real_goal_prompt(tmp_path: Path) -> None:
     profile = _fake_profile(tmp_path)
     project = tmp_path / "project"
     project.mkdir()
@@ -145,7 +252,7 @@ def test_installed_cli_renders_and_rebinds_the_real_goal_prompt(tmp_path: Path) 
 
     assert isinstance(prompt, NativeCodexGoalPrompt)
     assert str(profile.cli_bin) in prompt.task_body
-    assert str(runtime_registry.resolve()) in prompt.task_body
+    assert str((project / ".loopx/runtime").resolve()) in prompt.task_body
     assert "$HOME/.codex/loopx/registry.global.json" not in prompt.task_body
     receipt = compact_native_codex_goal_prompt_receipt(prompt)
     rendered = json.dumps(receipt, sort_keys=True)

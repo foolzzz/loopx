@@ -109,6 +109,12 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   identity or routing with the rejected field paths and cleanup instructions.
   Current `role_v1` and `peer_v1` goals still require a registered `--agent-id`.
 
+- **Codex App over SSH host surface and implicit Turn creation.** The
+  `codex-app-ssh` agent/host surface, `codex_app_ssh` scheduler surface and
+  `codex_app_ssh_goal` runtime profile are removed. Native Codex benchmark
+  paths now use the supported `codex_cli` profile. The `quota --begin-turn`
+  option is also removed; callers that need accountable Turn settlement must
+  pass one stable, host-owned `--turn-instance-id` and reuse it on retries.
 - **KunlunCode integration.** The `loopx-kunluncode` command and its
   `loopx.kunluncode_goal_mode` package (native Goal Pro controller, managed
   MCP server, outer-controller write guard) are gone, together with the

@@ -1320,14 +1320,11 @@ def test_guided_state_commands_share_explicit_runtime_root(
     for step_id, command_key in (
         ("write_ordered_todos", "command_template"),
         ("refresh_state", "command"),
-        ("quota_guard", "command"),
     ):
         step = next(step for step in ordered_steps if step["id"] == step_id)
         command = step[command_key]
         assert command is not None
         assert_runtime(command)
-
-
 def test_dsh_native_start_goal_binds_the_exact_same_session_lane(
     tmp_path: Path,
 ) -> None:
@@ -1463,85 +1460,6 @@ def test_cli_codex_cli_unbound_ambient_thread_requires_lane_selection(
     assert exit_code == 0
     payload = json.loads(output.getvalue())
     assert payload["thread_id"] == "thread-new-session"
-    assert payload["agent_id"] is None
-    gate = payload["guided_transaction"]["identity_selection_gate"]
-    assert gate["state"] == "thread_binding_selection_required"
-    assert gate["default_action"] == "select_agent_identity"
-    assert gate["fresh_agent_registration"] is None
-    assert gate["choices"][0]["agent_id"] == AGENT_ID
-
-
-def test_cli_codex_app_ssh_reuses_ambient_thread_binding(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project = _write_connected_project(tmp_path)
-    registry_path = project / ".loopx" / "registry.json"
-    registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    registry["goals"][0]["coordination"]["thread_agent_bindings"] = [
-        {
-            "thread_id": "thread-ssh-ambient",
-            "host_surface": "codex-app-ssh",
-            "agent_id": AGENT_ID,
-        }
-    ]
-    registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
-    monkeypatch.setenv("CODEX_THREAD_ID", "thread-ssh-ambient")
-
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        exit_code = cli_main(
-            [
-                "--format",
-                "json",
-                "start-goal",
-                "--guided",
-                "--project",
-                str(project),
-                "--goal-id",
-                GOAL_ID,
-                "--host-surface",
-                "codex-app-ssh",
-                "--goal-text",
-                GOAL_TEXT,
-            ]
-        )
-
-    assert exit_code == 0
-    payload = json.loads(output.getvalue())
-    assert payload["thread_id"] == "thread-ssh-ambient"
-    assert payload["agent_id"] == AGENT_ID
-    assert payload["thread_agent_binding"]["status"] == "bound"
-    assert payload["guided_transaction"].get("blocked_by") is None
-
-
-def test_cli_codex_app_ssh_unbound_ambient_thread_requires_lane_selection(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project = _write_connected_project(tmp_path)
-    monkeypatch.setenv("CODEX_THREAD_ID", "thread-ssh-new")
-
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        exit_code = cli_main(
-            [
-                "--format",
-                "json",
-                "start-goal",
-                "--guided",
-                "--project",
-                str(project),
-                "--goal-id",
-                GOAL_ID,
-                "--host-surface",
-                "codex-app-ssh",
-                "--goal-text",
-                GOAL_TEXT,
-            ]
-        )
-
-    assert exit_code == 0
-    payload = json.loads(output.getvalue())
-    assert payload["thread_id"] == "thread-ssh-new"
     assert payload["agent_id"] is None
     gate = payload["guided_transaction"]["identity_selection_gate"]
     assert gate["state"] == "thread_binding_selection_required"

@@ -228,7 +228,6 @@ LoopX 保留同一 control-plane contract，但不同 Host 的启动和唤醒机
 | Host surface | 驱动 | 关键限制 |
 | --- | --- | --- |
 | Codex App | `$loopx <task>` + App heartbeat | cadence 需要 RRULE apply/readback/ACK |
-| Codex App over SSH | visible `/goal` | 不依赖 App automation tools |
 | Codex CLI TUI | generated bootstrap + visible `/goal` | 保持 visible、interruptible |
 | Claude Code | `/loopx` + opt-in native `/loop` adapter | 仍走同一 quota/writeback |
 | OpenCode 1/2 | `/loopx` + opt-in Goal bridge / persistent worker | bridge 或 worker 保持 Host 可见性与停止语义 |

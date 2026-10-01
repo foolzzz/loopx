@@ -50,10 +50,6 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "purpose": "Generate the exact host-loop activation packet for one agent runtime.",
             },
             {
-                "command": "loopx agent-onboard --agent-type codex-app-ssh --project .",
-                "purpose": "Use visible /goal when Codex App runs over SSH without automation tools.",
-            },
-            {
                 "command": "loopx bootstrap-command-pack --project .",
                 "purpose": "Generate the lower-level host handoff packet.",
             },

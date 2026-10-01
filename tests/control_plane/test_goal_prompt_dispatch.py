@@ -11,7 +11,7 @@ from loopx.heartbeat_prompt import build_heartbeat_prompt
 
 
 @pytest.mark.parametrize(
-    "host", ["codex_cli", "codex_app_ssh_goal", "ark_managed_agent_goal", "traex"]
+    "host", ["codex_cli", "ark_managed_agent_goal", "traex"]
 )
 def test_goal_prompt_has_one_live_execution_entry(host: str) -> None:
     kwargs = {"visible_goal_host": "traex-cli", "runtime_profile": "generic_cli"} if host == "traex" else {

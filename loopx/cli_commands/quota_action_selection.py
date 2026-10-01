@@ -19,6 +19,7 @@ from ..control_plane.quota.heartbeat_receipt import (
 )
 from ..control_plane.scheduler.execution_context import (
     GUIDED_START_TURN_RUNTIME_PROFILES,
+    VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES,
     render_scheduler_execution_args,
 )
 from ..control_plane.todos.contract import normalize_todo_id
@@ -71,7 +72,13 @@ def _requested_quota_action_todo_id(
         bool(args.codex_app)
         or bool(getattr(args, "trae_app", False))
         or args.runtime_profile
-        in {profile.value for profile in GUIDED_START_TURN_RUNTIME_PROFILES}
+        in {
+            profile.value
+            for profile in (
+                GUIDED_START_TURN_RUNTIME_PROFILES
+                | VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES
+            )
+        }
     ):
         return None
     return normalize_todo_id(args.todo_id)

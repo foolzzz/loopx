@@ -7,7 +7,7 @@ def test_visible_goal_delegates_settlement_then_checks_terminal_readback() -> No
     payload = build_heartbeat_prompt(
         goal_id="terminal-settlement-fixture",
         thin=True,
-        runtime_profile="codex_app_ssh_goal",
+        runtime_profile="codex_cli",
     )
     task_body = " ".join(payload["task_body"].split())
 

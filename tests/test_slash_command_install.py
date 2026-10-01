@@ -192,8 +192,7 @@ def test_codex_install_upgrades_managed_loopx_facade(tmp_path: Path) -> None:
     assert "never rerun the turn-start call to recover hidden fields" in skill_text
     # A skill facade is installed for every host, so it must not present a
     # Codex-only flag as the universal turn-start mechanism.
-    assert "never pipe a `--begin-turn` call" not in skill_text
-    assert "passes its own `--turn-instance-id`" in skill_text
+    assert "Pass the host-owned `--turn-instance-id`" in skill_text
     assert "interaction_contract.cli_channel.selection_command" in skill_text
     assert "Read capability_gate.repair_missing even when should_run is true" in skill_text
     assert "do not claim a missing declaration proves a missing tool" in skill_text
@@ -211,34 +210,6 @@ def test_codex_install_upgrades_managed_loopx_facade(tmp_path: Path) -> None:
         and item.get("command") == "/loopx"
     )
     assert "$loopx" in fallback
-
-
-def test_codex_app_ssh_install_binds_skill_to_ssh_host(tmp_path: Path) -> None:
-    codex_home = tmp_path / "codex"
-
-    payload = install_slash_commands(
-        execute=True,
-        surfaces=["codex-app-ssh"],
-        codex_home=str(codex_home),
-    )
-
-    skill, _ = _loopx_paths(codex_home)
-    skill_text = skill.read_text(encoding="utf-8")
-    assert "exact current host `codex-app-ssh`" in skill_text
-    assert "--host-surface codex-app-ssh" in skill_text
-    assert "--host-surface codex-cli-tui" not in skill_text
-    assert _row(payload, "codex_explicit_skills")["host_surfaces"] == [
-        "codex-app-ssh"
-    ]
-
-
-def test_codex_install_rejects_two_hosts_for_one_skill_directory(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="install exactly one Codex host surface"):
-        install_slash_commands(
-            execute=False,
-            surfaces=["codex-cli", "codex-app-ssh"],
-            codex_home=str(tmp_path / "codex"),
-        )
 
 
 def test_codex_install_preserves_user_owned_loopx_facade(tmp_path: Path) -> None:

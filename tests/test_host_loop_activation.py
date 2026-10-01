@@ -135,11 +135,17 @@ def test_traex_visible_goal_body_contract_rejects_forbidden_variants(
 def test_host_surfaces_resolve_to_supported_agent_types() -> None:
     assert agent_type_for_host_surface(None) == "codex-cli"
     assert agent_type_for_host_surface("codex-cli-tui") == "codex-cli"
-    assert agent_type_for_host_surface("codex-app-ssh") == "codex-app-ssh"
     assert normalize_agent_type("Open Code") == "opencode"
     assert agent_type_for_host_surface("opencode") == "opencode"
     assert agent_type_for_host_surface("ark-managed-agent") == "ark-managed-agent"
-    for removed in ("codex-app", "chat-box", "trae_app", "codex-ide-plugin", "codex-ide"):
+    for removed in (
+        "codex-app",
+        "codex-app-ssh",
+        "chat-box",
+        "trae_app",
+        "codex-ide-plugin",
+        "codex-ide",
+    ):
         with pytest.raises(AgentTypeError, match="unsupported agent_type"):
             agent_type_for_host_surface(removed)
 
@@ -168,7 +174,6 @@ def test_host_surfaces_resolve_to_supported_agent_types() -> None:
     ("agent_type", "runtime_profile"),
     (
         ("ark-managed-agent", "ark_managed_agent_goal"),
-        ("codex-app-ssh", "codex_app_ssh_goal"),
         ("codex-cli", "codex_cli"),
         ("claude-code", "claude_code"),
         ("opencode", "generic_cli"),
@@ -189,7 +194,6 @@ def test_first_class_hosts_bind_one_runtime_profile(
     ("runtime_profile", "expected"),
     (
         ("ark_managed_agent_goal", True),
-        ("codex_app_ssh_goal", True),
         ("codex_cli", True),
         ("codex_app_heartbeat", False),
         ("claude_code", False),
@@ -314,7 +318,7 @@ def test_deepseek_harness_native_is_distinct_same_session_host() -> None:
 
 @pytest.mark.parametrize(
     "runtime_profile",
-    ("ark_managed_agent_goal", "codex_app_ssh_goal"),
+    ("ark_managed_agent_goal", "codex_cli"),
 )
 def test_goal_hosts_delegate_spend_to_live_settlement_not_static_templates(
     runtime_profile: str,
@@ -377,7 +381,7 @@ def test_heartbeat_prompt_commands_keep_explicit_runtime_root() -> None:
 
 @pytest.mark.parametrize(
     "runtime_profile",
-    ("ark_managed_agent_goal", "codex_app_ssh_goal"),
+    ("ark_managed_agent_goal", "codex_cli"),
 )
 def test_goal_hosts_enter_live_contract_without_a_mandatory_skill_detour(
     runtime_profile: str,
@@ -413,7 +417,6 @@ def test_goal_hosts_reuse_thin_dispatch_and_stay_compact() -> None:
         runtime_profile="codex_app_heartbeat",
     )
     goal_hosts = [
-        build_heartbeat_prompt(**common, runtime_profile="codex_app_ssh_goal"),
         build_heartbeat_prompt(**common, runtime_profile="codex_cli"),
         build_heartbeat_prompt(**common, runtime_profile="ark_managed_agent_goal"),
         build_heartbeat_prompt(
@@ -437,11 +440,6 @@ def test_goal_hosts_reuse_thin_dispatch_and_stay_compact() -> None:
 
 
 def test_native_codex_goal_wait_rule_matches_blocked_resume_contract() -> None:
-    ssh_body = build_heartbeat_prompt(
-        goal_id="ssh-wait-fixture",
-        thin=True,
-        runtime_profile="codex_app_ssh_goal",
-    )["task_body"]
     cli_body = build_heartbeat_prompt(
         goal_id="cli-wait-fixture",
         thin=True,
@@ -453,10 +451,9 @@ def test_native_codex_goal_wait_rule_matches_blocked_resume_contract() -> None:
         runtime_profile="ark_managed_agent_goal",
     )["task_body"]
 
-    for body in (ssh_body, cli_body):
-        assert "call `update_goal` with `status=blocked`" in body
-        assert "Only user `/goal resume`" in body
-        assert "reactivates it; rerun quota after resume" in body
+    assert "call `update_goal` with `status=blocked`" in cli_body
+    assert "Only user `/goal resume`" in cli_body
+    assert "reactivates it; rerun quota after resume" in cli_body
     assert "call `update_goal` with `status=blocked`" not in managed_body
 
 
@@ -464,7 +461,6 @@ def test_native_codex_goal_wait_rule_matches_blocked_resume_contract() -> None:
     ("runtime_profile", "expected_host"),
     (
         ("ark_managed_agent_goal", "Ark Managed Agent goal prompt"),
-        ("codex_app_ssh_goal", "visible Codex /goal task body"),
         ("codex_cli", "visible Codex /goal task body"),
     ),
 )
@@ -537,7 +533,6 @@ def test_new_agent_onboarding_defaults_to_fresh_identity() -> None:
     "agent_type",
     (
         "ark-managed-agent",
-        "codex-app-ssh",
         "codex-cli",
         "claude-code",
         "opencode",
@@ -1131,6 +1126,11 @@ def test_bare_codex_resolves_to_the_cli_while_bare_cli_stays_ambiguous() -> None
         normalize_agent_type("cli")
 
     assert caught.value.suggestions == ["codex-cli", "manual", "other-agent"]
+
+
+def test_retired_codex_app_ssh_agent_type_is_rejected() -> None:
+    with pytest.raises(AgentTypeError, match="unsupported agent_type"):
+        normalize_agent_type("codex-app-ssh")
 
 
 def test_codex_cli_startup_bootstrap_loads_the_current_contract(

@@ -497,29 +497,6 @@ owner, gate, or stop-condition authority from raw queue fields.
 
 ## Set Up Recurring Heartbeats
 
-When the exact host is Codex App connected to a remote workspace over SSH and
-`automation_update` is unavailable because of that host boundary, use the
-visible Goal integration instead of reporting a missing-automation blocker:
-
-```bash
-loopx --format json agent-onboard \
-  --agent-type codex-app-ssh \
-  --project . \
-  --goal-id <STABLE_GOAL_ID> \
-  --agent-id <REGISTERED_AGENT_ID>
-```
-
-Run the returned `activation_input_command`, read `task_body`, and set the
-current visible task to `/goal <task_body>`. In Codex App, use the available
-Goal control directly; do not ask the user to run `heartbeat-prompt` or paste
-the body manually when the host exposes Goal control. Surface the exact
-pasteable gate only when Goal control is also unavailable.
-
-The generated `codex_app_ssh_goal` body is bounded by the `/goal` 4000-character
-limit. It uses an interactive `agent_cli_loop` scheduler context, omits
-heartbeat turn receipts, and must not create/update automations, apply RRULE
-cadence, or invent `LOOPX_TURN`.
-
 Each wake reads the full fresh result and follows only its current `task_body`
 when `ok=true`. Separate notification from execution, follow the current waiting
 contract, and attempt recovery within existing authority when loading fails.
