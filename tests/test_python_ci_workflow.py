@@ -37,17 +37,19 @@ def test_dashboard_acceptance_and_kernel_checks_run_independently() -> None:
     assert "python -m mypy" not in dashboard
 
     assert "if: always() && needs.changes.outputs.core_tests == 'true'" in aggregate
-    assert "needs: [changes, kernel-static-checks, typescript-coverage, dashboard-acceptance]" in aggregate
+    assert "needs: [changes, kernel-static-checks, typescript-coverage, dashboard-acceptance, python-timestamp-compatibility]" in aggregate
     assert "needs.kernel-static-checks.result" in aggregate
     assert "needs.typescript-coverage.result" in aggregate
     assert "needs.dashboard-acceptance.result" in aggregate
+    assert "needs.python-timestamp-compatibility.result" in aggregate
 
 
 @pytest.mark.parametrize("kernel", ["success", "failure", "cancelled", "skipped"])
 @pytest.mark.parametrize("typescript", ["success", "failure", "cancelled", "skipped"])
 @pytest.mark.parametrize("dashboard", ["success", "failure", "cancelled", "skipped"])
+@pytest.mark.parametrize("timestamp", ["success", "failure", "cancelled", "skipped"])
 def test_checks_aggregate_requires_every_parallel_lane(
-    kernel: str, typescript: str, dashboard: str,
+    kernel: str, typescript: str, dashboard: str, timestamp: str,
 ) -> None:
     gate = WORKFLOW.split("name: Require kernel and Dashboard qualification", 1)[1]
     script = gate.split("run: |", 1)[1].split("\n\n  node-minimum-compatibility:", 1)[0]
@@ -58,11 +60,23 @@ def test_checks_aggregate_requires_every_parallel_lane(
             "DASHBOARD_RESULT": dashboard,
             "KERNEL_RESULT": kernel,
             "TYPESCRIPT_RESULT": typescript,
+            "TIMESTAMP_RESULT": timestamp,
         },
         capture_output=True,
         check=False,
     )
-    assert (result.returncode == 0) == (kernel == typescript == dashboard == "success")
+    assert (result.returncode == 0) == (kernel == typescript == dashboard == timestamp == "success")
+
+
+def test_timestamp_compatibility_qualifies_minimum_and_python_314() -> None:
+    lane = WORKFLOW.split("  python-timestamp-compatibility:\n", 1)[1].split("  checks:\n", 1)[0]
+    assert 'python: ["3.11", "3.14"]' in lane
+    assert "python-version: ${{ matrix.python }}" in lane
+    assert "if: needs.changes.outputs.core_tests == 'true'" in lane
+    assert "continue-on-error" not in lane
+    assert "tests/control_plane/test_monitor_state_owner.py" in lane
+    assert "tests/control_plane_ts/monitor_metadata.test.ts" in lane
+    assert "tests/control_plane_ts/monitor_schedule.test.ts" in lane
 
 
 def test_minimum_node_lane_exercises_sqlite_without_a_skip_list() -> None:
@@ -197,7 +211,7 @@ def test_merge_gate_runs_on_all_prs_and_checks_every_core_aggregate() -> None:
     for name, output in (("checks", "core_tests"), ("test-shard", "python_tests"), ("stage2c-suite", "stage2c_tests"), ("windows-powershell", "python_tests"), ("presentation", "presentation_tests")):
         job = WORKFLOW.split(f"  {name}:\n", 1)[1].split("    steps:", 1)[0]
         if name == "checks":
-            assert "needs: [changes, kernel-static-checks, typescript-coverage, dashboard-acceptance]" in job
+            assert "needs: [changes, kernel-static-checks, typescript-coverage, dashboard-acceptance, python-timestamp-compatibility]" in job
             assert "if: always() && needs.changes.outputs.core_tests == 'true'" in job
         else:
             assert "needs: [changes, chat-bundle]" in job

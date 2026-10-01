@@ -313,10 +313,37 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+  python-timestamp-compatibility:
+    needs: changes
+    if: needs.changes.outputs.core_tests == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check -e ".[test]"
+      - name: Qualify the cross-language timestamp contract
+        run: |
+          test_home=$(mktemp -d)
+          HOME="$test_home" python -m pytest -q tests/control_plane/test_monitor_state_owner.py
+          HOME="$test_home" node --no-warnings --experimental-strip-types --test \
+            tests/control_plane_ts/monitor_metadata.test.ts \
+            tests/control_plane_ts/monitor_schedule.test.ts
+
   checks:
     # Preserve the required check name while exposing independent failure lanes.
     if: always() && needs.changes.outputs.core_tests == 'true'
-    needs: [changes, kernel-static-checks, typescript-coverage, dashboard-acceptance]
+    needs: [changes, kernel-static-checks, typescript-coverage, dashboard-acceptance, python-timestamp-compatibility]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -325,10 +352,12 @@ jobs:
           DASHBOARD_RESULT: ${{ needs.dashboard-acceptance.result }}
           KERNEL_RESULT: ${{ needs.kernel-static-checks.result }}
           TYPESCRIPT_RESULT: ${{ needs.typescript-coverage.result }}
+          TIMESTAMP_RESULT: ${{ needs.python-timestamp-compatibility.result }}
         run: |
           test "$KERNEL_RESULT" = success
           test "$TYPESCRIPT_RESULT" = success
           test "$DASHBOARD_RESULT" = success
+          test "$TIMESTAMP_RESULT" = success
 
   node-minimum-compatibility:
     needs: changes
