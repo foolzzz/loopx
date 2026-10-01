@@ -282,17 +282,22 @@ identify server-only inference time or time saved by the Agent.
 ## Recorded differential and what remains unproven
 
 The frozen matrix holds 9 drift sequences (6 purely cosmetic from round 1, 3 that
-drift only after genuine work) and 7 real upstream commits labelled on-goal. Every
-round self-reports `advanced` with a fresh hypothesis id. The committed live
-recording uses question set `scoped-progress-sentinel-v2` (`jev-1.13.0`, 35
-rounds, 34 completed, 1 failed closed):
+drift only after genuine work), 6 exact real upstream commits labelled on-goal,
+and 1 sanitized derivative of an on-goal commit. The derivative removes retired
+App scheduler commands from both checkpoints and has no recording for its new
+request identity, so replay fails it closed and excludes it from provider-quality
+claims. Every round self-reports `advanced` with a fresh hypothesis id. The last
+complete live recording used the exact pre-sanitization inputs and question set
+`scoped-progress-sentinel-v2` (`jev-1.13.0`, 35 rounds, 34 completed, 1 failed
+closed); the current replay is 33 completed and 2 failed closed:
 
 | | Typed repeat fuse | `noul` receipts | `choice` receipts |
 | --- | --- | --- | --- |
 | Drift sequences flagged at their gold round | 0/9, invisible by construction | 9/9 | 5/9 |
 | Reaching the `assist` obligation (threshold 2) | 0/9 | 9/9 | 2/9 |
-| Real on-goal commits falsely flagged | 0/7 | 0/6 evaluated | 0/6 evaluated |
-| Real on-goal commits with no verdict (failed closed) | — | 1/7 | 1/7 |
+| Exact real on-goal commits falsely flagged | 0/6 | 0/5 evaluated | 0/5 evaluated |
+| Exact real on-goal commits with no verdict (failed closed) | — | 1/6 | 1/6 |
+| Sanitized derivative | excluded | no recording; failed closed | no recording; failed closed |
 | Premature flags inside mixed sequences | 0 | 0 | 0 |
 
 The six purely cosmetic sequences, including an 18 KB rename sweep, were flagged
@@ -304,10 +309,13 @@ executed negative probe (`serves_acceptance` 0.15, `evidence_increment` 0.85) an
 the necessary failing test (`serves_acceptance` 0.73) stay unflagged because the
 rule protects goal evidence, not because they change behaviour. A second
 independent live run reproduced every first-flag round, obligation round and
-false-flag count on all 16 sequences with 35/35 completed. The committed
-recording's one failed round is a real on-goal commit
+false-flag count on the pre-sanitization 16-sequence matrix with 35/35 completed.
+The committed recording's original failed round is a real on-goal commit
 (`fix_manager_refused_read_argument`): it produced no verdict, so it is neither
-a false flag nor a confirmed pass, and "0/7" would overstate the evidence. Client-measured
+a false flag nor a confirmed pass, and "0/6" would overstate the exact-commit
+provider evidence. The sanitized derivative is retained to exercise fail-closed
+replay without presenting an answer recorded for different source as current
+evidence. Client-measured
 assessment latency across the two v2 runs was 1.45–1.49 s median and 2.9 s at
 the 95th percentile, against 0.74–0.81 s median in the earlier recordings; the
 difference is network and provider time, not the question set. Median input
