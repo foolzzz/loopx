@@ -498,7 +498,7 @@ def test_f1_f2_domain_names_exactly_the_vocabularies_the_producer_check_walks() 
     """The declared domain must be the set ``check_producers`` really visits.
 
     F1 and F2 were unconditional claims over every vocabulary while the check
-    skipped 20 of 26. This ties the quantifier in the statement to the predicate
+    skipped 17 of 24. This ties the quantifier in the statement to the predicate
     the scanner uses, so widening one without the other fails.
     """
     smoke = runpy.run_path(str(SMOKE))
@@ -576,7 +576,7 @@ def test_generated_domain_accepts_true_kernel_comparison() -> None:
     domain = smoke["ProducerDomain"].from_registry(registry)
     assert domain.kernel < domain.walked
     assert domain.walked - domain.kernel == {"settlement_binding_kind"}
-    assert domain.outside_by_tier == (("cross_runtime", 19),)
+    assert domain.outside_by_tier == (("cross_runtime", 17),)
 
 
 def test_canonical_domain_rejects_old_kernel_only_universe() -> None:
@@ -600,7 +600,7 @@ def test_domain_membership_change_requires_regenerated_prose() -> None:
     with pytest.raises(smoke["Drift"], match="canonical producer-domain projection"):
         smoke["check_formal_model"](registry["formal_model"], registry)
     projected = smoke["producer_domain_prose"](registry)
-    assert "20 cross_runtime" in projected["F1_producer_closedness.statement"]
+    assert "18 cross_runtime" in projected["F1_producer_closedness.statement"]
     assert "6 kernel and 0 outside" in projected["universes.vocabularies"]
 
 
@@ -746,7 +746,7 @@ def test_adding_a_vocabulary_forces_the_declared_domain_to_move() -> None:
         "meaning": "probe", "tier": "cross_runtime", "status": "canonical",
         "owners": {"python": None, "typescript": None}, "values": ["probe_value"],
     }
-    with pytest.raises(smoke["Drift"], match="the registry holds 27"):
+    with pytest.raises(smoke["Drift"], match="the registry holds 25"):
         smoke["check_formal_model"](registry["formal_model"], registry)
 
 

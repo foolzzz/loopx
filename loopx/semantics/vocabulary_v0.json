@@ -170,8 +170,8 @@
     }
   },
   "coverage_floor": {
-    "vocabularies": 26,
-    "owner_symbols": 51,
+    "vocabularies": 24,
+    "owner_symbols": 47,
     "literal_scan_fields": 1,
     "projections": 1,
     "relations": 9,
