@@ -104,16 +104,16 @@ def build_codex_cli_local_scheduler_tick(
         and isinstance(quota_payload.get("scheduler_hint"), dict)
         else {}
     )
+    cold_path_detail = (
+        scheduler_hint.get("cold_path_detail")
+        if isinstance(scheduler_hint.get("cold_path_detail"), dict)
+        else {}
+    )
     local_scheduler_hint = (
         scheduler_hint.get("local_scheduler")
         if isinstance(scheduler_hint.get("local_scheduler"), dict)
-        else {}
-    )
-    codex_app_hint = (
-        scheduler_hint.get("app_automation")
-        if isinstance(scheduler_hint.get("app_automation"), dict)
-        else scheduler_hint.get("codex_app")
-        if isinstance(scheduler_hint.get("codex_app"), dict)
+        else cold_path_detail.get("local_scheduler")
+        if isinstance(cold_path_detail.get("local_scheduler"), dict)
         else {}
     )
     reset_policy = (
@@ -123,7 +123,7 @@ def build_codex_cli_local_scheduler_tick(
     )
     recommended_interval_minutes = _positive_int(
         local_scheduler_hint.get("recommended_interval_minutes")
-        or codex_app_hint.get("recommended_interval_minutes"),
+        or reset_policy.get("local_scheduler_initial_interval_minutes"),
         10,
     )
     reset_interval_minutes = _positive_int(

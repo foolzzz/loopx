@@ -87,23 +87,6 @@ def register_quota_command(
         help=argparse.SUPPRESS,
     )
     quota_parser.add_argument(
-        "--app-automation-current-rrule",
-        help=(
-            "Current RRULE observed from the selected hosted App heartbeat. "
-            "This provider-neutral input reconciles host reality with the "
-            "projected cadence."
-        ),
-    )
-    quota_parser.add_argument(
-        "--codex-app-current-rrule",
-        help=(
-            "Current RRULE observed from the active Codex App heartbeat. For "
-            "`quota should-run`, this reconciles host reality with the projected "
-            "cadence. "
-            "Deprecated compatibility alias for --app-automation-current-rrule."
-        ),
-    )
-    quota_parser.add_argument(
         "--runtime-profile",
         choices=[profile.value for profile in SchedulerRuntimeProfile],
         help=(
@@ -113,32 +96,11 @@ def register_quota_command(
         ),
     )
     quota_parser.add_argument(
-        "-A",
-        "--codex-app",
-        action="store_true",
-        help=(
-            "Compact explicit alias for --runtime-profile "
-            "codex_app_heartbeat. Cannot be combined with another scheduler "
-            "runtime or execution context."
-        ),
-    )
-    quota_parser.add_argument(
-        "--trae_app",
-        action="store_true",
-        help=(
-            "Compact explicit alias for --runtime-profile "
-            "trae_app. Cannot be combined with another scheduler "
-            "runtime or execution context."
-        ),
-    )
-    quota_parser.add_argument(
         "-H",
         "--host-surface",
         choices=[
             "ark_managed_agent",
-            "codex_app",
             "codex_cli",
-            "trae_app",
             "generic_cli",
             "claude_code",
             "local_scheduler",

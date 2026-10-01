@@ -293,7 +293,7 @@ export function interpretQuotaShouldRunPacket(
   const interaction = decodeInteractionContract(packet.interaction_contract);
   const lane = asObject(packet.work_lane_contract);
   const scheduler = asObject(packet.scheduler_hint);
-  const codexApp = asObject(scheduler.codex_app);
+  const executionContext = asObject(scheduler.execution_context);
   const cliChannel = asObject(interaction.cli_channel);
   const gate = asObject(packet.capability_gate);
   const protocol = asObject(packet.protocol_action_packet);
@@ -330,7 +330,7 @@ export function interpretQuotaShouldRunPacket(
     next_effect: {
       cli_actions: stringArray(cliChannel.next_cli_actions),
       execution_mode: nullableTruthyString(
-        packet.execution_mode || codexApp.execution_mode || scheduler.execution_mode,
+        packet.execution_mode || executionContext.execution_mode || scheduler.execution_mode,
       ),
       scheduler_action: nullableTruthyString(scheduler.action),
       cadence_class: nullableTruthyString(scheduler.cadence_class),
@@ -348,7 +348,7 @@ export function interpretTurnResultPacket(
 ): EffectTurn<JsonObject, string, null> {
   const packet = asObject(packetValue);
   const scheduler = asObject(packet.scheduler_hint);
-  const codexApp = asObject(scheduler.codex_app);
+  const executionContext = asObject(scheduler.execution_context);
   const completedPhases = stringArray(packet.completed_phases);
   const failedPhase = nullableTruthyString(packet.failed_phase);
   const resultKind = truthyString(packet.result_kind);
@@ -388,7 +388,7 @@ export function interpretTurnResultPacket(
     next_effect: {
       cli_actions: stringArray(packet.next_cli_actions),
       execution_mode: nullableTruthyString(
-        packet.execution_mode || codexApp.execution_mode || scheduler.execution_mode,
+        packet.execution_mode || executionContext.execution_mode || scheduler.execution_mode,
       ),
       scheduler_action: nullableTruthyString(scheduler.action),
       cadence_class: nullableTruthyString(scheduler.cadence_class),

@@ -25,8 +25,8 @@ def register_quota_monitor_poll_request_arguments(
     quota_parser.add_argument(
         "--todo-id",
         help=(
-            "For Codex App `quota should-run`, select one currently projected "
-            "eligible action through typed same-turn qualification. For "
+            "For `quota should-run`, select one currently projected eligible "
+            "action through typed same-turn qualification. For "
             "`quota monitor-poll`, name the observed monitor Todo; a committed "
             "advancement settlement Todo remains separate under the auxiliary "
             "no-spend observation contract. Otherwise name the accountable "

@@ -183,7 +183,7 @@ def _compact_autonomous_candidate_context(
 
 
 def _scheduler_hint(
-    payload: dict[str, Any], *, include_detail: bool = False, codex_app_current_rrule: Any = None,
+    payload: dict[str, Any], *, include_detail: bool = False,
     scheduler_execution_context: Mapping[str, Any] | SchedulerExecutionContextResolution | None = None,
 ) -> dict[str, Any]:
     return build_scheduler_hint(
@@ -191,7 +191,6 @@ def _scheduler_hint(
         user_action_required=_user_channel_action_required(payload),
         agent_scope_frontier_actions=[action.value for action in AgentScopeFrontierAction],
         include_detail=include_detail,
-        codex_app_current_rrule=codex_app_current_rrule,
         scheduler_execution_context=scheduler_execution_context,
     )
 
@@ -1458,7 +1457,7 @@ def _build_quota_should_run_payload(
         cadence = effect_runtime_result("quota.automation_cadence.manage", {
             "runtime_root": str(cadence_root), "goal_id": prepared.safe_goal_id,
             "agent_id": quota_decision_agent_id(payload) or prepared.requested_agent_id,
-            "automation_id": prepared.codex_app_automation_id, "operation": "read",
+            "automation_id": None, "operation": "read",
         })
         if cadence["enabled"]:
             payload["automation_cadence"] = cadence
@@ -1473,7 +1472,6 @@ def _build_quota_should_run_payload(
     payload["scheduler_hint"] = _scheduler_hint(
         payload,
         include_detail=prepared.include_scheduler_detail,
-        codex_app_current_rrule=prepared.codex_app_current_rrule,
         scheduler_execution_context=prepared.resolved_scheduler_context,
     )
     finalize_user_gate_notification_cooldown(

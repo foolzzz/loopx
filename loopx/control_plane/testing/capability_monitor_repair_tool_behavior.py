@@ -172,7 +172,7 @@ def _build_capability_repair_fixture(root: Path) -> _SelectedTodoToolFixture:
             "filesystem_write",
             "network",
         ],
-        runtime_profile="codex_app_heartbeat",
+        runtime_profile="generic_cli",
     )
     quota_guard_command = str(prompt["quota_guard_command"])
     if quota_guard_command not in str(prompt["task_body"]):

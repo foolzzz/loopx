@@ -16,11 +16,8 @@ from ..control_plane.runtime.status_projection_cache import (
     write_status_projection_cache,
 )
 from ..control_plane.scheduler.execution_context import (
-    HostSurface,
     SchedulerExecutionContextResolution,
-    SchedulerRuntimeProfile,
     scheduler_execution_context_for_runtime_profile,
-    resolve_scheduler_execution_context,
 )
 from ..status import AUTONOMOUS_REPLAN_PERIODIC_LOOKBACK, collect_status
 from ..turn_identity import normalize_turn_instance_id
@@ -62,30 +59,12 @@ def _scheduler_execution_context_from_args(
         args.scheduler_owner,
         args.execution_mode,
     )
-    codex_app = bool(getattr(args, "codex_app", False))
-    trae_app = bool(getattr(args, "trae_app", False))
-    app_alias_count = int(codex_app) + int(trae_app)
-    if app_alias_count > 1:
-        raise QuotaCommandValidationError(
-            "--codex-app and --trae_app are mutually exclusive"
-        )
-    if app_alias_count and (args.runtime_profile or any(explicit_scheduler_fields)):
-        raise QuotaCommandValidationError(
-            "app runtime aliases cannot be combined with --runtime-profile, "
-            "--host-surface, --scheduler-owner, or --execution-mode"
-        )
     if args.runtime_profile and any(explicit_scheduler_fields):
         raise QuotaCommandValidationError(
             "--runtime-profile cannot be combined with --host-surface, "
             "--scheduler-owner, or --execution-mode"
         )
-    runtime_profile = (
-        SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT.value
-        if codex_app
-        else SchedulerRuntimeProfile.TRAE_APP.value
-        if trae_app
-        else args.runtime_profile
-    )
+    runtime_profile = args.runtime_profile
     if runtime_profile:
         return scheduler_execution_context_for_runtime_profile(runtime_profile)
     if any(explicit_scheduler_fields):
@@ -173,27 +152,6 @@ def validate_quota_command_context_request(
         if command in QUOTA_SCHEDULER_COMMANDS
         else None
     )
-    resolved_scheduler_context = resolve_scheduler_execution_context(scheduler_context)
-    neutral_rrule = str(
-        getattr(args, "app_automation_current_rrule", None) or ""
-    ).strip()
-    legacy_codex_rrule = str(
-        getattr(args, "codex_app_current_rrule", None) or ""
-    ).strip()
-    if neutral_rrule and legacy_codex_rrule and neutral_rrule != legacy_codex_rrule:
-        raise QuotaCommandValidationError(
-            "--app-automation-current-rrule and --codex-app-current-rrule disagree"
-        )
-    if (
-        legacy_codex_rrule
-        and resolved_scheduler_context.ok
-        and resolved_scheduler_context.context is not None
-        and resolved_scheduler_context.context.host_surface is HostSurface.TRAE_APP
-    ):
-        raise QuotaCommandValidationError(
-            "Trae App uses --app-automation-current-rrule, not the Codex compatibility alias"
-        )
-    args.app_automation_current_rrule = neutral_rrule or legacy_codex_rrule or None
     validate_quota_command_request(args)
     if heartbeat_turn_id and command == "should-run" and bool(args.dry_run):
         raise QuotaCommandValidationError(

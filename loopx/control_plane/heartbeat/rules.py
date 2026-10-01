@@ -50,17 +50,14 @@ REWARD_MEMORY_OUTCOME_COMPACT_RULE = (
     "provider calls; no raw/private content."
 )
 SCHEDULER_HINT_APPLICATION_RULE = (
-    "`scheduler_hint` no-spend. host_action=pause_or_delete_current_heartbeat -> "
-    "automation_update stop once, verify, end; else apply_needed -> RRULE via "
-    "automation_update once; failure -> keep the observed host cadence."
+    "`scheduler_hint` is no-spend guidance. Respect its typed execution context "
+    "and leave scheduler mutations to the declared scheduler owner."
 )
 SCHEDULER_HINT_COMPACT_RULE = (
-    "host_action=pause_or_delete_current_heartbeat: automation_update stop; "
-    "else RRULE apply via automation_update once. No spend."
+    "Scheduler hint is no-spend; follow its typed owner/context boundary."
 )
 SCHEDULER_HINT_THIN_RULE = (
-    "host_action=pause_or_delete_current_heartbeat->automation_update stop(no-spend); "
-    "else RRULE once."
+    "Scheduler hint: no spend; obey typed owner/context."
 )
 RUNTIME_CAPABILITY_PROJECTION_THIN_RULE = (
     "Observed capabilities -> `--available-capability`; never user gates."

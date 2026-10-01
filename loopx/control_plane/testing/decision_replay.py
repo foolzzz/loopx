@@ -96,9 +96,7 @@ def reduce_public_safe_decision(
     user_channel = _mapping(interaction.get("user_channel"))
     agent_channel = _mapping(interaction.get("agent_channel"))
     scheduler = _mapping(payload.get("scheduler_hint"))
-    codex_app = _mapping(
-        scheduler.get("app_automation") or scheduler.get("codex_app")
-    )
+    reset_policy = _mapping(scheduler.get("reset_policy"))
     selected_todo = _mapping(payload.get("selected_todo"))
     reduced = {
         "schema_version": PUBLIC_SAFE_DECISION_CASE_SCHEMA_VERSION,
@@ -132,7 +130,9 @@ def reduce_public_safe_decision(
             "scheduler_action": scheduler.get("action"),
             "scheduler_cadence_class": scheduler.get("cadence_class"),
             "scheduler_reason_code": scheduler.get("reason_code"),
-            "scheduler_interval_minutes": codex_app.get("recommended_interval_minutes"),
+            "scheduler_interval_minutes": reset_policy.get(
+                "local_scheduler_initial_interval_minutes"
+            ),
             "decision_scope_status": (
                 _mapping(payload.get("todo_decision_scope_consistency")).get("status")
                 or "consistent"

@@ -243,13 +243,6 @@ def render_codex_cli_local_scheduler_tick_markdown(payload: dict[str, Any]) -> s
         if isinstance(cold_path_detail.get("local_scheduler"), dict)
         else {}
     )
-    codex_app = (
-        scheduler_hint.get("app_automation")
-        if isinstance(scheduler_hint.get("app_automation"), dict)
-        else scheduler_hint.get("codex_app")
-        if isinstance(scheduler_hint.get("codex_app"), dict)
-        else {}
-    )
     unchanged_poll = (
         scheduler_hint.get("unchanged_poll")
         if isinstance(scheduler_hint.get("unchanged_poll"), dict)
@@ -261,10 +254,7 @@ def render_codex_cli_local_scheduler_tick_markdown(payload: dict[str, Any]) -> s
         if isinstance(unchanged_poll.get("after_limits"), dict)
         else {}
     )
-    local_interval = (
-        local_scheduler.get("recommended_interval_minutes")
-        or codex_app.get("recommended_interval_minutes")
-    )
+    local_interval = local_scheduler.get("recommended_interval_minutes")
     local_progression = local_scheduler.get("example_progression_minutes")
     local_unchanged_limit = (
         local_scheduler.get("unchanged_poll_limit")

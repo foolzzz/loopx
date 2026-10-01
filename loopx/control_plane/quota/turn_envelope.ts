@@ -372,33 +372,21 @@ function scheduler(payload: JsonObject, turn: ReturnType<typeof interpretQuotaSh
   for (const field of ["reason_code", "spend_policy"]) {
     if (source[field] !== null && source[field] !== undefined) result[field] = source[field];
   }
-  const appAutomation = object(source.app_automation);
-  const legacyCodexApp = object(source.codex_app);
-  const sourceApp = Object.keys(appAutomation).length > 0
-    ? appAutomation
-    : legacyCodexApp;
-  if (Object.keys(sourceApp).length === 0) return result;
-  const app: JsonObject = {};
-  for (const field of [
-    "host_surface", "apply", "host_action", "recommended_rrule",
-    "no_spend_for_cadence_change", "execution_interval_policy", "guarantee",
-  ]) {
-    if (sourceApp[field] !== null && sourceApp[field] !== undefined) app[field] = sourceApp[field];
+  const executionContext = object(source.execution_context);
+  if (Object.keys(executionContext).length > 0) {
+    result.execution_context = Object.fromEntries(
+      ["host_surface", "scheduler_owner", "execution_mode", "source", "valid"]
+        .filter((field) => executionContext[field] !== null && executionContext[field] !== undefined)
+        .map((field) => [field, executionContext[field]]),
+    );
   }
-  const state = object(sourceApp.stateful_backoff);
-  if (Object.keys(state).length > 0) {
-    const compactState: JsonObject = {};
-    for (const field of ["reset_token", "current_rrule", "apply_needed", "state_policy"]) {
-      if (state[field] !== null && state[field] !== undefined) compactState[field] = state[field];
-    }
-    app.stateful_backoff = compactState;
-  }
-  if (Object.keys(app).length > 0) {
-    if (Object.keys(appAutomation).length > 0) result.app_automation = app;
-    // Preserve the historical compact field only when the full source packet
-    // also supplied the Codex compatibility projection. A Trae packet never
-    // acquires a Codex identity while crossing the Turn boundary.
-    if (Object.keys(legacyCodexApp).length > 0) result.codex_app = app;
+  const executionPhase = object(source.execution_phase);
+  if (Object.keys(executionPhase).length > 0) {
+    result.execution_phase = Object.fromEntries(
+      ["disposition", "completed", "apply_needed"]
+        .filter((field) => executionPhase[field] !== null && executionPhase[field] !== undefined)
+        .map((field) => [field, executionPhase[field]]),
+    );
   }
   return result;
 }

@@ -18,7 +18,7 @@ from ..control_plane.quota.heartbeat_receipt import (
     retain_pending_heartbeat_action_selection,
 )
 from ..control_plane.scheduler.execution_context import (
-    GUIDED_START_TURN_RUNTIME_PROFILES,
+    SchedulerRuntimeProfile,
     VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES,
     render_scheduler_execution_args,
 )
@@ -68,18 +68,11 @@ class ActionSelectionPreflightResult:
 def _requested_quota_action_todo_id(
     args: argparse.Namespace,
 ) -> str | None:
-    if not (
-        bool(args.codex_app)
-        or bool(getattr(args, "trae_app", False))
-        or args.runtime_profile
-        in {
-            profile.value
-            for profile in (
-                GUIDED_START_TURN_RUNTIME_PROFILES
-                | VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES
-            )
-        }
-    ):
+    selectable_profiles = {
+        SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP.value,
+        *(profile.value for profile in VISIBLE_GOAL_SETTLEMENT_RUNTIME_PROFILES),
+    }
+    if args.runtime_profile not in selectable_profiles:
         return None
     return normalize_todo_id(args.todo_id)
 

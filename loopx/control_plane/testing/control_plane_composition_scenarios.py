@@ -11,7 +11,7 @@ from .quota_fixtures import quota_status_payload, quota_todo_item, quota_todo_su
 
 
 def _scheduler_context() -> dict[str, Any]:
-    return scheduler_execution_context_for_runtime_profile("codex_app_heartbeat")
+    return scheduler_execution_context_for_runtime_profile("generic_cli")
 
 
 def _required_vision_replan_source(

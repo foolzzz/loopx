@@ -238,13 +238,7 @@ def handle_support_control_command(
         active_state_source = None
         registered_agents = None
         effective_agent_id = args.agent_id
-        requested_runtime_profile = (
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT.value
-            if args.codex_app
-            else SchedulerRuntimeProfile.TRAE_APP.value
-            if getattr(args, "trae_app", False)
-            else args.runtime_profile
-        )
+        requested_runtime_profile = args.runtime_profile
         try:
             active_state, resolved_active_state, active_state_source = (
                 resolve_heartbeat_active_state(
@@ -296,20 +290,6 @@ def handle_support_control_command(
                 args.scheduler_owner,
                 args.execution_mode,
             )
-            app_alias_count = int(bool(args.codex_app)) + int(
-                bool(getattr(args, "trae_app", False))
-            )
-            if app_alias_count > 1:
-                raise ValueError(
-                    "--codex-app and --trae_app are mutually exclusive"
-                )
-            if app_alias_count and (
-                args.runtime_profile or any(explicit_scheduler_fields)
-            ):
-                raise ValueError(
-                    "app runtime aliases cannot be combined with --runtime-profile, "
-                    "--host-surface, --scheduler-owner, or --execution-mode"
-                )
             if args.runtime_profile and any(explicit_scheduler_fields):
                 raise ValueError(
                     "--runtime-profile cannot be combined with --host-surface, "
@@ -397,8 +377,6 @@ def handle_support_control_command(
         selected_output_format = output_format(args)
         recurring_runtime_profile = requested_runtime_profile in {
             None,
-            SchedulerRuntimeProfile.CODEX_APP_HEARTBEAT.value,
-            SchedulerRuntimeProfile.TRAE_APP.value,
             SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP.value,
         }
         recurring_thin_surface = bool(
