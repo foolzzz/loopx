@@ -526,6 +526,35 @@ def assert_retired_app_scheduler_contracts_are_current() -> None:
             status,
             "Host-specific scheduler mutation remains provider-owned",
         ),
+        (
+            status,
+            "`scheduler_hint.reset_policy` and `scheduler_hint.unchanged_poll` "
+            "remain on the default hot path",
+        ),
+        (
+            status,
+            "`scheduler_hint.cold_path_detail.local_scheduler."
+            "recommended_interval_minutes`",
+        ),
+        (
+            status,
+            "`scheduler_hint.cold_path_detail.local_scheduler."
+            "unchanged_poll_backoff_multiplier`",
+        ),
+        (
+            status,
+            "`scheduler_hint.cold_path_detail.local_scheduler."
+            "max_interval_minutes`",
+        ),
+        (
+            status,
+            "`scheduler_hint.cold_path_detail.local_scheduler."
+            "example_progression_minutes`",
+        ),
+        (
+            status,
+            "requires `loopx quota should-run --include-detail scheduler`",
+        ),
     ):
         assert required in document, required
 

@@ -1529,22 +1529,30 @@ This is the scheduling contract for supported runtimes, not a delivery
 permission: local schedulers can back off their cadence for long waits, while
 Codex CLI TUI and Claude Code loops can run one final quota/replan check after repeated
 unchanged polls, then exit/stop only if the guard is still unchanged. Cadence
-changes, final checks, and loop self-stop never spend quota. Host schedulers
-apply `recommended_interval_minutes` as the next target interval and multiply
-subsequent unchanged intervals by `unchanged_poll_backoff_multiplier` until
-`max_interval_minutes`; `example_progression_minutes` exposes the compact
-human-readable sequence. The hint also includes a compact `reset_policy`:
-hosts compare `reset_token` between polls and clear the unchanged/backoff
-streak when that token changes, or when a user reply, new/reassigned todo,
-resolved gate, or material transition makes the goal actionable again. The
-token is derived from scheduler action plus identity/profile inputs, while the
-hot path carries only action fields plus a short `identity_signature`; the
-profile signature, reset-condition summary, and full stateful-backoff policy are
-available from `scheduler_hint.cold_path_detail` when callers request
-`loopx quota should-run --include-detail scheduler`. The reset moves local
-cadence back to the current profile's initial interval before unchanged
-backoff resumes, and does not spend quota. Host-specific scheduler mutation
-remains provider-owned and is not projected by LoopX.
+changes, final checks, and loop self-stop never spend quota.
+`scheduler_hint.reset_policy` and `scheduler_hint.unchanged_poll` remain on the
+default hot path. Host schedulers compare
+`scheduler_hint.reset_policy.reset_token` between polls and clear the
+unchanged/backoff streak when that token changes, or when a user reply,
+new/reassigned todo, resolved gate, or material transition makes the goal
+actionable again. The token is derived from scheduler action plus
+identity/profile inputs, while the hot path carries only action fields plus a
+short `identity_signature`.
+
+The full local cadence projection requires
+`loopx quota should-run --include-detail scheduler` and is returned under
+`scheduler_hint.cold_path_detail.local_scheduler`. Host schedulers apply
+`scheduler_hint.cold_path_detail.local_scheduler.recommended_interval_minutes`
+as the next target interval and multiply subsequent unchanged intervals by
+`scheduler_hint.cold_path_detail.local_scheduler.unchanged_poll_backoff_multiplier`
+until
+`scheduler_hint.cold_path_detail.local_scheduler.max_interval_minutes`;
+`scheduler_hint.cold_path_detail.local_scheduler.example_progression_minutes`
+exposes the compact human-readable sequence. The same cold-path detail carries
+the profile signature, reset-condition summary, and full reset-policy detail.
+The reset moves local cadence back to the current profile's initial interval
+before unchanged backoff resumes and does not spend quota. Host-specific
+scheduler mutation remains provider-owned and is not projected by LoopX.
 The payload also includes `execution_obligation`, which is the compatibility
 entry point for older workers deciding whether a quiet no-op is allowed.
 `heartbeat_recommendation.notify` is only a user-facing notification policy. It
