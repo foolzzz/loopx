@@ -1335,6 +1335,39 @@ def test_typed_material_poll_is_recovered_not_shadowed(tmp_path: Path) -> None:
     assert result.value.turn_instance_id == TURN_ID
 
 
+def test_legacy_scheduler_ack_blocks_settlement_identity_inference(
+    tmp_path: Path,
+) -> None:
+    _append_guard_receipt(tmp_path)
+    _append_run_index_record(
+        tmp_path,
+        {
+            "classification": "quota_slot_spent",
+            "agent_id": AGENT_ID,
+            "todo_id": TODO_ID,
+            "turn_instance_id": TURN_ID,
+        },
+    )
+    _append_run_index_record(
+        tmp_path,
+        {
+            "classification": "quota_scheduler_ack",
+            "agent_id": AGENT_ID,
+        },
+    )
+
+    readback = read_heartbeat_settlement(
+        tmp_path,
+        goal_id=GOAL_ID,
+        agent_id=AGENT_ID,
+        todo_id=TODO_ID,
+        turn_instance_id=None,
+        infer_turn_instance_id=True,
+    )
+
+    assert readback is None
+
+
 def test_unknown_non_neutral_record_fails_closed(tmp_path: Path) -> None:
     _append_guard_receipt(tmp_path)
     _append_run_index_record(
