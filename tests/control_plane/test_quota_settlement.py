@@ -53,6 +53,10 @@ GOAL_ID = "settlement-goal"
 AGENT_ID = "codex-settlement"
 TODO_ID = "todo_settlement"
 TURN_ID = "turn-settlement-1"
+SETTLEMENT_READBACK_NOTE = (
+    Path(__file__).resolve().parents[2]
+    / "docs/development/bugs/settlement-infer-persisted-break.md"
+)
 
 
 @pytest.mark.parametrize("replan", [False, True])
@@ -1361,3 +1365,13 @@ def test_unknown_non_neutral_record_fails_closed(tmp_path: Path) -> None:
     )
 
     assert readback is None
+
+
+def test_settlement_readback_note_marks_scheduler_ack_as_historical() -> None:
+    note = SETTLEMENT_READBACK_NOTE.read_text(encoding="utf-8")
+    active_invariant = note.split("## 不变量", 1)[1].split("## ", 1)[0]
+
+    assert "`quota_scheduler_ack`" not in active_invariant
+    historical_context = note.split("## 历史背景", 1)[1]
+    assert "`quota_scheduler_ack`" in historical_context
+    assert "不再" in historical_context
