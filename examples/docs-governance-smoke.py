@@ -523,6 +523,7 @@ def assert_retired_app_scheduler_contracts_are_current() -> None:
         )
     )
     tasks = compact(read("docs/development/contributor-tasks.md"))
+    operations = compact(read("docs/operations/automation-minimum-interval.md"))
 
     for document, required in (
         (
@@ -547,6 +548,10 @@ def assert_retired_app_scheduler_contracts_are_current() -> None:
         (
             tasks,
             "Qualify parity for stateless App cadence and adaptive child admission",
+        ),
+        (
+            operations,
+            "There is no scheduler ACK command or persisted per-App apply state",
         ),
     ):
         assert required in document, required
