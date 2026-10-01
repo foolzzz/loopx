@@ -14,6 +14,8 @@ class ExcludedPathTree:
 
     def contains(self, candidate: str | PurePosixPath) -> bool:
         path = PurePosixPath(candidate)
+        if path.is_absolute() or ".." in path.parts:
+            return False
         return path == self.root or self.root in path.parents
 
 

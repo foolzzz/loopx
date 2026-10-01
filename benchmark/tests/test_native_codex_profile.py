@@ -105,6 +105,9 @@ def test_frozen_benchmark_scan_exclusion_is_path_scoped() -> None:
     assert not is_excluded_from_active_canary_scans(
         "benchmark/deepswe-gptxhigh-v1-revised/loopx_native_codex.py"
     )
+    assert not is_excluded_from_active_canary_scans(
+        "benchmark/deepswe-gptxhigh-v1/../../loopx/quota.py"
+    )
 
 
 def _fake_profile(tmp_path: Path, *, bind_cli: bool = True) -> NativeCodexProfile:
