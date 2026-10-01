@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import runpy
@@ -20,10 +21,21 @@ from loopx_jev.sentinel_matrix import MAX_CASES, load_sentinel_matrix
 from loopx_jev.transport import TransportFailure
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "sentinel"
+ARCHIVE = FIXTURES / "archive" / "pre_retired_scheduler_cleanup"
 REPOSITORY = "loopx-project/loopx"
 DERIVATION = "retired_command_removal"
 REAL_PROVENANCE = {"commit": "abc123", "repository": REPOSITORY}
 SANITIZED_PROVENANCE = {**REAL_PROVENANCE, "derivation": DERIVATION}
+ARCHIVED_RECORDING_SHA256 = {
+    "expected_summary.json": "52c6fb6e8d20c76499f13a6f0fadb1684463527c51d001cf488ea4205dfb6e16",
+    "matrix.json": "c6dd6e0f40eff982d64a2703374a21d3975ccac70c8d62bf11bdef50aeef94ab",
+    "real/fix_closeout_preflight_latency/COMMIT.txt": "9b4beca735cebf38842f3632a1fb8e2927dd2d76c46eae0c5398e584d5d9a41c",
+    "real/fix_closeout_preflight_latency/after/quota_failure_report.py.txt": "7cc426b19a65fbe9cbcb14bbbd474061ea0bdd5967e33df5fb089857850c8f10",
+    "real/fix_closeout_preflight_latency/after/unsettled_host_turn.py.txt": "62a93850a9f4d5963f76f48275c9d68bf5ec34de9721c8a03531004be42102e4",
+    "real/fix_closeout_preflight_latency/before/quota_failure_report.py.txt": "06268d45ba92896dd3f3bc1e6f8d5ffe39998d05e3f15a4519f06a80b60de2f4",
+    "real/fix_closeout_preflight_latency/before/unsettled_host_turn.py.txt": "d4a3011d3ec792ea19d380da078a00eee64bfbdfca008af40956c520b6bf495c",
+    "responses/20b263c3ca0afc85d69b181ec14f9a55438793d37b223a9e32c488a64f31a2db.json": "29731bc665212a34d04f1d0af1d3afe12aae99efcfe03ece3a6577eb729b5f89",
+}
 
 
 def _matrix_document(**overrides):
@@ -179,13 +191,59 @@ def test_committed_snapshots_do_not_teach_retired_app_scheduler_commands() -> No
         "scheduler-fail-current",
     }
     violations = {}
-    for path in FIXTURES.rglob("*.txt"):
+    active_paths = [FIXTURES / "matrix.json"]
+    for directory in (FIXTURES / "constructed", FIXTURES / "real"):
+        active_paths.extend(directory.rglob("*.txt"))
+    for path in active_paths:
         content = path.read_text(encoding="utf-8")
         matches = sorted(command for command in retired_commands if command in content)
         if matches:
             violations[str(path.relative_to(FIXTURES))] = matches
 
     assert violations == {}
+
+
+def test_historical_recording_archive_is_byte_preserving() -> None:
+    """Historical provider evidence is immutable even after active fixture cleanup."""
+
+    archive_entries = list(ARCHIVE.rglob("*"))
+    assert not [path for path in archive_entries if path.is_symlink()]
+    archived_paths = {
+        path.relative_to(ARCHIVE).as_posix()
+        for path in archive_entries
+        if not path.is_dir()
+    }
+    assert archived_paths == set(ARCHIVED_RECORDING_SHA256)
+    for relative_path, expected_digest in ARCHIVED_RECORDING_SHA256.items():
+        archived = ARCHIVE / relative_path
+        assert archived.is_file(), relative_path
+        assert hashlib.sha256(archived.read_bytes()).hexdigest() == expected_digest, relative_path
+
+    matrix = json.loads((ARCHIVE / "matrix.json").read_text(encoding="utf-8"))
+    summary = json.loads((ARCHIVE / "expected_summary.json").read_text(encoding="utf-8"))
+    recording_path = (
+        ARCHIVE
+        / "responses"
+        / "20b263c3ca0afc85d69b181ec14f9a55438793d37b223a9e32c488a64f31a2db.json"
+    )
+    recording = json.loads(recording_path.read_text(encoding="utf-8"))
+    archived_case = next(
+        case for case in matrix["cases"] if case["case_id"] == "fix_closeout_preflight_latency"
+    )
+    assert archived_case["kind"] == "real_commit"
+    assert archived_case["provenance"] == {
+        "commit": "3c3586941",
+        "repository": REPOSITORY,
+    }
+    assert summary["matrix_digest"] == ARCHIVED_RECORDING_SHA256["matrix.json"]
+    assert summary["recorded_from"] == "live_provider_recording"
+    assert recording["request_key"] == recording_path.stem
+    assert "recorded_at" in recording and "response" in recording
+
+    active_matrix = (FIXTURES / "matrix.json").read_text(encoding="utf-8")
+    active_summary = json.loads((FIXTURES / "expected_summary.json").read_text(encoding="utf-8"))
+    assert "archive/" not in active_matrix
+    assert "historical_live" not in active_summary
 
 
 def test_committed_constructed_snapshots_match_generator_byte_for_byte(tmp_path: Path) -> None:
@@ -280,6 +338,14 @@ def test_replay_reproduces_the_committed_live_summary(tmp_path: Path) -> None:
 
 def test_operation_guides_identify_both_expected_summary_evidence_tracks() -> None:
     expected = json.loads((FIXTURES / "expected_summary.json").read_text(encoding="utf-8"))
+    historical = json.loads((ARCHIVE / "expected_summary.json").read_text(encoding="utf-8"))
+    tracks = {
+        "current_replay": expected["current_replay"],
+        "historical_live": {
+            "execution": historical["recorded_from"],
+            "matrix_digest": historical["matrix_digest"],
+        },
+    }
     package_root = FIXTURES.parents[2]
     semantic_markers = {
         "DRIFT_SHADOW.md": {
@@ -308,10 +374,10 @@ def test_operation_guides_identify_both_expected_summary_evidence_tracks() -> No
             match = re.search(rf"(?ms)^- `{track}` (?P<body>.*?)(?=^- `|^## |\Z)", guide)
             assert match is not None, f"{guide_name} has no structured {track} block"
             block = " ".join(match.group("body").split())
-            assert f"`{expected[track]['execution']}`" in block
-            assert expected[track]["matrix_digest"] in block
+            assert f"`{tracks[track]['execution']}`" in block
+            assert tracks[track]["matrix_digest"] in block
             other_track = "historical_live" if track == "current_replay" else "current_replay"
-            assert expected[other_track]["matrix_digest"] not in block
+            assert tracks[other_track]["matrix_digest"] not in block
             assert all(marker in block for marker in guide_markers[track])
 
 
