@@ -190,7 +190,7 @@ After each LoopX minor release, review:
 - installer and `doctor`;
 - `connect` and `start-goal`;
 - Host surface names;
-- Codex App heartbeat, Codex CLI Goal activation, and the Runtime Connector Catalog;
+- Codex CLI Goal activation and the Runtime Connector Catalog;
 - the TypeScript migration RFC's shipped baseline, active phase, and facade exit conditions;
 - core protocols, state machines, bounded-context ownership, and the quality catalog;
 - Extension manifest, doctor, run, and lifecycle;
@@ -205,7 +205,7 @@ Update theory chapters only when the public contract changes, not when internal 
 - [ ] The first viewport identifies the reader, value, and two practice paths.
 - [ ] Chinese remains the editorial source of truth and English facts stay aligned.
 - [ ] Six foundation chapters cover sessions, Goals, state, work graphs, Turns, recovery, and boundaries.
-- [ ] Onboarding covers Codex App and Codex CLI.
+- [ ] Onboarding covers Codex CLI.
 - [ ] Developer contributions cover the Control Plane, Capabilities, Providers, Hosts and Runners,
   projections, documentation, and fixtures.
 - [ ] Contribution guidance is organized around placement, protocols, invariants, and evidence rather than

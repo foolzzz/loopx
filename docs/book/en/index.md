@@ -17,8 +17,8 @@ existing project or contribute to LoopX.
 
 -   :material-source-repository: **Project onboarding**
 
-    Delegate onboarding to an Agent, verify Goal, identity, and Git boundaries, then start from Codex App or
-    the visible Codex CLI TUI.
+    Delegate onboarding to an Agent, verify Goal, identity, and Git boundaries, then start from the visible
+    Codex CLI TUI.
 
     [:octicons-arrow-right-24: Connect a project](chapters/05-connect-existing-project.md)
 

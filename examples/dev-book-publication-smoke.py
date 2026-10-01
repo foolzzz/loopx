@@ -184,6 +184,63 @@ def assert_community_casebook_is_bilingual() -> None:
             assert en_targets.count(target) == 1, target
 
 
+def assert_codex_app_retirement_is_bilingual() -> None:
+    zh_page = compact(read(BOOK / "chapters" / "06-codex-app.md"))
+    en_page = compact(read(BOOK / "en" / "chapters" / "06-codex-app.md"))
+    zh_index = compact(read(BOOK / "index.md"))
+    en_index = compact(read(BOOK / "en" / "index.md"))
+    zh_config = read(MKDOCS_ZH)
+    en_config = read(MKDOCS_EN)
+
+    for marker in (
+        "# Codex App 入口退役与迁移",
+        "[从 Codex CLI 启动](./07-codex-cli.md)",
+        "包括旧 SSH surface",
+    ):
+        assert marker in zh_page, f"Chinese retirement page missing {marker}"
+    for marker in (
+        "# Codex App entry retirement and migration",
+        "[Start from Codex CLI](./07-codex-cli.md)",
+        "including the former SSH surface",
+    ):
+        assert marker in en_page, f"English retirement page missing {marker}"
+
+    assert "8. Codex App 入口退役与迁移: chapters/06-codex-app.md" in zh_config
+    assert "8. Codex App entry retirement and migration: chapters/06-codex-app.md" in en_config
+    assert "再从可见的 Codex CLI 启动。" in zh_index
+    assert "then start from the visible Codex CLI TUI." in en_index
+
+    active_book = "\n".join(read(path) for path in BOOK.rglob("*.md"))
+    for retired_instruction in (
+        "--codex-app",
+        "Codex App heartbeat",
+        "App heartbeat",
+        "从 Codex App 启动",
+        "Start from Codex App",
+        "App 与 CLI 同时激活",
+        "App and CLI are both active",
+        "项目接入覆盖 Codex App 与 Codex CLI",
+        "Onboarding covers Codex App and Codex CLI",
+        "codex-app-ssh",
+        "Codex App over SSH",
+    ):
+        assert retired_instruction not in active_book, retired_instruction
+
+    retirement_pages = {
+        BOOK / "chapters" / "06-codex-app.md",
+        BOOK / "en" / "chapters" / "06-codex-app.md",
+    }
+    operational_book = "\n".join(
+        read(path) for path in BOOK.rglob("*.md") if path not in retirement_pages
+    )
+    for retired_host_reference in (
+        "Codex App",
+        "App SSH",
+        "Codex CLI/SSH",
+    ):
+        assert retired_host_reference not in operational_book, retired_host_reference
+
+
 def validate_rendered_site(site_dir: Path) -> None:
     def assert_state_machine_diagrams(html: str, route: str) -> None:
         diagram_count = len(re.findall(r'<pre class="mermaid">', html))
@@ -446,6 +503,7 @@ def main() -> int:
         assert (CONTROL_PLANE_COURSE / f"{page}.md").is_file(), page
 
     assert_community_casebook_is_bilingual()
+    assert_codex_app_retirement_is_bilingual()
 
     reading_guides = (
         read(BOOK / "chapters" / "00-reading-guide.md"),

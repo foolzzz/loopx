@@ -131,7 +131,7 @@ against your actual environment:
 - install and update;
 - Host activation;
 - the `start-goal` guided packet;
-- Codex App heartbeat, visible Codex CLI Goal behavior, and other optional Hosts;
+- visible Codex CLI Goal behavior and other supported Hosts;
 - TypeScript Effect runtime readiness;
 - Extension manifest and lifecycle commands.
 

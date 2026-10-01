@@ -169,10 +169,10 @@ package 可能需要各自的 migration/rollback；不要把 wrapper 回滚描�
 
 ## Scheduler 收敛入口
 
-当 Codex App packet 报告 `stateful_backoff.apply_needed=true` 时，先让 Host 应用
+当受支持 Host 的 packet 报告 `stateful_backoff.apply_needed=true` 时，先让 Host 应用
 `recommended_rrule` 一次并读取真实结果。apply 失败或超时时，同一 turn 不重试；若
 `apply_needed=false`，说明精确 Host readback 已匹配目标 cadence，跳过 no-op update。LoopX 不保留
-App scheduler state，也不接受 ACK/failure follow-up；cadence 变化不记 delivery spend。
+scheduler state，也不接受 ACK/failure follow-up；cadence 变化不记 delivery spend。
 
 ## Extension 生命周期入口
 

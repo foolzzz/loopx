@@ -184,7 +184,7 @@ loopx check \
 - installer 与 `doctor`；
 - `connect` / `start-goal`；
 - Host surface 名称；
-- Codex App heartbeat、Codex CLI Goal activation 和 Runtime Connector Catalog；
+- Codex CLI Goal activation 和 Runtime Connector Catalog；
 - TypeScript migration RFC 的 shipped baseline、active phase 与 facade exit condition；
 - core protocol、state machine、bounded-context owner 与 quality catalog；
 - Extension manifest、doctor、run 与 lifecycle；
@@ -199,7 +199,7 @@ loopx check \
 - [ ] 首页第一屏说明读者、价值和两条实践主线；
 - [ ] 中文为主，代码与必要术语保留英文；
 - [ ] 六章基础覆盖 Session、Goal、state、work graph、Turn、recovery 与运行边界；
-- [ ] 项目接入覆盖 Codex App 与 Codex CLI；
+- [ ] 项目接入覆盖 Codex CLI；
 - [ ] 开发者贡献覆盖 Control Plane、Capability、Provider、Host/Runner、Projection/Docs/fixtures；
 - [ ] 贡献内容按 placement、协议、不变量和证据组织，而不是函数列表；
 - [ ] Extension 作为贡献子路径，示例基于当前官方 scaffold 可复现；

@@ -30,7 +30,7 @@ Session / thread
 └── one temporary executor context
 ```
 
-Codex App, Codex CLI, or another Host can advance the same Goal at different times. One session can also
+Codex CLI or another supported Host can advance the same Goal at different times. One session can also
 read more than one Goal. Reading a Goal does not grant write authority, and ending a session does not
 delete the Goal.
 

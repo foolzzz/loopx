@@ -346,7 +346,7 @@ live decision
   -> one spend
 ```
 
-Codex App heartbeat, a visible Codex CLI Goal, and another Host do not need to use the same adapter
+A visible Codex CLI Goal and another supported Host do not need to use the same adapter
 implementation, but they should maintain the same control semantics: the Host is responsible for
 execution and wake-up, the LoopX decision is responsible for the legal next action, and the validator
 does not directly trust a Host completion claim.
@@ -408,8 +408,8 @@ proposal, old `should_run`, or old selected Todo cannot be reused across state c
 
 ### Scheduler convergence requires apply and readback
 
-For a Codex App heartbeat, `recommended_rrule` is the target cadence, not proof that the Host applied
-it. The complete convergence chain is:
+For a Host that supports cadence control, `recommended_rrule` is the target cadence, not proof of the
+applied cadence. The complete convergence chain is:
 
 ```text
 LoopX proposes recommended_rrule
@@ -425,7 +425,7 @@ The important protocol branches are:
   current hint once;
 - terminal pause/stop: verify the stop result according to the Host contract.
 
-LoopX no longer persists App scheduler state or accepts an ACK/failure follow-up. Each poll derives the
+LoopX does not persist Host scheduler state or accept an ACK/failure follow-up. Each poll derives the
 target from the current profile and decision, while the supplied Host RRULE prevents a redundant update.
 Cadence changes are control-plane housekeeping and do not consume delivery quota.
 

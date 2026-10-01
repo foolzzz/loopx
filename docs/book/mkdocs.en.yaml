@@ -73,7 +73,7 @@ nav:
       - 6. Recovery, self-repair, and boundaries: chapters/04-runtime-boundaries.md
   - Part II — Connect an existing project:
       - 7. Connect an existing Git project: chapters/05-connect-existing-project.md
-      - 8. Start from Codex App: chapters/06-codex-app.md
+      - 8. Codex App entry retirement and migration: chapters/06-codex-app.md
       - 9. Start from Codex CLI: chapters/07-codex-cli.md
   - Part III — Developer contributions:
       - 10. Developer contribution map: chapters/source-protocol-map.md

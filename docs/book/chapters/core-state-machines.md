@@ -122,7 +122,7 @@ observation 和 receipt；每个状态机只负责自己的 decision table 与�
 | **Evidence** | 证明结果、阻塞或外部 effect 的真实状态 | artifact ref、validation/readback、rollout/rollback event |
 | **Transition** | 校验并提交一次合法状态变化 | Todo/Goal write API、settlement、scheduler ACK |
 | **Projection** | 把 facts 编译成面向 Agent、Host 或人的视图 | quota/status、Workspace、review packet |
-| **Runtime** | 解释本轮 decision 并执行有界 effect | Codex App/CLI、heartbeat、extension provider |
+| **Runtime** | 解释本轮 decision 并执行有界 effect | Codex CLI、Host scheduler、extension provider |
 
 这些组件不是一条由 Runtime 随意覆盖的 JSON。Runtime 是 effect executor；authoritative state 与
 transition owner 才决定事实是否真的改变。
@@ -431,8 +431,8 @@ autonomous replan obligation。它防止旧 Turn、其他 Agent 或其他工作�
 2. durable writeback 缺失或被拒绝时不能 spend；
 3. scheduler apply 没有 ACK 或 fail receipt 时不能假装 Host 已更新。
 
-这里的 receipt 是通用 Turn journal 契约，与 App cadence projection 分属不同边界。App
-automation 没有 scheduler ACK/failure follow-up 命令，也不持久化每 App scheduler state；
+这里的 receipt 是通用 Turn journal 契约，与 Host cadence projection 分属不同边界。cadence adapter
+没有 scheduler ACK/failure follow-up 命令，也不持久化每 Host scheduler state；
 每次无状态 proposal 只依据 Host 直接更新结果或 authoritative readback。
 
 失败不是删掉 transaction。`receipt_missing`、`identity_mismatch`、`writeback_rejected`、
@@ -481,7 +481,7 @@ flowchart TD
   Keep --> NextTick
 ```
 
-每轮 App poll 都投影当前 profile 的初始间隔，并与 observed Host RRULE 比较。App automation 不持久化
+每轮 scheduler poll 都投影当前 profile 的初始间隔，并与 observed Host RRULE 比较。cadence adapter 不持久化
 progression index、apply ACK 或 failure receipt；下一次唤醒从 canonical state 重新计算。local scheduler
 仍可使用有界 unchanged-poll backoff。调度变化本身不 spend，也不能把 paused/blocked Goal 变成 eligible。
 
