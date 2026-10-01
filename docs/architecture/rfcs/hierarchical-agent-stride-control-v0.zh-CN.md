@@ -245,9 +245,10 @@ settlement contract 完成 validation、durable writeback 与 quota spend。新�
 `in_flight_continuation` boundary 只改变 vision-checkpoint timing：同一 Todo 的
 中间进展记录 typed continuation checkpoint，不要求新的 vision decision。
 Completion、durable Next Action 变化、replan、gap 与 terminal outcome 仍属于
-`semantic_closeout` boundary，并保持严格 vision contract。Multi-slice burst 与
-redundant scheduler-ACK suppression 仍是独立实验；sticky Todo selection 不隐含
-这些能力。
+`semantic_closeout` boundary，并保持严格 vision contract。Multi-slice burst 仍是
+独立实验，sticky Todo selection 不隐含该能力。原 per-App scheduler-ACK
+suppression 实验已随 App cadence 无状态化而结束；sticky selection 不会恢复这个已退役的
+feedback loop。
 
 Todo 粒度应由**决策稳定性**定义，而不是 line count、file count、command count
 或 elapsed minute：

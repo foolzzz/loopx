@@ -34,13 +34,16 @@ caller intent, not authentication against other processes sharing the OS user.
 For an already bound App turn, inspect its `quota should-run` scheduler packet
 using that turn's normal identity and selection contract. Do not create a new
 turn solely to observe a timer. `scheduler_hint.app_automation` and its legacy
-`codex_app` projection expose the floor, desired RRULE, apply/ACK state and
-`guarantee`. Apply the desired schedule with the App's `automation_update` tool,
-preserving task binding, prompt, status and notification preference. Then view
-that same automation and compare its actual schedule before running the returned
-ACK command. A configuration write or update-tool response alone is not actual
-schedule readback. Resume only the affected schedule when its normal activation
-requirements are met.
+`codex_app` projection expose the floor, desired RRULE, stateless
+`stateful_backoff.apply_needed` decision and `guarantee`. There is no scheduler
+ACK command or persisted per-App apply state. When `apply_needed=true`, apply the
+desired schedule once with the App's `automation_update` tool while preserving
+task binding, prompt, status and notification preference. Then view that same
+automation and compare its actual schedule. Pass the observed RRULE to the next
+normal `quota should-run` call with `--app-automation-current-rrule`; an exact
+match produces `apply_needed=false` and skips a no-op update. A configuration
+write or update-tool response alone is not actual schedule readback. Resume only
+the affected schedule when its normal activation requirements are met.
 
 If the App rejects the required interval, hold that automation and retain the
 failure; do not shorten the floor or activate an alternate scheduler. A daily

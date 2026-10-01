@@ -503,6 +503,83 @@ def assert_contributor_task_board_is_current() -> None:
         assert stale not in tasks, stale
 
 
+def assert_retired_app_scheduler_contracts_are_current() -> None:
+    authority = compact(
+        read("docs/architecture/rfcs/shared-goal-authority-state-provider-v0.md")
+    )
+    authority_zh = compact(
+        read(
+            "docs/architecture/rfcs/"
+            "shared-goal-authority-state-provider-v0.zh-CN.md"
+        )
+    )
+    stride = compact(
+        read("docs/architecture/rfcs/hierarchical-agent-stride-control-v0.md")
+    )
+    stride_zh = compact(
+        read(
+            "docs/architecture/rfcs/"
+            "hierarchical-agent-stride-control-v0.zh-CN.md"
+        )
+    )
+    tasks = compact(read("docs/development/contributor-tasks.md"))
+    operations = compact(read("docs/operations/automation-minimum-interval.md"))
+
+    for document, required in (
+        (
+            authority,
+            "App cadence is projected from the current heartbeat without "
+            "per-App persisted scheduler state or scheduler ACK/failure feedback",
+        ),
+        (
+            authority_zh,
+            "App cadence 从当前 heartbeat 投影，不再持久化 per-App scheduler "
+            "state，也不再接收 scheduler ACK/failure feedback",
+        ),
+        (
+            stride,
+            "The former per-App scheduler-ACK suppression experiment ended when "
+            "App cadence became stateless",
+        ),
+        (
+            stride_zh,
+            "原 per-App scheduler-ACK suppression 实验已随 App cadence 无状态化而结束",
+        ),
+        (
+            tasks,
+            "Qualify parity for stateless App cadence and adaptive child admission",
+        ),
+        (
+            operations,
+            "There is no scheduler ACK command or persisted per-App apply state",
+        ),
+        (
+            operations,
+            "apply the desired schedule once with the App's `automation_update` tool",
+        ),
+        (
+            operations,
+            "view that same automation and compare its actual schedule",
+        ),
+        (
+            operations,
+            "Pass the observed RRULE to the next normal `quota should-run` call with "
+            "`--app-automation-current-rrule`",
+        ),
+        (
+            operations,
+            "an exact match produces `apply_needed=false` and skips a no-op update",
+        ),
+    ):
+        assert required in document, required
+
+    for retired_instruction in (
+        "apply/ACK state",
+        "before running the returned ACK command",
+    ):
+        assert retired_instruction not in operations, retired_instruction
+
+
 def assert_contributor_task_links_are_current() -> None:
     for path in (
         ".github/ISSUE_TEMPLATE/config.yml",
@@ -813,6 +890,7 @@ def main() -> int:
     assert_hosted_docs_nav_parity()
     assert_effect_interpreter_docs_are_canonical()
     assert_contributor_task_board_is_current()
+    assert_retired_app_scheduler_contracts_are_current()
     assert_contributor_task_links_are_current()
     assert_technical_direction_governance_is_current()
 
