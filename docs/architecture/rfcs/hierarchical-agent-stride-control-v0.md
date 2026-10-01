@@ -269,8 +269,10 @@ only vision-checkpoint timing: intermediate progress on the same Todo records a
 typed continuation checkpoint without demanding a fresh vision decision.
 Completion, durable Next Action changes, replan, gaps, and terminal outcomes
 remain `semantic_closeout` boundaries and retain the strict vision contract.
-Multi-slice bursts and redundant scheduler-ACK suppression remain separate
-experiments; they are not implied by sticky Todo selection.
+Multi-slice bursts remain a separate experiment and are not implied by sticky
+Todo selection. The former per-App scheduler-ACK suppression experiment ended
+when App cadence became stateless; sticky selection does not restore that
+retired feedback loop.
 
 Todo granularity should be defined by **decision stability**, not line count,
 file count, command count, or elapsed minutes:
