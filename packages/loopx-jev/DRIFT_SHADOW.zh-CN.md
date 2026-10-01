@@ -99,7 +99,10 @@ loopx configure-goal --goal-id <goal-id> --progress-review-mode assist \
 
 `drift label --state-dir <dir> --event-id <id> --truth drift|on_goal|unknown` 记录私有的人工真值；随后 `drift status` 按信号给出混淆表。标注不会离开私有目录，也不会进入回执。
 
-`sentinel compare --matrix … --responses … --output …` 用已提交的 provider 录制回放 `tests/fixtures/sentinel/` 下的 16 序列矩阵，逐序列报告：类型化重复保险丝何时触发、每种信号首次标记漂移的轮次、`assist` 何时会触发义务，以及所有误报。`--live` 改为真实调用并录制；已提交的 `expected_summary.json` 固定了最后一次 live 的结果。
+`sentinel compare --matrix … --responses … --output …` 用已提交的 provider 录制回放 `tests/fixtures/sentinel/` 下的 16 序列矩阵，逐序列报告：类型化重复保险丝何时触发、每种信号首次标记漂移的轮次、`assist` 何时会触发义务，以及所有误报。`--live` 改为真实调用并录制；已提交的 `expected_summary.json` 保留两条相互独立的证据轨：
+
+- `current_replay` 使用 `recorded_replay`，可用已提交的当前清理后矩阵与 provider 响应离线复现，其矩阵摘要为 `25e20d5d5d1bc3dfc1fe7f2a20e28c73c707e0a348fb8db0534ec308b2e6b44c`。
+- `historical_live` 使用 `live_provider_recording`，保留清理前原样矩阵最后一次完整 live provider 运行的结果，其矩阵摘要为 `c6dd6e0f40eff982d64a2703374a21d3975ccac70c8d62bf11bdef50aeef94ab`。它是历史证据，不是当前清理后矩阵的离线回放，也不表示刚刚完成了新的 provider 运行。
 
 ## 证据、去重和结果含义
 
@@ -119,7 +122,7 @@ loopx configure-goal --goal-id <goal-id> --progress-review-mode assist \
 
 ## 录制对照结果与仍未证明的部分
 
-冻结矩阵含 9 个漂移序列（6 个从第 1 轮起纯装饰性，3 个先做真实工作后才漂移）、6 个标注为 on-goal 的原样真实上游提交，以及 1 个 on-goal 提交的清理派生样本。派生样本从前后 checkpoint 中删除了已退役的 App scheduler 命令；新 request identity 没有录制，所以 replay 对它按失败关闭，也不把它计入 provider 质量结论。每轮都自报 `advanced` 并更换 hypothesis id。最后一次完整 live 录制使用清理前的原样输入和问题集 `scoped-progress-sentinel-v2`（`jev-1.13.0`，35 轮，34 轮 completed，1 轮按失败关闭）；当前 replay 为 33 轮 completed、2 轮按失败关闭：
+冻结矩阵含 9 个漂移序列（6 个从第 1 轮起纯装饰性，3 个先做真实工作后才漂移）、6 个标注为 on-goal 的原样真实上游提交，以及 1 个 on-goal 提交的清理派生样本。派生样本从前后 checkpoint 中删除了已退役的 App scheduler 命令；新 request identity 没有录制，所以 replay 对它按失败关闭，也不把它计入 provider 质量结论。每轮都自报 `advanced` 并更换 hypothesis id。最后一次完整 live 录制使用清理前的原样输入和问题集 `scoped-progress-sentinel-v2`（`jev-1.13.0`，35 轮，34 轮 completed，1 轮按失败关闭）；`current_replay` 证据轨为 33 轮 completed、2 轮按失败关闭：
 
 | | 类型化重复保险丝 | `noul` 回执 | `choice` 回执 |
 | --- | --- | --- | --- |

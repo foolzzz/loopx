@@ -225,7 +225,16 @@ signal. Labels never leave the private directory or enter a receipt.
 answers and reports, per sequence, when the typed repeat fuse would fire, when
 each signal first flags drift, when `assist` would raise the obligation, and every
 false flag. `--live` records fresh answers instead; the committed
-`expected_summary.json` pins what the last live run produced.
+`expected_summary.json` preserves two separate evidence tracks:
+
+- `current_replay` uses `recorded_replay` and is reproducible offline from the
+  committed current sanitized matrix and provider responses. Its matrix digest is
+  `25e20d5d5d1bc3dfc1fe7f2a20e28c73c707e0a348fb8db0534ec308b2e6b44c`.
+- `historical_live` uses `live_provider_recording` and retains the last complete
+  live provider result for the exact pre-sanitization matrix. Its matrix digest is
+  `c6dd6e0f40eff982d64a2703374a21d3975ccac70c8d62bf11bdef50aeef94ab`.
+  It is historical evidence, not an offline replay of the current sanitized
+  matrix. It is not proof of a fresh provider run.
 
 ## Evidence, deduplication and results
 
@@ -289,7 +298,7 @@ request identity, so replay fails it closed and excludes it from provider-qualit
 claims. Every round self-reports `advanced` with a fresh hypothesis id. The last
 complete live recording used the exact pre-sanitization inputs and question set
 `scoped-progress-sentinel-v2` (`jev-1.13.0`, 35 rounds, 34 completed, 1 failed
-closed); the current replay is 33 completed and 2 failed closed:
+closed); the `current_replay` track is 33 completed and 2 failed closed:
 
 | | Typed repeat fuse | `noul` receipts | `choice` receipts |
 | --- | --- | --- | --- |
