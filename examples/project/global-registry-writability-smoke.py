@@ -80,13 +80,20 @@ def restore_writable(path: Path) -> None:
         pass
 
 
-def assert_sync_reports_write_denied(root: Path) -> None:
+def assert_sync_reports_write_denied(root: Path, *, lock_only: bool = False) -> None:
     runtime = root / "runtime"
     project = root / "project"
     registry = project / ".loopx" / "registry.json"
     project.mkdir(parents=True)
     write_project_registry(registry, runtime=runtime, repo=project)
-    make_unwritable(runtime)
+    source_before = registry.read_bytes()
+    if lock_only:
+        runtime.mkdir(parents=True)
+        lock_file = runtime / "registry.global.json.lock"
+        lock_file.write_text("", encoding="utf-8")
+        lock_file.chmod(0o400)
+    else:
+        make_unwritable(runtime)
     try:
         result = sync_project_registry_to_global(
             registry_path=registry,
@@ -100,8 +107,11 @@ def assert_sync_reports_write_denied(root: Path) -> None:
     assert result["ok"] is False, result
     assert result["write_denied"] is True, result
     assert result["wrote"] is False, result
-    assert result["global_registry_writability"]["ok"] is False, result
+    assert result["global_registry_writability"]["ok"] is lock_only, result
     assert result["requires_global_registry_repair"] is True, result
+    assert registry.read_bytes() == source_before, result
+    assert not (runtime / "registry.global.json").exists(), result
+    assert not (runtime / "registry.global.json.ts-effect.lock").exists(), result
 
 
 def assert_connect_fails_without_partial_local_state(root: Path) -> None:
@@ -146,6 +156,8 @@ def assert_register_agent_fails_before_source_write(root: Path) -> None:
     global_payload["registry_role"] = "global-local"
     global_payload["goals"][0]["source_registry"] = str(source_registry)
     write_json(global_registry, global_payload)
+    source_before = source_registry.read_bytes()
+    global_before = global_registry.read_bytes()
 
     make_unwritable(runtime)
     try:
@@ -170,6 +182,8 @@ def assert_register_agent_fails_before_source_write(root: Path) -> None:
     assert data["host_loop_activation"]["activated"] is False, data
     assert data["host_loop_activation"]["recommended_action"], data
     assert only_goal(source_registry)["coordination"]["registered_agents"] == ["codex-main-control"]
+    assert source_registry.read_bytes() == source_before, data
+    assert global_registry.read_bytes() == global_before, data
 
 
 def main() -> int:
@@ -179,6 +193,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="loopx-global-writability-smoke-") as tmp:
         root = Path(tmp)
         assert_sync_reports_write_denied(root / "sync")
+        assert_sync_reports_write_denied(root / "lock-only", lock_only=True)
         assert_connect_fails_without_partial_local_state(root / "connect")
         assert_register_agent_fails_before_source_write(root / "register-agent")
     print("global-registry-writability-smoke ok")

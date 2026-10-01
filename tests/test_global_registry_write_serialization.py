@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import subprocess
 import sys
@@ -153,6 +154,74 @@ def test_dry_run_sync_does_not_take_the_write_lock(
     assert result["wrote"] is False, result
     assert acquired == [], "a read-only preview must not block concurrent writers"
     assert not global_registry_path(runtime_root).exists()
+
+
+@pytest.mark.parametrize("error_number", [errno.EACCES, errno.EPERM, errno.EROFS])
+def test_sync_reports_lock_write_denied_without_mutating_registries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error_number: int
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    registry_path = _project_registry(tmp_path, "alpha", runtime_root)
+    global_path = global_registry_path(runtime_root)
+    runtime_root.mkdir()
+    global_path.write_text('{"goals": []}\n', encoding="utf-8")
+    before_source = registry_path.read_bytes()
+    before_global = global_path.read_bytes()
+    lock_path = global_path.with_name(f"{global_path.name}.ts-effect.lock")
+
+    @contextmanager
+    def denied_lock(path: Path, **kwargs: Any) -> Iterator[Path]:
+        assert path == global_path
+        raise OSError(error_number, "lock write denied", str(lock_path))
+        yield path
+
+    def forbidden_write(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("sync must never write without acquiring the registry lock")
+
+    monkeypatch.setattr(global_registry, "exclusive_cross_runtime_file_lock", denied_lock)
+    monkeypatch.setattr(global_registry, "write_json", forbidden_write)
+
+    result = sync_project_registry_to_global(
+        registry_path=registry_path,
+        runtime_root_override=str(runtime_root),
+    )
+
+    assert result["ok"] is False
+    assert result["write_denied"] is True
+    assert result["wrote"] is False
+    assert result["errno"] == error_number
+    assert result["synced_goal_ids"] == []
+    assert result["attempted_goal_ids"] == ["goal-alpha"]
+    assert result["requires_global_registry_repair"] is True
+    assert result["requires_host_permission"] is True
+    assert result["fallback_registry"] == str(registry_path)
+    assert str(lock_path) in result["error"]
+    assert "sync-global" in result["recommended_action"]
+    assert result["global_registry_writability"]["ok"] is True
+    assert registry_path.read_bytes() == before_source
+    assert global_path.read_bytes() == before_global
+
+
+@pytest.mark.parametrize("error_number", [errno.EIO, errno.ELOOP])
+def test_sync_does_not_reclassify_other_lock_errors_as_write_denied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error_number: int
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    registry_path = _project_registry(tmp_path, "alpha", runtime_root)
+    error = OSError(error_number, "lock failed")
+
+    @contextmanager
+    def failed_lock(path: Path, **kwargs: Any) -> Iterator[Path]:
+        raise error
+        yield path
+
+    monkeypatch.setattr(global_registry, "exclusive_cross_runtime_file_lock", failed_lock)
+    with pytest.raises(OSError) as raised:
+        sync_project_registry_to_global(
+            registry_path=registry_path,
+            runtime_root_override=str(runtime_root),
+        )
+    assert raised.value is error
 
 
 def test_retire_reads_and_writes_inside_the_global_registry_lock(
