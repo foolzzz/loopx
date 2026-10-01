@@ -453,7 +453,7 @@ def main() -> int:
         loopx_command_skill = codex_home / "skills" / "loopx" / "SKILL.md"
         loopx_command_skill_text = loopx_command_skill.read_text(encoding="utf-8")
         assert "surface=codex-skills" in loopx_command_skill_text, loopx_command_skill_text
-        assert "Identify the exact current host surface" in loopx_command_skill_text
+        assert "exact current host `codex-cli-tui`" in loopx_command_skill_text
         assert "--host-surface codex-cli-tui" in loopx_command_skill_text
         assert "--host-surface <exact-current-host>" not in loopx_command_skill_text
         assert "`goal_start_contract` as authoritative" in loopx_command_skill_text
