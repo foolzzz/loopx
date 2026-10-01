@@ -26,7 +26,8 @@ def register_quota_monitor_poll_request_arguments(
         "--todo-id",
         help=(
             "For `quota should-run`, select one currently projected eligible "
-            "action through typed same-turn qualification. For "
+            "action through typed same-turn qualification; under the `claude_code` "
+            "runtime profile it instead names the MCP-owned settlement target. For "
             "`quota monitor-poll`, name the observed monitor Todo; a committed "
             "advancement settlement Todo remains separate under the auxiliary "
             "no-spend observation contract. Otherwise name the accountable "
