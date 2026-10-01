@@ -22,7 +22,7 @@ MAX_ROUNDS = 6
 MAX_PATHS = 8
 MAX_FILE_BYTES = 32768
 MAX_ROUND_BYTES = 32768
-CASE_KINDS = ("constructed", "real_commit")
+CASE_KINDS = ("constructed", "real_commit", "sanitized_real_commit")
 _TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$")
 _RESULT_CLASSES = {item.value for item in ProgressResultClass}
 
@@ -156,9 +156,17 @@ def load_sentinel_matrix(path: Path) -> dict[str, Any]:
             raise ValueError(f"{field}.gold.drift_from_round must be null or a round number")
         provenance = raw.get("provenance")
         if provenance is not None and (
-            not isinstance(provenance, dict) or set(provenance) - {"commit", "repository"}
+            not isinstance(provenance, dict)
+            or set(provenance) - {"commit", "repository", "derivation"}
         ):
             raise ValueError(f"{field}.provenance has unexpected fields")
+        if kind == "sanitized_real_commit" and (
+            not isinstance(provenance, dict)
+            or provenance.get("derivation") != "retired_command_removal"
+        ):
+            raise ValueError(
+                f"{field}.provenance must name the sanitized fixture derivation"
+            )
         cases.append(
             {
                 "case_id": case_id,

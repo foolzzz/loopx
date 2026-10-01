@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from loopx_jev.sentinel_compare import COMPARISON_SCHEMA, _aggregate, compare, recording_key
+from loopx_jev.sentinel_compare import (
+    COMPARISON_SCHEMA,
+    _aggregate,
+    compare,
+    recording_key,
+    recording_transport,
+)
 from loopx_jev.sentinel_matrix import MAX_CASES, load_sentinel_matrix
 from loopx_jev.transport import TransportFailure
 
@@ -32,11 +38,35 @@ def test_committed_matrix_loads_with_frozen_gold_labels() -> None:
     assert len(matrix["cases"]) == 16
     drift = [case for case in matrix["cases"] if case["gold"]["drift_from_round"] is not None]
     assert len(drift) == 9
-    assert {case["kind"] for case in matrix["cases"]} == {"constructed", "real_commit"}
-    real = [case for case in matrix["cases"] if case["kind"] == "real_commit"]
+    assert {case["kind"] for case in matrix["cases"]} == {
+        "constructed",
+        "real_commit",
+        "sanitized_real_commit",
+    }
+    real = [case for case in matrix["cases"] if case["kind"] != "constructed"]
     assert all(case["provenance"]["repository"] == "loopx-project/loopx" for case in real)
     assert all(case["gold"]["drift_from_round"] is None for case in real)
+    sanitized = [case for case in real if case["kind"] == "sanitized_real_commit"]
+    assert [case["provenance"]["derivation"] for case in sanitized] == [
+        "retired_command_removal"
+    ]
     assert all(round_item["self_report"]["result_class"] == "advanced" for case in matrix["cases"] for round_item in case["rounds"])
+
+
+def test_committed_snapshots_do_not_teach_retired_app_scheduler_commands() -> None:
+    retired_commands = {
+        "scheduler-ack",
+        "scheduler-ack-current",
+        "scheduler-fail-current",
+    }
+    violations = {}
+    for path in FIXTURES.rglob("*.txt"):
+        content = path.read_text(encoding="utf-8")
+        matches = sorted(command for command in retired_commands if command in content)
+        if matches:
+            violations[str(path.relative_to(FIXTURES))] = matches
+
+    assert violations == {}
 
 
 def test_committed_constructed_snapshots_match_generator_byte_for_byte(tmp_path: Path) -> None:
@@ -85,7 +115,9 @@ def test_matrix_loader_rejects_loose_input(tmp_path: Path) -> None:
 def test_replay_reproduces_the_committed_live_summary(tmp_path: Path) -> None:
     matrix = load_sentinel_matrix(FIXTURES / "matrix.json")
     expected = json.loads((FIXTURES / "expected_summary.json").read_text(encoding="utf-8"))
-    assert expected["matrix_digest"] == matrix["matrix_digest"], "matrix changed after the recording; re-record"
+    assert expected["current_replay"]["matrix_digest"] == matrix["matrix_digest"], (
+        "matrix changed after the replay summary; refresh it"
+    )
     comparison = compare(
         matrix,
         responses=FIXTURES / "responses",
@@ -110,10 +142,13 @@ def test_replay_reproduces_the_committed_live_summary(tmp_path: Path) -> None:
     assert aggregate["baseline"]["typed_repeat_fired_cases"] == 0
     for signal in ("noul", "choice"):
         results = aggregate["signals"][signal]
-        assert results["on_goal_cases_with_false_flag"] == "0/6"
-        assert results["on_goal_cases_without_full_verdict"] == 1
+        assert results["on_goal_cases_with_false_flag"] == "0/5"
+        assert results["on_goal_cases_without_full_verdict"] == 2
         assert results["on_goal_cases_without_full_verdict_with_flag"] == 0
-    assert aggregate["signals"] == expected["live_aggregate"]["signals"]
+    assert aggregate["signals"] == expected["current_replay"]["aggregate"]["signals"]
+    assert aggregate["round_status_counts"] == expected["current_replay"]["aggregate"][
+        "round_status_counts"
+    ]
     assert all(
         row["execution_kind"] == "recorded_replay"
         for case in comparison["cases"]
@@ -121,8 +156,6 @@ def test_replay_reproduces_the_committed_live_summary(tmp_path: Path) -> None:
         if row["status"] != "not_captured"
     )
     # Replay must not reach the network: a request without a recording fails closed.
-    from loopx_jev.sentinel_compare import recording_transport
-
     replay = recording_transport(tmp_path / "empty", live=False)
     with pytest.raises(TransportFailure, match="no_recorded_response"):
         replay({"model": "x", "state": {}, "questions": {}}, None, "key")
@@ -170,3 +203,24 @@ def test_recording_key_ignores_nothing_but_the_request() -> None:
     request = {"model": "m", "state": {"a": 1}, "questions": {"q": {"type": "noul", "instructions": "i"}}}
     assert recording_key(request) == recording_key(json.loads(json.dumps(request)))
     assert recording_key(request) != recording_key({**request, "model": "n"})
+
+
+def test_recording_transport_rejects_response_rekeyed_for_another_request(
+    tmp_path: Path,
+) -> None:
+    request = {"model": "m", "state": {}, "questions": {}}
+    key = recording_key(request)
+    (tmp_path / f"{key}.json").write_text(
+        json.dumps(
+            {
+                "schema": "loopx_jev_recorded_response_v0",
+                "request_key": "0" * 64,
+                "response": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    replay = recording_transport(tmp_path, live=False)
+    with pytest.raises(TransportFailure, match="invalid_recorded_response"):
+        replay(request, None, "key")

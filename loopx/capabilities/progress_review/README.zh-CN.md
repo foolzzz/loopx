@@ -86,20 +86,21 @@ loopx-jev sentinel compare \
   --output /tmp/sentinel-comparison.json
 ```
 
-它对每个录制序列报告：类型化重复保险丝首次触发的轮次（对自报 advanced 的序列在序列内永不触发）、每种回执信号首次标记漂移的轮次，以及 gold 标注为 on-goal 的序列上的误报。不加 `--live` 时回放已提交的 provider 响应，因此 CI 无需 key 即可复现数字。`python -m pytest packages/loopx-jev/tests/test_sentinel.py -q` 运行同一回放。
+它对每个录制序列报告：类型化重复保险丝首次触发的轮次（对自报 advanced 的序列在序列内永不触发）、每种回执信号首次标记漂移的轮次，以及 gold 标注为 on-goal 的序列上的误报。不加 `--live` 时回放已提交的 provider 响应，因此 CI 无需 key 即可复现当前 replay 数字。`python -m pytest packages/loopx-jev/tests/test_sentinel.py -q` 运行同一回放。
 
 ## 录制对照结果
 
-16 序列矩阵的已提交 live 录制（问题集 `scoped-progress-sentinel-v2`，`jev-1.13.0`，35 轮，每轮自报 `advanced`；1 个回答被严格解码器拒绝）：
+当前 16 序列矩阵包含 9 个漂移序列、6 个原样真实 on-goal 提交，以及 1 个 on-goal 提交的清理派生样本。派生样本删除了已退役的 App scheduler 命令，其新 request identity 没有录制，因此已提交的 replay 会按失败关闭，而不会复用另一份源码的回答。当前 replay 为 33 轮 completed、2 轮按失败关闭：
 
 | | 类型化重复保险丝 | `noul` 回执 | `choice` 回执 |
 | --- | --- | --- | --- |
 | 在 gold 轮被标记的漂移序列 | 0/9 | 9/9 | 5/9 |
 | 阈值 2 下达到 `assist` 义务 | 0/9 | 9/9 | 2/9 |
-| 真实 on-goal 上游提交被误报 | 0/7 | 已评估的 0/6 | 已评估的 0/6 |
-| 真实 on-goal 提交无判定（按失败关闭） | — | 1/7 | 1/7 |
+| 原样真实 on-goal 提交被误报 | 0/6 | 已评估的 0/5 | 已评估的 0/5 |
+| 原样真实 on-goal 提交无判定（按失败关闭） | — | 1/6 | 1/6 |
+| 清理派生样本 | 不计入 | 无录制，按失败关闭 | 无录制，按失败关闭 |
 
-纯装饰性序列在第 1 轮被标记，混合序列在各自漂移轮被标记；第二次独立 live 复现了全部结果。v2 措辞是在早先录制漏检“实现落地后的改动”之后修订的，因此构造序列对新措辞不再算留出集；7 个真实提交没有用于调参。完整表格、延迟、波动与尚未证明的部分见[操作指南](../../../packages/loopx-jev/DRIFT_SHADOW.zh-CN.md)。
+历史 live 使用清理前的原样矩阵与 7 个真实 on-goal 提交：35 轮中 34 轮 completed、1 轮按失败关闭，两种回执信号在已评估的 on-goal 样本上均为 0/6 误报。第二次独立 live 完成 35/35，并复现了全部首次告警轮与义务轮。纯装饰性序列在第 1 轮被标记，混合序列在各自漂移轮被标记。v2 措辞是在早先录制漏检“实现落地后的改动”之后修订的，因此构造序列对新措辞不再算留出集；清理前的 7 个真实提交没有用于调参。完整表格、延迟、波动与尚未证明的部分见[操作指南](../../../packages/loopx-jev/DRIFT_SHADOW.zh-CN.md)。
 
 ## 采用路径
 

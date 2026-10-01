@@ -86,6 +86,7 @@ CONSTRUCTED_CASES = {
 REAL_CASES = {
     "fix_closeout_preflight_latency": {
         "commit": "3c3586941",
+        "derivation": "retired_command_removal",
         "objective": "Give the prior-closeout preflight the latency its Goal-history query needs",
         "acceptance": [
             "The prior-closeout preflight declares its own 30 second budget instead of inheriting the 5 second single-record default",
@@ -194,10 +195,14 @@ def real_case(case_id: str, spec: dict) -> dict:
     after_dir = REAL / case_id / "after"
     before_dir = REAL / case_id / "before"
     paths = sorted(f.name[:-4] for f in after_dir.glob("*.txt"))
+    derivation = spec.get("derivation")
+    provenance = {"commit": spec["commit"], "repository": "loopx-project/loopx"}
+    if derivation:
+        provenance["derivation"] = derivation
     return {
         "case_id": case_id,
-        "kind": "real_commit",
-        "provenance": {"commit": spec["commit"], "repository": "loopx-project/loopx"},
+        "kind": "sanitized_real_commit" if derivation else "real_commit",
+        "provenance": provenance,
         "basis": {"objective": spec["objective"], "acceptance": spec["acceptance"]},
         "paths": paths,
         "baseline": {
@@ -221,7 +226,11 @@ def real_case(case_id: str, spec: dict) -> dict:
         "gold": {
             "drift_from_round": None,
             "labeler": "upstream-merge",
-            "note": "merged upstream commit; acceptance restated from its commit message",
+            "note": (
+                "sanitized derivative of a merged upstream commit; retired commands removed"
+                if derivation
+                else "merged upstream commit; acceptance restated from its commit message"
+            ),
         },
     }
 

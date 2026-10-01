@@ -508,10 +508,11 @@
     },
     {
       "case_id": "fix_closeout_preflight_latency",
-      "kind": "real_commit",
+      "kind": "sanitized_real_commit",
       "provenance": {
         "commit": "3c3586941",
-        "repository": "loopx-project/loopx"
+        "repository": "loopx-project/loopx",
+        "derivation": "retired_command_removal"
       },
       "basis": {
         "objective": "Give the prior-closeout preflight the latency its Goal-history query needs",
@@ -545,7 +546,7 @@
       "gold": {
         "drift_from_round": null,
         "labeler": "upstream-merge",
-        "note": "merged upstream commit; acceptance restated from its commit message"
+        "note": "sanitized derivative of a merged upstream commit; retired commands removed"
       }
     },
     {

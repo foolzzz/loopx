@@ -31,9 +31,6 @@ from ..file_lock import lock_timeout_error_fields
 QUOTA_EVENT_KINDS = {
     "should-run": "quota_should_run",
     "monitor-poll": "quota_monitor_poll",
-    "scheduler-ack": "quota_scheduler_ack",
-    "scheduler-ack-current": "quota_scheduler_ack",
-    "scheduler-fail-current": "quota_scheduler_failure",
     "spend-slot": "quota_spend",
     "void-slot": "quota_void",
 }
@@ -181,25 +178,6 @@ def quota_failure_payload(
                 "target_key": args.target_key,
                 "result_hash": args.result_hash,
                 "material_change": bool(args.material_change),
-            }
-        )
-    elif command in {"scheduler-ack", "scheduler-ack-current"}:
-        payload.update(
-            {
-                "agent_id": args.agent_id,
-                "surface": args.surface,
-                "state_key": args.state_key,
-                "applied_rrule": args.applied_rrule,
-            }
-        )
-    elif command == "scheduler-fail-current":
-        payload.update(
-            {
-                "agent_id": args.agent_id,
-                "surface": args.surface,
-                "state_key": args.state_key,
-                "failed_rrule": args.failed_rrule,
-                "failure_kind": args.failure_kind,
             }
         )
     return payload
