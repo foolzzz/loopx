@@ -786,13 +786,19 @@ ACTIVE_GOAL_STATE.md prose
 
 ### 5. Spend 再次验证 delivery workspace
 
-`loopx/control_plane/quota/slot_accounting.py` 不直接消费“最近一次 run”，而是找最新未 spend 的 accountable delivery run，并验证其 workspace snapshot：
+`loopx/control_plane/quota/slot_accounting.py` 不直接消费“最近一次 run”，而是从当前
+`effect_ref` 派生 `settlement_effect_id`，再选择最新一次尚未 spend 的 Turn
+settlement writeback：明确属于其他 settlement effect 的 run 会被跳过；没有 effect
+identity 的 legacy record 仍按既有兼容规则处理。选中后再验证其 workspace snapshot：
 
 ```python
 delivery_completion_run = _latest_unspent_turn_settlement_run(
     runtime_root,
     goal_id,
     agent_id=requested_agent_id,
+    settlement_effect_id=(
+        str(effect_ref or "").strip().split("#", 1)[0] or None
+    ),
 )
 delivery_workspace = (
     raw_delivery_workspace

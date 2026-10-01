@@ -1,3 +1,5 @@
+import ast
+import inspect
 import json
 from pathlib import Path
 
@@ -7,9 +9,12 @@ from loopx.control_plane.quota import slot_accounting
 ROOT = Path(__file__).resolve().parents[2]
 RETIRED_SETTLEMENT_HELPER = "_latest_unspent_accountable_delivery_run"
 CURRENT_SETTLEMENT_HELPER = "_latest_unspent_turn_settlement_run"
+COURSE_DOC = (
+    "docs/development/control-plane-course/08-evidence-refresh-and-self-repair.md"
+)
 SETTLEMENT_DOCS = (
     "docs/development/bugs/settlement-infer-persisted-break.md",
-    "docs/development/control-plane-course/08-evidence-refresh-and-self-repair.md",
+    COURSE_DOC,
 )
 
 
@@ -83,4 +88,52 @@ def test_unspent_candidate_accepts_typed_gap_until_matching_spend(
             settlement_effect_id=effect_id,
         )
         is None
+    )
+
+
+def test_course_spend_excerpt_preserves_turn_settlement_binding() -> None:
+    content = (ROOT / COURSE_DOC).read_text(encoding="utf-8")
+    call_start = content.index(
+        f"delivery_completion_run = {CURRENT_SETTLEMENT_HELPER}("
+    )
+    call_end = content.index("\ndelivery_workspace = (", call_start)
+    course_module = ast.parse(content[call_start:call_end])
+    assert len(course_module.body) == 1
+    helper_assignment = course_module.body[0]
+    assert isinstance(helper_assignment, ast.Assign)
+    assert len(helper_assignment.targets) == 1
+    assert isinstance(helper_assignment.targets[0], ast.Name)
+    assert helper_assignment.targets[0].id == "delivery_completion_run"
+    assert isinstance(helper_assignment.value, ast.Call)
+    assert isinstance(helper_assignment.value.func, ast.Name)
+    assert helper_assignment.value.func.id == CURRENT_SETTLEMENT_HELPER
+    course_keywords = {
+        keyword.arg: keyword.value
+        for keyword in helper_assignment.value.keywords
+        if keyword.arg is not None
+    }
+    production_module = ast.parse(
+        inspect.getsource(slot_accounting.build_quota_slot_preview_for_decision)
+    )
+    production_calls = [
+        node
+        for node in ast.walk(production_module)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == CURRENT_SETTLEMENT_HELPER
+    ]
+    assert len(production_calls) == 1
+    production_keywords = {
+        keyword.arg: keyword.value
+        for keyword in production_calls[0].keywords
+        if keyword.arg is not None
+    }
+    production_binding = production_keywords["settlement_effect_id"]
+
+    assert any(
+        isinstance(node, ast.Name) and node.id == "effect_ref"
+        for node in ast.walk(production_binding)
+    )
+    assert ast.dump(course_keywords["settlement_effect_id"]) == ast.dump(
+        production_binding
     )
