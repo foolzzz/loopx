@@ -27,6 +27,7 @@ from .kiro_cli_goal_mode import (
 )
 from .project_prompt import (
     render_available_capability_args,
+    render_cli_command_prefix,
     render_codex_cli_install_preflight,
     render_quota_guard_command,
     shell_arg,
@@ -44,32 +45,42 @@ REQUIRED_HOST_SKILL_IDS = ARK_MANAGED_AGENT_REQUIRED_SKILL_IDS
 CHANGE_QUALITY_SKILL_ID = "loopx-change-quality"
 
 
-def _surface_install_command(agent_type: str, cli_bin: str, project: str) -> str | None:
+def _surface_install_command(
+    agent_type: str,
+    cli_bin: str,
+    project: str,
+    *,
+    runtime_root: str | None = None,
+) -> str | None:
+    command_prefix = render_cli_command_prefix(
+        cli_bin=cli_bin,
+        runtime_root=runtime_root,
+    )
     if agent_type in {"codex-app", "codex-app-ssh", "codex-ide-plugin", "codex-cli"}:
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface codex"
+        return f"{command_prefix} slash-commands --install --surface codex"
     if agent_type == "claude-code":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface claude-code"
+        return f"{command_prefix} slash-commands --install --surface claude-code"
     if agent_type == "opencode":
         return (
-            f"{shell_arg(cli_bin)} slash-commands --install --surface opencode "
+            f"{command_prefix} slash-commands --install --surface opencode "
             "--with-goal-bridge"
         )
     if agent_type == "gemini-cli":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface gemini"
+        return f"{command_prefix} slash-commands --install --surface gemini"
     if agent_type == "cursor-agent":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface cursor"
+        return f"{command_prefix} slash-commands --install --surface cursor"
     if agent_type == "zcode":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface zcode"
+        return f"{command_prefix} slash-commands --install --surface zcode"
     if agent_type == "agy":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface agy"
+        return f"{command_prefix} slash-commands --install --surface agy"
     if agent_type == "kiro-cli":
-        return f"{shell_arg(cli_bin)} slash-commands --install --surface kiro-cli"
+        return f"{command_prefix} slash-commands --install --surface kiro-cli"
     if agent_type == "pi":
         # The slash-commands installer resolves the Pi extension target through
         # --pi-project; pass the resolved project so the command stays correct
         # when agent-onboard runs from any cwd.
         return (
-            f"{shell_arg(cli_bin)} slash-commands --install --surface pi "
+            f"{command_prefix} slash-commands --install --surface pi "
             f"--pi-project {shell_arg(project)}"
         )
     return None
@@ -99,10 +110,11 @@ def _project_skill_command(
     skill_id: str,
     surface: str,
     cli_bin: str,
+    runtime_root: str | None = None,
     execute: bool = False,
 ) -> str:
     parts = [
-        shell_arg(cli_bin),
+        render_cli_command_prefix(cli_bin=cli_bin, runtime_root=runtime_root),
         "project-skill",
         command,
         "--project",
@@ -122,6 +134,7 @@ def _skill_delivery_contract(
     *,
     project: str = ".",
     cli_bin: str = "loopx",
+    runtime_root: str | None = None,
     active_project_skill_ids: list[str] | None = None,
     host_skills_dir: Path | None = None,
 ) -> dict[str, Any]:
@@ -140,6 +153,7 @@ def _skill_delivery_contract(
                         skill_id=skill_id,
                         surface=project_surface,
                         cli_bin=cli_bin,
+                        runtime_root=runtime_root,
                     ),
                     "preview_install": _project_skill_command(
                         "install",
@@ -147,6 +161,7 @@ def _skill_delivery_contract(
                         skill_id=skill_id,
                         surface=project_surface,
                         cli_bin=cli_bin,
+                        runtime_root=runtime_root,
                     ),
                     "apply_install": _project_skill_command(
                         "install",
@@ -154,6 +169,7 @@ def _skill_delivery_contract(
                         skill_id=skill_id,
                         surface=project_surface,
                         cli_bin=cli_bin,
+                        runtime_root=runtime_root,
                         execute=True,
                     ),
                 }
@@ -278,6 +294,7 @@ def _bootstrap_pack_command(
     agent_id: str | None,
     agent_type: str,
     cli_bin: str,
+    runtime_root: str | None,
     task_text: str | None,
     available_capabilities: list[str] | None,
 ) -> str:
@@ -303,7 +320,7 @@ def _bootstrap_pack_command(
         "other-agent": "other-agent",
     }
     parts = [
-        shell_arg(cli_bin),
+        render_cli_command_prefix(cli_bin=cli_bin, runtime_root=runtime_root),
         "bootstrap-command-pack",
         "--project",
         shell_arg(project),
@@ -423,9 +440,14 @@ def build_agent_onboarding_packet(
     cli_bin: str = "loopx",
     task_text: str | None = None,
     available_capabilities: list[str] | None = None,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     canonical_agent_type = normalize_agent_type(agent_type)
-    inspection = inspect_bootstrap_connection(project, goal_id=goal_id)
+    inspection = inspect_bootstrap_connection(
+        project,
+        goal_id=goal_id,
+        runtime_root_arg=runtime_root_arg,
+    )
     resolved_project = str(inspection["project"])
     resolved_goal_id = str(inspection["goal_id"])
     registry_path = Path(str(inspection["registry"]))
@@ -447,8 +469,10 @@ def build_agent_onboarding_packet(
 
     runtime_root = resolve_runtime_root(
         registry,
+        str(inspection["runtime_root"]) if runtime_root_arg else None,
         registry_path=registry_path,
     )
+    command_runtime_root = str(runtime_root) if runtime_root_arg else None
     goal = project_goal_with_builtin_machine_configuration(
         goal,
         read_machine_configuration(
@@ -465,6 +489,7 @@ def build_agent_onboarding_packet(
         canonical_agent_type,
         project=resolved_project,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         active_project_skill_ids=active_project_skill_ids,
         host_skills_dir=configured_host_skills_dir(os.environ),
     )
@@ -476,6 +501,8 @@ def build_agent_onboarding_packet(
         agent_type=canonical_agent_type,
         goal_id=resolved_goal_id,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
+        identity_runtime_root=command_runtime_root,
         agent_id=agent_id,
         registered_agents=registered_agents,
         available_capabilities=available_capabilities,
@@ -486,13 +513,19 @@ def build_agent_onboarding_packet(
     normalized_available_capabilities = list(
         host_loop_activation.get("available_capabilities") or []
     )
-    install_command = _surface_install_command(canonical_agent_type, cli_bin, resolved_project)
+    install_command = _surface_install_command(
+        canonical_agent_type,
+        cli_bin,
+        resolved_project,
+        runtime_root=command_runtime_root,
+    )
     bootstrap_pack_command = _bootstrap_pack_command(
         project=resolved_project,
         goal_id=resolved_goal_id,
         agent_id=str(selected_agent_id) if selected_agent_id else None,
         agent_type=canonical_agent_type,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         task_text=task_text,
         available_capabilities=normalized_available_capabilities,
     )
@@ -500,12 +533,14 @@ def build_agent_onboarding_packet(
         "doctor_or_install": render_codex_cli_install_preflight(
             cli_bin=cli_bin,
             doctor_agent_type=canonical_agent_type,
+            runtime_root=command_runtime_root,
         ),
         "bootstrap_command_pack": bootstrap_pack_command,
         "quota_guard": (
             render_quota_guard_command(
                 resolved_goal_id,
                 cli_bin=cli_bin,
+                runtime_root=command_runtime_root,
                 agent_id=str(selected_agent_id) if selected_agent_id else None,
                 available_capabilities=normalized_available_capabilities,
                 **scheduler_command_binding_for_agent_type(canonical_agent_type),
@@ -514,7 +549,8 @@ def build_agent_onboarding_packet(
             else None
         ),
         "agent_onboard_recheck": (
-            f"{shell_arg(cli_bin)} agent-onboard "
+            f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+            "agent-onboard "
             f"--agent-type {shell_arg(canonical_agent_type)} "
             f"--project {shell_arg(resolved_project)} "
             f"--goal-id {shell_arg(resolved_goal_id)}"
@@ -530,7 +566,8 @@ def build_agent_onboarding_packet(
         commands["install_command_facade"] = install_command
     if canonical_agent_type == "codex-cli":
         commands["codex_cli_bootstrap_message"] = (
-            f"{shell_arg(cli_bin)} codex-cli-bootstrap-message "
+            f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+            "codex-cli-bootstrap-message "
             f"--project {shell_arg(resolved_project)} "
             f"--goal-id {shell_arg(resolved_goal_id)}"
             + (

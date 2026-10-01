@@ -57,7 +57,7 @@ function assertNoLeak(text, label) {
     /\/private\//,
     new RegExp("byte" + "dance", "i"),
     new RegExp("lark" + "office", "i"),
-    new RegExp("\\.loopx/goals|\\.codex/goals|\\.goal-" + "harness"),
+    new RegExp("\\.loopx/(?:goals|project-goals)|\\.codex/goals|\\.goal-" + "harness"),
     new RegExp("raw_" + "internal_note"),
     /BEGIN (?:RSA |OPENSSH |EC |)PRIVATE KEY/,
     /\b(?:api[_-]?key|auth[_-]?token|access[_-]?token)\s*[:=]/i,
@@ -66,6 +66,16 @@ function assertNoLeak(text, label) {
   if (hit) {
     throw new Error(`${label} leaked forbidden pattern: ${hit}`);
   }
+}
+
+let collocatedGoalLeakRejected = false;
+try {
+  assertNoLeak(".loopx/project-goals/example/ACTIVE_GOAL_STATE.md", "boundary fixture");
+} catch {
+  collocatedGoalLeakRejected = true;
+}
+if (!collocatedGoalLeakRejected) {
+  throw new Error("collocated project goal state must be rejected by the public boundary scan");
 }
 
 function collectFakePrivateMarkers(text) {

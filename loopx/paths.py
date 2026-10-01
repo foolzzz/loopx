@@ -8,6 +8,7 @@ RUNTIME_ROOT_ENV = "LOOPX_RUNTIME_ROOT"
 LOOPX_STATE_DIRNAME = ".loopx"
 DEFAULT_PROJECT_REGISTRY = Path(LOOPX_STATE_DIRNAME) / "registry.json"
 PROJECT_GOAL_STATE_ROOT = Path(LOOPX_STATE_DIRNAME) / "goals"
+COLLOCATED_PROJECT_GOAL_STATE_ROOT = Path(LOOPX_STATE_DIRNAME) / "project-goals"
 ACTIVE_GOAL_STATE_FILENAME = "ACTIVE_GOAL_STATE.md"
 GLOBAL_REGISTRY_FILENAME = "registry.global.json"
 # default_runtime_root() spelled for a POSIX shell, for commands LoopX renders
@@ -56,16 +57,51 @@ def default_runtime_root() -> Path:
     return configured_runtime_root() or home_runtime_root()
 
 
-def project_goal_state_dir(project: Path, goal_id: str) -> Path:
-    """Return a project's goal state directory: ``<project>/.loopx/goals/<goal_id>``."""
+def project_goal_state_dir(
+    project: Path,
+    goal_id: str,
+    *,
+    runtime_root: Path | None = None,
+) -> Path:
+    """Return the project-owned goal state directory.
 
-    return Path(project) / PROJECT_GOAL_STATE_ROOT / goal_id
+    A project rooted at HOME would otherwise put project state in the same
+    ``~/.loopx/goals`` tree that the runtime owns. Keep the conventional path
+    unless those physical roots coincide, then use a distinct project-owned
+    namespace.
+    """
+
+    project = Path(project)
+    state_root = project / PROJECT_GOAL_STATE_ROOT
+    resolved_runtime_root = (
+        default_runtime_root() if runtime_root is None else Path(runtime_root)
+    )
+    try:
+        roots_overlap = (
+            state_root.resolve() == (resolved_runtime_root / "goals").resolve()
+        )
+    except OSError:
+        roots_overlap = (
+            state_root.absolute() == (resolved_runtime_root / "goals").absolute()
+        )
+    if roots_overlap:
+        state_root = project / COLLOCATED_PROJECT_GOAL_STATE_ROOT
+
+    return state_root / goal_id
 
 
-def project_goal_state_file(project: Path, goal_id: str) -> Path:
+def project_goal_state_file(
+    project: Path,
+    goal_id: str,
+    *,
+    runtime_root: Path | None = None,
+) -> Path:
     """Return a project's default active goal state file for ``goal_id``."""
 
-    return project_goal_state_dir(project, goal_id) / ACTIVE_GOAL_STATE_FILENAME
+    return (
+        project_goal_state_dir(project, goal_id, runtime_root=runtime_root)
+        / ACTIVE_GOAL_STATE_FILENAME
+    )
 
 
 def default_public_scan_root() -> str:

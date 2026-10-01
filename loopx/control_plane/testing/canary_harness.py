@@ -6,14 +6,14 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-from ...paths import project_goal_state_file
+from ...paths import ACTIVE_GOAL_STATE_FILENAME, PROJECT_GOAL_STATE_ROOT
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def default_state_file(goal_id: str) -> str:
-    return project_goal_state_file(Path(), goal_id).as_posix()
+    return (PROJECT_GOAL_STATE_ROOT / goal_id / ACTIVE_GOAL_STATE_FILENAME).as_posix()
 
 
 def project_state_path(project: Path, goal_id: str, *, state_file: str | None = None) -> Path:

@@ -40,6 +40,8 @@ PrintPayload = Callable[
 def handle_new_project_prompt_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_new_project_prompt(
         project=Path(args.project),
@@ -53,6 +55,7 @@ def handle_new_project_prompt_command(
         spawn_allowed=bool(args.spawn_allowed),
         allowed_domains=args.allowed_domain,
         write_scope=args.write_scope,
+        runtime_root_arg=runtime_root_arg,
     )
     print_payload(payload, args.format, render_new_project_prompt_markdown)
     return 0
@@ -61,6 +64,8 @@ def handle_new_project_prompt_command(
 def handle_agent_onboard_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     if bool(getattr(args, "list_agent_types", False)):
         print_payload(build_agent_type_catalog(), args.format, render_agent_type_catalog_markdown)
@@ -82,6 +87,7 @@ def handle_agent_onboard_command(
             cli_bin=args.cli_bin,
             task_text=args.task_text,
             available_capabilities=args.available_capabilities,
+            runtime_root_arg=runtime_root_arg,
         )
     except AgentTypeError as exc:
         print_payload(exc.to_payload(), args.format, render_agent_onboarding_markdown)
@@ -120,12 +126,15 @@ def handle_loopx_bootstrap_command_pack_command(
 def handle_codex_cli_bootstrap_message_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_codex_cli_bootstrap_message(
         project=Path(args.project),
         goal_id=args.goal_id,
         agent_id=args.agent_id,
         cli_bin=args.cli_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     if bool(getattr(args, "message_only", False)):
         print(str(payload.get("message") or ""))
@@ -137,12 +146,15 @@ def handle_codex_cli_bootstrap_message_command(
 def handle_codex_cli_tui_bootstrap_smoke_bundle_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_codex_cli_tui_bootstrap_smoke_bundle(
         project=Path(args.project),
         goal_id=args.goal_id,
         agent_id=args.agent_id,
         cli_bin=args.cli_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     print_payload(payload, args.format, render_codex_cli_tui_bootstrap_smoke_bundle_markdown)
     return 0
@@ -151,6 +163,8 @@ def handle_codex_cli_tui_bootstrap_smoke_bundle_command(
 def handle_codex_cli_exec_handoff_command(
     args: argparse.Namespace,
     print_payload: PrintPayload,
+    *,
+    runtime_root_arg: str | None = None,
 ) -> int:
     payload = build_codex_cli_exec_handoff(
         project=Path(args.project),
@@ -158,6 +172,7 @@ def handle_codex_cli_exec_handoff_command(
         agent_id=args.agent_id,
         cli_bin=args.cli_bin,
         codex_bin=args.codex_bin,
+        runtime_root_arg=runtime_root_arg,
     )
     print_payload(payload, args.format, render_codex_cli_exec_handoff_markdown)
     return 0 if payload.get("ok") else 1
@@ -182,5 +197,15 @@ def handle_starter_bootstrap_command(
     if handler is handle_start_goal_command:
         return handler(args, print_payload, runtime_root_arg=args.runtime_root)
     if handler is handle_loopx_bootstrap_command_pack_command:
+        return handler(args, print_payload, runtime_root_arg=args.runtime_root)
+    if handler is handle_new_project_prompt_command:
+        return handler(args, print_payload, runtime_root_arg=args.runtime_root)
+    if handler is handle_agent_onboard_command:
+        return handler(args, print_payload, runtime_root_arg=args.runtime_root)
+    if handler in {
+        handle_codex_cli_bootstrap_message_command,
+        handle_codex_cli_tui_bootstrap_smoke_bundle_command,
+        handle_codex_cli_exec_handoff_command,
+    }:
         return handler(args, print_payload, runtime_root_arg=args.runtime_root)
     return handler(args, print_payload)

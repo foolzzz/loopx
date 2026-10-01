@@ -57,6 +57,7 @@ def build_goal_start_contract(
     agent_type: str,
     issue_fix_commands: dict[str, str],
     fine_grained: bool,
+    cli_command_prefix: str = "loopx",
 ) -> dict[str, Any]:
     contract = {
         "schema_version": GOAL_START_SCHEMA_VERSION,
@@ -80,7 +81,7 @@ def build_goal_start_contract(
         "execution_invariants": (
             "identity: fresh public-safe agent after verified/active; explicit takeover; "
             "bind/readback before Todo; no peer inference; unknown: "
-            "loopx agent-onboard --list-agent-types | route: selected_capability_route only; "
+            f"{cli_command_prefix} agent-onboard --list-agent-types | route: selected_capability_route only; "
             "never infer from text/URLs; #/activation+#/stop_conditions; review/pasteable "
             "gates | Todo/writeback: Agent advancement_task; User owner/private; business Todo "
             "before work; current evidence + next Todo; refresh/quota; chat not durable | "
@@ -91,7 +92,9 @@ def build_goal_start_contract(
             "after_write": ["refresh-state", "host_loop_activation", "quota should-run"],
             "host_loop_required_after_todo_writeback": True,
             "agent_type": agent_type,
-            "agent_type_discovery": "loopx agent-onboard --list-agent-types",
+            "agent_type_discovery": (
+                f"{cli_command_prefix} agent-onboard --list-agent-types"
+            ),
             "host_surfaces": {
                 "codex-app": "Codex App heartbeat automation",
                 "trae_app": "Trae App heartbeat automation",
@@ -169,6 +172,8 @@ def build_goal_start_prompt(
     goal_id: str,
     agent_id: str | None,
     fine_grained: bool,
+    refresh_state_command: str | None = None,
+    cli_command_prefix: str = "loopx",
 ) -> str:
     goal_clause = (
         f"Goal text: {goal_text}"
@@ -200,16 +205,17 @@ def build_goal_start_prompt(
         if fine_grained
         else ""
     )
+    refresh_command = refresh_state_command or f"loopx refresh-state --goal-id {goal_id}"
     return f"""Plan; returned `ordered_steps` + `goal_start_contract` are authoritative.
 
 {goal_clause}
 Goal id: {goal_id}.{agent_clause}
 
 Rules:
-1. Identity: use verified binding/active contract; a stable unbound host gets a fresh public-safe agent. Existing lanes require explicit takeover plus bind/readback before Todo; never infer peers from Todo/worktree/arguments. Unknown host: `loopx agent-onboard --list-agent-types`.
+1. Identity: use verified binding/active contract; a stable unbound host gets a fresh public-safe agent. Existing lanes require explicit takeover plus bind/readback before Todo; never infer peers from Todo/worktree/arguments. Unknown host: `{cli_command_prefix} agent-onboard --list-agent-types`.
 2. Capability: only `selected_capability_route`; run entry/admission and its later `capability show`; never infer from text/URLs. Capability state owns facts; generic Todos schedule.
 3. Todos: {todo_rule}.
-4. Writeback: current Todo evidence + next executable Todo, then `loopx refresh-state --goal-id {goal_id}` and quota readback. Chat/model summaries are not durable state.
+4. Writeback: current Todo evidence + next executable Todo, then `{refresh_command}` and quota readback. Chat/model summaries are not durable state.
 5. Host loop: after Todo write, activate missing/unknown/stale/type-changed Codex App heartbeat automation, CLI/TraeX `/goal`, Claude `/loop`, OpenCode bridge, Ark one-shot, or custom gate. Else surface the exact pasteable gate; never claim autonomy.
 6. Run the returned typed `quota_guard`; finish one bounded segment with validation + LoopX writeback or an exact blocker. Setup/planning/claim is not delivery.
 7. Optional features: need, preview, explicit apply. Respect private data, credentials, destructive git, production authority, and review rules.{fine_rule}

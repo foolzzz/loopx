@@ -78,6 +78,7 @@ def _archive_state_directory(
     *,
     goal: dict[str, Any],
     registry_path: Path,
+    protected_runtime_roots: list[Path],
     archive_root: Path,
     timestamp: str,
     dry_run: bool,
@@ -112,6 +113,42 @@ def _archive_state_directory(
             "archived": False,
         }
     destination = _unique_destination(archive_root / timestamp / "goals" / goal_id)
+    overlaps_runtime_goals = False
+    for runtime_root in protected_runtime_roots:
+        try:
+            state_dir_resolved.relative_to((runtime_root / "goals").resolve())
+            overlaps_runtime_goals = True
+            break
+        except ValueError:
+            continue
+    if overlaps_runtime_goals:
+        if not state_file.exists():
+            return {
+                "goal_id": goal_id,
+                "state_file": str(state_file),
+                "state_dir": str(state_dir),
+                "action": "state-file-missing",
+                "archived": False,
+                "warning": (
+                    "recorded active state file is missing; kept its runtime-owned "
+                    "directory in place"
+                ),
+            }
+        if not dry_run:
+            destination.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(state_file), str(destination / state_file.name))
+        return {
+            "goal_id": goal_id,
+            "state_file": str(state_file),
+            "state_dir": str(state_dir),
+            "archive_path": str(destination),
+            "action": "would-move-state-file" if dry_run else "moved-state-file",
+            "archived": not dry_run,
+            "warning": (
+                "project state overlaps the runtime goals tree; archived only "
+                "the active state file and kept runtime-owned files in place"
+            ),
+        }
     if not dry_run:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(state_dir), str(destination))
@@ -243,7 +280,15 @@ def uninstall_project(
         raise FileNotFoundError(f"project registry does not exist: {registry_path}")
     registry_path = registry_path.resolve()
     project_registry = load_registry(registry_path)
-    runtime_root = resolve_runtime_root(project_registry, runtime_root_override)
+    recorded_runtime_root = resolve_runtime_root(
+        project_registry,
+        registry_path=registry_path,
+    )
+    runtime_root = resolve_runtime_root(
+        project_registry,
+        runtime_root_override,
+        registry_path=registry_path,
+    )
     global_path = global_registry_path(runtime_root)
     if global_path.exists() and registry_path == global_path.resolve():
         raise ValueError(
@@ -280,6 +325,9 @@ def uninstall_project(
             _archive_state_directory(
                 goal=goal,
                 registry_path=registry_path,
+                protected_runtime_roots=list(
+                    dict.fromkeys([runtime_root, recorded_runtime_root])
+                ),
                 archive_root=archive_root,
                 timestamp=timestamp,
                 dry_run=dry_run,

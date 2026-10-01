@@ -31,16 +31,21 @@ def build_issue_fix_pr_lifecycle_command(
     goal_id: str,
     agent_id: str,
     project: str | None = None,
+    runtime_root: str | None = None,
 ) -> str:
     """Build the canonical executable PR lifecycle reconciliation command."""
 
-    parts = [
-        shlex.quote(cli_bin),
-        "issue-fix",
-        "pr-lifecycle",
-        "--url",
-        "<github-pr-url>",
-    ]
+    parts = [shlex.quote(cli_bin)]
+    if runtime_root is not None:
+        parts.extend(["--runtime-root", _command_arg(runtime_root)])
+    parts.extend(
+        [
+            "issue-fix",
+            "pr-lifecycle",
+            "--url",
+            "<github-pr-url>",
+        ]
+    )
     if project:
         parts.extend(["--project", _command_arg(project)])
     parts.extend(
@@ -58,11 +63,17 @@ def build_issue_fix_pr_lifecycle_command(
 
 
 def build_issue_fix_goal_command_templates(
-    *, cli_bin: str, goal_id: str, agent_id: str = "<agent-id>"
+    *,
+    cli_bin: str,
+    goal_id: str,
+    agent_id: str = "<agent-id>",
+    runtime_root: str | None = None,
 ) -> dict[str, str]:
     """Return the capability-owned commands projected into goal-start packets."""
 
     cli = shlex.quote(cli_bin)
+    if runtime_root is not None:
+        cli += f" --runtime-root {_command_arg(runtime_root)}"
     goal = (
         goal_id
         if goal_id.startswith("<") and goal_id.endswith(">")
@@ -92,6 +103,7 @@ def build_issue_fix_goal_command_templates(
             cli_bin=cli_bin,
             goal_id=goal_id,
             agent_id=agent_id,
+            runtime_root=runtime_root,
         ),
         "issue_fix_reviewer_request_template": (
             f"{cli} issue-fix reviewer-request "
@@ -115,11 +127,12 @@ def _todo_preview(
     blocks: Sequence[str] | None = None,
     target_key: str | None = None,
     next_command_preview: str | None = None,
+    cli_prefix: str = "loopx",
 ) -> dict[str, Any]:
     preview = {
         "schema_version": "loopx_todo_writeback_preview_v0",
         "planner_order": planner_order,
-        "command_preview": "loopx todo add",
+        "command_preview": f"{cli_prefix} todo add",
         "role": role,
         "priority": priority,
         "status": "preview_only",
@@ -200,7 +213,7 @@ def _resolution_route_candidates(
     ]
 
 
-def _post_pr_lifecycle_monitor_plan() -> dict[str, Any]:
+def _post_pr_lifecycle_monitor_plan(*, runtime_root: str | None = None) -> dict[str, Any]:
     return {
         "schema_version": "issue_fix_post_pr_lifecycle_monitor_plan_v1",
         "command_preview": build_issue_fix_pr_lifecycle_command(
@@ -208,6 +221,7 @@ def _post_pr_lifecycle_monitor_plan() -> dict[str, Any]:
             goal_id="<goal-id>",
             agent_id="<agent-id>",
             project="<approved-repo>",
+            runtime_root=runtime_root,
         ),
         "creates_per_pr_continuous_monitor_todo": False,
         "monitor_scope": "lifecycle_state_bucket",
@@ -232,11 +246,11 @@ def _post_pr_lifecycle_monitor_plan() -> dict[str, Any]:
     }
 
 
-def _feasibility_checkpoint_plan() -> dict[str, Any]:
+def _feasibility_checkpoint_plan(*, cli_prefix: str = "loopx") -> dict[str, Any]:
     return {
         "schema_version": "issue_fix_feasibility_checkpoint_plan_v0",
         "command_preview": (
-            "loopx issue-fix feasibility --url <github-issue-url> "
+            f"{cli_prefix} issue-fix feasibility --url <github-issue-url> "
             "--reproduction-status <confirmed|planned|missing|blocked> "
             "--scope-class <bounded|uncertain|oversized> "
             "--repository-context-json <compact-context.json> "
@@ -328,6 +342,7 @@ def build_issue_fix_workflow_plan_packet(
     repository_memory_input: Mapping[str, Any] | None = None,
     candidate_preflight_input: Mapping[str, Any] | None = None,
     generated_at: str | None = "2026-06-23T00:00:00Z",
+    runtime_root: str | None = None,
 ) -> dict[str, Any]:
     """Build a public-safe issue-fix workflow plan without writing state."""
 
@@ -382,8 +397,11 @@ def build_issue_fix_workflow_plan_packet(
         repo_label=repo_label,
         issue_label=issue_label,
     )
-    feasibility_checkpoint = _feasibility_checkpoint_plan()
-    post_pr_monitor = _post_pr_lifecycle_monitor_plan()
+    cli_prefix = "loopx"
+    if runtime_root is not None:
+        cli_prefix += f" --runtime-root {_command_arg(runtime_root)}"
+    feasibility_checkpoint = _feasibility_checkpoint_plan(cli_prefix=cli_prefix)
+    post_pr_monitor = _post_pr_lifecycle_monitor_plan(runtime_root=runtime_root)
     default_agent_todos = [
         _todo_preview(
             planner_order=1,
@@ -402,6 +420,7 @@ def build_issue_fix_workflow_plan_packet(
                 "issue_fix_intake_v0",
                 "issue_fix_repository_context_v0",
             ],
+            cli_prefix=cli_prefix,
         ),
         _todo_preview(
             planner_order=2,
@@ -415,6 +434,7 @@ def build_issue_fix_workflow_plan_packet(
                 "selected successor."
             ),
             depends_on=["issue_fix_public_metadata_classification"],
+            cli_prefix=cli_prefix,
         ),
     ]
     preflight_decision = candidate_preflight.get("decision") or {}
@@ -448,11 +468,11 @@ def build_issue_fix_workflow_plan_packet(
             ),
         }
         collect_command = (
-            "loopx issue-fix workflow-plan --url <github-issue-url> "
+            f"{cli_prefix} issue-fix workflow-plan --url <github-issue-url> "
             "--fetch-candidate-evidence --goal-id <goal-id> --format json"
         )
         resolution_command = (
-            "loopx issue-fix workflow-plan --url <github-issue-url> "
+            f"{cli_prefix} issue-fix workflow-plan --url <github-issue-url> "
             "--fetch-candidate-evidence "
             "--candidate-resolution-json <candidate-resolution.json> "
             "--goal-id <goal-id> --format json"
@@ -479,6 +499,7 @@ def build_issue_fix_workflow_plan_packet(
                         if action_kind == "issue_fix_collect_candidate_evidence"
                         else resolution_command
                     ),
+                    cli_prefix=cli_prefix,
                 )
             )
     elif preflight_route != "proceed":
@@ -513,6 +534,7 @@ def build_issue_fix_workflow_plan_packet(
                 action_kind=route_action,
                 text=route_text,
                 depends_on=["issue_fix_candidate_preflight_v0"],
+                cli_prefix=cli_prefix,
             )
         ]
     user_gates: list[dict[str, Any]] = []
@@ -538,6 +560,7 @@ def build_issue_fix_workflow_plan_packet(
                 ),
                 depends_on=["content_ops_issue_fix_metadata_preview_packet_v0"],
                 blocks=["private_repro_material_read", "raw_issue_body_read"],
+                cli_prefix=cli_prefix,
             )
             | {"gated_fields": gate_fields},
         )

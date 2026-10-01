@@ -8,6 +8,7 @@ from typing import Any
 from ...agent_registry import load_goal_from_registry
 from ...boundary_authority import checkpointed_boundary_authority_summary
 from ...control_plane.runtime.time import now_utc_iso
+from ...paths import resolve_runtime_root
 from ...domain_packs.issue_fix import (
     default_issue_fix_candidate_preflight_ledger_path,
     default_issue_fix_domain_state_ledger_path,
@@ -1090,6 +1091,20 @@ def handle_issue_fix_command(
                 repository_memory_input=repository_memory_input,
                 candidate_preflight_input=candidate_preflight_input,
                 generated_at=generated_at,
+                runtime_root=(
+                    str(
+                        resolve_runtime_root(
+                            {},
+                            runtime_root_arg,
+                            registry_path=(
+                                registry_path
+                                or Path(".loopx/registry.json")
+                            ),
+                        ).resolve()
+                    )
+                    if runtime_root_arg
+                    else None
+                ),
             )
             candidate_preflight = payload.get("candidate_preflight")
             should_write_candidate_preflight = bool(

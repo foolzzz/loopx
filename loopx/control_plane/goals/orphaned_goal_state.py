@@ -18,7 +18,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ...paths import ACTIVE_GOAL_STATE_FILENAME, PROJECT_GOAL_STATE_ROOT
+from ...paths import (
+    ACTIVE_GOAL_STATE_FILENAME,
+    COLLOCATED_PROJECT_GOAL_STATE_ROOT,
+    PROJECT_GOAL_STATE_ROOT,
+)
 
 from ...project_prompt import shell_arg
 
@@ -31,6 +35,7 @@ ORPHANED_GOAL_STATE_GATE_SCHEMA_VERSION = "loopx_orphaned_goal_state_gate_v0"
 # default route first; every match is reported, never merged or copied.
 GOAL_STATE_ROOTS: tuple[tuple[str, ...], ...] = (
     PROJECT_GOAL_STATE_ROOT.parts,
+    COLLOCATED_PROJECT_GOAL_STATE_ROOT.parts,
     (".claude", "goals"),
     (".local", "goals"),
 )

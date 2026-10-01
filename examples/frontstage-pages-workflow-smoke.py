@@ -122,6 +122,7 @@ def main() -> int:
         "serve-status",
         "status.local.json",
         ".loopx/goals",
+        ".loopx/project-goals",
         ".codex/goals",
         ".goal-" + "harness/",
         "registry.global.json",

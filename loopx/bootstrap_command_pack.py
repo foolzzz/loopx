@@ -52,7 +52,7 @@ from .project_prompt import (
     render_refresh_state_command,
     shell_arg,
 )
-from .paths import project_goal_state_file, resolve_runtime_root
+from .paths import global_registry_path, project_goal_state_file, resolve_runtime_root
 from .registry import registry_goals, resolve_state_file
 from .slash_commands import build_slash_command_catalog
 from .thread_agent_binding import normalize_thread_id, resolve_thread_agent_binding
@@ -545,12 +545,26 @@ def inspect_bootstrap_connection(
     *,
     goal_id: str | None = None,
     resolve_linked_worktree_alias: bool = True,
+    runtime_root_arg: str | None = None,
 ) -> dict[str, Any]:
     """Inspect either the canonical project route or the caller's exact route."""
 
     input_project = _resolve_project(project)
+    explicit_runtime_root = None
+    explicit_global_registry = None
+    if runtime_root_arg:
+        explicit_runtime_root = resolve_runtime_root(
+            {},
+            runtime_root_arg,
+            registry_path=input_project / ".loopx" / "registry.json",
+        ).resolve()
+        explicit_global_registry = global_registry_path(explicit_runtime_root)
     alias = (
-        resolve_canonical_project_alias(input_project, goal_id=goal_id)
+        resolve_canonical_project_alias(
+            input_project,
+            goal_id=goal_id,
+            global_registry=explicit_global_registry,
+        )
         if resolve_linked_worktree_alias
         else {
             "applied": False,
@@ -568,12 +582,25 @@ def inspect_bootstrap_connection(
     registry_exists = registry_path.exists()
     registry, registry_error = _read_registry(registry_path) if registry_exists else (None, None)
     inferred_goal_id = goal_id or default_goal_id(resolved_project)
-    state_file = project_goal_state_file(resolved_project, inferred_goal_id)
+    effective_runtime_root = (
+        explicit_runtime_root
+        if explicit_runtime_root is not None
+        else resolve_runtime_root(
+            registry or {},
+            registry_path=registry_path,
+        )
+    )
+    state_file = project_goal_state_file(
+        resolved_project,
+        inferred_goal_id,
+        runtime_root=effective_runtime_root,
+    )
     base_connection = {
         "input_project": str(input_project),
         "project": str(resolved_project),
         "canonical_project_alias": alias,
         "registry": str(registry_path),
+        "runtime_root": str(effective_runtime_root),
     }
 
     if registry_error:
@@ -599,7 +626,11 @@ def inspect_bootstrap_connection(
     goals = registry_goals(registry)
     selected_goal_id, selected_goal = _select_goal(goals, goal_id)
     resolved_goal_id = selected_goal_id or inferred_goal_id
-    fallback_state_file = project_goal_state_file(resolved_project, resolved_goal_id)
+    fallback_state_file = project_goal_state_file(
+        resolved_project,
+        resolved_goal_id,
+        runtime_root=effective_runtime_root,
+    )
     goal_state_file = (
         resolve_state_file(resolved_project, str(selected_goal.get("state_file")))
         if selected_goal and selected_goal.get("state_file")
@@ -757,6 +788,7 @@ def build_loopx_bootstrap_command_pack(
         project,
         goal_id=goal_id,
         resolve_linked_worktree_alias=resolve_linked_worktree_alias,
+        runtime_root_arg=runtime_root_arg,
     )
     resolved_project = str(inspection["project"])
     resolved_goal_id = str(inspection["goal_id"])
@@ -765,10 +797,6 @@ def build_loopx_bootstrap_command_pack(
     normalized_goal_text = " ".join(goal_text.split()) if goal_text else None
     normalized_thread_id = normalize_thread_id(thread_id)
     explicit_goal_start = bool(normalized_goal_text)
-    issue_fix_hint_commands = build_issue_fix_goal_command_templates(
-        cli_bin=cli_bin,
-        goal_id="<goal-id>",
-    )
     agent_type = agent_type_for_host_surface(host_surface)
     registry_path = Path(str(inspection["registry"]))
     registry_payload, _registry_error = _read_registry(registry_path)
@@ -784,7 +812,14 @@ def build_loopx_bootstrap_command_pack(
     command_runtime_root, identity_runtime_root = _runtime_roots(
         registry_payload,
         registry_path=registry_path,
-        runtime_root_arg=runtime_root_arg,
+        runtime_root_arg=(
+            str(inspection["runtime_root"]) if runtime_root_arg else None
+        ),
+    )
+    issue_fix_hint_commands = build_issue_fix_goal_command_templates(
+        cli_bin=cli_bin,
+        goal_id="<goal-id>",
+        runtime_root=command_runtime_root,
     )
     thread_binding = resolve_thread_agent_binding(
         registry_goal,
@@ -844,6 +879,7 @@ def build_loopx_bootstrap_command_pack(
         cli_bin=cli_bin,
         goal_id=resolved_goal_id,
         agent_id=str(selected_agent_id) if selected_agent_id else "<agent-id>",
+        runtime_root=command_runtime_root,
     )
     activation_allowed = bool(host_loop_activation.get("activation_allowed"))
     activation_commands = host_loop_activation.get("commands")
@@ -886,13 +922,23 @@ def build_loopx_bootstrap_command_pack(
         fine_grained=fine_grained,
         display_name=display_name,
     )
+    goal_start_refresh_state_command = render_refresh_state_command(
+        resolved_goal_id,
+        cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
+        project=".",
+        agent_id=str(selected_agent_id) if selected_agent_id else None,
+        progress_scope="agent_lane" if selected_agent_id else None,
+    )
     goal_start_plan_prompt = build_goal_start_prompt(
         goal_text=normalized_goal_text,
         goal_id=resolved_goal_id,
         agent_id=str(selected_agent_id) if selected_agent_id else None,
         fine_grained=fine_grained,
+        refresh_state_command=goal_start_refresh_state_command,
+        cli_command_prefix=command_prefix,
     )
-    slash_command_catalog = build_slash_command_catalog(cli_bin=cli_bin)
+    slash_command_catalog = build_slash_command_catalog(cli_bin=command_prefix)
 
     identity_selection_gate = host_loop_activation.get("identity_selection_gate")
     if isinstance(identity_selection_gate, dict):
@@ -991,6 +1037,7 @@ def build_loopx_bootstrap_command_pack(
             agent_type=agent_type,
             issue_fix_commands=issue_fix_hint_commands,
             fine_grained=fine_grained,
+            cli_command_prefix=command_prefix,
         ),
         "commands": {
             "doctor": f"{command_prefix} doctor",
@@ -1026,14 +1073,7 @@ def build_loopx_bootstrap_command_pack(
                 )
                 else None
             ),
-            "goal_start_refresh_state": render_refresh_state_command(
-                resolved_goal_id,
-                cli_bin=cli_bin,
-                runtime_root=command_runtime_root,
-                project=".",
-                agent_id=str(selected_agent_id) if selected_agent_id else None,
-                progress_scope="agent_lane" if selected_agent_id else None,
-            ),
+            "goal_start_refresh_state": goal_start_refresh_state_command,
             "goal_start_host_loop_activation": host_loop_activation.get("activation_input_command"),
             "goal_start_agent_onboard_recheck": (
                 f"{command_prefix} agent-onboard "
@@ -1115,6 +1155,7 @@ def _build_multi_goal_start_selection_packet(
     inspection = inspect_bootstrap_connection(
         project,
         resolve_linked_worktree_alias=False,
+        runtime_root_arg=runtime_root_arg,
     )
     registry_path = Path(str(inspection.get("registry") or ""))
     registry, registry_error = _read_registry(registry_path)
@@ -1130,11 +1171,14 @@ def _build_multi_goal_start_selection_packet(
     command_runtime_root, _ = _runtime_roots(
         registry,
         registry_path=registry_path,
-        runtime_root_arg=runtime_root_arg,
+        runtime_root_arg=(
+            str(inspection["runtime_root"]) if runtime_root_arg else None
+        ),
     )
     issue_fix_commands = build_issue_fix_goal_command_templates(
         cli_bin=cli_bin,
         goal_id="<selected-goal-id>",
+        runtime_root=command_runtime_root,
     )
     choices: list[dict[str, Any]] = []
     for goal in goals:
@@ -1203,7 +1247,12 @@ def _build_multi_goal_start_selection_packet(
         "summary": reason,
         "goal_selection_gate": goal_selection_gate,
     }
-    slash_command_catalog = build_slash_command_catalog(cli_bin=cli_bin)
+    slash_command_catalog = build_slash_command_catalog(
+        cli_bin=render_cli_command_prefix(
+            cli_bin=cli_bin,
+            runtime_root=command_runtime_root,
+        )
+    )
     command_pack: dict[str, Any] = {
         "ok": True,
         "schema_version": SCHEMA_VERSION,
@@ -1240,10 +1289,21 @@ def _build_multi_goal_start_selection_packet(
             agent_type=agent_type_for_host_surface(host_surface),
             issue_fix_commands=issue_fix_commands,
             fine_grained=fine_grained,
+            cli_command_prefix=render_cli_command_prefix(
+                cli_bin=cli_bin,
+                runtime_root=command_runtime_root,
+            ),
         ),
         "commands": {
-            "doctor": f"{shell_arg(cli_bin)} doctor",
-            "status": _project_command(resolved_project, f"{shell_arg(cli_bin)} status"),
+            "doctor": (
+                f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+                "doctor"
+            ),
+            "status": _project_command(
+                resolved_project,
+                f"{render_cli_command_prefix(cli_bin=cli_bin, runtime_root=command_runtime_root)} "
+                "status",
+            ),
             "goal_selection_choices": choices,
         },
         "safety_contract": {
@@ -1312,6 +1372,7 @@ def _build_multi_goal_start_selection_packet(
         thread_id=thread_id,
         new_peer=new_peer,
         cli_bin=cli_bin,
+        runtime_root=command_runtime_root,
         host_surface=host_surface,
         goal_text=normalized_goal_text,
         available_capabilities=available_capabilities,

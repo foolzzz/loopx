@@ -18,6 +18,7 @@ FORBIDDEN_SOURCE_PROMOTIONS = (
     "registry.global.json",
     ".loopx/registry.json",
     ".loopx/goals/",
+    ".loopx/project-goals/",
     ".codex/goals/",
     "ACTIVE_GOAL_STATE.md",
 )

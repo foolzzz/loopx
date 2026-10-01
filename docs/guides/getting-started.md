@@ -689,9 +689,12 @@ loopx uninstall-project --goal-id <goal-id> --archive-state --execute
 `uninstall-project` removes the selected goal from `.loopx/registry.json` and
 from the shared global registry only when the global entry's `source_registry`
 points back to this project. It does not uninstall the LoopX CLI and does not
-delete other projects' runtime history. Pass `--archive-state` to move this
-project's `.loopx/goals/<goal-id>/` directory under
-`.loopx/archived-project-state/` instead of leaving it in place.
+delete other projects' runtime history. Pass `--archive-state` to move the
+declared project-owned state directory (`.loopx/goals/<goal-id>/`, or
+`.loopx/project-goals/<goal-id>/` when project and runtime roots overlap) under
+`.loopx/archived-project-state/`. For a legacy state file inside the runtime
+`goals/` tree, only `ACTIVE_GOAL_STATE.md` is archived; runtime-owned siblings
+stay in place.
 
 For manual cleanup of the reusable LoopX CLI and skill surfaces, remove only
 the pieces you intend to drop:
