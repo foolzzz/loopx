@@ -417,7 +417,7 @@ owner，新 host 或 extension 也可以新增本地 artifact，而无需修改�
 | Quota policy | 本地 policy 配置在 registry 字段中。 | Head 之外的 configuration input。Receipt 可以引用本次采用的 policy revision，但 coordination provider 不拥有 policy。 |
 | Quota accounting（`quota_slot_spent` / `quota_slot_voided`） | 详细 JSON/Markdown 加 `runs/index.jsonl` row 形成 append-style accounting history。当前 row 没有 shared operation identity 或跨 artifact transaction。 | **Independent ledger**。分布式实现需要 idempotent debit/void identity 与独立 retention contract。 |
 | Quota enforcement 与 `should-run` decision | 从 policy、todo/status projection、run history、scheduler context 和 actor scope 计算。Heartbeat receipt 是特殊 rollout 用法。 | **Derived decision**。若未来全局 budget 要 gate claim，应签发独立 reservation/grant receipt；head 可引用它，但不能吸收 quota ledger。 |
-| App cadence projection；通用 scheduler liveness、host backoff 与 RRULE observation | App cadence 从当前 heartbeat 投影，不再持久化 per-App scheduler state，也不再接收 scheduler ACK/failure feedback。通用 host scheduler 仍可保留自己的本地 liveness、backoff 与 RRULE observation。 | **Host-local**。不能把两个都有效的 host observation 当作冲突并用一个 global value 覆盖。 |
+| Scheduler liveness、本地 backoff 与 host schedule observation | LoopX 投影 typed owner/reset/unchanged-poll policy。Host provider 可保留自己的本地 liveness、backoff 与 schedule observation，但这些状态不进入 typed core。 | **Host-local**。不能把两个都有效的 host observation 当作冲突并用一个 global value 覆盖。 |
 | Turn journal、`turn-sessions/` 与 Pi `.loopx/pi/` binding | Runtime recovery 与 session binding 为一个 host/session 写入，可能包含本地 path 或 task body。 | **Host-local**。Turn journal 是 receipt 设计先例，不是 shared coordination state。 |
 | Supervisor、domain-state 与 extension runtime file | 每个 capability 定义自己的 schema、privacy、append/upsert rule 与 effect receipt。 | 依 capability contract 保持为 **independent ledger** 或 **host-local**。不得通用导入 head。 |
 

@@ -406,28 +406,13 @@ interaction contract: what this turn may do
 Even if the Host wakes at the correct time, it must re-run the current decision. An old scheduler
 proposal, old `should_run`, or old selected Todo cannot be reused across state changes by default.
 
-### Scheduler convergence requires apply and readback
+### Scheduler convergence follows typed ownership
 
-For a Host that supports cadence control, `recommended_rrule` is the target cadence, not proof of the
-applied cadence. The complete convergence chain is:
-
-```text
-LoopX proposes recommended_rrule
-  -> Host applies one automation update
-  -> Host result / observed RRULE proves the actual cadence
-```
-
-The important protocol branches are:
-
-- `apply_needed=true`: the Host attempts at most one update; after failure or timeout it does not retry;
-- `apply_needed=false`: the observed Host cadence already matches the proposal, so skip the no-op update;
-- `host_observation.status=drift_detected`: the actual cadence differs from the proposal, so apply the
-  current hint once;
-- terminal pause/stop: verify the stop result according to the Host contract.
-
-LoopX does not persist Host scheduler state or accept an ACK/failure follow-up. Each poll derives the
-target from the current profile and decision, while the supplied Host RRULE prevents a redundant update.
-Cadence changes are control-plane housekeeping and do not consume delivery quota.
+`scheduler_hint` is scheduling policy, not evidence that a Host changed its schedule. Read the typed
+execution context first. A local scheduler may apply `reset_policy` and its cold-path local interval,
+then perform its own readback. Host-specific schedule mutation remains provider-owned; LoopX neither
+projects nor authorizes that operation. Cadence changes are control-plane housekeeping and do not
+consume delivery quota.
 
 ### Per-lane counting when multiple monitors are interleaved
 

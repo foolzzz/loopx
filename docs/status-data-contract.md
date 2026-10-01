@@ -1525,9 +1525,9 @@ drill-down fields under that contract, not competing sources of truth.
 `protocol_action_packet` belongs to the historical summary contract; the
 PR-05 migration below omits it from new outputs.
 The same payload includes `scheduler_hint.schema_version=scheduler_hint_v0`.
-This is the scheduling contract for host runtimes, not a delivery permission:
-Codex App can back off its automation cadence for long waits, while Codex CLI
-TUI and Claude Code loops can run one final quota/replan check after repeated
+This is the scheduling contract for supported runtimes, not a delivery
+permission: local schedulers can back off their cadence for long waits, while
+Codex CLI TUI and Claude Code loops can run one final quota/replan check after repeated
 unchanged polls, then exit/stop only if the guard is still unchanged. Cadence
 changes, final checks, and loop self-stop never spend quota. Host schedulers
 apply `recommended_interval_minutes` as the next target interval and multiply
@@ -1541,16 +1541,10 @@ token is derived from scheduler action plus identity/profile inputs, while the
 hot path carries only action fields plus a short `identity_signature`; the
 profile signature, reset-condition summary, and full stateful-backoff policy are
 available from `scheduler_hint.cold_path_detail` when callers request
-`loopx quota should-run --include-detail scheduler`. The reset moves Codex
-App/local cadence back to the current profile's initial interval before
-unchanged backoff resumes, and does not spend quota.
-Codex App heartbeats should use `automation_update` only when
-`app_automation.stateful_backoff.apply_needed=true` and
-`app_automation.recommended_rrule` is present. If the current desired RRULE is
-already applied, `recommended_rrule` is omitted and the host update should be
-skipped. There is no scheduler ACK or failure follow-up: LoopX does not persist
-App cadence state, so each poll projects from the current profile's initial
-interval and `reset_policy.app_automation_initial_rrule`.
+`loopx quota should-run --include-detail scheduler`. The reset moves local
+cadence back to the current profile's initial interval before unchanged
+backoff resumes, and does not spend quota. Host-specific scheduler mutation
+remains provider-owned and is not projected by LoopX.
 The payload also includes `execution_obligation`, which is the compatibility
 entry point for older workers deciding whether a quiet no-op is allowed.
 `heartbeat_recommendation.notify` is only a user-facing notification policy. It

@@ -734,7 +734,7 @@ Replan semantic action has a separate function-tool qualification because a
 no-tool JSON decision cannot prove that the model would use projected coverage
 to choose and persist a different direction. It creates a hermetic public-safe
 Goal with two equivalent typed progress observations, gives the live model the
-shipped thin Codex App heartbeat task body and one ordinary `exec_command`
+shipped thin generic host-loop task body and one ordinary `exec_command`
 function tool, and runs accepted quota and refresh commands through the real
 LoopX CLI. The bounded host loop passes only when real quota emits the
 host-projected coverage context and minimal action packet, and the model then
@@ -892,7 +892,7 @@ vision replan remain distinguishable. Each
 scenario has an independent deterministic source oracle derived before CLI
 projection; every repeat must pass and hard actor errors are not retried. The
 remaining live turn actor cases consume the default CLI hot-path
-`quota should-run` projection used by Codex App automation and return
+`quota should-run` projection used by the generic host loop and return
 runtime-facing decisions rather than echoing a global testing-only semantic
 contract. The suite has 42 bounded scenario attempts. Five scenarios
 exercise real tool loops; their per-scenario provider-call ceilings are owned by

@@ -235,10 +235,10 @@ effect、稳定 identity、durable receipt、replay 要求，并且能删除重�
 truth 时，才值得接入。
 
 read model、projection、quota decision、vision/replan policy、gate selection 和 monitor
-routing 仍然适合普通纯函数或领域状态机。App scheduler cadence 是无状态
-host proposal，不应为了“统一”被搬进 agent settlement。隔离 turn driver 内部仍有
-`scheduler_apply -> scheduler_ack` journal phase，那是通用 Turn transaction receipt，不是已退役的
-App scheduler follow-up 命令或每 App 状态。共享抽象要减少重复知识，不能只减少
+routing 仍然适合普通纯函数或领域状态机。Scheduler policy 受 typed owner/context
+约束，不应为了“统一”被搬进 agent settlement。隔离 turn driver 内部仍有
+`scheduler_apply -> scheduler_ack` journal phase，那是通用 Turn transaction receipt，
+不是 host-specific scheduler state。共享抽象要减少重复知识，不能只减少
 看起来相似的代码。
 
 ## 代码领读顺序
@@ -274,7 +274,7 @@ loopx --format json quota should-run \
   --agent-id codex-quality-qualification \
   --available-capability network \
   --available-capability external_evidence_poll \
-  --codex-app
+  --runtime-profile generic_cli
 ```
 
 在输出里找到：

@@ -805,9 +805,9 @@ closure intent from structured todo items; callers cannot authorize shutdown by
 writing `attention_queue.status` or registry attention text.
 
 `automation_liveness` deliberately does not set the polling cadence. The guard
-also exposes `scheduler_hint`, which is the host-runtime scheduling contract:
-Codex App automations should progressively back off toward the recommended
-interval/max during long waits, while Codex CLI TUI and Claude Code loops should
+also exposes `scheduler_hint`, which is the runtime scheduling contract: local
+schedulers should progressively back off toward the recommended interval/max
+during long waits, while Codex CLI TUI and Claude Code loops should
 run one final `quota should-run` replan check after their unchanged-poll limit
 and exit or stop only if the guard is still unchanged. Cadence changes, final
 checks, and self-stop turns never spend quota; only validated delivery or
@@ -815,11 +815,10 @@ allowed writeback does.
 
 Scheduler ownership is explicit. A bare `quota should-run` can still expose the
 quota decision, but its `scheduler_hint` fails closed with
-`repair_scheduler_execution_context`; it never assumes Codex App. Generated
-Codex App heartbeats pass the explicit `codex_app_heartbeat` profile; generated
-commands use its compact alias `--codex-app`. Other hosts
-pass the typed `--host-surface`, `--scheduler-owner`, and `--execution-mode`
-triple that describes the runtime which will consume the hint.
+`repair_scheduler_execution_context`; it never assumes scheduler ownership.
+Callers pass a supported `--runtime-profile`, or the typed `--host-surface`,
+`--scheduler-owner`, and `--execution-mode` triple that describes the runtime
+which will consume the hint.
 
 ## Compute States
 
@@ -871,7 +870,7 @@ The first read-only or preview commands are:
 ```bash
 loopx quota status
 loopx quota plan
-loopx --format json --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota should-run --goal-id <goal-id> --runtime-profile codex_app_heartbeat
+loopx --format json --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota should-run --goal-id <goal-id> --runtime-profile generic_cli
 loopx --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota spend-slot --goal-id <goal-id> --slots 1
 loopx --registry "${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}/registry.global.json" quota spend-slot --goal-id <goal-id> --slots 1 --execute
 ```
@@ -921,10 +920,6 @@ of an error string.
   "scheduler_hint": {
     "schema_version": "scheduler_hint_v0",
     "action": "backoff_waiting_for_user",
-    "codex_app": {
-      "recommended_interval_minutes": 30,
-      "example_progression_minutes": [30, 60]
-    },
     "unchanged_poll": {
       "limits": {
         "local_scheduler": 3,
@@ -946,7 +941,6 @@ of an error string.
       "execution_required": false,
       "request": "loopx quota should-run --include-detail scheduler",
       "hot_path_runtime_fields": [
-        "app_automation",
         "unchanged_poll",
         "reset_policy"
       ],
@@ -955,15 +949,12 @@ of an error string.
         "codex_cli_tui",
         "claude_code_loop",
         "final_quota_replan_check",
-        "reset_policy_detail",
-        "stateful_backoff_detail"
+        "reset_policy_detail"
       ]
     },
     "reset_policy": {
       "reset_token": "0123456789abcdef",
-      "host_state_key": "scheduler_hint.reset_policy.reset_token",
-      "app_automation_initial_interval_minutes": 30,
-      "app_automation_initial_rrule": "FREQ=MINUTELY;INTERVAL=30",
+      "local_scheduler_initial_interval_minutes": 30,
       "identity_signature": "123456789abc"
     }
   },
@@ -1141,22 +1132,17 @@ first.
 The response also includes `scheduler_hint.schema_version=scheduler_hint_v0`.
 That hint is not a delivery permission. It is the cross-runtime wait policy:
 `run_now` keeps the active cadence for required work; `backoff_waiting_for_user`
-slows Codex App and stops CLI/Claude loops after repeated unchanged polls;
+slows local schedulers and stops CLI/Claude loops after repeated unchanged polls;
 `backoff_until_reassigned` handles peer reassignment waits without dropping
 agent-to-agent handoff cadence too quickly;
 `backoff_until_material_transition` handles monitor-only quiet polls; and
 `backoff_until_fresh_evidence` handles mapped or post-handoff no-op waits.
-For Codex App and local schedulers, `recommended_interval_minutes` is the next
-target interval. For Codex App heartbeats, `recommended_rrule` is emitted only
-when `app_automation.stateful_backoff.apply_needed=true`; if the desired RRULE is
-already applied, it is omitted so the agent does not call a host tool again.
-When an apply is required but `automation_update` is unavailable in the
-session, the agent surfaces the pasteable heartbeat gate; LoopX does not edit
-the host's automation store directly.
+For local schedulers, `recommended_interval_minutes` in cold-path detail is the
+next target interval. Host-specific scheduler mutation remains provider-owned;
+LoopX neither projects an App schedule nor edits a host automation store.
 Human-gate waits use the `[30, 60]` progression after the concrete user todo
-has been surfaced. LoopX caps the Codex App integration at 60 minutes; coarser
-waits remain available to the local scheduler instead of being emitted as App
-heartbeat RRULEs.
+has been surfaced. Local scheduler profiles cap the ordinary progression at
+their declared maximum interval.
 Monitor-only quiet waits move through `[15, 30, 60]` while preserving the
 same no-spend monitor-poll contract, unless a monitor cadence or due time caps
 the progression earlier. Fifteen minutes is only the default quiet-monitor
@@ -1168,10 +1154,9 @@ but a tighter continuous-monitor wakeup remains authoritative for host cadence.
 Agent-scope waits use a more conservative adjustment curve such as
 `[10, 20, 30, 60]`, so a 600-second local tick stays close to the existing
 agent-to-agent interaction cadence before cooling further.
-The compact hot path carries only the reset fields hosts need to act:
-`reset_policy.reset_token`, `host_state_key`,
-`app_automation_initial_interval_minutes`, `app_automation_initial_rrule`, and the short
-`identity_signature`. Hosts should cache and compare `reset_token` across
+The compact hot path carries only the reset fields local schedulers need to act:
+`reset_policy.reset_token`, `local_scheduler_initial_interval_minutes`, and the
+short `identity_signature`. Schedulers should cache and compare `reset_token` across
 unchanged polls and reset the unchanged streak whenever the token changes. The
 token is derived from scheduler action plus the current identity/profile inputs;
 the explanatory reset profile, profile signature, reset condition summary, and
@@ -1179,23 +1164,8 @@ stateful-backoff policy live in `scheduler_hint.cold_path_detail` when callers
 request `loopx quota should-run --include-detail scheduler`. Hosts should also
 reset when an external event makes the goal actionable again, such as user
 feedback in the thread, a new or reassigned todo, a resolved gate, or material
-evidence transition. A reset applies `app_automation_initial_interval_minutes` (and
-the matching local scheduler initial interval) before starting unchanged
-backoff again; it never spends quota.
-For Codex App heartbeats, hosts and agents should use `automation_update` only
-when `app_automation.stateful_backoff.apply_needed=true` and
-`app_automation.recommended_rrule` is present. There is no post-update ACK or
-failure follow-up: LoopX does not persist App cadence state, so each poll
-projects the current profile's initial interval and a changed
-`reset_policy.reset_token` still marks a reset. If `automation_update` fails or
-times out, the agent does not retry in that turn and keeps the observed host
-cadence. LoopX never treats an intended cadence as an applied cadence.
-
-When the caller passes the observed RRULE with `--app-automation-current-rrule`,
-it takes precedence when computing `apply_needed`, and the compact result is
-exposed as `stateful_backoff.host_observation`; a mismatch is `drift_detected`.
-This observation contains only cadence metadata; LoopX never edits the App
-manifest directly.
+evidence transition. A reset applies `local_scheduler_initial_interval_minutes`
+before starting unchanged backoff again; it never spends quota.
 For Codex CLI TUI and Claude Code loops, the default hot path reads
 `scheduler_hint.unchanged_poll.limits.<runtime>`. A value of `3` means the third
 unchanged poll triggers the compact final quota/replan check named by

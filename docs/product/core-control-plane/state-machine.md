@@ -75,7 +75,7 @@ interpreter. This framing follows the public lecture
 |---|---|---|---|---|---|
 | Todo lifecycle | Agent proposes work, claim, completion, or blocker | Todo projection and authority rules | `open` / `claimed` / `deferred` / `blocked` / `done` / `superseded` | Todo summary and frontier | Next runnable todo or successor |
 | Quota runtime | Agent proposes a bounded turn | `quota should-run` | `run` / `gate` / `wait` / `repair` / `quiet` | Quota packet + `interaction_contract` | Execute, ask owner, observe, repair, or no-op |
-| Scheduler / heartbeat | Host asks when to wake again | Stateless App cadence projection | Host RRULE / profile initial interval | `scheduler_hint` packet | Next heartbeat or monitor poll |
+| Scheduler / heartbeat | Host asks when to wake again | Typed scheduler policy projection | Owner-scoped local interval / stop policy | `scheduler_hint` packet | Next heartbeat or monitor poll |
 | Gate and capability | Agent requests an effect with external authority | Capability and user gate rules | `repair_bridge` / `ask_owner` / allow / block | Gate packet and primary action | Repair, ask, execute, or stop |
 | Vision and replan | Agent closes or continues a bounded stage | Replan and vision rules | Continue / replan / watch / close | `goal_frontier_projection` + `vision_continuation_audit` | Next advancement or successor |
 | Monitor | Host polls a target | Monitor scheduler and evidence rules | Due / future / quiet / external observe | Monitor poll event and scheduler hint | Next poll or material transition |
@@ -395,12 +395,9 @@ stateDiagram-v2
   GlobalWriteBlocked --> RepairNeeded
   ProjectRegistered --> QuotaVisible: project registry mode
   GlobalRegistered --> QuotaVisible: global quota recognizes goal/agent
-  QuotaVisible --> HeartbeatConsentRequired: codex_app_heartbeat=ask
-  QuotaVisible --> HeartbeatPreauthorized: codex_app_heartbeat=yes
-  QuotaVisible --> ManualLoopOnly: codex_app_heartbeat=no or unsupported host
-  HeartbeatConsentRequired --> HeartbeatEnabled: user confirms + host installed
-  HeartbeatPreauthorized --> HeartbeatEnabled: host installed
-  HeartbeatEnabled --> FirstTickVerified: heartbeat fires + quota checked
+  QuotaVisible --> SchedulerConfigured: typed scheduler owner configured
+  QuotaVisible --> ManualLoopOnly: no recurring scheduler configured
+  SchedulerConfigured --> FirstTickVerified: owned loop fires + quota checked
   ManualLoopOnly --> FirstTickVerified: manual/TUI/Claude tick checked quota
   RepairNeeded --> ProjectRegistered: repair validated
   FirstTickVerified --> [*]
@@ -412,9 +409,8 @@ stateDiagram-v2
 | `GlobalSyncPending` / `GlobalRegistered` | `global_sync` payload | Shared status/quota can discover the goal. |
 | `GlobalWriteBlocked` / `RepairNeeded` | Registry writability probe or sync error | Produce a concrete repair/gate; do not silently downgrade. |
 | `QuotaVisible` | `quota should-run` can resolve goal and agent | The scheduler can reason about the target. |
-| `HeartbeatConsentRequired` | `codex_app_heartbeat=ask` | Ask before installing a recurring Codex App automation. |
-| `HeartbeatPreauthorized` | `codex_app_heartbeat=yes` | Install/update the host loop before claiming automation is active. |
-| `ManualLoopOnly` | `codex_app_heartbeat=no` or host unsupported | Manual, TUI, Claude, or on-demand loops remain valid. |
+| `SchedulerConfigured` | Typed scheduler execution context plus provider-owned activation | The declared owner has installed the outer loop; LoopX does not mutate host schedules. |
+| `ManualLoopOnly` | No recurring scheduler is configured | Manual, TUI, Claude, or on-demand loops remain valid. |
 | `FirstTickVerified` | Run history or quota evidence from a real tick | The operating loop has actually been exercised. |
 
 For read-only project maps, `adapter.status=planned` permits only a dry-run

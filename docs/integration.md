@@ -250,8 +250,8 @@ loopx new-project-prompt \
   --goal-doc /path/to/project/GOAL.md
 ```
 
-If the connected project should later run through a recurring Codex App
-heartbeat, generate the heartbeat task body instead of hand-copying the quota
+If the connected project should later run through a host-owned recurring loop,
+generate the task body instead of hand-copying the quota
 guard and spend protocol:
 
 ```bash
@@ -263,8 +263,8 @@ For connected goals, omit `--active-state`; the CLI resolves the active state
 from the registry goal `state_file`. Keep `--active-state` only as an explicit
 override for detached state files, migration checks, or compatibility tests.
 
-For live Codex App automations, use the thin form as the local machine-default
-dispatcher when the target Codex agent can inspect LoopX state and CLI
+For live host loops, use the thin form as the local machine-default dispatcher
+when the target agent can inspect LoopX state and CLI
 output itself:
 
 ```bash

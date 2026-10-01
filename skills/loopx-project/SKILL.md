@@ -529,26 +529,11 @@ the next wakeup cadence and external-loop unchanged-poll self-stop; this is
 scheduling policy, not delivery permission. Codex CLI TUI and Claude Code loops
 should run the final quota/replan check from `scheduler_hint` before applying
 their `after_limit`; if the guard changes or returns `run_now`, follow the new
-quota contract instead of stopping. App-hosted heartbeat workers should
-search/use `automation_update` when available. If
-`scheduler_hint.action=stop_until_explicit_resume` and
-`scheduler_hint.app_automation.host_action=pause_or_delete_current_heartbeat`, call
-`automation_update` once to pause the current heartbeat (delete only when the
-host cannot pause), verify the host result, spend no quota, and end the turn.
-This terminal host action takes precedence over RRULE handling. Otherwise use
-`automation_update` only when
-`scheduler_hint.app_automation.stateful_backoff.apply_needed=true` and
-`scheduler_hint.app_automation.recommended_rrule` is present. Attempt the host
-update at most once per hint and turn. If it fails or times out, do not retry;
-continue allowed delivery under the observed host cadence. LoopX keeps no App
-scheduler state and has no scheduler ACK or failure follow-up; it omits
-`recommended_rrule` when the desired RRULE is already applied.
-Cadence changes, reset-to-initial updates, final checks, and self-stop changes
-do not spend quota.
-When the caller passes the observed RRULE, treat
-`stateful_backoff.host_observation.status=drift_detected` as authoritative for
-cadence repair. This readback is cadence-only and never exposes the automation
-prompt or grants LoopX permission to edit Codex App files directly.
+quota contract instead of stopping. Local schedulers may consume the typed
+`reset_policy` and cold-path `local_scheduler` detail. Host-specific scheduler
+mutation is provider-owned and is not projected by LoopX; do not infer such
+authority from `scheduler_hint`. Cadence changes, reset-to-initial updates,
+final checks, and self-stop changes do not spend quota.
 
 Read
 `execution_obligation` before

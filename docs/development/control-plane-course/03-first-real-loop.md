@@ -19,7 +19,7 @@
 | 2 | 状态底座 | 长期目标和事实保存在哪里？ |
 | 3 | 工作图 | 多个 peer 如何领取、交接和关闭工作？ |
 | 4 | 决策内核 | `quota should-run` 如何决定这一轮做什么？ |
-| 5 | 宿主调度 | Codex App heartbeat 如何唤醒、退避和停止？ |
+| 5 | 宿主调度 | Typed scheduler owner 如何唤醒、退避和停止？ |
 | 6 | 证据与自修复 | 为什么“做过了”不等于“控制面已推进”？ |
 | 7 | 内核扩展方法 | 如何安全地给 control plane 增加一条规则？ |
 | 8 | 分层质量门禁 | Agent 如何证明改动可交付，而不是只证明测试会通过？ |
@@ -31,7 +31,7 @@
 
 完成本讲后，开发者应该能够：
 
-1. 用一句话区分 LoopX、Codex App 和模型执行器。
+1. 用一句话区分 LoopX、Host 和模型执行器。
 2. 说出 `$loopx <task>` 到第一次 bounded delivery 的真实 CLI 路径。
 3. 从 `interaction_contract` 中区分用户通道、agent 通道和 CLI 通道。
 4. 把一个 Showcase 产品闭环压成一次 bounded Turn。
@@ -79,7 +79,7 @@ portfolio。它们帮助 Agent 理解“为什么选这个候选”，但 `quota
 
 | 层 | 例子 | 负责什么 | 不负责什么 |
 | --- | --- | --- | --- |
-| Host | Codex App heartbeat、Codex CLI、Claude Code | 何时拉起一轮、把 task body 交给模型、应用调度频率 | 不判断长期事实，不自行发明 todo 真相 |
+| Host | Codex CLI、Claude Code、外部 runner | 何时拉起一轮、把 task body 交给模型、应用调度频率 | 不判断长期事实，不自行发明 todo 真相 |
 | Executor | 当前 Codex/Claude session | 阅读代码、实现、验证、写回一个 bounded transition | 不把聊天记忆当长期真相，不替用户越权 |
 | LoopX control plane | registry、active state、event ledger、status、quota | 保存长期状态并决定本轮协议 | 不直接成为模型 runtime，不替 host 创建会话 |
 
@@ -116,7 +116,7 @@ LoopX 不把整个 registry、event ledger、run history 和所有 todo 直接�
 | Closeout | refresh、receipt、spend 命令 | 让本轮结果进入下一轮可重放事实 |
 
 这与 host 原生 Goal 是互补关系。原生 Goal object 让 objective 和生命周期不依赖一次 prompt；
-LoopX packet 则让当前 Turn 不依赖模型记住完整项目过程。Codex App heartbeat automation
+LoopX packet 则让当前 Turn 不依赖模型记住完整项目过程。Host-owned recurring loop
 持有稳定的 thin task body，Codex CLI 可以把同类 re-entry body 放进可见 `/goal`。它们只约定
 “怎样重新进入 LoopX”，不承载某一轮 packet。每次 host 唤醒后，executor 都要调用 LoopX CLI，
 由最新 state 编译出本轮不同的 packet。
@@ -127,13 +127,13 @@ Packet 有三个明确的非目标：
 - 它不是 authority，显示某项工作不代表可以越过 gate 或 workspace guard；
 - 它不是历史摘要，长 rationale 应留在 evidence artifact，只通过紧凑 ref 进入本轮。
 
-## 一次 Codex App 交互的真实路径
+## 一次 Host 交互的真实路径
 
 下面不是概念伪代码，而是公开 CLI 的真实调用路径。任务文本、goal id 和 agent id 都使用占位符，读者可以在自己的测试仓库中复现。
 
 ### 0. 用户只表达目标
 
-在 Codex App 中，用户调用 LoopX skill：
+用户通过已连接的 Host 调用 LoopX skill：
 
 ```text
 $loopx <long-running task>
@@ -211,7 +211,7 @@ loopx todo claim \
 
 ### 3. Host 获得薄 heartbeat task body
 
-Codex App automation 不应该长期保存一大段项目专属决策逻辑。它只安装一个薄 prompt：
+Host-owned loop 不应该长期保存一大段项目专属决策逻辑。它只安装一个薄 prompt：
 
 ```bash
 loopx heartbeat-prompt \
@@ -294,16 +294,17 @@ quota 还会返回：
 {
   "scheduler_hint": {
     "action": "run_now_or_backoff",
-    "codex_app": {
-      "stateful_backoff": {
-        "apply_needed": true
-      }
+    "execution_context": {
+      "scheduler_owner": "local_scheduler"
+    },
+    "reset_policy": {
+      "local_scheduler_initial_interval_minutes": 10
     }
   }
 }
 ```
 
-当 `apply_needed=true` 时，host 更新 App automation 的 RRULE，并回读实际 schedule；LoopX 不再维护独立的 App scheduler ACK 状态。
+本地 scheduler 只在 typed owner/context 匹配时应用 reset policy，并自行回读；LoopX 不投影 host-specific scheduler mutation。
 
 ### 7. 验证写回后才 spend
 
@@ -582,7 +583,7 @@ effective_action = _effective_action(...)
 
 ### “LoopX 是另一个 agent runtime”
 
-不是。LoopX 可以向 host 提供 prompt、调度建议和状态协议，但不替 Codex App 或 CLI 执行模型 turn。
+不是。LoopX 可以向 host 提供 prompt、调度建议和状态协议，但不替 Host 执行模型 turn。
 
 ### “Heartbeat 每次触发都必须做事”
 
@@ -616,7 +617,7 @@ effective_action = _effective_action(...)
 课程可以用自身作为一个公开可复现的贯穿案例。下面只保留稳定的状态转换，不依赖任何真实线程、todo id 或本机目录：
 
 ```text
-用户在 Codex App 调用 $loopx，要求编写 9 讲开发者课程
+用户在已连接 Host 调用 $loopx，要求编写 9 讲开发者课程
   -> start-goal --guided 发现多个候选 goal
   -> 用户将任务显式路由到 <goal-id>
   -> guided packet 要求选择 registered peer identity
@@ -626,7 +627,7 @@ effective_action = _effective_action(...)
   -> 先规划，再写 4 个 ordered todo
   -> refresh-state 投影本轮计划
   -> quota should-run 选择第一个 todo
-  -> App scheduler 从 15m 调整为 3m
+  -> local scheduler 从 15m 调整为 3m
   -> 完成取证 todo，链接设计 todo 为 successor
   -> claim 设计 todo，开始讲义交付
 ```
