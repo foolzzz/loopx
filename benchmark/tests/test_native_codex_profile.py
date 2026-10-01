@@ -44,6 +44,26 @@ def _adapter_literal_assignment(name: str) -> object:
     raise AssertionError(f"native Codex adapter has no literal {name} assignment")
 
 
+def _adapter_mapping_keys(name: str) -> set[str]:
+    adapter = REPO_ROOT / "benchmark/deepswe-gptxhigh-v1/loopx_native_codex.py"
+    tree = ast.parse(adapter.read_text(encoding="utf-8"), filename=str(adapter))
+    for node in tree.body:
+        value = None
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
+        ):
+            value = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+        ):
+            value = node.value
+        if isinstance(value, ast.Dict):
+            return {str(ast.literal_eval(key)) for key in value.keys if key is not None}
+    raise AssertionError(f"native Codex adapter has no mapping {name} assignment")
+
+
 def _embedded_product_bootstrap_source() -> str:
     source = _adapter_literal_assignment("_BOOTSTRAP")
     if not isinstance(source, str):
@@ -65,13 +85,26 @@ def test_benchmark_preflight_tracks_the_current_bootstrap_contract() -> None:
         assert retired_flag not in preflight
 
 
-def test_historical_ssh_goal_arm_separates_runtime_profile_and_execution_host() -> None:
+@pytest.mark.parametrize(
+    ("arm", "runtime_profile", "execution_host"),
+    (
+        ("ssh-goal", "codex_cli", "codex-app-server"),
+        ("codex-cli", "codex_cli", "codex-cli"),
+        ("heartbeat", "outer_controller", "codex-cli"),
+    ),
+)
+def test_benchmark_arm_separates_runtime_profile_and_execution_host(
+    arm: str,
+    runtime_profile: str,
+    execution_host: str,
+) -> None:
     treatment_metadata = _adapter_literal_assignment("_TREATMENT_METADATA")
 
     assert isinstance(treatment_metadata, dict)
-    assert treatment_metadata["ssh-goal"] == {
-        "runtime_profile": "codex_cli",
-        "execution_host": "codex-app-server",
+    assert set(treatment_metadata) == _adapter_mapping_keys("_RUNNER_SOURCES")
+    assert treatment_metadata[arm] == {
+        "runtime_profile": runtime_profile,
+        "execution_host": execution_host,
     }
 
 
