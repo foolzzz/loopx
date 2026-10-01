@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -8,20 +7,6 @@ import {
   schedulerStatePath,
   SCHEDULER_STATE_OPERATION_REQUEST_SCHEMA,
 } from "../../loopx/control_plane/scheduler/state_store.ts";
-
-const fixture = JSON.parse(
-  await readFile(
-    new URL(
-      "../fixtures/control_plane/scheduler_state_store_characterization_v0.json",
-      import.meta.url,
-    ),
-    "utf8",
-  ),
-) as {
-  schema_version: string;
-  source_baseline: string;
-  cases: Array<Record<string, unknown>>;
-};
 
 const scope = {
   goalId: "goal-a",
@@ -38,19 +23,27 @@ function characterize(operation: unknown, params: Record<string, unknown>): unkn
   }).value;
 }
 
-test("pinned Python scheduler state characterization remains exact", () => {
-  assert.equal(
-    fixture.schema_version,
-    "loopx_scheduler_state_store_characterization_v0",
-  );
-  assert.equal(fixture.source_baseline, "8b255e1d1");
-  assert.equal(fixture.cases.length, 2);
-  for (const item of fixture.cases) {
-    const result = characterize(
-      item.operation,
-      item.params as Record<string, unknown>,
+test("current scheduler operations preserve their typed contract", () => {
+  const cases = [
+    {
+      name: "rrule interval clamps to one minute",
+      operation: "rrule_for_minutes",
+      params: { value: -3 },
+      expected: "FREQ=MINUTELY;INTERVAL=1",
+    },
+    {
+      name: "rrule prefix and whitespace normalize",
+      operation: "normalize_rrule",
+      params: { value: "  RRULE:  FREQ=MINUTELY;  INTERVAL=15  " },
+      expected: "FREQ=MINUTELY; INTERVAL=15",
+    },
+  ];
+  for (const item of cases) {
+    assert.deepEqual(
+      characterize(item.operation, item.params),
+      item.expected,
+      item.name,
     );
-    if ("expected" in item) assert.deepEqual(result, item.expected, String(item.name));
   }
 });
 
@@ -73,10 +66,9 @@ test("typed boundary rejects malformed requests", () => {
 });
 
 test("pure scheduler state operations do not mutate caller input", () => {
-  const item = fixture.cases[1];
-  const params = item.params as Record<string, unknown>;
+  const params = { value: "  RRULE:  FREQ=MINUTELY;  INTERVAL=15  " };
   const before = structuredClone(params);
-  characterize(item.operation, params);
+  characterize("normalize_rrule", params);
   assert.deepEqual(params, before);
 });
 
