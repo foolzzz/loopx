@@ -19,6 +19,10 @@ from loopx_jev.sentinel_matrix import MAX_CASES, load_sentinel_matrix
 from loopx_jev.transport import TransportFailure
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "sentinel"
+REPOSITORY = "loopx-project/loopx"
+DERIVATION = "retired_command_removal"
+REAL_PROVENANCE = {"commit": "abc123", "repository": REPOSITORY}
+SANITIZED_PROVENANCE = {**REAL_PROVENANCE, "derivation": DERIVATION}
 
 
 def _matrix_document(**overrides):
@@ -31,6 +35,17 @@ def _write(tmp_path: Path, document) -> Path:
     path = tmp_path / "matrix.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
+
+
+def _single_case_document(kind: str) -> dict:
+    document = _matrix_document()
+    document["cases"] = [next(case for case in document["cases"] if case["kind"] == kind)]
+    return document
+
+
+def _link_fixture_directories(tmp_path: Path) -> None:
+    for directory in ("constructed", "real"):
+        (tmp_path / directory).symlink_to(FIXTURES / directory, target_is_directory=True)
 
 
 def test_committed_matrix_loads_with_frozen_gold_labels() -> None:
@@ -51,6 +66,109 @@ def test_committed_matrix_loads_with_frozen_gold_labels() -> None:
         "retired_command_removal"
     ]
     assert all(round_item["self_report"]["result_class"] == "advanced" for case in matrix["cases"] for round_item in case["rounds"])
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected_provenance"),
+    [
+        ("constructed", None),
+        (
+            "real_commit",
+            {"commit": "02dfd43b3", "repository": REPOSITORY},
+        ),
+        (
+            "sanitized_real_commit",
+            {"commit": "3c3586941", "repository": REPOSITORY, "derivation": DERIVATION},
+        ),
+    ],
+)
+def test_matrix_loader_accepts_exact_provenance_for_each_case_kind(
+    tmp_path: Path,
+    kind: str,
+    expected_provenance: dict[str, str] | None,
+) -> None:
+    _link_fixture_directories(tmp_path)
+
+    matrix = load_sentinel_matrix(_write(tmp_path, _single_case_document(kind)))
+
+    assert matrix["cases"][0]["provenance"] == expected_provenance
+
+
+@pytest.mark.parametrize(
+    ("kind", "provenance", "error"),
+    [
+        (
+            "constructed",
+            REAL_PROVENANCE,
+            r"cases\[0\]\.provenance is not allowed for kind constructed",
+        ),
+        (
+            "real_commit",
+            None,
+            r"cases\[0\]\.provenance must be an object for kind real_commit",
+        ),
+        (
+            "real_commit",
+            {"repository": REPOSITORY},
+            r"cases\[0\]\.provenance\.commit is required for kind real_commit",
+        ),
+        (
+            "real_commit",
+            {"commit": "abc123"},
+            r"cases\[0\]\.provenance\.repository is required for kind real_commit",
+        ),
+        (
+            "real_commit",
+            SANITIZED_PROVENANCE,
+            r"cases\[0\]\.provenance\.derivation is not allowed for kind real_commit",
+        ),
+        (
+            "sanitized_real_commit",
+            None,
+            r"cases\[0\]\.provenance must be an object for kind sanitized_real_commit",
+        ),
+        (
+            "sanitized_real_commit",
+            {"repository": REPOSITORY, "derivation": DERIVATION},
+            r"cases\[0\]\.provenance\.commit is required for kind sanitized_real_commit",
+        ),
+        (
+            "sanitized_real_commit",
+            {"commit": "abc123", "derivation": DERIVATION},
+            r"cases\[0\]\.provenance\.repository is required for kind sanitized_real_commit",
+        ),
+        (
+            "sanitized_real_commit",
+            REAL_PROVENANCE,
+            r"cases\[0\]\.provenance\.derivation is required for kind sanitized_real_commit",
+        ),
+        (
+            "sanitized_real_commit",
+            {**REAL_PROVENANCE, "derivation": "redacted"},
+            r"cases\[0\]\.provenance\.derivation must be retired_command_removal",
+        ),
+        (
+            "sanitized_real_commit",
+            {**SANITIZED_PROVENANCE, "source": "fixture"},
+            r"cases\[0\]\.provenance\.source is not allowed for kind sanitized_real_commit",
+        ),
+    ],
+)
+def test_matrix_loader_rejects_provenance_outside_each_case_kind_contract(
+    tmp_path: Path,
+    kind: str,
+    provenance: dict[str, str] | None,
+    error: str,
+) -> None:
+    _link_fixture_directories(tmp_path)
+    document = _single_case_document(kind)
+    if provenance is None:
+        document["cases"][0].pop("provenance", None)
+    else:
+        document["cases"][0]["provenance"] = provenance
+
+    with pytest.raises(ValueError, match=error):
+        load_sentinel_matrix(_write(tmp_path, document))
 
 
 def test_committed_snapshots_do_not_teach_retired_app_scheduler_commands() -> None:
@@ -84,9 +202,7 @@ def test_committed_constructed_snapshots_match_generator_byte_for_byte(tmp_path:
 
 
 def test_matrix_loader_rejects_loose_input(tmp_path: Path) -> None:
-    fixtures_link = tmp_path / "constructed"
-    fixtures_link.symlink_to(FIXTURES / "constructed", target_is_directory=True)
-    (tmp_path / "real").symlink_to(FIXTURES / "real", target_is_directory=True)
+    _link_fixture_directories(tmp_path)
     base = _matrix_document()
     load_sentinel_matrix(_write(tmp_path, base))
     too_many = _matrix_document(cases=base["cases"] + [dict(base["cases"][0], case_id=f"dup-{i}") for i in range(MAX_CASES)])

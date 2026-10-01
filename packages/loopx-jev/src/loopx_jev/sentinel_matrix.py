@@ -23,6 +23,12 @@ MAX_PATHS = 8
 MAX_FILE_BYTES = 32768
 MAX_ROUND_BYTES = 32768
 CASE_KINDS = ("constructed", "real_commit", "sanitized_real_commit")
+_PROVENANCE_FIELDS = {
+    "constructed": (),
+    "real_commit": ("commit", "repository"),
+    "sanitized_real_commit": ("commit", "repository", "derivation"),
+}
+_SANITIZED_DERIVATION = "retired_command_removal"
 _TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$")
 _RESULT_CLASSES = {item.value for item in ProgressResultClass}
 
@@ -60,6 +66,29 @@ def _read_fixture(base: Path, reference: Any, *, field: str) -> str | None:
     if len(raw) > MAX_FILE_BYTES or b"\0" in raw:
         raise ValueError(f"{field} fixture is oversized or binary")
     return raw.decode("utf-8")
+
+
+def _provenance(value: Any, *, kind: str, field: str) -> dict[str, str] | None:
+    required = _PROVENANCE_FIELDS[kind]
+    if not required:
+        if value is not None:
+            raise ValueError(f"{field} is not allowed for kind {kind}")
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{field} must be an object for kind {kind}")
+    unexpected = sorted(set(value) - set(required))
+    if unexpected:
+        raise ValueError(f"{field}.{unexpected[0]} is not allowed for kind {kind}")
+    for key in required:
+        if key not in value:
+            raise ValueError(f"{field}.{key} is required for kind {kind}")
+    normalized = {
+        key: _text(value[key], field=f"{field}.{key}", limit=200)
+        for key in required
+    }
+    if kind == "sanitized_real_commit" and normalized["derivation"] != _SANITIZED_DERIVATION:
+        raise ValueError(f"{field}.derivation must be {_SANITIZED_DERIVATION}")
+    return normalized
 
 
 def _files(base: Path, value: Any, paths: list[str], *, field: str) -> dict[str, str | None]:
@@ -154,24 +183,16 @@ def load_sentinel_matrix(path: Path) -> dict[str, Any]:
             isinstance(drift_from, bool) or not isinstance(drift_from, int) or not 1 <= drift_from <= len(rounds)
         ):
             raise ValueError(f"{field}.gold.drift_from_round must be null or a round number")
-        provenance = raw.get("provenance")
-        if provenance is not None and (
-            not isinstance(provenance, dict)
-            or set(provenance) - {"commit", "repository", "derivation"}
-        ):
-            raise ValueError(f"{field}.provenance has unexpected fields")
-        if kind == "sanitized_real_commit" and (
-            not isinstance(provenance, dict)
-            or provenance.get("derivation") != "retired_command_removal"
-        ):
-            raise ValueError(
-                f"{field}.provenance must name the sanitized fixture derivation"
-            )
+        provenance = _provenance(
+            raw.get("provenance"),
+            kind=kind,
+            field=f"{field}.provenance",
+        )
         cases.append(
             {
                 "case_id": case_id,
                 "kind": kind,
-                "provenance": dict(provenance) if provenance else None,
+                "provenance": provenance,
                 "basis": {"objective": objective, "acceptance": acceptance, "non_goals": non_goals},
                 "paths": paths,
                 "baseline": baseline,
