@@ -6,6 +6,13 @@ import {dirname, join} from "node:path";
 import {execFileSync} from "node:child_process";
 import {admitAutomationStart as admit, cadenceStorePath, confirmAutomationStart as confirm, manageAutomationCadence as manage, projectCadenceProgression as progression} from "../../loopx/control_plane/quota/automation_cadence.ts";
 
+test("cadence policy keeps its complete owner-policy store path", () => {
+  assert.equal(cadenceStorePath("/runtime", "goal-a"), join(
+    "/runtime", "goals", "goal-a-bf21e67b01a351a1", "scheduler-state",
+    "owner-policy-fa87bad2d469dfa6", "quota-b878a6801d9a9e68", "4163ef554dadb952.json",
+  ));
+});
+
 test("owner floor inherits without changing another agent; reductions and concurrent writes require authority", async () => {
   const root = await mkdtemp(join(tmpdir(), "cadence-"));
   const base = {runtime_root: root, goal_id: "fixture", operation: "configure", execute: true, owner_reference: "owner-request"};
