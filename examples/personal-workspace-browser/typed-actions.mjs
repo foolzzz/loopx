@@ -1221,6 +1221,20 @@ export const typedActionsScenario = {
       await machineCatalog.getByRole("button", { name: /^Goal 复核周期/ }).click();
       await page.getByLabel(/^两次 Goal 复核间的已完成 Todo 数/u).waitFor({ state: "visible" });
       await page.getByText(/不会创建 Turn、消耗配额或授予权限/u).waitFor({ state: "visible" });
+      await page.getByLabel(/^两次 Goal 复核间的已完成 Todo 数/u).fill("2");
+      await page.getByRole("button", { name: "预览变更", exact: true }).click();
+      await page.getByRole("button", { name: "应用已审阅预览", exact: true }).click();
+      await page.getByText("机器策略已应用，并通过回读校验。", { exact: true }).waitFor({ state: "visible" });
+      const cadenceInspection = await page.evaluate(async () => (await fetch("/api/chat/machine-configuration")).json());
+      const cadenceCapability = cadenceInspection.capability_catalog.capabilities.find((item) => item.capability_id === "todo_replan_cadence");
+      const cadenceTemplate = cadenceInspection.namespace_catalog.namespaces.find((item) => item.namespace === "todo_replan_cadence");
+      if (cadenceInspection.machine_configuration.namespaces.todo_replan_cadence.completed_todos !== 2
+          || cadenceCapability.machine_current.completed_todos !== 2
+          || cadenceCapability.effective_configuration.configuration.completed_todos !== 2
+          || cadenceCapability.default.completed_todos !== 3
+          || cadenceTemplate.configuration_template.completed_todos !== 3) {
+        throw new Error("Machine readback must update current/effective values while retaining default/template values");
+      }
       await machineCatalog.getByRole("button", { name: /^变更质量验证/ }).click();
       for (const label of [/^启用$/u, /^允许一次有界安全修复$/u, /^要求精确 diff 回执$/u]) {
         await page.getByLabel(label).waitFor({ state: "visible" });
@@ -1255,14 +1269,14 @@ export const typedActionsScenario = {
       await page.locator(".personal-capability-help > summary").click();
       await page.getByRole("button", { name: "预览变更", exact: true }).click();
       await page.getByText("审阅机器配置变更", { exact: true }).waitFor({ state: "visible" });
-      const machineConfigurationPreview = api.machineConfigurationRequests.find((item) => item.phase === "preview");
+      const machineConfigurationPreview = api.machineConfigurationRequests.find((item) => item.phase === "preview" && item.namespace === "periodic_report");
       const machineKeys = Object.keys(machineConfigurationPreview?.namespace_configuration ?? {}).sort((left, right) => left.localeCompare(right));
       if (JSON.stringify(machineKeys) !== JSON.stringify(["enabled", "inheritance", "profile_preset", "route_ref", "schema_version", "timezone"])) {
         throw new Error(`Machine guided editor lost capability-owned hidden fields: ${JSON.stringify(machineConfigurationPreview)}`);
       }
       await page.getByRole("button", { name: "应用已审阅预览", exact: true }).click();
       await page.getByText("机器策略已应用，并通过回读校验。", { exact: true }).waitFor({ state: "visible" });
-      const machineConfigurationApply = api.machineConfigurationRequests.find((item) => item.phase === "apply");
+      const machineConfigurationApply = api.machineConfigurationRequests.find((item) => item.phase === "apply" && item.namespace === "periodic_report");
       if (machineConfigurationApply?.expected_plan_revision !== "sha256:machine-plan") throw new Error("Machine configuration apply lost its reviewed plan revision");
       await page.screenshot({ path: resolve(outputDir, "machine-capability-behavior-zh-cn.png"), fullPage: false, animations: "disabled" });
 
