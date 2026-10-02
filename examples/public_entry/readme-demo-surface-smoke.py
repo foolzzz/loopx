@@ -39,7 +39,6 @@ def main() -> int:
         "LoopX state: objective + gates + todos + scope + evidence + quota",
         "## Try LoopX",
         "### Start From Your Agent",
-        "Codex App",
         "Codex CLI",
         "Claude Code",
         "Cursor, shell, or custom runner",
@@ -71,6 +70,7 @@ def main() -> int:
     for required in [
         '<a id="快速开始"></a>',
         '<a id="看几个例子"></a>',
+        "Codex CLI",
         "200+ 小时自然时长",
         "超过 200 小时的公开贡献轨迹",
         "经过脱敏的 owner-run showcase",
