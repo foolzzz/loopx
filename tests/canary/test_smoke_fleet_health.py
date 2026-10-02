@@ -3,7 +3,32 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from loopx.canary.runner import build_canary_smoke_suite_run
 from loopx.canary.smoke_health import build_smoke_fleet_health
+from loopx.canary.smoke_profiles import list_smoke_suite_profiles
+
+
+def test_retired_full_public_workflow_has_no_receipt_producer() -> None:
+    root = Path(__file__).resolve().parents[2]
+    assert not (root / ".github/workflows/full-public-smokes.yml").exists()
+    assert all(
+        "full-public-smokes" not in profile["modules"]
+        for profile in list_smoke_suite_profiles()
+    )
+
+
+@pytest.mark.parametrize("profiles", [[], ["public-smoke-watch"]])
+def test_public_inventory_does_not_require_retired_workflow(profiles: list[str]) -> None:
+    preview = build_canary_smoke_suite_run(
+        suite="full-public", profiles=profiles, execute=False
+    )
+    scripts = {check["normalized"]["script"] for check in preview["selected_checks"]}
+
+    assert preview["ok"] is True
+    assert "examples/control_plane/cli-output-budget-regression-smoke.py" in scripts
+    assert "examples/full-public-smokes-workflow-smoke.py" not in scripts
 
 
 def _passing_receipt(scripts: list[str]) -> dict[str, object]:

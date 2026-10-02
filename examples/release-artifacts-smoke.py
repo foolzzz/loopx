@@ -184,7 +184,6 @@ def main() -> int:
         "release-artifacts.yml",
         "desktop-release-artifacts.yml",
         "desktop-updater.yml",
-        "full-public-smokes.yml",
         "update-notes.yml",
     )
     for workflow_name in owner_gated_workflows:

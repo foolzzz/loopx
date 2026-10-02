@@ -130,7 +130,7 @@ def main() -> int:
             "reviewDecision": "REVIEW_REQUIRED",
             "mergeStateStatus": "UNKNOWN",
             "statusCheckRollup": [
-                {"name": "Full Public Smokes", "conclusion": "SUCCESS"}
+                {"name": "pytest", "conclusion": "SUCCESS"}
             ],
             "body": "raw issue body text that must stay gated",
             "comments": ["full issue comment text that must stay gated"],
@@ -153,7 +153,7 @@ def main() -> int:
             "reviewDecision": "REVIEW_REQUIRED",
             "mergeStateStatus": "CLEAN",
             "statusCheckRollup": [
-                {"name": "Full Public Smokes", "conclusion": "FAILURE"}
+                {"name": "pytest", "conclusion": "FAILURE"}
             ],
             "check_log": "private check log",
         },
