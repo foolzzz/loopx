@@ -85,12 +85,26 @@ def installers(tmp_path, monkeypatch, smoke):
 
 def assert_stopped(processes, child_pids):
     assert all(process.poll() is not None for process in processes)
+    # Include this live process so an empty/failed query cannot look like cleanup.
+    result = subprocess.run(
+        ["ps", "-o", "pid=,stat=", "-p", ",".join(map(str, [os.getpid(), *child_pids]))],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0 and not result.stderr, result
+    states = {int(pid): state for pid, state in (line.split() for line in result.stdout.splitlines())}
+    assert os.getpid() in states and not states[os.getpid()].startswith("Z"), states
     for pid in child_pids:
         # An orphan zombie cannot write into HOME and may await the OS reaper.
-        result = subprocess.run(
-            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True
-        )
-        assert not result.stdout.strip() or result.stdout.strip().startswith("Z")
+        assert pid not in states or states[pid].startswith("Z"), states
+
+
+def test_process_liveness_oracle_rejects_failed_query(monkeypatch):
+    monkeypatch.setattr(
+        subprocess, "run", lambda *args, **kwargs: subprocess.CompletedProcess([], 1, "", "query failed")
+    )
+    with pytest.raises(AssertionError):
+        assert_stopped([], [])
 
 
 @pytest.mark.parametrize(
