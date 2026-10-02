@@ -204,8 +204,9 @@ the TypeScript runtime each own one spelling of the same idea.
   `pytest` sweep through `tests/architecture/test_semantic_vocabulary_drift.py`,
   so it fails closed on every pull request that runs the Python tests. Fleet
   discovery under `examples/` and the `repo-architecture-budget` premerge
-  profile are additional surfaces, not the obligation: the fleet runs after
-  merge and on a schedule, and premerge selects by changed-path tokens.
+  profile are additional surfaces, not the obligation: the full suite runs
+  explicitly after retirement of the scheduled workflow, and premerge selects
+  by changed-path tokens.
 - **I11 Roles are distinct.** A vocabulary has one owner, some producers, some
   interpreters, and some pass-throughs (Section 5, "Roles of a vocabulary").
   Only the owner defines the set and only producers write values. Mentioning,
@@ -918,12 +919,13 @@ Where it runs, and which surface is the obligation:
 | --- | --- | --- | --- |
 | `pytest` sweep, `python-tests.yml` | every pull request whose classification runs the Python tests | always collected via `tests/architecture/test_semantic_vocabulary_drift.py` | **The commit-time obligation (I10)** |
 | `loopx canary premerge` | local, before opening a PR | `repo-architecture-budget` profile, trigger hints include `loopx/`, `examples/`, `scripts/`, `refactor` | Early local signal |
-| Full public smoke fleet | push to `main`, daily schedule, manual dispatch | `examples/**/*-smoke.py` discovery | Post-merge confirmation; not a PR-required check by design |
+| Full public smoke suite | explicit local run | `examples/**/*-smoke.py` discovery | Additional confirmation; no scheduled workflow or required PR check |
 
 Before this table existed the RFC said the smoke ran "in premerge and CI". On
 the baseline that was true only after merge: premerge did not select the smoke
-for a diff touching `loopx/control_plane/` alone, and the fleet workflow is
-deliberately not a PR-required check. A fleet-discovered smoke is not a
+for a diff touching `loopx/control_plane/` alone, and the former fleet workflow
+was deliberately not a PR-required check. That workflow has since been retired;
+the explicit full-public suite remains available. A fleet-discovered smoke is not a
 commit-time check until a required PR job collects it.
 
 **On-demand inventory (Q9).** The former committed snapshot imposed a second

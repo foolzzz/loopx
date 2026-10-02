@@ -18,6 +18,10 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Changed
 
+- Retired the Full Public Smokes GitHub workflow and its workflow-only smoke.
+  Full public sweeps and compact health reports remain available through
+  explicit CLI runs; CI no longer aggregates receipts from a skipped job.
+
 - **Monitor timestamps use a stable cross-language ISO grammar.** Python and
   TypeScript retain reduced-time fractional seconds (`T00.1`), reject hour 24
   and UTC year overflow, and preserve exact microsecond ordering independently

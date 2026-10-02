@@ -169,7 +169,7 @@ todos、capabilities 与 TypeScript 运行时各自拥有同一想法的一种�
   `tests/architecture/test_semantic_vocabulary_drift.py` 跑在默认 `pytest`
   扫描里，因此在每个运行 Python 测试的 PR 上失败即关闭。`examples/` 下的舰队
   发现与 `repo-architecture-budget` premerge profile 是附加表面，不是义务：
-  舰队在合并后和按日程运行，premerge 按改动路径的 token 选择。
+  全量 suite 由本地显式运行，定时工作流已退役；premerge 按改动路径的 token 选择。
 - **I11 角色互异。** 一个词表有一个 owner、若干生产者、若干解释者与若干透传者
   （第 5 节"词表的角色"）。只有 owner 定义集合，只有生产者写入值。提及、
   比较、序列化或展示一个值不带来任何所有权。开始写入值的解释者或透传者已经
@@ -740,11 +740,12 @@ heartbeat/quota 覆盖。quick 与 deep 档位的上限不变。
 | --- | --- | --- | --- |
 | `pytest` 扫描，`python-tests.yml` | 每个分类为需运行 Python 测试的 PR | 经 `tests/architecture/test_semantic_vocabulary_drift.py` 始终被收集 | **提交时义务（I10）** |
 | `loopx canary premerge` | 本地，开 PR 之前 | `repo-architecture-budget` profile，触发词含 `loopx/`、`examples/`、`scripts/`、`refactor` | 早期本地信号 |
-| 全量公共 smoke 舰队 | push 到 `main`、每日日程、手动触发 | `examples/**/*-smoke.py` 发现 | 合并后确认；按设计不是 PR 必需检查 |
+| 全量公共 smoke suite | 本地显式运行 | `examples/**/*-smoke.py` 发现 | 附加确认；无定时工作流，也不是 PR 必需检查 |
 
 在这张表存在之前，RFC 说 smoke "在 premerge 与 CI 中运行"。在基线上这只在合并
 后成立：premerge 对只改 `loopx/control_plane/` 的 diff 不会选中该 smoke，而舰队
-工作流被刻意设为非 PR 必需检查。舰队能发现的 smoke 不是提交时检查，除非某个
+工作流当时被刻意设为非 PR 必需检查。该工作流现已退役，显式 full-public suite
+仍可用。舰队能发现的 smoke 不是提交时检查，除非某个
 必需的 PR 作业收集它。
 
 **按需清单（Q9）。** 原来的已提交快照为本来合法的 PR 增加了额外同步义务，

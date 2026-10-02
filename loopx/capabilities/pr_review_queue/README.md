@@ -462,8 +462,9 @@ Green CI proves only the checks that ran, not whole-program convergence.
 The repair map below is a **LoopX repository example**, not a policy for every
 `--repo`. In LoopX, verify required checks against `.github/GOVERNANCE.md` and the
 current CI configuration: `Sign-off` and `merge-gate` are the documented checks;
-the semantic smoke runs through Python tests. Full Public Smokes is a
-post-merge/scheduled surface. These facts are not copied into generic packets.
+the semantic smoke runs through Python tests. Full public smoke sweeps are
+explicit local runs, not a scheduled GitHub check. These facts are not copied
+into generic packets.
 
 Use this repair map when a check fails:
 
