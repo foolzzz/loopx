@@ -147,8 +147,8 @@ if meaningful:
 | Public-safe decision replay | 独立源事实可重放到最终 decision | 控制面回归 | provider 行为 |
 | Quality surface catalog | 高风险 surface 都有 oracle 和层级分类 | catalog 变更、premerge | 具体测试执行结果 |
 | CLI output budget | 默认 agent 输出有界，base/head 增长可解释 | 输出相关 PR | 字段语义正确性 |
-| Risk-based canary | Git diff 对应的最小跨 surface 组合已通过 | 敏感合并、发布前 | 每日完整清单 |
-| Full-public smoke fleet | 广覆盖、超时与 inventory 健康 | `main`、每日、手动 | 聚焦回归 |
+| Risk-based canary | Git diff 对应的最小跨 surface 组合已通过 | 敏感合并、发布前 | 完整公开清单 |
+| Full-public smoke fleet | 广覆盖、超时与 inventory 健康 | 显式 CLI 运行；定时工作流已退役 | 聚焦回归 |
 | Actual-default model behavior | 真实模型正确理解当前默认 packet | 低频本地、敏感发布 | schema、优先级、冷路径恢复 |
 | Exact-commit release qualification | 所有回执属于同一 clean commit、tree 和版本 | 发布前 | owner 的发布决定 |
 | Matched outcome baseline | 明确的 benchmark/长程提升声明成立 | 有提升声明时 | 普通功能正确性 |

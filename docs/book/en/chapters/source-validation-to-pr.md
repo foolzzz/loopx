@@ -109,7 +109,7 @@ consumer. It cannot replace the focused regression because it may not name this 
 
 ### 5. Full-public smoke fleet
 
-The broad public suite is appropriate on `main`, on a schedule, or by explicit manual request:
+Run the broad public suite explicitly through the CLI; the scheduled repository workflow is retired:
 
 ```bash
 loopx canary smoke-suite --suite full-public --jobs 4 --timeout-seconds 120
@@ -552,7 +552,7 @@ semantic core. The final `APPROVE` applies only to the revalidated exact head.
 
 A merged PR does not prove a release, deployment, or every external Host update. Follow-up may include:
 
-- full-public smoke on `main`;
+- explicit full-public smoke runs;
 - release qualification;
 - packaged-install verification;
 - Host or plugin compatibility;
