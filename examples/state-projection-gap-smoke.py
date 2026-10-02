@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-test active-state Next Action vs Todo projection consistency."""
+"""Smoke-test raw projection warnings and model-specific Todo repair obligations."""
 
 from __future__ import annotations
 
@@ -14,6 +14,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from loopx.quota import build_quota_should_run, render_quota_should_run_markdown  # noqa: E402
+from loopx.control_plane.scheduler.execution_context import (  # noqa: E402
+    GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT,
+)
 from loopx.state_projection import state_projection_gap_warning  # noqa: E402
 from loopx.state_refresh import refresh_state_run, render_state_refresh_markdown  # noqa: E402
 
@@ -196,7 +199,8 @@ def test_refresh_state_warns() -> None:
         assert "requires_todo_expansion=True" in markdown, markdown
 
 
-def test_quota_routes_gap_to_projection_repair(gap: dict) -> None:
+def test_quota_routes_gap_by_agent_model(gap: dict) -> None:
+    next_action = gap["first_evidence"][0]["text"]
     status_payload = {
         "ok": True,
         "run_history": {
@@ -212,9 +216,7 @@ def test_quota_routes_gap_to_projection_repair(gap: dict) -> None:
                         {
                             "generated_at": "2026-06-16T00:00:00+00:00",
                             "classification": "state_refreshed",
-                            "recommended_action": (
-                                "Run the trace reducer backfill and validate the benchmark compact output."
-                            ),
+                            "recommended_action": next_action,
                         }
                     ],
                 }
@@ -228,9 +230,7 @@ def test_quota_routes_gap_to_projection_repair(gap: dict) -> None:
                     "waiting_on": "codex",
                     "severity": "action",
                     "source": "latest_run",
-                    "recommended_action": (
-                        "Run the trace reducer backfill and validate the benchmark compact output."
-                    ),
+                    "recommended_action": next_action,
                     "quota": {
                         "compute": 1.0,
                         "slot_minutes": 1,
@@ -241,9 +241,7 @@ def test_quota_routes_gap_to_projection_repair(gap: dict) -> None:
                     },
                     "project_asset": {
                         "owner": "codex",
-                        "next_action": (
-                            "Run the trace reducer backfill and validate the benchmark compact output."
-                        ),
+                        "next_action": next_action,
                         "stop_condition": "stop on fixture boundary",
                         "state_projection_gap": gap,
                         "quota": {
@@ -260,19 +258,38 @@ def test_quota_routes_gap_to_projection_repair(gap: dict) -> None:
             ]
         },
     }
-    decision = build_quota_should_run(status_payload, goal_id=GOAL_ID)
-    assert decision["should_run"] is True, decision
-    assert decision["normal_delivery_allowed"] is False, decision
-    assert decision["self_repair_allowed"] is True, decision
-    assert decision["effective_action"] == "state_projection_gap_repair", decision
-    assert decision["heartbeat_recommendation"]["recommended_mode"] == (
-        "repair_state_projection_gap"
-    ), decision
-    assert decision["execution_obligation"]["kind"] == "state_projection_gap_repair", decision
-    assert decision["execution_obligation"]["delivery_allowed"] is False, decision
-    markdown = render_quota_should_run_markdown(decision)
-    assert "state_projection_gap" in markdown, markdown
-    assert "effective_action: `state_projection_gap_repair`" in markdown, markdown
+    goal = status_payload["run_history"]["goals"][0]
+    # Default role_v1 and explicitly recorded role_v1 never derive a Todo
+    # obligation from Next Action. Explicit peer_v1 retains that contract.
+    for model in (None, "role_v1", "peer_v1"):
+        if model is not None:
+            goal["coordination"] = {"agent_model": model}
+        decision = build_quota_should_run(
+            status_payload,
+            goal_id=GOAL_ID,
+            scheduler_execution_context=GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT,
+        )
+        assert decision["scheduler_hint"]["execution_context"]["valid"] is True, decision
+        assert decision["should_run"] is True, decision
+        markdown = render_quota_should_run_markdown(decision)
+        if model != "peer_v1":
+            assert decision["normal_delivery_allowed"] is True, decision
+            assert decision["self_repair_allowed"] is False, decision
+            assert decision["effective_action"] == "normal_run", decision
+            assert decision["execution_obligation"]["kind"] == "normal_run", decision
+            assert "state_projection_gap" not in decision, decision
+            assert "state_projection_gap_repair" not in markdown, markdown
+            continue
+        assert decision["normal_delivery_allowed"] is False, decision
+        assert decision["self_repair_allowed"] is True, decision
+        assert decision["effective_action"] == "state_projection_gap_repair", decision
+        assert decision["state_projection_gap"]["target_roles"] == gap["target_roles"], decision
+        assert decision["heartbeat_recommendation"]["recommended_mode"] == (
+            "repair_state_projection_gap"
+        ), decision
+        assert decision["execution_obligation"]["kind"] == "state_projection_gap_repair", decision
+        assert decision["execution_obligation"]["delivery_allowed"] is False, decision
+        assert "effective_action: `state_projection_gap_repair`" in markdown, markdown
 
 
 def test_quota_revalidates_stale_user_wait_gap_with_current_parser() -> None:
@@ -314,6 +331,7 @@ def test_quota_revalidates_stale_user_wait_gap_with_current_parser() -> None:
             "goals": [
                 {
                     "id": GOAL_ID,
+                    "coordination": {"agent_model": "peer_v1"},
                     "registry_member": True,
                     "status": "active",
                     "adapter_kind": "harness_self_improvement",
@@ -364,7 +382,12 @@ def test_quota_revalidates_stale_user_wait_gap_with_current_parser() -> None:
             ]
         },
     }
-    decision = build_quota_should_run(status_payload, goal_id=GOAL_ID)
+    decision = build_quota_should_run(
+        status_payload,
+        goal_id=GOAL_ID,
+        scheduler_execution_context=GENERIC_CLI_OUTER_CONTROLLER_SCHEDULER_CONTEXT,
+    )
+    assert decision["scheduler_hint"]["execution_context"]["valid"] is True, decision
     assert decision["should_run"] is True, decision
     assert decision["normal_delivery_allowed"] is True, decision
     assert decision["self_repair_allowed"] is False, decision
@@ -376,7 +399,12 @@ def test_quota_revalidates_stale_user_wait_gap_with_current_parser() -> None:
 def main() -> int:
     gap = test_projection_gap_warning()
     test_refresh_state_warns()
-    test_quota_routes_gap_to_projection_repair(gap)
+    test_quota_routes_gap_by_agent_model(gap)
+    user_gap = state_projection_gap_warning(
+        "## Next Action\n\n- Wait for owner approval before uploading anything.\n"
+    )
+    assert user_gap is not None, user_gap
+    test_quota_routes_gap_by_agent_model(user_gap)
     test_quota_revalidates_stale_user_wait_gap_with_current_parser()
     print("state-projection-gap-smoke ok")
     return 0
