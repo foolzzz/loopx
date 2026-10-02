@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import nullcontext
 from pathlib import Path
 
 from .registry import find_registry_goal
@@ -30,7 +31,7 @@ from .execution_profile import (
     compact_execution_profile,
     execution_profile_summary,
 )
-from .global_registry import sync_project_registry_to_global
+from .global_registry import global_registry_sync_lock, sync_project_registry_to_global
 from .install_contract import (
     ARCHIVE_FALLBACK_INSTALL_COMMAND,
     DEFAULT_INSTALL_REPAIR_COMMAND,
@@ -464,56 +465,59 @@ def bootstrap_project(
 
     global_sync: dict[str, Any] | None = None
     global_writability: dict[str, Any] | None = None
+    def write_denied_result(global_writability: dict[str, Any]) -> dict[str, Any]:
+        for action in actions:
+            if action.get("path") == str(runtime_root / "registry.global.json"):
+                action["action"] = "blocked-write-denied"
+        global_sync: dict[str, Any] = {
+            "ok": False,
+            "enabled": True,
+            "dry_run": dry_run,
+            "global_registry": str(runtime_root / "registry.global.json"),
+            "synced_goal_ids": [],
+            "wrote": False,
+            "write_denied": True,
+            "error_kind": "global_registry_write_denied",
+            "global_registry_writability": global_writability,
+            "requires_global_registry_repair": True,
+            "requires_host_permission": bool(global_writability.get("requires_host_permission")),
+            "recommended_action": global_writability.get("recommended_action"),
+        }
+        return {
+            "ok": False,
+            "dry_run": dry_run,
+            "project": str(project),
+            "goal_id": goal_id,
+            "registry": str(registry_path),
+            "state_file": str(state_file),
+            "goal_doc": str(goal_doc) if goal_doc else None,
+            "goal_doc_exists": bool(goal_doc and goal_doc.exists()),
+            "runtime_root": str(runtime_root),
+            "registry_goal_action": registry_goal_action,
+            "state_action": state_action,
+            "todo_source_migration": todo_source_migration,
+            "force_bootstrap_warning": force_bootstrap_warning,
+            "execution_profile": execution_profile,
+            "global_sync": global_sync,
+            "actions": actions,
+            "next_commands": [
+                "Fix global registry write access, then rerun this command.",
+                "Use --no-global-sync only for an explicit local-only setup.",
+            ],
+            "install_repair_command": DEFAULT_INSTALL_REPAIR_COMMAND,
+            "archive_fallback_install_command": ARCHIVE_FALLBACK_INSTALL_COMMAND,
+            "install_repair_note": (
+                "If this local LoopX install is missing or stale, repair the PyPI distribution "
+                "and packaged workflow skills, then confirm with loopx doctor before continuing."
+            ),
+            "private_boundary_note": "Add .loopx/ to the project .gitignore if the goal state contains private evidence.",
+            "error": str(global_writability.get("error") or "global registry is not writable"),
+        }
+
     if sync_global and not dry_run:
         global_writability = probe_registry_write_path(runtime_root / "registry.global.json", create_parent=True)
         if not global_writability.get("ok"):
-            for action in actions:
-                if action.get("path") == str(runtime_root / "registry.global.json"):
-                    action["action"] = "blocked-write-denied"
-            global_sync = {
-                "ok": False,
-                "enabled": True,
-                "dry_run": dry_run,
-                "global_registry": str(runtime_root / "registry.global.json"),
-                "synced_goal_ids": [],
-                "wrote": False,
-                "write_denied": True,
-                "error_kind": "global_registry_write_denied",
-                "global_registry_writability": global_writability,
-                "requires_global_registry_repair": True,
-                "requires_host_permission": bool(global_writability.get("requires_host_permission")),
-                "recommended_action": global_writability.get("recommended_action"),
-            }
-            return {
-                "ok": False,
-                "dry_run": dry_run,
-                "project": str(project),
-                "goal_id": goal_id,
-                "registry": str(registry_path),
-                "state_file": str(state_file),
-                "goal_doc": str(goal_doc) if goal_doc else None,
-                "goal_doc_exists": bool(goal_doc and goal_doc.exists()),
-                "runtime_root": str(runtime_root),
-                "registry_goal_action": registry_goal_action,
-                "state_action": state_action,
-                "todo_source_migration": todo_source_migration,
-                "force_bootstrap_warning": force_bootstrap_warning,
-                "execution_profile": execution_profile,
-                "global_sync": global_sync,
-                "actions": actions,
-                "next_commands": [
-                    "Fix global registry write access, then rerun this command.",
-                    "Use --no-global-sync only for an explicit local-only setup.",
-                ],
-                "install_repair_command": DEFAULT_INSTALL_REPAIR_COMMAND,
-                "archive_fallback_install_command": ARCHIVE_FALLBACK_INSTALL_COMMAND,
-                "install_repair_note": (
-                    "If this local LoopX install is missing or stale, repair the PyPI distribution "
-                    "and packaged workflow skills, then confirm with loopx doctor before continuing."
-                ),
-                "private_boundary_note": "Add .loopx/ to the project .gitignore if the goal state contains private evidence.",
-                "error": str(global_writability.get("error") or "global registry is not writable"),
-            }
+            return write_denied_result(global_writability)
     shadow_capture = None
     shadow_evidence: dict[str, Any] = {}
     if not dry_run:
@@ -524,7 +528,20 @@ def bootstrap_project(
         ) as registry_transaction, legacy_todo_write_transaction(
             registry_path, goal_id, state_file, None, "bootstrap_state", False,
             runtime_root=runtime_root,
-        ):
+        ), (
+            global_registry_sync_lock(runtime_root / "registry.global.json")
+            if sync_global and registry_path.resolve() != (runtime_root / "registry.global.json").resolve()
+            else nullcontext(None)
+        ) as lock_error:
+            if lock_error is not None:
+                return write_denied_result({
+                    **(global_writability or {}),
+                    "ok": False,
+                    "errno": lock_error.errno,
+                    "error": str(lock_error),
+                    "requires_host_permission": True,
+                    "recommended_action": f"Fix write access to `{lock_error.filename or runtime_root / 'registry.global.json'}` and rerun this command.",
+                })
             current_registry = registry_transaction.payload_copy()
             current_goal = find_registry_goal(current_registry, goal_id)
             previous_root = resolve_runtime_root(current_registry, None, registry_path=registry_path)
@@ -568,18 +585,18 @@ def bootstrap_project(
             current_registry["common_runtime_root"] = str(runtime_root)
             registry, registry_goal_action = merge_goal(current_registry, goal_entry, force=force)
             registry_transaction.commit(registry)
+            if sync_global:
+                global_sync = sync_project_registry_to_global(
+                    registry_path=registry_path,
+                    runtime_root_override=str(runtime_root),
+                    goal_id=goal_id,
+                    dry_run=False,
+                    allow_route_replacement=allow_global_route_replacement,
+                    _global_registry_lock_held=True,
+                )
         if shadow_capture is not None:
             shadow_evidence = settle_todo_runtime_shadow_capture({}, registry_path=registry_path,
                 runtime_root=runtime_root, goal_id=goal_id, capture=shadow_capture, emit_disabled=False)
-        if sync_global:
-            global_sync = sync_project_registry_to_global(
-                registry_path=registry_path,
-                runtime_root_override=str(runtime_root),
-                goal_id=goal_id,
-                dry_run=False,
-                allow_route_replacement=allow_global_route_replacement,
-            )
-
     return {
         **shadow_evidence,
         "ok": True,

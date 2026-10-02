@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import copy
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 import errno
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from .authority import compact_authority_registry
 from .control_plane.projects.contract import validate_project_record_bindings
@@ -640,6 +641,7 @@ def _sync_project_registry_to_global_once(
     allow_route_replacement: bool = False,
     _global_registry_lock_held: bool = False,
     _expected_global_registry: Path | None = None,
+    _lock_acquisition_error: OSError | None = None,
 ) -> dict[str, Any]:
     registry_path = registry_path.expanduser()
     if not registry_path.exists():
@@ -722,8 +724,8 @@ def _sync_project_registry_to_global_once(
     writability = None
     if not dry_run:
         writability = probe_registry_write_path(global_path, create_parent=True)
-        if not writability.get("ok"):
-            exc = PermissionError(
+        if _lock_acquisition_error is not None or not writability.get("ok"):
+            exc = _lock_acquisition_error or PermissionError(
                 writability.get("errno")
                 if isinstance(writability.get("errno"), int)
                 else errno.EPERM,
@@ -826,6 +828,25 @@ def _sync_project_registry_to_global_once(
     }
 
 
+@contextmanager
+def global_registry_sync_lock(global_path: Path) -> Iterator[OSError | None]:
+    """Hold the sync fence, or expose permission denial before source writes."""
+    with ExitStack() as stack:
+        lock_error: OSError | None = None
+        try:
+            stack.enter_context(
+                exclusive_cross_runtime_file_lock(
+                    global_path,
+                    operation="sync_global_registry",
+                )
+            )
+        except OSError as exc:
+            if not is_write_denied_error(exc):
+                raise
+            lock_error = exc
+        yield lock_error
+
+
 def sync_project_registry_to_global(
     *,
     registry_path: Path,
@@ -870,18 +891,18 @@ def sync_project_registry_to_global(
             allow_route_replacement=allow_route_replacement,
             _global_registry_lock_held=_global_registry_lock_held,
         )
-    with exclusive_cross_runtime_file_lock(
-        target_registry,
-        operation="sync_global_registry",
-    ):
+    with global_registry_sync_lock(target_registry) as lock_error:
+        # A denied lock can only build the rejection receipt. Never retry the
+        # mutation unlocked, even if the directory's write probe succeeds.
         return _sync_project_registry_to_global_once(
             registry_path=source_registry,
             runtime_root_override=runtime_root_override,
             goal_id=goal_id,
             dry_run=False,
             allow_route_replacement=allow_route_replacement,
-            _global_registry_lock_held=True,
+            _global_registry_lock_held=lock_error is None,
             _expected_global_registry=target_registry,
+            _lock_acquisition_error=lock_error,
         )
 
 

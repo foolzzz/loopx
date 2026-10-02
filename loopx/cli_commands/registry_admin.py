@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Callable
+from contextlib import nullcontext
 from pathlib import Path
 
 from ..agent_registry import normalize_registered_agents
@@ -16,7 +17,7 @@ from ..control_plane.goals.configure_goal_service import (
 )
 from ..control_plane.projects.registry_codec import project_registry_transaction
 from ..file_lock import lock_timeout_error_fields
-from ..global_registry import sync_project_registry_to_global
+from ..global_registry import global_registry_sync_lock, sync_project_registry_to_global
 from ..history import load_registry
 from ..registry import registry_goals
 from ..registry_writability import probe_registry_write_path
@@ -183,37 +184,41 @@ def register_agent_via_source_registry(
     for agent_id in requested_agents:
         if agent_id not in merged_agents:
             merged_agents.append(agent_id)
+
+    def write_denied_result(global_writability: dict[str, object]) -> dict[str, object]:
+        return {
+            "ok": False,
+            "dry_run": False,
+            "execute": True,
+            "goal_id": goal_id,
+            "global_registry": str(global_path),
+            "source_registry": str(source_registry_path),
+            "existing_agents": existing_agents,
+            "requested_agents": requested_agents,
+            "registered_agents": merged_agents,
+            "changed": merged_agents != existing_agents,
+            "written": False,
+            "host_loop_activation": unresolved_host_loop_activation(),
+            "global_registry_writability": global_writability,
+            "global_sync": {
+                "ok": False,
+                "enabled": True,
+                "wrote": False,
+                "write_denied": True,
+                "error_kind": "global_registry_write_denied",
+                "global_registry": str(global_path),
+                "global_registry_writability": global_writability,
+                "recommended_action": global_writability.get("recommended_action"),
+            },
+            "error": str(global_writability.get("error") or "global registry is not writable"),
+            "recommended_action": global_writability.get("recommended_action"),
+        }
+
     global_writability: dict[str, object] | None = None
     if execute:
         global_writability = probe_registry_write_path(global_path, create_parent=True)
         if not global_writability.get("ok"):
-            return {
-                "ok": False,
-                "dry_run": False,
-                "execute": True,
-                "goal_id": goal_id,
-                "global_registry": str(global_path),
-                "source_registry": str(source_registry_path),
-                "existing_agents": existing_agents,
-                "requested_agents": requested_agents,
-                "registered_agents": merged_agents,
-                "changed": merged_agents != existing_agents,
-                "written": False,
-                "host_loop_activation": unresolved_host_loop_activation(),
-                "global_registry_writability": global_writability,
-                "global_sync": {
-                    "ok": False,
-                    "enabled": True,
-                    "wrote": False,
-                    "write_denied": True,
-                    "error_kind": "global_registry_write_denied",
-                    "global_registry": str(global_path),
-                    "global_registry_writability": global_writability,
-                    "recommended_action": global_writability.get("recommended_action"),
-                },
-                "error": str(global_writability.get("error") or "global registry is not writable"),
-                "recommended_action": global_writability.get("recommended_action"),
-            }
+            return write_denied_result(global_writability)
     sync_payload: dict[str, object] | None = None
     readback_payload: dict[str, object] = {
         "schema_version": "loopx_agent_registration_readback_v0",
@@ -225,7 +230,20 @@ def register_agent_via_source_registry(
             source_registry_path,
             agent_id=requested_agents[0] if len(requested_agents) == 1 else None,
             operation="register_agent",
-        ) as registry_transaction:
+        ) as registry_transaction, (
+            global_registry_sync_lock(global_path)
+            if source_registry_path.resolve() != global_path.resolve()
+            else nullcontext(None)
+        ) as lock_error:
+            if lock_error is not None:
+                return write_denied_result({
+                    **(global_writability or {}),
+                    "ok": False,
+                    "errno": lock_error.errno,
+                    "error": str(lock_error),
+                    "requires_host_permission": True,
+                    "recommended_action": f"Fix write access to `{lock_error.filename or global_path}` and rerun this command.",
+                })
             source_goal = next(
                 (
                     item
@@ -273,6 +291,7 @@ def register_agent_via_source_registry(
                     runtime_root_override=str(global_path.parent),
                     goal_id=goal_id,
                     dry_run=False,
+                    _global_registry_lock_held=True,
                 )
                 readback_payload = _agent_registration_readback(
                     source_registry_path=source_registry_path,
