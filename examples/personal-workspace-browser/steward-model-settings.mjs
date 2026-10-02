@@ -34,6 +34,7 @@ export const stewardModelSettingsScenario = {
       await detail.getByLabel("模型").fill("gpt-6-sol");
       await detail.getByLabel("推理档位").selectOption("xhigh");
       await detail.getByRole("button", { name: "预览变更" }).click();
+      await detail.getByText("审阅机器配置变更", { exact: true }).waitFor();
       const previewInspection = await page.evaluate(async () => {
         const response = await fetch("/api/chat/machine-configuration");
         if (!response.ok) throw new Error("Machine configuration inspection failed");
