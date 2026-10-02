@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { outputDir } from "./fixture.mjs";
+import { outputDir, waitForInputValue } from "./fixture.mjs";
 import { openWorkspacePage } from "./scenario-context.mjs";
 
 export const stewardModelSettingsScenario = {
@@ -34,18 +34,30 @@ export const stewardModelSettingsScenario = {
       await detail.getByLabel("模型").fill("gpt-6-sol");
       await detail.getByLabel("推理档位").selectOption("xhigh");
       await detail.getByRole("button", { name: "预览变更" }).click();
+      const previewInspection = await page.evaluate(async () => {
+        const response = await fetch("/api/chat/machine-configuration");
+        if (!response.ok) throw new Error("Machine configuration inspection failed");
+        return response.json();
+      });
+      const current = previewInspection.machine_configuration.namespaces.steward_executor;
+      if (current.executor_model !== null || current.executor_reasoning_effort !== null) {
+        throw new Error("Steward preview changed the stored configuration or leaked another scenario's state");
+      }
       await detail.getByRole("button", { name: "应用已审阅预览" }).click();
+      // The notice is rendered only after apply and its inspection reload finish.
+      await detail.getByText("机器策略已应用，并通过回读校验。", { exact: true }).waitFor();
       const applied = api.machineConfigurationRequests.find((item) => item.phase === "apply");
       if (applied?.namespace !== "steward_executor"
           || applied?.namespace_configuration?.executor_model !== "gpt-6-sol"
           || applied?.namespace_configuration?.executor_reasoning_effort !== "xhigh") {
         throw new Error("Steward settings did not apply the selected model and effort");
       }
-      await detail.getByLabel("模型").waitFor();
-      if (await detail.getByLabel("模型").inputValue() !== "gpt-6-sol"
-          || await detail.getByLabel("推理档位").inputValue() !== "xhigh") {
-        throw new Error("Steward model and effort were not read back after apply");
-      }
+      await waitForInputValue(detail.getByLabel("模型"), "gpt-6-sol");
+      await waitForInputValue(detail.getByLabel("推理档位"), "xhigh");
+      await page.reload({ waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await waitForInputValue(detail.getByLabel("模型"), "gpt-6-sol");
+      await waitForInputValue(detail.getByLabel("推理档位"), "xhigh");
       await page.setViewportSize({ width: 390, height: 844 });
       await stewardTab.waitFor({ state: "visible" });
       if (await stewardTab.getAttribute("aria-current") !== "page") {

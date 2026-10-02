@@ -199,14 +199,14 @@ export function goalCapabilityCatalog(multiSubagentConfiguration) {
   ];
 }
 
-function withMachineConfiguration(capability, { configuration, description }) {
+function withMachineConfiguration(capability, { configuration, defaultConfiguration, description }) {
   return {
     ...capability,
     description,
     available_scopes: ["machine", "goal"],
     machine_namespace: capability.capability_id,
     machine_current: configuration,
-    default: configuration,
+    default: defaultConfiguration,
     effective_value_policy: "goal_override_over_live_machine_default",
     effective_configuration: {
       schema_version: "capability_configuration_resolution_v0",
@@ -394,6 +394,45 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
     completedTurns.set(key, body);
     sessions.set(sessionId, { ...current, active_turn_id: null, status: "ready", updated_at: "2026-08-13T01:00:02Z" });
     return body;
+  };
+
+  // Machine settings survive requests and page reloads within this fixture only.
+  const periodicConfiguration = {
+    schema_version: "periodic_report_machine_defaults_v0",
+    enabled: true,
+    inheritance: "live_machine_default",
+    profile_preset: "weekly-progress",
+    route_ref: "report-route",
+    timezone: "Asia/Shanghai",
+  };
+  const cadenceConfiguration = {
+    schema_version: "todo_replan_cadence_machine_defaults_v0",
+    completed_todos: 3,
+  };
+  const changeQualityConfiguration = {
+    schema_version: "change_quality_machine_defaults_v0",
+    enabled: true,
+    safe_fix: false,
+    strict_receipt: true,
+  };
+  const managerRuntimeConfiguration = {
+    schema_version: "manager_runtime_profile_v0",
+    runtime_profile: "restricted",
+  };
+  const stewardExecutorConfiguration = {
+    schema_version: "steward_executor_machine_defaults_v1",
+    selection_policy: "preferred",
+    executor_endpoint: "codex",
+    eligible_endpoints: [],
+    executor_model: null,
+    executor_reasoning_effort: null,
+  };
+  const machineNamespaces = runtime.machineNamespaces ??= {
+    change_quality_qualification: changeQualityConfiguration,
+    manager_runtime: managerRuntimeConfiguration,
+    periodic_report: periodicConfiguration,
+    steward_executor: stewardExecutorConfiguration,
+    todo_replan_cadence: cadenceConfiguration,
   };
 
   const actionKinds = new Map(Array.from(actionProposals.values(), (proposal) => [proposal.proposal_id, proposal.action_kind]));
@@ -884,43 +923,6 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
       await route.fulfill({ json: { ok: true, items: [], total: 0, next_cursor: null, unavailable_count: 0, unavailable_todo_ids: [] } });
       return;
     }
-    const periodicConfiguration = {
-      schema_version: "periodic_report_machine_defaults_v0",
-      enabled: true,
-      inheritance: "live_machine_default",
-      profile_preset: "weekly-progress",
-      route_ref: "report-route",
-      timezone: "Asia/Shanghai",
-    };
-    const cadenceConfiguration = {
-      schema_version: "todo_replan_cadence_machine_defaults_v0",
-      completed_todos: 3,
-    };
-    const changeQualityConfiguration = {
-      schema_version: "change_quality_machine_defaults_v0",
-      enabled: true,
-      safe_fix: false,
-      strict_receipt: true,
-    };
-    const managerRuntimeConfiguration = {
-      schema_version: "manager_runtime_profile_v0",
-      runtime_profile: "restricted",
-    };
-    const stewardExecutorConfiguration = {
-      schema_version: "steward_executor_machine_defaults_v1",
-      selection_policy: "preferred",
-      executor_endpoint: "codex",
-      eligible_endpoints: [],
-      executor_model: null,
-      executor_reasoning_effort: null,
-    };
-    const machineNamespaces = {
-      change_quality_qualification: changeQualityConfiguration,
-      manager_runtime: managerRuntimeConfiguration,
-      periodic_report: periodicConfiguration,
-      steward_executor: stewardExecutorConfiguration,
-      todo_replan_cadence: cadenceConfiguration,
-    };
     const goalCapabilities = goalCapabilityCatalog();
     const machineConfigurationBase = {
       ok: true,
@@ -997,7 +999,7 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
             schema_version: "capability_configuration_resolution_v0",
             capability_id: "manager_runtime",
             source: "machine_default",
-            configuration: managerRuntimeConfiguration,
+            configuration: machineNamespaces.manager_runtime,
             inherited: false,
             goal_override_present: false,
             machine_default_present: true,
@@ -1052,12 +1054,12 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
             }],
           },
           default: stewardExecutorConfiguration,
-          machine_current: stewardExecutorConfiguration,
+          machine_current: machineNamespaces.steward_executor,
           effective_configuration: {
             schema_version: "capability_configuration_resolution_v0",
             capability_id: "steward_executor",
             source: "machine_default",
-            configuration: stewardExecutorConfiguration,
+            configuration: machineNamespaces.steward_executor,
             inherited: true,
             goal_override_present: false,
             machine_default_present: true,
@@ -1065,17 +1067,19 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
           },
         }, ...goalCapabilities.map((capability) => {
           if (capability.capability_id === "periodic_report") {
-            return periodicReportCapability({ machineCurrent: periodicConfiguration });
+            return periodicReportCapability({ machineCurrent: machineNamespaces.periodic_report });
           }
           if (capability.capability_id === "todo_replan_cadence") {
             return withMachineConfiguration(capability, {
-              configuration: cadenceConfiguration,
+              configuration: machineNamespaces.todo_replan_cadence,
+              defaultConfiguration: cadenceConfiguration,
               description: "Live review threshold without added turns, quota, or authority.",
             });
           }
           if (capability.capability_id === "change_quality_qualification") {
             return withMachineConfiguration(capability, {
-              configuration: changeQualityConfiguration,
+              configuration: machineNamespaces.change_quality_qualification,
+              defaultConfiguration: changeQualityConfiguration,
               description: "Live exact-diff qualification policy without added authority.",
             });
           }
@@ -1217,12 +1221,12 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
           capabilities: [...machineConfigurationBase.capability_catalog.capabilities.filter(
             (capability) => !capability.available_scopes.includes("goal"),
           ), ...goalCapabilityCatalog(multiSubagentConfiguration).map((capability) => capability.capability_id === "periodic_report" ? periodicReportCapability({
-              machineCurrent: periodicConfiguration,
+              machineCurrent: machineNamespaces.periodic_report,
               effectiveConfiguration: {
                 schema_version: "capability_configuration_resolution_v0",
                 capability_id: "periodic_report",
                 source: "machine_default",
-                configuration: periodicConfiguration,
+                configuration: machineNamespaces.periodic_report,
                 inherited: true,
                 goal_override_present: false,
                 machine_default_present: true,
