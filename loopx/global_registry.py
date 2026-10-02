@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import copy
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 import errno
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from .authority import compact_authority_registry
 from .control_plane.projects.contract import validate_project_record_bindings
@@ -828,6 +828,25 @@ def _sync_project_registry_to_global_once(
     }
 
 
+@contextmanager
+def global_registry_sync_lock(global_path: Path) -> Iterator[OSError | None]:
+    """Hold the sync fence, or expose permission denial before source writes."""
+    with ExitStack() as stack:
+        lock_error: OSError | None = None
+        try:
+            stack.enter_context(
+                exclusive_cross_runtime_file_lock(
+                    global_path,
+                    operation="sync_global_registry",
+                )
+            )
+        except OSError as exc:
+            if not is_write_denied_error(exc):
+                raise
+            lock_error = exc
+        yield lock_error
+
+
 def sync_project_registry_to_global(
     *,
     registry_path: Path,
@@ -872,19 +891,7 @@ def sync_project_registry_to_global(
             allow_route_replacement=allow_route_replacement,
             _global_registry_lock_held=_global_registry_lock_held,
         )
-    with ExitStack() as stack:
-        lock_error: OSError | None = None
-        try:
-            stack.enter_context(
-                exclusive_cross_runtime_file_lock(
-                    target_registry,
-                    operation="sync_global_registry",
-                )
-            )
-        except OSError as exc:
-            if not is_write_denied_error(exc):
-                raise
-            lock_error = exc
+    with global_registry_sync_lock(target_registry) as lock_error:
         # A denied lock can only build the rejection receipt. Never retry the
         # mutation unlocked, even if the directory's write probe succeeds.
         return _sync_project_registry_to_global_once(

@@ -68,9 +68,14 @@ def payload(result: subprocess.CompletedProcess[str]) -> dict:
     return json.loads(result.stdout)
 
 
-def make_unwritable(path: Path) -> None:
+def make_unwritable(path: Path, *, lock_only: bool = False) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    path.chmod(0o500)
+    if lock_only:
+        lock_file = path / "registry.global.json.lock"
+        lock_file.write_text("", encoding="utf-8")
+        lock_file.chmod(0o400)
+    else:
+        path.chmod(0o500)
 
 
 def restore_writable(path: Path) -> None:
@@ -87,13 +92,7 @@ def assert_sync_reports_write_denied(root: Path, *, lock_only: bool = False) -> 
     project.mkdir(parents=True)
     write_project_registry(registry, runtime=runtime, repo=project)
     source_before = registry.read_bytes()
-    if lock_only:
-        runtime.mkdir(parents=True)
-        lock_file = runtime / "registry.global.json.lock"
-        lock_file.write_text("", encoding="utf-8")
-        lock_file.chmod(0o400)
-    else:
-        make_unwritable(runtime)
+    make_unwritable(runtime, lock_only=lock_only)
     try:
         result = sync_project_registry_to_global(
             registry_path=registry,
@@ -114,13 +113,13 @@ def assert_sync_reports_write_denied(root: Path, *, lock_only: bool = False) -> 
     assert not (runtime / "registry.global.json.ts-effect.lock").exists(), result
 
 
-def assert_connect_fails_without_partial_local_state(root: Path) -> None:
+def assert_connect_fails_without_partial_local_state(root: Path, *, lock_only: bool = False) -> None:
     runtime = root / "runtime"
     project = root / "project"
     project.mkdir(parents=True)
-    make_unwritable(runtime)
+    make_unwritable(runtime, lock_only=lock_only)
     try:
-        result = run_cli(
+        cli_args = (
             "--registry",
             str(project / ".loopx" / "registry.json"),
             "--runtime-root",
@@ -133,6 +132,7 @@ def assert_connect_fails_without_partial_local_state(root: Path) -> None:
             "--objective",
             "Exercise global registry write-denied preflight.",
         )
+        result = run_cli(*cli_args)
     finally:
         restore_writable(runtime)
 
@@ -142,9 +142,18 @@ def assert_connect_fails_without_partial_local_state(root: Path) -> None:
     assert data["global_sync"]["write_denied"] is True, data
     assert not (project / ".loopx" / "registry.json").exists(), data
     assert not (project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md").exists(), data
+    if lock_only:
+        (runtime / "registry.global.json.lock").chmod(0o600)
+        recovered = run_cli(*cli_args)
+        data = payload(recovered)
+        assert recovered.returncode == 0 and data["ok"] is True, data
+        assert data["global_sync"]["ok"] is True, data
+        assert (project / ".loopx" / "registry.json").exists()
+        assert (project / ".loopx" / "goals" / GOAL_ID / "ACTIVE_GOAL_STATE.md").exists()
 
 
-def assert_register_agent_fails_before_source_write(root: Path) -> None:
+
+def assert_register_agent_fails_before_source_write(root: Path, *, lock_only: bool = False) -> None:
     runtime = root / "runtime"
     source_project = root / "source"
     source_registry = source_project / ".loopx" / "registry.json"
@@ -159,9 +168,9 @@ def assert_register_agent_fails_before_source_write(root: Path) -> None:
     source_before = source_registry.read_bytes()
     global_before = global_registry.read_bytes()
 
-    make_unwritable(runtime)
+    make_unwritable(runtime, lock_only=lock_only)
     try:
-        result = run_cli(
+        cli_args = (
             "--runtime-root",
             str(runtime),
             "register-agent",
@@ -171,6 +180,7 @@ def assert_register_agent_fails_before_source_write(root: Path) -> None:
             "codex-side-agent",
             "--execute",
         )
+        result = run_cli(*cli_args)
     finally:
         restore_writable(runtime)
 
@@ -184,6 +194,15 @@ def assert_register_agent_fails_before_source_write(root: Path) -> None:
     assert only_goal(source_registry)["coordination"]["registered_agents"] == ["codex-main-control"]
     assert source_registry.read_bytes() == source_before, data
     assert global_registry.read_bytes() == global_before, data
+    if lock_only:
+        (runtime / "registry.global.json.lock").chmod(0o600)
+        recovered = run_cli(*cli_args)
+        data = payload(recovered)
+        assert recovered.returncode == 0 and data["ok"] is True, data
+        assert data["registration_readback"]["verified"] is True, data
+        expected_agents = ["codex-main-control", "codex-side-agent"]
+        assert only_goal(source_registry)["coordination"]["registered_agents"] == expected_agents
+        assert only_goal(global_registry)["coordination"]["registered_agents"] == expected_agents
 
 
 def main() -> int:
@@ -195,7 +214,9 @@ def main() -> int:
         assert_sync_reports_write_denied(root / "sync")
         assert_sync_reports_write_denied(root / "lock-only", lock_only=True)
         assert_connect_fails_without_partial_local_state(root / "connect")
+        assert_connect_fails_without_partial_local_state(root / "connect-lock-only", lock_only=True)
         assert_register_agent_fails_before_source_write(root / "register-agent")
+        assert_register_agent_fails_before_source_write(root / "register-agent-lock-only", lock_only=True)
     print("global-registry-writability-smoke ok")
     return 0
 

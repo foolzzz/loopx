@@ -90,7 +90,9 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - **Global registry permission failures remain structured.** Sync now reports
   `write_denied` with repair guidance when acquiring the cross-runtime registry
   lock is denied, including a lock-only permission failure. Successful syncs
-  retain the same locked source refresh and registry transaction.
+  retain the same locked source refresh and registry transaction. `connect`
+  and `register-agent` acquire that fence before committing local state and
+  reuse it through synchronization, so denied locks leave source state intact.
 - **Native Codex benchmark receipt identity.** The
   `loopx_native_codex_goal_profile_v1` receipt replaces v0 `host_surface` with
   separate `experiment_arm`, `runtime_profile`, and `execution_host` fields.
