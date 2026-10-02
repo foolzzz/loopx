@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack, contextmanager
 import fcntl
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -21,6 +23,41 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from loopx.release_manifest import build_release_manifest  # noqa: E402
+
+
+@contextmanager
+def running_installer(
+    env: dict[str, str], *, script: Path = INSTALL_SCRIPT, cwd: Path = REPO_ROOT
+):
+    """Reap the installer tree before its temporary HOME can be removed."""
+    process = subprocess.Popen(
+        [str(script)],
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        yield process
+    finally:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            # A child can ignore TERM and close its pipes after the leader exits.
+            # Escalate for the group even when communicate already returned.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.communicate(timeout=10)
 
 
 def install_env(root: Path) -> dict[str, str]:
@@ -77,34 +114,19 @@ def assert_install_waits_for_promotion_guard(root: Path) -> None:
     legacy_lock = releases_dir / ".install-lock"
     with guard_path.open("a+", encoding="utf-8") as guard:
         fcntl.flock(guard.fileno(), fcntl.LOCK_EX)
-        process = subprocess.Popen(
-            [str(INSTALL_SCRIPT)],
-            cwd=REPO_ROOT,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        try:
-            deadline = time.monotonic() + 2
-            while time.monotonic() < deadline and process.poll() is None:
-                assert not legacy_lock.exists(), legacy_lock
-                time.sleep(0.05)
-            assert process.poll() is None, process.communicate()
-        except Exception:
-            process.terminate()
+        with running_installer(env) as process:
             try:
-                process.communicate(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.communicate()
-            raise
-        finally:
-            fcntl.flock(guard.fileno(), fcntl.LOCK_UN)
+                deadline = time.monotonic() + 2
+                while time.monotonic() < deadline and process.poll() is None:
+                    assert not legacy_lock.exists(), legacy_lock
+                    time.sleep(0.05)
+                assert process.poll() is None, process.communicate()
+            finally:
+                fcntl.flock(guard.fileno(), fcntl.LOCK_UN)
 
-    stdout, stderr = process.communicate(timeout=120)
-    assert process.returncode == 0, (stdout, stderr)
-    assert release_path(stdout).is_dir(), stdout
+            stdout, stderr = process.communicate(timeout=120)
+            assert process.returncode == 0, (stdout, stderr)
+            assert release_path(stdout).is_dir(), stdout
 
 
 def assert_legacy_lock_timeout_preserves_live_owner(root: Path) -> None:
@@ -127,19 +149,12 @@ def assert_legacy_lock_timeout_preserves_live_owner(root: Path) -> None:
     env["LOOPX_TEST_REAL_PYTHON"] = sys.executable
 
     try:
-        process = subprocess.run(
-            [str(INSTALL_SCRIPT)],
-            cwd=REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-        assert process.returncode == 1, (process.stdout, process.stderr)
-        assert "timed out waiting for another local install" in process.stderr
-        assert legacy_lock.is_dir(), legacy_lock
-        assert (legacy_lock / "pid").read_text(encoding="utf-8") == f"{owner_pid}\n"
+        with running_installer(env) as process:
+            stdout, stderr = process.communicate(timeout=30)
+            assert process.returncode == 1, (stdout, stderr)
+            assert "timed out waiting for another local install" in stderr
+            assert legacy_lock.is_dir(), legacy_lock
+            assert (legacy_lock / "pid").read_text(encoding="utf-8") == f"{owner_pid}\n"
     finally:
         if legacy_lock.exists():
             shutil.rmtree(legacy_lock)
@@ -162,29 +177,20 @@ def assert_empty_legacy_lock_is_reaped(root: Path) -> None:
     env["LOOPX_PYTHON"] = str(python_wrapper)
     env["LOOPX_TEST_REAL_PYTHON"] = sys.executable
 
-    process = subprocess.Popen(
-        [str(INSTALL_SCRIPT)],
-        cwd=REPO_ROOT,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
     acquired = False
     try:
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline and process.poll() is None:
-            pid_file = legacy_lock / "pid"
-            if pid_file.is_file() and pid_file.read_text(encoding="utf-8").strip() == str(
-                process.pid
-            ):
-                acquired = True
-                break
-            time.sleep(0.05)
+        with running_installer(env) as process:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline and process.poll() is None:
+                pid_file = legacy_lock / "pid"
+                if pid_file.is_file() and pid_file.read_text(encoding="utf-8").strip() == str(
+                    process.pid
+                ):
+                    acquired = True
+                    break
+                time.sleep(0.05)
+        stdout, stderr = process.communicate()
     finally:
-        if process.poll() is None:
-            process.terminate()
-        stdout, stderr = process.communicate(timeout=10)
         if legacy_lock.exists():
             shutil.rmtree(legacy_lock)
     assert acquired, (stdout, stderr)
@@ -196,20 +202,11 @@ def assert_concurrent_release_ids_are_distinct(root: Path) -> None:
     stale_lock = releases_dir / ".install-lock"
     stale_lock.mkdir(parents=True)
     (stale_lock / "pid").write_text("999999999\n", encoding="utf-8")
-    processes = [
-        subprocess.Popen(
-            [str(INSTALL_SCRIPT)],
-            cwd=REPO_ROOT,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        for _ in range(2)
-    ]
-    completed = [process.communicate(timeout=120) for process in processes]
-    for process, (stdout, stderr) in zip(processes, completed):
-        assert process.returncode == 0, (stdout, stderr)
+    with ExitStack() as stack:
+        processes = [stack.enter_context(running_installer(env)) for _ in range(2)]
+        completed = [process.communicate(timeout=120) for process in processes]
+        for process, (stdout, stderr) in zip(processes, completed):
+            assert process.returncode == 0, (stdout, stderr)
 
     release_paths = [release_path(stdout).resolve() for stdout, _ in completed]
     assert len(set(release_paths)) == len(processes), release_paths
@@ -271,16 +268,12 @@ def assert_incomplete_candidate_does_not_replace_default(root: Path) -> None:
         shutil.copy2(REPO_ROOT / filename, broken_root / filename)
     (broken_root / "loopx" / "quota.py").unlink()
 
-    result = subprocess.run(
-        [str(broken_root / "scripts" / "install-local.sh")],
-        cwd=broken_root,
-        env=env,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0, result.stdout
-    assert "release candidate doctor validation failed" in result.stderr, result.stderr
+    with running_installer(
+        env, script=broken_root / "scripts" / "install-local.sh", cwd=broken_root
+    ) as process:
+        stdout, stderr = process.communicate()
+        assert process.returncode != 0, stdout
+        assert "release candidate doctor validation failed" in stderr, stderr
     assert wrapper.resolve(strict=True) == good_target, wrapper.resolve()
     assert not (Path(env["LOOPX_RELEASES_DIR"]) / "broken-candidate").exists()
 
