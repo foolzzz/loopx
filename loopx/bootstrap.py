@@ -469,7 +469,7 @@ def bootstrap_project(
         for action in actions:
             if action.get("path") == str(runtime_root / "registry.global.json"):
                 action["action"] = "blocked-write-denied"
-        global_sync = {
+        global_sync: dict[str, Any] = {
             "ok": False,
             "enabled": True,
             "dry_run": dry_run,
