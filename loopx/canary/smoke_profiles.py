@@ -94,7 +94,6 @@ SMOKE_SUITE_PROFILE_MANIFEST: dict[str, dict[str, Any]] = {
             "canary",
             "control-plane",
             "control_plane",
-            "full-public-smokes",
             "install",
             "issue-fix",
             "maintainability",

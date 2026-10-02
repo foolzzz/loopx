@@ -15,7 +15,7 @@ LoopX 协调长程 agent。一个局部正确的改动，仍可能改变 agent �
 | Layer / 层 | What it proves / 证明什么 | Normal cadence / 常规频率 |
 | --- | --- | --- |
 | Unit and contract tests / 单元与合同测试 | Pure rules, schemas, transition tables, invalid-state rejection / 纯规则、schema、状态转换和非法状态拒绝 | Every relevant PR in `python-tests.yml` / 相关 PR 必跑 |
-| Durable public smokes / 稳定公开 smoke | Shipped CLI and cross-module behavior through public-safe fixtures / CLI 与跨模块交付行为 | Focused locally; full-public on `main`, daily, or manual / 本地聚焦；主干、每日或手动全量 |
+| Durable public smokes / 稳定公开 smoke | Shipped CLI and cross-module behavior through public-safe fixtures / CLI 与跨模块交付行为 | Focused locally; full-public by explicit CLI run / 本地聚焦；显式 CLI 全量运行 |
 | Catalog-informed canary / Catalog 驱动 canary | The smallest risk-based slice spanning every changed public surface / 覆盖所有变更面的最小风险切片 | Before sensitive merge or release / 敏感合并与发布前 |
 | CLI output budgets / CLI 输出预算 | Agent-facing output stays bounded and base-to-head growth is visible / 输出有界且能发现相对增长 | Relevant PR CI and premerge / 相关 PR CI 与 premerge |
 | Public-safe decision replay / 公开安全决策回放 | Reviewed source-state invariants replay through the real quota-to-scheduler path / 经审阅的源状态不变量重放真实 quota-to-scheduler 链路 | Regression and control-plane changes / 回归与控制面变更 |
@@ -497,29 +497,32 @@ LoopX 已安装的 canary catalog 仍从自身可信 release root 运行。因�
 The complete public sweep remains explicit and bounded:
 
 ```bash
-loopx canary smoke-suite --suite full-public --jobs 4 --timeout-seconds 120
+mkdir -p smoke-results
+loopx --format json canary smoke-suite --suite full-public --jobs 4 --timeout-seconds 120 \
+  > smoke-results/full-public.json
 ```
 
-`full-public-smokes.yml` runs on `main`, daily, and by manual dispatch. It is
-not a required PR check. This separation protects repository quality without
-making every small patch wait for the broadest suite.
+The full-public GitHub workflow has been retired. Run the sweep explicitly
+when needed; no scheduled GitHub check or workflow artifact is required.
 
-`full-public-smokes.yml` 在主干、每日定时和手动触发时运行，不是 PR 必须门禁。
-这种分层既保护质量，也避免每个小 patch 都等待最宽测试集。
+full-public GitHub 工作流已退役。需要时显式运行全量检查；不再要求定时 GitHub
+检查或工作流产物。
 
 ### Smoke Fleet Health / Smoke 集群健康
 
-The full-public workflow also merges its shard receipts into one compact health
-artifact. The report separates four cadences instead of treating every smoke as
-an equal PR requirement: the explicit PR-fast smoke, catalog-selected canaries,
-the daily full-public sweep, and high-risk release profiles. It aggregates
-duration, failures, timeouts, current-inventory coverage, and targeted profile
+The health command can merge receipts from explicit full-public runs into one
+compact report. It separates four coverage groups instead of treating every
+smoke as an equal PR requirement: the explicit PR-fast smoke, catalog-selected
+canaries, the full-public sweep, and high-risk release profiles. The legacy
+`daily_full_public` and `daily_only` labels classify coverage, not a scheduled
+workflow. It aggregates duration, failures, timeouts, current-inventory coverage, and targeted profile
 ownership without copying stdout/stderr tails or repository-local paths.
 
-full-public workflow 还会把各 shard 回执聚合成一个紧凑健康产物。报告区分四种频率，
+健康命令可把显式 full-public 运行的回执聚合为紧凑报告。报告区分四组覆盖，
 而不是把每个 smoke 都变成 PR 必跑项：显式 PR 快速 smoke、catalog 选择的 canary、
-每日 full-public 全量，以及高风险 release profile。它会统计耗时、失败、超时、当前
-清单覆盖率和定向 profile owner，同时不会复制 stdout/stderr tail 或仓库本地路径。
+full-public 全量，以及高风险 release profile。保留的 `daily_full_public` 和
+`daily_only` 标签表示覆盖分类，不代表存在定时工作流。它会统计耗时、失败、超时、
+当前清单覆盖率和定向 profile owner，同时不会复制 stdout/stderr tail 或仓库本地路径。
 
 ```bash
 loopx canary smoke-health --receipt smoke-results
@@ -1180,7 +1183,7 @@ results from an earlier commit cannot qualify a later tag.
 | `pytest` | At least one pass and zero failures / 至少一项通过且零失败 |
 | `ruff`, `mypy` | Zero violations or type errors / 零 lint 或类型错误 |
 | `risk_canary` | Selected checks passed with no unresolved manual hold / 已选检查通过且没有未解决人工 hold |
-| `full_public` | Fleet receipt is ready with no failure or timeout / 全量集群 ready 且无失败或超时 |
+| `full_public` | Health receipt from explicit full-public runs is ready with no failure or timeout; no GitHub workflow artifact is required / 显式 full-public 运行的健康回执 ready 且无失败或超时；不要求 GitHub 工作流产物 |
 | `install_upgrade_host` | Install, upgrade, and host routes all passed / 安装、升级与 host 路径均通过 |
 | `public_boundary` | Zero public/private violations / 零公开私有边界违规 |
 | `doubao_actual_default` | The catalog-derived actual-default portfolio passed every scenario repeat and contrast with zero failures or skips / 从固定 catalog 推导的实际默认 portfolio，其全部场景重复与对照均通过，且零失败、零跳过 |

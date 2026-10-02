@@ -105,7 +105,7 @@ Canary 不能替代聚焦回归，因为它不一定精确命名本次错误。
 
 ### 5. Full-public smoke fleet
 
-完整公开 smoke 适合 `main`、每日或显式手动运行：
+完整公开 smoke 通过 CLI 显式运行；仓库的定时工作流已退役：
 
 ```bash
 loopx canary smoke-suite --suite full-public --jobs 4 --timeout-seconds 120
@@ -542,7 +542,7 @@ Windows 无法导入锁实现，以及无时区时间和 bool-as-int 进入持�
 
 PR 合并不自动证明部署、release 或所有外部 Host 已更新。根据改动类型，后续可能需要：
 
-- main 上的 full-public smoke；
+- 显式运行的 full-public smoke；
 - release qualification；
 - packaged install check；
 - Host/plugin compatibility；
