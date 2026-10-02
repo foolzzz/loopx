@@ -83,6 +83,10 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Fixed
 
+- **Global manager CLI errors stay public-safe.** `global-gates`, `global-todos`
+  and `global-risks` now reach their command-local error handlers when the
+  registry is unavailable or invalid, returning JSON or Markdown errors with
+  local paths redacted instead of an unhandled traceback.
 - **Native Codex benchmark receipt identity.** The
   `loopx_native_codex_goal_profile_v1` receipt replaces v0 `host_surface` with
   separate `experiment_arm`, `runtime_profile`, and `execution_host` fields.

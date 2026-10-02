@@ -831,13 +831,14 @@ def main(argv: list[str] | None = None) -> int:
             args, registry_path, effective_runtime_root(registry_path, args.runtime_root),
             print_payload, output_format,
         )
-    usage_result = handle_usage_command(
-        args, registry_path=registry_path,
-        runtime_root=effective_runtime_root(registry_path, args.runtime_root),
-        print_payload=print_payload, output_format=output_format,
-    )
-    if usage_result is not None:
-        return usage_result
+    if args.command == "usage":
+        usage_result = handle_usage_command(
+            args, registry_path=registry_path,
+            runtime_root=effective_runtime_root(registry_path, args.runtime_root),
+            print_payload=print_payload, output_format=output_format,
+        )
+        if usage_result is not None:
+            return usage_result
     if args.command in {"agent", "provider"}:
         return handle_agent_config_command(
             args,
