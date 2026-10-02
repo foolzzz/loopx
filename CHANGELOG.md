@@ -87,6 +87,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Fixed
 
+- **Concurrent release smoke cleans up installer process trees.** Timeout,
+  assertion and spawn failures now stop all started installers and their
+  children before temporary state is removed. Promotion checks and their
+  existing wait budgets remain unchanged.
+- **Default promotion serializes Chat bundle preparation.** The existing
+  install guard is acquired before rebuilding or carrying forward checkout
+  assets, preventing concurrent installers from replacing the same bundle.
+  Canary-only installation keeps its existing path without this guard.
 - **Global manager CLI errors stay public-safe.** `global-gates`, `global-todos`
   and `global-risks` now reach their command-local error handlers when the
   registry is unavailable or invalid, returning JSON or Markdown errors with
