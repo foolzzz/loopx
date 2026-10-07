@@ -485,7 +485,7 @@ journal 与配额语义；B 作为上游接口出现时的低成本替代；只�
 
 [Peer directory](../../reference/protocols/peer-agent-directory-and-observation-v0.md) 供 manager 与 peer 共用。`loopx agent-directory --goal-id <goal> [--agent-id <caller>]` 复用 management projection，本地最多 24 行并报告省略数；没有分页、presence provider 或 lease epoch。传入未注册 caller 得到 scope gap。本地 CLI membership 检查不认证远端 caller；未来远端入口必须从可验证 binding 派生身份。
 
-每 lane 通过 `loopx shared-goal-alignment --goal-id <goal> --agent-id <agent>` 回读，仍限 Stage 1/2 source-facts 语义，计划 receipt 不投影完整状态。[三层合同](../../reference/protocols/multi-agent-three-layer-minimality-v0.md) 与[可见 launcher](../../reference/protocols/multi-agent-visible-launcher-v0.md) 保留独立归属：用户意图、preset 流程、kernel 声明按 Goal/Agent/Todo 身份连接，不再建 runner、pane owner、vision budget 或 evidence loop。选择执行器和保存凭据都不授予这些效果。
+每 lane 通过 `loopx shared-goal-alignment --goal-id <goal> --agent-id <agent>` 回读，仍限 Stage 1/2 source-facts 语义，计划 receipt 不投影完整状态。选择执行器和保存凭据都不授予这些效果。
 
 ## 按里程碑看管家通道的就绪度（2026-09-16）
 

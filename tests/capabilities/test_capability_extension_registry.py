@@ -49,7 +49,7 @@ BUILTIN_IDS = [
 
 
 def test_auto_research_is_not_a_product_catalog_capability() -> None:
-    """Auto-research is a demo showcase, not a shipped product capability."""
+    """The retired demo must not become a shipped product capability."""
 
     packet = build_capability_catalog_packet()
     ids = [item["id"] for item in packet["capabilities"]]

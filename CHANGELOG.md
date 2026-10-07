@@ -34,6 +34,11 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   CLI, Chat, Lark and installation readback consumers. They use `loopx.paths`
   without changing path layout, environment precedence or explicit overrides.
   A source-level pytest budget prevents new raw path literals outside that owner.
+- Removed the source-checkout `demo/` workspace and research/visible-agent
+  launchers, together with their dedicated validation and documentation.
+- Retired the `loopx auto-research` and `loopx multi-agent` command trees,
+  including installed-build stubs; both now fail as unknown commands. Core
+  collaboration, `loopx workspace`, and `loopx deepresearch` remain available.
 
 ## [2.1.0] - 2026-10-07
 

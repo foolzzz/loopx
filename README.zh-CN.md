@@ -63,13 +63,9 @@ App 为 ad-hoc 签名，尚未 notarize。Windows 预览版目前手动更新，
 [桌面安装、更新与源码开发指南](apps/desktop/loopx-control-plane/README.md)。
 
 <details>
-<summary>能力设置与可复现工作区场景</summary>
+<summary>能力设置</summary>
 
 <img src="docs/assets/personal-workspace/capability-1.0.webp" alt="工作区实录：配置子任务数量上限与允许的职责范围" width="960">
-
-在源码 checkout 中运行 `python -m demo.workspace serve`，可探索社区活动、家庭能源比较
-和社区网站发布三个复杂项目；每个项目有四个工作角色、18 项任务、两项决策与两项观察。
-上图来自这份可复现工作区。[场景与回放说明](demo/workspace/README.md)。
 
 </details>
 

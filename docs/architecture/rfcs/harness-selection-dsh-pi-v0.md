@@ -663,11 +663,7 @@ entry must derive caller identity from a verified binding.
 
 Per-Agent readback uses `loopx shared-goal-alignment --goal-id <goal> --agent-id
 <agent>`, within its Stage 1/2 source-facts boundary. The plan receipt does not
-project that entire state. The [three-layer contract](../../reference/protocols/multi-agent-three-layer-minimality-v0.md)
-and [visible launcher](../../reference/protocols/multi-agent-visible-launcher-v0.md)
-remain independent owners: user intent, preset procedure and kernel declarations
-join by Goal/Agent/Todo identity, not by creating another runner, pane owner,
-vision budget or evidence loop. Selecting an executor or storing credentials
+project that entire state. Selecting an executor or storing credentials
 grants none of these effects.
 
 ## Steward Channel Readiness by Milestone (2026-09-16)

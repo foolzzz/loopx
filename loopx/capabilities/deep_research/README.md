@@ -6,22 +6,6 @@ session: question, source, claim, and contradiction ledgers live in
 owns what to research next and when to stop, and the final report keeps every
 citation resolvable to a recorded source.
 
-## Boundary with auto-research
-
-The built-in `auto-research` capability and this capability both do "bounded
-research" but own different truths and must not be merged casually:
-
-| | auto-research | deep-research (this) |
-| --- | --- | --- |
-| Unit of work | a LoopX **goal** with role-scoped workers | one **session ledger** in a project |
-| State authority | goal todos, hypotheses, rollout events | `.loopx/deepresearch/` ledger |
-| Progression | worker contract + terminal decision/review | packet expeditions + stop conditions |
-| Output | promoted/retired hypotheses in canonical evidence | citation-auditable markdown report |
-| Use when | open exploration inside the LoopX control plane | a single user question needing an auditable, source-cited answer |
-
-Choose one per question; they do not share state and neither can close the
-other's work.
-
 ## Boundary with explore
 
 The `explore` capability owns the goal-scoped, public-safe, cross-session

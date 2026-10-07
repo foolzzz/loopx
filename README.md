@@ -73,14 +73,9 @@ Windows preview installers currently use manual updates and a separately install
 [Desktop installation, updates, and source development](apps/desktop/loopx-control-plane/README.md).
 
 <details>
-<summary>Capability settings and reproducible workspace scenarios</summary>
+<summary>Capability settings</summary>
 
 <img src="docs/assets/personal-workspace/capability-1.0.webp" alt="Real Workspace recording: configure child-task capacity and allowed responsibility domains" width="960">
-
-From a source checkout, run `python -m demo.workspace serve` to explore a community
-event, a home-energy comparison, and a neighborhood website release. Each has four
-work roles, 18 tasks, two decisions, and two watches. The screenshot above comes
-from this reproducible workspace. [Scenarios and replay instructions](demo/workspace/README.md).
 
 </details>
 
