@@ -65,8 +65,8 @@ Config/update APIs and managed Agent runtimes require separate accepted slices.
 
 The supported local entry point is `loopx dashboard`, which serves browser/PWA
 Workspace and status projection through the existing Chat service. Its launcher
-checks Chat capability, release identity and matching configuration; it does not
-probe the status `/?readiness=1` endpoint. These identity/configuration checks do
+checks Chat capability, release identity and the Goal sub-agent configuration
+gate; it does not probe the status `/?readiness=1` endpoint. These checks do
 not establish a unified profile or OS-managed daemon. A consumer requiring
 [status service readiness](../../development/status-service-readiness.md) must
 qualify that bounded read-only prerequisite separately by probing the endpoint
