@@ -8,14 +8,12 @@ from typing import Any
 
 import pytest
 
-from loopx.control_plane.testing.model_tool_behavior import (
-    EXEC_COMMAND_TOOL, ScriptedAssistantAction, ScriptedDoubaoExecTransport, ScriptedExecToolAction,
+import vision_closeout_support
+import vision_shell_host_support as vision_shell_host
+from vision_closeout_support import (
+    ScriptedAssistantAction, ScriptedExecToolAction, _build_fixture, run_scripted_closeout,
 )
-from loopx.control_plane.testing.replan_semantic_action_behavior import (
-    DoubaoReplanSemanticActionBehaviorActor, _build_fixture,
-)
-from loopx.control_plane.testing import replan_semantic_action_behavior, vision_shell_host
-from loopx.control_plane.testing.vision_shell_host import VisionShellHost, shell_isolation_available
+from vision_shell_host_support import VisionShellHost, shell_isolation_available
 
 pytestmark = pytest.mark.skipif(not shell_isolation_available(), reason="Native shell needs sandbox-exec or bubblewrap")
 
@@ -65,17 +63,14 @@ def projected_spend(request: Mapping[str, Any]) -> ScriptedExecToolAction:
     return ScriptedExecToolAction(_packet(request)["interaction_contract"]["cli_channel"]["next_cli_actions"][1])
 
 
-def _qualify(tmp_path: Path, actions: list[Any]) -> dict[str, Any]:
-    transport = ScriptedDoubaoExecTransport(actions)
-    return DoubaoReplanSemanticActionBehaviorActor(api_key="test-only-placeholder", transport=transport).qualify(
-        qualification_id="native-vision-closeout", fixture_root=tmp_path / "actor", required_vision=True,
-    )
+def _run(tmp_path: Path, actions: list[Any]) -> dict[str, Any]:
+    return run_scripted_closeout(tmp_path / "fixture", actions)
 
 
 @pytest.mark.parametrize("policy", ["as_needed", "repeat_until_closed"])
 @pytest.mark.parametrize("compound", [False, True])
 def test_native_shell_closes_real_cli_turn_without_command_rituals(tmp_path: Path, policy: str, compound: bool) -> None:
-    fixture = _build_fixture(tmp_path / "oracle", required_vision=True)
+    fixture = _build_fixture(tmp_path / "oracle")
     def author(request: Mapping[str, Any]) -> ScriptedExecToolAction:
         command = vision_patch_action(request).command.replace("as_needed", policy)
         command += "\necho authored\npython3 -m json.tool decision.json >/dev/null"
@@ -91,8 +86,8 @@ def test_native_shell_closes_real_cli_turn_without_command_rituals(tmp_path: Pat
     ]
     if not compound:
         actions += [projected_refresh, projected_spend]
-    result = _qualify(tmp_path, actions)
-    assert result["qualification_passed"] is True, result
+    result = _run(tmp_path, actions)
+    assert result["closeout_complete"] is True, result
     assert result["execution_host"] == "os_isolated_shell"
     assert result["boundary"]["shell_commands_executed"] is True
     assert result["selected_semantic_outcomes"] == ["fresh_vision_path_outcome"]
@@ -105,7 +100,7 @@ def test_native_shell_closes_real_cli_turn_without_command_rituals(tmp_path: Pat
 
 @pytest.mark.parametrize("evidence", ["evidence-permission-config", "fixture/permission-config.json"])
 def test_cli_validation_errors_are_correctable_in_the_same_draft(tmp_path: Path, evidence: str) -> None:
-    fixture = _build_fixture(tmp_path / "oracle", required_vision=True)
+    fixture = _build_fixture(tmp_path / "oracle")
     def oversized(request: Mapping[str, Any]) -> ScriptedExecToolAction:
         return ScriptedExecToolAction(vision_patch_action(request).command.replace(
             "Reader is default; writing requires an explicit grant.", "x" * 700))
@@ -114,20 +109,20 @@ def test_cli_validation_errors_are_correctable_in_the_same_draft(tmp_path: Path,
         assert response["exit_code"] != 0
         assert "vision_budget_exceeded" in response["output"]
         return ScriptedExecToolAction(vision_patch_action(request).command.replace("evidence-permission-config", evidence))
-    result = _qualify(tmp_path, [
+    result = _run(tmp_path, [
         ScriptedExecToolAction(fixture.quota_guard_command),
         ScriptedExecToolAction("cat fixture/permission-config.json"),
         oversized, projected_refresh, correct, projected_refresh, projected_spend,
     ])
-    assert result["qualification_passed"] is True, result
+    assert result["closeout_complete"] is True, result
     assert result["vision_closeout"]["spend_count"] == 1
 
 
 def test_missing_durable_receipt_reaches_shell_and_can_be_retried(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fixture = _build_fixture(tmp_path / "oracle", required_vision=True)
-    execute = replan_semantic_action_behavior._execute_loopx
+    fixture = _build_fixture(tmp_path / "oracle")
+    execute = vision_closeout_support._execute_loopx
     intercepted = False
 
     def first_refresh_without_receipt(command: str, **kwargs: Any) -> str:
@@ -143,8 +138,8 @@ def test_missing_durable_receipt_reaches_shell_and_can_be_retried(
         assert "vision_closeout_durable_writeback_missing" in feedback["output"]
         return projected_refresh(request)
 
-    monkeypatch.setattr(replan_semantic_action_behavior, "_execute_loopx", first_refresh_without_receipt)
-    result = _qualify(tmp_path, [
+    monkeypatch.setattr(vision_closeout_support, "_execute_loopx", first_refresh_without_receipt)
+    result = _run(tmp_path, [
         ScriptedExecToolAction(fixture.quota_guard_command),
         ScriptedExecToolAction("cat fixture/permission-config.json"),
         vision_patch_action,
@@ -153,13 +148,13 @@ def test_missing_durable_receipt_reaches_shell_and_can_be_retried(
         projected_spend,
     ])
     assert intercepted is True
-    assert result["qualification_passed"] is True
+    assert result["closeout_complete"] is True
     assert result["vision_closeout"]["spend_count"] == 1
 
 
-@pytest.mark.parametrize("invalid", ["no_source", "wrong_turn", "unread_reference", "no_spend"])
-def test_native_host_does_not_qualify_unproven_closeout(tmp_path: Path, invalid: str) -> None:
-    fixture = _build_fixture(tmp_path / "oracle", required_vision=True)
+@pytest.mark.parametrize("invalid", ["no_source", "wrong_turn", "wrong_binding", "unread_reference", "no_spend"])
+def test_native_host_rejects_unproven_closeout(tmp_path: Path, invalid: str) -> None:
+    fixture = _build_fixture(tmp_path / "oracle")
     def author(request: Mapping[str, Any]) -> ScriptedExecToolAction:
         command = vision_patch_action(request).command
         if invalid == "unread_reference":
@@ -169,48 +164,38 @@ def test_native_host_does_not_qualify_unproven_closeout(tmp_path: Path, invalid:
         tokens = shlex.split(projected_refresh(request).command)
         if invalid == "wrong_turn":
             tokens[tokens.index("--turn-instance-id") + 1] = "wrong-turn"
+        if invalid == "wrong_binding":
+            binding = _packet(request)["interaction_contract"]["cli_channel"]["replan_settlement_contract"]["settlement_binding"]
+            tokens[tokens.index(binding["cli_argument"]) + 1] = "wrong-obligation"
         return ScriptedExecToolAction(shlex.join(tokens))
     actions = [ScriptedExecToolAction(fixture.quota_guard_command)]
     if invalid != "no_source":
         actions.append(ScriptedExecToolAction("cat fixture/permission-config.json"))
     actions += [author, refresh, ScriptedAssistantAction("Stopped before a verified settlement.")]
-    result = _qualify(tmp_path, actions)
-    assert result["qualification_passed"] is False
+    result = _run(tmp_path, actions)
+    assert result["closeout_complete"] is False
     assert not (result.get("vision_closeout") or {}).get("settled")
 
 
 @pytest.mark.parametrize("extra_reads,passed", [(35, True), (36, False)])
 def test_budget_boundary_still_requires_the_final_spend(tmp_path: Path, extra_reads: int, passed: bool) -> None:
-    fixture = _build_fixture(tmp_path / "oracle", required_vision=True)
-    result = _qualify(tmp_path, [
+    fixture = _build_fixture(tmp_path / "oracle")
+    result = _run(tmp_path, [
         ScriptedExecToolAction(fixture.quota_guard_command),
         ScriptedExecToolAction("cat fixture/permission-config.json"),
         *[ScriptedExecToolAction("printf inspected") for _ in range(extra_reads)],
         vision_patch_action, projected_refresh, projected_spend,
     ])
-    assert result["qualification_passed"] is passed
+    assert result["closeout_complete"] is passed
     assert result["tool_call_count"] == result["tool_call_limit"] == 40
     assert result["vision_closeout"]["settled"] is passed
 
 
-def test_narrow_actor_retains_its_existing_budget_and_tool(tmp_path: Path) -> None:
-    fixture = _build_fixture(tmp_path / "oracle")
-    transport = ScriptedDoubaoExecTransport([
-        ScriptedExecToolAction(fixture.quota_guard_command),
-        *[ScriptedExecToolAction("pwd") for _ in range(7)],
-    ])
-    result = DoubaoReplanSemanticActionBehaviorActor(api_key="test-only-placeholder", transport=transport).qualify(
-        qualification_id="narrow-unchanged", fixture_root=tmp_path / "actor",
-    )
-    assert result["tool_call_limit"] == result["tool_call_count"] == 7
-    assert transport.requests[0]["tools"] == [EXEC_COMMAND_TOOL]
-
-
 def test_os_boundary_protects_inputs_authority_private_data_and_network(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fixture = _build_fixture(tmp_path / "fixture", required_vision=True)
+    fixture = _build_fixture(tmp_path / "fixture")
     private = tmp_path / "private.txt"
     private.write_text("synthetic-private-marker")
-    monkeypatch.setenv("ARK_API_KEY", "synthetic-do-not-inherit")
+    monkeypatch.setenv("SYNTHETIC_PRIVATE_TOKEN", "synthetic-do-not-inherit")
     host = VisionShellHost(fixture.project_root, lambda *args: "ok", turn_instance_id="shell-isolation-test")
     original = fixture.work_source_target.read_bytes()
     try:
@@ -224,7 +209,7 @@ def test_os_boundary_protects_inputs_authority_private_data_and_network(tmp_path
             output, code = host.execute(command)
             assert code != 0
             assert "synthetic-private-marker" not in output
-        output, code = host.execute("printf '%s' \"$ARK_API_KEY\"; echo draft > draft.txt; python3 -c \"import json; print(json.dumps({'valid':True}))\"")
+        output, code = host.execute("printf '%s' \"$SYNTHETIC_PRIVATE_TOKEN\"; echo draft > draft.txt; python3 -c \"import json; print(json.dumps({'valid':True}))\"")
         assert code == 0 and "synthetic-do-not-inherit" not in output
         assert fixture.work_source_target.read_bytes() == original
         assert (fixture.project_root / "draft.txt").read_text().strip() == "draft"
@@ -234,7 +219,7 @@ def test_os_boundary_protects_inputs_authority_private_data_and_network(tmp_path
 
 
 def test_timed_out_shell_kills_process_group_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fixture = _build_fixture(tmp_path / "fixture", required_vision=True)
+    fixture = _build_fixture(tmp_path / "fixture")
     host = VisionShellHost(fixture.project_root, lambda *args: "ok", turn_instance_id="shell-timeout-test")
     original_killpg = vision_shell_host.os.killpg
     calls: list[int] = []
@@ -255,15 +240,15 @@ def test_timed_out_shell_kills_process_group_once(tmp_path: Path, monkeypatch: p
         host.close()
 
 
-def test_actor_cannot_shadow_the_trusted_cli_in_its_writable_project(tmp_path: Path) -> None:
-    fixture = _build_fixture(tmp_path / "oracle", required_vision=True)
+def test_script_cannot_shadow_the_trusted_cli_in_its_writable_project(tmp_path: Path) -> None:
+    fixture = _build_fixture(tmp_path / "oracle")
     def check_real_cli(request: Mapping[str, Any]) -> ScriptedAssistantAction:
         output = request["messages"][-1]["content"]
         assert "loopx <command> --help" in output and "SHADOWED_CLI" not in output
         return ScriptedAssistantAction("Only checking executor source provenance.")
-    result = _qualify(tmp_path, [
+    result = _run(tmp_path, [
         ScriptedExecToolAction(fixture.quota_guard_command),
         ScriptedExecToolAction("mkdir loopx; touch loopx/__init__.py; printf 'print(\"SHADOWED_CLI\")' > loopx/cli.py; loopx --help"),
         check_real_cli,
     ])
-    assert result["qualification_passed"] is False
+    assert result["closeout_complete"] is False

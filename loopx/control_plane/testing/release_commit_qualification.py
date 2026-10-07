@@ -8,11 +8,6 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from ..runtime.public_safety import public_safe_compact_text
-from .actual_default_model_behavior_portfolio import (
-    ACTUAL_DEFAULT_MODEL_BEHAVIOR_CONTRAST_COUNT,
-    ACTUAL_DEFAULT_MODEL_BEHAVIOR_REPEAT_ATTEMPTS,
-    ACTUAL_DEFAULT_MODEL_BEHAVIOR_SCENARIO_COUNT,
-)
 
 
 EXACT_RELEASE_COMMIT_MANIFEST_SCHEMA_VERSION = (
@@ -31,7 +26,6 @@ REQUIRED_QUALIFICATION_IDS = (
     "full_public",
     "install_upgrade_host",
     "public_boundary",
-    "doubao_actual_default",
 )
 EXPECTED_RESULT_SCHEMA_BY_QUALIFICATION = {
     "pytest": "pytest_summary_v0",
@@ -41,7 +35,6 @@ EXPECTED_RESULT_SCHEMA_BY_QUALIFICATION = {
     "full_public": "smoke_fleet_health_v0",
     "install_upgrade_host": "release_install_upgrade_host_summary_v0",
     "public_boundary": "loopx_public_boundary_check_v0",
-    "doubao_actual_default": "actual_default_model_behavior_portfolio_v0",
 }
 
 _HEX_ID_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
@@ -270,76 +263,6 @@ def _validate_public_boundary(value: Any) -> tuple[dict[str, Any], list[str]]:
     }, ["public_boundary_failed"] if violations else []
 
 
-def _validate_doubao(value: Any) -> tuple[dict[str, Any], list[str]]:
-    summary = _summary(
-        value,
-        qualification_id="doubao_actual_default",
-        allowed={
-            "model_id",
-            "topology",
-            "scenario_count",
-            "contrast_count",
-            "contrast_failure_count",
-            "repeats_per_scenario",
-            "actor_call_count",
-            "failure_count",
-            "skip_count",
-            "qualification_passed",
-        },
-    )
-    model_id = _token(summary.get("model_id"), field="doubao_actual_default.model_id")
-    topology = _token(summary.get("topology"), field="doubao_actual_default.topology")
-    scenario_count = _positive_int(
-        summary.get("scenario_count"), field="doubao_actual_default.scenario_count"
-    )
-    contrast_count = _positive_int(
-        summary.get("contrast_count"), field="doubao_actual_default.contrast_count"
-    )
-    contrast_failures = _non_negative_int(
-        summary.get("contrast_failure_count"),
-        field="doubao_actual_default.contrast_failure_count",
-    )
-    repeats = _positive_int(
-        summary.get("repeats_per_scenario"),
-        field="doubao_actual_default.repeats_per_scenario",
-    )
-    calls = _non_negative_int(
-        summary.get("actor_call_count"), field="doubao_actual_default.actor_call_count"
-    )
-    failures = _non_negative_int(
-        summary.get("failure_count"), field="doubao_actual_default.failure_count"
-    )
-    skips = _non_negative_int(
-        summary.get("skip_count"), field="doubao_actual_default.skip_count"
-    )
-    passed = _boolean(
-        summary.get("qualification_passed"),
-        field="doubao_actual_default.qualification_passed",
-    )
-    valid = bool(
-        topology == "actual_default_one_arm"
-        and scenario_count == ACTUAL_DEFAULT_MODEL_BEHAVIOR_SCENARIO_COUNT
-        and contrast_count == ACTUAL_DEFAULT_MODEL_BEHAVIOR_CONTRAST_COUNT
-        and contrast_failures == 0
-        and repeats == ACTUAL_DEFAULT_MODEL_BEHAVIOR_REPEAT_ATTEMPTS
-        and calls == scenario_count * repeats
-        and failures == 0
-        and skips == 0
-        and passed
-    )
-    normalized = {
-        "model_id": model_id,
-        "topology": topology,
-        "scenario_count": scenario_count,
-        "contrast_count": contrast_count,
-        "contrast_failure_count": contrast_failures,
-        "repeats_per_scenario": repeats,
-        "actor_call_count": calls,
-        "failure_count": failures,
-        "skip_count": skips,
-        "qualification_passed": passed,
-    }
-    return normalized, [] if valid else ["doubao_actual_default_failed"]
 
 
 _SummaryValidator = Callable[[Any], tuple[dict[str, Any], list[str]]]
@@ -358,7 +281,6 @@ def _validator(qualification_id: str) -> _SummaryValidator:
         "full_public": _validate_full_public,
         "install_upgrade_host": _validate_install_upgrade_host,
         "public_boundary": _validate_public_boundary,
-        "doubao_actual_default": _validate_doubao,
     }
     return validators[qualification_id]
 

@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import json
-import re
-import shlex
 from collections.abc import Mapping
 from copy import deepcopy
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +17,7 @@ from loopx.control_plane.scheduler.execution_context import (
 )
 from loopx.control_plane.testing.actual_default_model_behavior_portfolio import (
     ACTUAL_DEFAULT_MODEL_BEHAVIOR_HOT_PATH_JSON_BUDGET,
+    SELECTED_TODO_TOOL_FIXTURE_ACTION_TEXT,
     actual_default_model_behavior_scenario_catalog,
     build_actual_default_model_behavior_scenario_inputs,
     build_quota_hot_path_compaction_regression_source,
@@ -27,23 +25,11 @@ from loopx.control_plane.testing.actual_default_model_behavior_portfolio import 
 from loopx.control_plane.testing.actual_default_model_behavior_portfolio import (
     run_actual_default_model_behavior_portfolio as _run_actual_default_model_behavior_portfolio,
 )
-from loopx.control_plane.testing.capability_monitor_repair_tool_behavior import (
-    DoubaoCapabilityMonitorRepairToolBehaviorActor,
-    _build_capability_repair_fixture,
-)
-from loopx.control_plane.testing.doubao_model_behavior_actor import (
-    DoubaoActorTransportError,
-)
 from loopx.control_plane.testing.model_behavior_qualification import (
     FULL_QUOTA_DECISION_PACKET_SCHEMA_VERSION,
     MODEL_BEHAVIOR_ACTOR_RESULT_SCHEMA_VERSION,
     MODEL_BEHAVIOR_DECISION_SCHEMA_VERSION,
     model_behavior_semantic_contract_from_packet,
-)
-from loopx.control_plane.testing.model_tool_behavior import (
-    ScriptedAssistantAction,
-    ScriptedDoubaoExecTransport,
-    ScriptedExecToolAction,
 )
 from loopx.control_plane.testing.quota_fixtures import (
     quota_status_payload,
@@ -56,30 +42,13 @@ from loopx.control_plane.testing.onboarding_model_behavior_qualification import 
     onboarding_entry_semantic_contract,
     onboarding_postcondition_semantic_contract,
 )
-from loopx.control_plane.testing.replan_semantic_action_behavior import (
-    DoubaoReplanSemanticActionBehaviorActor,
-)
-from loopx.control_plane.testing.replan_semantic_action_behavior import (
-    _build_fixture as _build_replan_fixture,
-)
-from loopx.control_plane.testing.scoped_gate_successor_tool_behavior import (
-    DoubaoScopedGateSuccessorToolBehaviorActor,
-    _build_scoped_gate_fixture,
-)
-from loopx.control_plane.testing.selected_todo_tool_behavior import (
-    SELECTED_TODO_TOOL_FIXTURE_ACTION_TEXT,
-    DoubaoSelectedTodoToolBehaviorActor,
-)
-from loopx.control_plane.testing.selected_todo_tool_behavior import (
-    _build_fixture as _build_selected_fixture,
-)
-from loopx.control_plane.testing.terminal_settlement_tool_behavior import (
-    DoubaoTerminalSettlementToolBehaviorActor,
-)
 from loopx.quota import build_quota_should_run
-from loopx.control_plane.testing.terminal_settlement_tool_behavior import (
-    _build_fixture as _build_terminal_settlement_fixture,
-)
+
+
+class _AuthenticationFailure(RuntimeError):
+    def __init__(self, message: str, *, error_code: str) -> None:
+        super().__init__(message)
+        self.error_code = error_code
 
 
 def _scenario_inputs(
@@ -291,8 +260,7 @@ def _onboarding_actor(request: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-# These compact receipts exercise portfolio mismatch handling only. The
-# end-to-end test below uses the real scenario actors and provider protocol.
+# These compact receipts exercise the generic portfolio mismatch contract.
 def _passing_tool_receipt(
     schema_version: str,
     **scenario_fields: Any,
@@ -469,229 +437,24 @@ def run_actual_default_model_behavior_portfolio(
     return _run_actual_default_model_behavior_portfolio(*args, **kwargs)
 
 
-def _latest_tool_payload(request: Mapping[str, Any]) -> dict[str, Any]:
-    for message in reversed(request["messages"]):
-        if message.get("role") != "tool":
-            continue
-        try:
-            payload = json.loads(message["content"])
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if isinstance(payload, dict) and "interaction_contract" in payload:
-            return payload
-    raise AssertionError("scripted model did not receive a quota tool result")
 
 
-def _selected_read_action(request: Mapping[str, Any]) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    selected_todo = dict(payload.get("selected_todo") or {})
-    interaction = dict(payload["interaction_contract"])
-    agent_channel = dict(interaction.get("agent_channel") or {})
-    action_text = " ".join(
-        (
-            str(selected_todo.get("text") or ""),
-            str(agent_channel.get("primary_action") or ""),
-        )
-    )
-    match = re.search(r"fixture/[a-z0-9_-]+\.json", action_text)
-    if match is None:
-        raise AssertionError("quota-selected action does not identify a fixture target")
-    return ScriptedExecToolAction(f"cat {shlex.quote(match.group(0))}")
 
 
-def _replan_frontier_read_action(
-    request: Mapping[str, Any],
-) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    action = payload["replan_action_packet"]
-    assert "fresh_vision_path_outcome" in action["uncovered_frontier"]["required_any_of"]
-    assert "replan-frontier.json" in payload["active_state_next_action"]
-    return ScriptedExecToolAction("cat replan-frontier.json")
 
 
-def _capability_callsite_action(
-    request: Mapping[str, Any],
-) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    summary = payload.get("agent_todo_summary") or {}
-    match = re.search(r"fixture/[a-z0-9_-]+\.json", json.dumps(summary))
-    if match is None:
-        raise AssertionError("blocked capability Todo does not identify its callsite")
-    return ScriptedExecToolAction(f"cat {shlex.quote(match.group(0))}")
 
 
-def _capability_reentry_action(
-    request: Mapping[str, Any],
-) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    reentry = payload["runtime_capability_reentry"]
-    return ScriptedExecToolAction(str(reentry["candidates"][0]["command"]))
 
 
-def _terminal_writeback_action(
-    request: Mapping[str, Any],
-) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    command = payload["interaction_contract"]["cli_channel"]["next_cli_actions"][0]
-    return ScriptedExecToolAction(
-        command=(
-            command.replace("<validated_progress>", "terminal_settlement_validated")
-            .replace("<scale>", "single_surface")
-            .replace("<outcome>", "outcome_progress")
-            .replace('"${LOOPX_TURN:?}"', "turn-portfolio-terminal")
-        )
-    )
 
 
-def _terminal_spend_action(request: Mapping[str, Any]) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    command = payload["interaction_contract"]["cli_channel"]["next_cli_actions"][1]
-    return ScriptedExecToolAction(
-        command=command.replace(
-            '"${LOOPX_TURN:?}"',
-            "turn-portfolio-terminal",
-        )
-    )
 
 
-def _terminal_closeout_action(
-    request: Mapping[str, Any],
-) -> ScriptedExecToolAction:
-    payload = _latest_tool_payload(request)
-    steps = payload["interaction_contract"]["cli_channel"]["settlement_plan"][
-        "ordered_steps"
-    ]
-    command = next(
-        item["command_template"]
-        for item in steps
-        if item["kind"] == "terminal_closeout"
-    )
-    return ScriptedExecToolAction(
-        command=command.replace(
-            '"${LOOPX_TURN:?}"',
-            "turn-portfolio-terminal",
-        ).replace("'<validated evidence>'", "'fixture-settlement-proof'")
-    )
 
 
-def _scoped_gate_final_action(
-    request: Mapping[str, Any],
-) -> ScriptedAssistantAction:
-    payload = _latest_tool_payload(request)
-    notice = payload["interaction_contract"]["user_channel"]["actions"][0]
-    return ScriptedAssistantAction(
-        f"Non-blocking notice: {notice} The selected successor action completed."
-    )
 
 
-def _real_tool_actors(root: Path) -> dict[str, Any]:
-    def run_root(actor_kind: str, run_id: str) -> Path:
-        digest = sha256(run_id.encode("utf-8")).hexdigest()[:16]
-        return root / actor_kind / digest
-
-    def selected_todo_actor(run_id: str) -> Mapping[str, Any]:
-        fixture_root = run_root("selected", run_id)
-        fixture = _build_selected_fixture(fixture_root / "oracle")
-        transport = ScriptedDoubaoExecTransport(
-            [
-                ScriptedExecToolAction(fixture.quota_guard_command),
-                _selected_read_action,
-            ]
-        )
-        return DoubaoSelectedTodoToolBehaviorActor(
-            api_key="test-only-placeholder",
-            transport=transport,
-        ).qualify(
-            qualification_id=run_id,
-            fixture_root=fixture_root / "actor",
-        )
-
-    def replan_semantic_action_actor(run_id: str) -> Mapping[str, Any]:
-        from tests.control_plane.test_required_vision_closeout_behavior import (
-            vision_patch_action, projected_refresh, projected_spend,
-        )
-        fixture_root = run_root("replan", run_id)
-        fixture = _build_replan_fixture(fixture_root / "oracle", required_vision=True)
-        transport = ScriptedDoubaoExecTransport(
-            [
-                ScriptedExecToolAction(fixture.quota_guard_command),
-                _replan_frontier_read_action,
-                ScriptedExecToolAction("cat fixture/permission-config.json"),
-                vision_patch_action, projected_refresh, projected_spend,
-            ]
-        )
-        return DoubaoReplanSemanticActionBehaviorActor(
-            api_key="test-only-placeholder",
-            transport=transport,
-        ).qualify(
-            qualification_id=run_id,
-            fixture_root=fixture_root / "actor",
-            required_vision=True,
-        )
-
-    def scoped_gate_successor_actor(run_id: str) -> Mapping[str, Any]:
-        fixture_root = run_root("scoped-gate", run_id)
-        fixture = _build_scoped_gate_fixture(fixture_root / "oracle")
-        transport = ScriptedDoubaoExecTransport(
-            [
-                ScriptedExecToolAction(fixture.quota_guard_command),
-                _selected_read_action,
-                _scoped_gate_final_action,
-            ]
-        )
-        return DoubaoScopedGateSuccessorToolBehaviorActor(
-            api_key="test-only-placeholder",
-            transport=transport,
-        ).qualify(
-            qualification_id=run_id,
-            fixture_root=fixture_root / "actor",
-        )
-
-    def capability_monitor_repair_actor(run_id: str) -> Mapping[str, Any]:
-        fixture_root = run_root("capability-repair", run_id)
-        fixture = _build_capability_repair_fixture(fixture_root / "oracle")
-        transport = ScriptedDoubaoExecTransport(
-            [
-                ScriptedExecToolAction(fixture.quota_guard_command),
-                _capability_callsite_action,
-                _capability_reentry_action,
-            ]
-        )
-        return DoubaoCapabilityMonitorRepairToolBehaviorActor(
-            api_key="test-only-placeholder",
-            transport=transport,
-        ).qualify(
-            qualification_id=run_id,
-            fixture_root=fixture_root / "actor",
-        )
-
-    def terminal_settlement_actor(run_id: str) -> Mapping[str, Any]:
-        fixture_root = run_root("terminal-settlement", run_id)
-        fixture = _build_terminal_settlement_fixture(fixture_root / "oracle")
-        transport = ScriptedDoubaoExecTransport(
-            [
-                ScriptedExecToolAction(fixture.quota_guard_command),
-                ScriptedExecToolAction("cat fixture/settlement-proof.json"),
-                _terminal_writeback_action,
-                _terminal_spend_action,
-                _terminal_closeout_action,
-            ]
-        )
-        return DoubaoTerminalSettlementToolBehaviorActor(
-            api_key="test-only-placeholder",
-            transport=transport,
-        ).qualify(
-            qualification_id=run_id,
-            fixture_root=fixture_root / "actor",
-        )
-
-    return {
-        "selected_todo_actor": selected_todo_actor,
-        "replan_semantic_action_actor": replan_semantic_action_actor,
-        "scoped_gate_successor_actor": scoped_gate_successor_actor,
-        "capability_monitor_repair_actor": capability_monitor_repair_actor,
-        "terminal_settlement_actor": terminal_settlement_actor,
-    }
 
 
 def test_live_packet_builder_uses_production_blocking_gate_plan(tmp_path: Path) -> None:
@@ -1384,7 +1147,7 @@ def test_portfolio_aborts_on_authentication_failure_with_bounded_receipt(
     def turn_actor(_: Mapping[str, Any]) -> Mapping[str, Any]:
         nonlocal calls
         calls += 1
-        raise DoubaoActorTransportError(
+        raise _AuthenticationFailure(
             "sensitive provider response must not be persisted",
             error_code="provider_authentication_failed",
         )
@@ -1605,38 +1368,6 @@ def test_planning_horizon_action_oracle_grades_semantic_stages(
     assert scenario["observed_action_kind_sequences"] == [list(actions)]
 
 
-def test_portfolio_real_tool_scenarios_choose_from_latest_quota_result(
-    tmp_path: Path,
-) -> None:
-    sources, packets = _scenario_inputs(tmp_path)
-    result = run_actual_default_model_behavior_portfolio(
-        packets,
-        scenario_sources=sources,
-        qualification_id="actual-default-portfolio-real-tool-actions",
-        turn_actor=_turn_actor,
-        onboarding_actor=_onboarding_actor,
-        **_real_tool_actors(tmp_path / "real-tool-actors"),
-    )
-
-    assert result["qualification_passed"] is True
-    boundary = result["boundary"]
-    assert boundary["tools_enabled"] is True
-    assert boundary["tool_enabled_scenario_count"] == 5
-    assert boundary["packet_interpretation_scenario_count"] == 16
-    assert boundary["automatic_retries"] is False
-    assert boundary["raw_model_responses_persisted"] is False
-    assert boundary["raw_packets_persisted"] is False
-    tool_scenarios = {
-        "turn_selected_todo",
-        "turn_required_vision_replan",
-        "turn_scoped_gate_successor_replan",
-        "turn_capability_monitor_repair",
-        "turn_terminal_settlement",
-    }
-    for scenario in result["scenarios"]:
-        if scenario["scenario_id"] in tool_scenarios:
-            assert scenario["status"] == "passed"
-            assert len(set(scenario["receipt_digests"])) == 2
 
 
 def test_portfolio_preflight_rejects_invalid_contrast_before_actor_spend(

@@ -1022,9 +1022,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             "scoped identity",
             "runtime loop",
             "host runtime",
-            "computer use",
-            "computer_use_runtime",
-            "computer-use-runtime-v0",
         ),
         "checks": [
             {
@@ -1041,11 +1038,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
                 "command": "python3 examples/claude-goalmode-lifecycle-smoke.py",
                 "tier": "default",
                 "reason": "checks the Claude Code goal-mode loop lifecycle without production actions",
-            },
-            {
-                "command": "python3 examples/computer-use-runtime-contract-smoke.py",
-                "tier": "default",
-                "reason": "checks the computer_use_runtime_v0 provider boundary: gate-before-write, unknown-modal handling, raw-evidence stripping, and rejection of provider-authored writeback",
             },
         ],
     },

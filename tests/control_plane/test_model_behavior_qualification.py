@@ -16,6 +16,7 @@ from loopx.control_plane.testing.model_behavior_qualification import (
     compare_model_behavior_receipts,
     model_behavior_semantic_contract_from_packet,
     normalize_model_behavior_actor_request,
+    normalize_model_behavior_actor_result,
     run_model_behavior_qualification_arm,
     run_model_behavior_qualification_pair,
 )
@@ -658,3 +659,29 @@ def test_same_wrong_semantics_in_both_arms_fail_source_alignment() -> None:
     assert result["semantic_contract_complete"] is False
     assert result["semantic_contract_drift"] == {}
     assert result["safety_violations"] == ["semantic_contract_mismatch:write_scope"]
+
+
+def test_optional_semantic_contract_does_not_grade_auxiliary_model_output() -> None:
+    result = normalize_model_behavior_actor_result(
+        {
+            "schema_version": MODEL_BEHAVIOR_ACTOR_RESULT_SCHEMA_VERSION,
+            "actor_ref": "fixture-model-v1",
+            "decision": _decision(semantic_contract={"partial": "ungraded"}),
+            "tool_calls": [],
+        },
+        semantic_contract_required=False,
+    )
+    assert "semantic_contract" not in result["decision"]
+
+
+def test_required_semantic_contract_remains_strict() -> None:
+    with pytest.raises(ValueError, match="unknown semantic contract field"):
+        normalize_model_behavior_actor_result(
+            {
+                "schema_version": MODEL_BEHAVIOR_ACTOR_RESULT_SCHEMA_VERSION,
+                "actor_ref": "fixture-model-v1",
+                "decision": _decision(semantic_contract={"partial": "invalid"}),
+                "tool_calls": [],
+            },
+            semantic_contract_required=True,
+        )
