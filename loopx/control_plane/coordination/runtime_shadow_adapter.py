@@ -1,7 +1,6 @@
 """Transaction capture evidence, receipt-proven drain, and operator readback.
 
-Historical observations remain readable; this owner only delivers durable
-transaction-bound entries.
+This owner only delivers durable transaction-bound entries.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ from ...history import load_registry
 from ...paths import resolve_runtime_root
 from ...registry import find_registry_goal
 from ..effect_runtime import effect_runtime_result
-from . import local_authority_shadow_outbox as outbox
+from . import runtime_shadow_outbox as outbox
 from .coordination_state_contract_generated import (
     LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_REQUEST_SCHEMA,
     LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_RESULT_SCHEMA,
@@ -30,42 +29,26 @@ from .coordination_state_contract_generated import (
     LOCAL_AUTHORITY_SHADOW_READ_RESULT_SCHEMA,
     LOCAL_AUTHORITY_SHADOW_TRANSACTION_EVIDENCE_SCHEMA,
 )
-from .local_authority_shadow_projection import (
+from .authority_projection import (
     PARTITIONS,
     TODO_PARTITION,
     head_digest,
     todo_partition_projection,
 )
-from .runtime_shadow import resolve_coordination_runtime_shadow_config, capture_todo_archive_dependencies
+from .runtime_shadow import (
+    resolve_coordination_runtime_shadow_config, capture_todo_archive_dependencies,
+    coordination_runtime_shadow_summary,
+)
 from .shadow_management import read_shadow_capture_binding
 
 
-from .runtime_shadow import local_authority_shadow_summary
-
-
-def effective_runtime_root(
-    registry_path: Path,
-    runtime_root_override: str | Path | None,
-) -> Path:
-    """Resolve the one runtime root every writer hook of a CLI call must share.
-
-    ``--runtime-root`` wins when given; otherwise the registry's
-    ``common_runtime_root`` applies, and a relative value resolves against the
-    registry's project root rather than the caller's working directory. Todo,
-    follow-up, handoff-mode, and task-lease hooks all consume this value so one
-    goal never splits into two candidate lineages.
-    """
-
-    registry = load_registry(registry_path)
-    override = str(runtime_root_override) if runtime_root_override is not None else None
-    return resolve_runtime_root(registry, override, registry_path=registry_path)
 
 
 # ---------------------------------------------------------------------------
 # Transaction-bound outbox drain (Stage 2C second half plumbing).
 #
 # Writers record per-partition outbox entries inside the primary lock (see
-# ``local_authority_shadow_outbox``). The drain below runs after that lock is
+# ``runtime_shadow_outbox``). The drain below runs after that lock is
 # released and turns each committed entry into exactly one candidate
 # transaction. It is bounded, never blocks a writer, and reports what it left
 # behind instead of guessing.
@@ -303,7 +286,7 @@ def _valid_commit_entry_result(result: object, entry: outbox.OutboxEntry) -> boo
     )
 
 
-def read_local_authority_shadow(
+def read_runtime_shadow_candidate(
     *,
     runtime_root: Path,
     goal_id: str,
@@ -685,7 +668,7 @@ def _count_backlog(result: DrainResult, runtime_root: Path, goal_id: str) -> Non
     )
 
 
-def drain_local_authority_shadow_outbox(
+def drain_runtime_shadow_outbox(
     *,
     registry_path: Path,
     runtime_root: Path | None,
@@ -753,18 +736,14 @@ class _CandidateMissing(Exception):
     """The candidate store directory does not exist yet."""
 
 
-def _store_bytes(runtime_root: Path, goal_id: str, *, legacy_observation: bool) -> int:
-    directory = (
-        runtime_root / "authority-shadow" / "file" / goal_id
-        if legacy_observation
-        else runtime_root / "authority-shadow" / "file-v0"
-    )
+def _store_bytes(runtime_root: Path) -> int:
+    directory = runtime_root / "authority-shadow" / "file-v0"
     if not directory.is_dir():
         return 0
     return sum(path.stat().st_size for path in directory.iterdir() if path.is_file())
 
 
-def local_authority_shadow_status(
+def runtime_shadow_status(
     *,
     registry_path: Path,
     runtime_root: Path | None,
@@ -778,32 +757,19 @@ def local_authority_shadow_status(
         raise ValueError(f"goal {goal_id!r} is not registered")
     if runtime_root is None:
         runtime_root = resolve_runtime_root(registry, None, registry_path=registry_path)
-    config = local_authority_shadow_summary(goal)
     runtime_config = resolve_coordination_runtime_shadow_config(goal)
     management = read_shadow_capture_binding(runtime_root, goal_id)
-    legacy_observation = (
-        config.get("configured") is True
-        and not runtime_config.enabled
-        and management["status"] == "missing"
-    )
     backlog = outbox.outbox_summary(runtime_root, goal_id)
     candidate: dict[str, Any]
     try:
-        directory = (
-            runtime_root / "authority-shadow" / "file" / goal_id
-            if legacy_observation
-            else runtime_root / "authority-shadow" / "file-v0"
-        )
+        directory = runtime_root / "authority-shadow" / "file-v0"
         if not directory.is_dir() or not any(directory.glob("authority-store-*.json")):
             # Reading through the store boundary would mint a store identity;
             # a status probe must not create candidate lineage.
             raise _CandidateMissing
-        view = read_local_authority_shadow(
+        view = read_runtime_shadow_candidate(
             runtime_root=runtime_root,
             goal_id=goal_id,
-            store_kind=(
-                "legacy_observation" if legacy_observation else "runtime_shadow"
-            ),
         )
         head = view.get("head") if isinstance(view.get("head"), dict) else None
         candidate = {
@@ -843,12 +809,9 @@ def local_authority_shadow_status(
             "partitions": None,
             "codec_agreement": None,
         }
-    candidate["store_kind"] = "legacy_observation" if legacy_observation else "runtime_shadow"
-    candidate["historical_only"] = legacy_observation
+    candidate["store_kind"] = "runtime_shadow"
     try:
-        store_bytes = _store_bytes(
-            runtime_root, goal_id, legacy_observation=legacy_observation
-        )
+        store_bytes = _store_bytes(runtime_root)
         storage_error = None
     except OSError:
         store_bytes = None
@@ -859,7 +822,7 @@ def local_authority_shadow_status(
         and management["status"] != "hold",
         "action": "status",
         "goal_id": goal_id,
-        "config": config,
+        "config": coordination_runtime_shadow_summary(goal),
         "runtime_config": asdict(runtime_config),
         "management": management,
         "storage_error": storage_error,
@@ -974,7 +937,6 @@ def valid_evidence_v1(result: object, *, goal_id: str) -> bool:
 
 
 __all__ = [
-    "effective_runtime_root",
     "CLI_DRAIN_LOCK_TIMEOUT_SECONDS",
     "INLINE_DRAIN_BUDGET_SECONDS",
     "INLINE_DRAIN_LOCK_TIMEOUT_SECONDS",
@@ -988,8 +950,8 @@ __all__ = [
     "capture_evidence",
     "primary_lock_is_free",
     "todo_partition_projector",
-    "drain_local_authority_shadow_outbox",
-    "local_authority_shadow_status",
-    "read_local_authority_shadow",
+    "drain_runtime_shadow_outbox",
+    "runtime_shadow_status",
+    "read_runtime_shadow_candidate",
     "valid_evidence_v1",
 ]

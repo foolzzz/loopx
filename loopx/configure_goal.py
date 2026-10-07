@@ -481,8 +481,6 @@ def configure_goal(
     write_scope: list[str] | None = None,
     replace_write_scope: bool = False,
     clear_write_scope: bool = False,
-    local_authority_shadow_file: bool = False,
-    clear_local_authority_shadow: bool = False,
     coordination_runtime_shadow_file: bool = False,
     clear_coordination_runtime_shadow: bool = False,
     waiting_on: str | None = None,
@@ -555,8 +553,8 @@ def configure_goal(
         raise ValueError(
             "--clear-write-scope cannot be combined with --replace-write-scope"
         )
-    shadow.validate_coordination_shadow_changes(
-        local_authority_shadow_file, clear_local_authority_shadow, coordination_runtime_shadow_file, clear_coordination_runtime_shadow)
+    shadow.validate_coordination_runtime_shadow_change(
+        coordination_runtime_shadow_file, clear_coordination_runtime_shadow)
     if clear_waiting_on and waiting_on:
         raise ValueError("--clear-waiting-on cannot be combined with --waiting-on")
     adding_boundary_authority = any(
@@ -1253,8 +1251,8 @@ def configure_goal(
             coordination["checkpointed_boundary_authority"] = [*entries, entry]
         goal["coordination"] = coordination
 
-    shadow.apply_coordination_shadow_changes(
-        goal, local_authority_shadow_file, clear_local_authority_shadow, coordination_runtime_shadow_file, clear_coordination_runtime_shadow)
+    shadow.apply_coordination_runtime_shadow_change(
+        goal, coordination_runtime_shadow_file, clear_coordination_runtime_shadow)
     after = _settings_summary(goal)
     changed_fields = _changed_fields(before, after)
     if goal != before_goal and not changed_fields:
@@ -1297,7 +1295,6 @@ def configure_goal(
         "peer_task_coordination": deepcopy(
             after.get("peer_task_coordination") or {"enabled": False}
         ),
-        "local_authority_shadow": deepcopy(after["local_authority_shadow"]),
         "coordination_runtime_shadow": deepcopy(after["coordination_runtime_shadow"]),
         "lark_event_inbox": _lark_event_inbox_config_summary(goal),
         "lark_kanban_heartbeat_sync": _lark_kanban_heartbeat_config_summary(goal),

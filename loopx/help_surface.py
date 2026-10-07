@@ -340,7 +340,6 @@ MANPAGE_COMMAND_HELP_ONLY = frozenset(
         "archive-runtime",
         "automation-cadence",
         "authority-archive",
-        "authority-shadow",
         "backup-state",
         "capability",
         "chat-endpoint",

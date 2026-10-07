@@ -5,8 +5,8 @@ import test from "node:test";
 import type { JsonObject } from "../../loopx/control_plane/effect_program.ts";
 import { canonicalAuthoritySha256 } from "../../loopx/control_plane/coordination/authority_store_codec.ts";
 import * as schemas from "../../loopx/control_plane/coordination/coordination_state_contract.generated.ts";
-import { commitLocalAuthorityShadowEntry, readLocalAuthorityShadow } from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
-import { composeLocalAuthorityShadowHead } from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
+import { commitRuntimeShadowEntry, readRuntimeShadowCandidate } from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
+import { composeRuntimeShadowHead } from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
 import { bootstrapCoordinationRuntimeShadow, commitCoordinationRuntimeShadow, inspectCoordinationRuntimeShadow,
   qualifyCoordinationRuntimeShadow, readCoordinationRuntimeShadowTodoCandidate, rollbackCoordinationRuntimeShadow } from "../../loopx/control_plane/coordination/runtime_shadow.ts";
 import { fixture, pendingEntry, projection, settleFiles, sourceRequest, todo, type ShadowFixture } from "./shadow_file_fixture.ts";
@@ -17,7 +17,7 @@ async function qualifiedFixture(t: test.TestContext): Promise<{ f: ShadowFixture
     const records = Array.from({ length: seq }, (_, index) => todo(`todo_${index + 1}`));
     head = projection(records);
     const entry = await pendingEntry(f, seq, { handoff_mode: "hard_lease", todos: records });
-    const result = await commitLocalAuthorityShadowEntry(entry);
+    const result = await commitRuntimeShadowEntry(entry);
     assert.equal(result.outcome, "delivered"); await settleFiles(f, entry, result);
   }
   return { f, head };
@@ -75,7 +75,7 @@ test("pending entries and malformed cursor block eligibility without destroying 
   const pending = await pendingEntry(f, 4, { handoff_mode: "hard_lease", todos: head.todos }, { marker: false });
   const result = await qualify(f, head);
   assert.equal(result.status, "not_ready"); assert.equal(result.qualified, false);
-  const proof = await readLocalAuthorityShadow({ schema_version: schemas.LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
+  const proof = await readRuntimeShadowCandidate({ schema_version: schemas.LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
     runtime_root: f.root, goal_id: "goal-a", receipt_operation_id: (pending.entry as JsonObject).entry_id, scan_limit: 10000 });
   assert.equal(proof.status, "loaded"); assert.equal((proof.proof as JsonObject).receipt, null);
 });
@@ -107,7 +107,7 @@ test("qualification requires the active outbox manifest to match its exact captu
   const original = await readFile(path);
   await unlink(path);
   assert.equal((await qualify(f, head)).qualified, false);
-  assert.equal((await readLocalAuthorityShadow({ schema_version: schemas.LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
+  assert.equal((await readRuntimeShadowCandidate({ schema_version: schemas.LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
     runtime_root: f.root, goal_id: "goal-a", scan_limit: 10000 })).status, "loaded");
   const foreign = JSON.parse(original.toString()); foreign.capture_lineage_id = "foreign-manifest";
   await writeFile(path, JSON.stringify(foreign));
@@ -179,16 +179,16 @@ test("archiving a Todo drops its retained lease from the candidate head", async 
   // `archive_state === "active"` like the source projection does, or the
   // retained archived row re-admits the lease its archive just orphaned.
   const archivedTodo = { ...todo("todo_one", "done"), archive_state: "archive" };
-  const archived = composeLocalAuthorityShadowHead(base, "goal-a",
+  const archived = composeRuntimeShadowHead(base, "goal-a",
     { partition: "todos", seq: 2 }, projection([archivedTodo]), "sha256:archived");
   assert.deepEqual(archived.todos, [archivedTodo]);
   assert.deepEqual(archived.leases, []);
   // A lease whose Todo is still in the graph survives the same fold.
-  const retained = composeLocalAuthorityShadowHead(base, "goal-a",
+  const retained = composeRuntimeShadowHead(base, "goal-a",
     { partition: "todos", seq: 2 }, projection([todo("todo_one")]), "sha256:retained");
   assert.deepEqual(retained.leases, [lease]);
   // The lease partition remains authoritative for its own writes.
-  const leased = composeLocalAuthorityShadowHead(base, "goal-a",
+  const leased = composeRuntimeShadowHead(base, "goal-a",
     { partition: "leases", seq: 3 }, { leases: [] }, "sha256:leased");
   assert.deepEqual(leased.leases, []);
   assert.deepEqual(leased.todos, [todo("todo_one")]);

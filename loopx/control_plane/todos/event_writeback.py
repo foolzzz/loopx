@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from ..coordination.legacy_writer_fence import legacy_todo_write_transaction, require_legacy_coordination_write_allowed
 from ..coordination.shadow_management import require_shadow_primary_write_allowed
-from ..coordination.local_authority_shadow_adapter import effective_runtime_root
+from ...paths import effective_runtime_root
 
 import hashlib
 from pathlib import Path

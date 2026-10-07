@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
-from loopx.control_plane.coordination.local_authority_shadow_projection import (
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
+from loopx.control_plane.coordination.authority_projection import (
     ProjectionValueError,
     canonical_bytes,
     lease_partition_projection,
@@ -139,7 +139,7 @@ def _drain(registry: Path, runtime_root: Path) -> adapter.DrainResult:
     }
     registry.write_text(json.dumps(data))
     try:
-        return adapter.drain_local_authority_shadow_outbox(
+        return adapter.drain_runtime_shadow_outbox(
             registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID,
             max_entries=10, budget_seconds=10, lock_timeout_seconds=2,
         )

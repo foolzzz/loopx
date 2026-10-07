@@ -289,7 +289,6 @@ def main() -> int:
         features = {item["feature_id"]: item for item in catalog["features"]}
         assert set(features) == {
             "todo_replan_cadence",
-            "local_authority_shadow",
             "coordination_runtime_shadow",
             "multi_subagent",
             "peer_task_coordination",
@@ -324,15 +323,6 @@ def main() -> int:
         assert "--clear-execution-replan-after-todos" in replan_commands["preview_disable"]
         assert "--execute" not in replan_commands["preview_disable"]
         assert "--execute" in replan_commands["apply_disable"]
-        assert features["local_authority_shadow"]["availability"] == "retired"
-        assert features["local_authority_shadow"]["default"] == {"enabled": False}
-        assert features["local_authority_shadow"]["current"] == {
-            "enabled": False,
-            "mode": None,
-            "status": "disabled",
-        }
-        assert "preview_enable" not in features["local_authority_shadow"]["commands"]
-        assert "apply_enable" not in features["local_authority_shadow"]["commands"]
         assert features["periodic_report"]["availability"] == "supported_explicit_override"
         assert features["periodic_report"]["default"] == {"enabled": False, "timezone": "UTC"}
         # A Goal without an explicit override follows the machine default, so the

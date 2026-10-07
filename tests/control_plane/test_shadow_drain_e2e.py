@@ -10,8 +10,8 @@ import sys
 import pytest
 
 from shadow_e2e_fixture import REPO, ShadowWorkspace, workspace
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 
 
 pytestmark = pytest.mark.stage2c_e2e
@@ -22,7 +22,7 @@ def directory(w: ShadowWorkspace) -> Path:
 
 
 def history(w: ShadowWorkspace) -> dict:
-    return adapter.read_local_authority_shadow(
+    return adapter.read_runtime_shadow_candidate(
         runtime_root=w.runtime, goal_id=w.goal, scan_limit=10_000
     )
 
@@ -139,7 +139,7 @@ def test_cursor_cannot_authorize_deletion_or_hide_mutations(
     }
     assert snapshot(d) == before
     assert len(history(w)["proof"]["transactions"]) == 2
-    status = w.cli("authority-shadow", "status", success=False)
+    status = w.cli("coordination-shadow", "status", success=False)
     assert "outbox" in status
 
 
@@ -233,7 +233,7 @@ def test_concurrent_real_drainers_commit_once_without_cursor_regression(
         sys.executable,
         "-m",
         "loopx.cli",
-        *w.arguments("authority-shadow", "drain", "--lock-timeout-seconds", "2"),
+        *w.arguments("coordination-shadow", "drain", "--lock-timeout-seconds", "2"),
     ]
     children = [
         subprocess.Popen(

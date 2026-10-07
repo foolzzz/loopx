@@ -275,9 +275,7 @@ def _dispatch_common_command(
 		)
 		from .cli_commands.todo import handle_todo_command
 		from .cli_rollout import append_cli_rollout_event
-		from .control_plane.coordination.local_authority_shadow_adapter import (
-			effective_runtime_root,
-		)
+		from .paths import effective_runtime_root
 
 		return handle_todo_command(
 			args,

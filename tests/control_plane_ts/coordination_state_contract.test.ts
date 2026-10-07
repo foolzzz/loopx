@@ -25,9 +25,7 @@ import {
   DELIVERY_WORKSPACE_SNAPSHOT_REQUEST_SCHEMA as GENERATED_DELIVERY_WORKSPACE_REQUEST_SCHEMA,
   DELIVERY_WORKSPACE_SNAPSHOT_RESULT_SCHEMA as GENERATED_DELIVERY_WORKSPACE_RESULT_SCHEMA,
   DELIVERY_WORKSPACE_SNAPSHOT_SNAPSHOT_SCHEMA as GENERATED_DELIVERY_WORKSPACE_SNAPSHOT_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA as GENERATED_SHADOW_EVIDENCE_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA as GENERATED_SHADOW_OUTBOX_ENTRY_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA as GENERATED_SHADOW_REQUEST_SCHEMA,
   LOCAL_COORDINATION_TODO_LIST_REQUEST_SCHEMA as GENERATED_LIST_REQUEST_SCHEMA,
   LEGACY_COORDINATION_WRITE_CHECK_REQUEST_SCHEMA as GENERATED_WRITE_CHECK_REQUEST_SCHEMA,
 } from "../../loopx/control_plane/coordination/coordination_state_contract.generated.ts";
@@ -44,12 +42,9 @@ import {
   DELIVERY_ROUTING_RESULT_SCHEMA as RUNTIME_DELIVERY_ROUTING_RESULT_SCHEMA,
 } from "../../loopx/control_plane/turn_driver/delivery_continuity.ts";
 import {
-  LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA as RUNTIME_SHADOW_EVIDENCE_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA as RUNTIME_SHADOW_REQUEST_SCHEMA,
-} from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
-import {
   LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA as RUNTIME_SHADOW_OUTBOX_ENTRY_SCHEMA,
-} from "../../loopx/control_plane/coordination/local_authority_shadow_outbox.ts";
+  LOCAL_AUTHORITY_SHADOW_OUTBOX_COMMIT_SCHEMA as RUNTIME_SHADOW_OUTBOX_COMMIT_SCHEMA,
+} from "../../loopx/control_plane/coordination/runtime_shadow_outbox.ts";
 import {
   LEGACY_COORDINATION_WRITE_CHECK_REQUEST_SCHEMA as RUNTIME_WRITE_CHECK_REQUEST_SCHEMA,
 } from "../../loopx/control_plane/coordination/legacy_writer_fence.ts";
@@ -119,9 +114,9 @@ test("TypeScript runtime re-exports generated local-authority protocol schemas",
 });
 
 test("TypeScript shadow runtimes re-export generated protocol schemas", () => {
-  assert.equal(RUNTIME_SHADOW_REQUEST_SCHEMA, GENERATED_SHADOW_REQUEST_SCHEMA);
-  assert.equal(RUNTIME_SHADOW_EVIDENCE_SCHEMA, GENERATED_SHADOW_EVIDENCE_SCHEMA);
   assert.equal(RUNTIME_SHADOW_OUTBOX_ENTRY_SCHEMA, GENERATED_SHADOW_OUTBOX_ENTRY_SCHEMA);
+  assert.equal(RUNTIME_SHADOW_OUTBOX_ENTRY_SCHEMA, "loopx_local_authority_shadow_outbox_entry_v1");
+  assert.equal(RUNTIME_SHADOW_OUTBOX_COMMIT_SCHEMA, "loopx_local_authority_shadow_outbox_commit_v1");
 });
 
 test("TypeScript writer fence re-exports generated protocol schemas", () => {

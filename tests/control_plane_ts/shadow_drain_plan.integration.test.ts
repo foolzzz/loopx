@@ -4,7 +4,7 @@ import test from "node:test";
 import {readFile, readdir} from "node:fs/promises";
 import {join} from "node:path";
 import type {JsonObject} from "../../loopx/control_plane/effect_program.ts";
-import {commitLocalAuthorityShadowEntry} from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
+import {commitRuntimeShadowEntry} from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
 import {readShadowDrainPlan, SHADOW_DRAIN_PLAN_REQUEST_SCHEMA} from "../../loopx/control_plane/coordination/shadow_drain_plan.ts";
 import {requireShadowCaptureBinding} from "../../loopx/control_plane/coordination/shadow_management.ts";
 import {fixture, pendingEntry, settleFiles, todo, type ShadowFixture} from "./shadow_file_fixture.ts";
@@ -36,13 +36,13 @@ for (const shape of ["native", "legacy"] as const) {
     // Exercise the production projection validator, including archived dependencies,
     // standing decisions and unknown metadata, through a real outbox transaction.
     const first = await pendingEntry(f, 1, {handoff_mode: "hard_lease", todos});
-    const firstResult = await commitLocalAuthorityShadowEntry(first);
+    const firstResult = await commitRuntimeShadowEntry(first);
     assert.equal(firstResult.outcome, "delivered", JSON.stringify(firstResult));
     await settleFiles(f, first, firstResult);
     const changed = structuredClone(todos);
     changed[0].note = "A second durable write whose ACK was lost";
     const second = await pendingEntry(f, 2, {handoff_mode: "hard_lease", todos: changed});
-    const secondResult = await commitLocalAuthorityShadowEntry(second);
+    const secondResult = await commitRuntimeShadowEntry(second);
     assert.equal(secondResult.outcome, "delivered", JSON.stringify(secondResult));
     const directory = join(f.root, "authority-shadow", "outbox", "goal-a", "todos");
     const before = await inventory(directory);
@@ -73,7 +73,7 @@ for (const shape of ["native", "legacy"] as const) {
 test("provider history corruption cannot be replaced with caller-supplied proof", async t => {
   const f = await fixture(t);
   const commit = await pendingEntry(f, 1, {handoff_mode: "hard_lease", todos: [todo()]});
-  const result = await commitLocalAuthorityShadowEntry(commit);
+  const result = await commitRuntimeShadowEntry(commit);
   assert.equal(result.outcome, "delivered");
   const input = await request(f, [observed(commit)]);
   const current = await f.store.loadAuthority();
@@ -93,7 +93,7 @@ test("provider history corruption cannot be replaced with caller-supplied proof"
 test("native ACK readback preserves diagnostics but rejects mismatching receipt", async t => {
   const f = await fixture(t);
   const commit = await pendingEntry(f, 1, {handoff_mode: "hard_lease", todos: [todo()]});
-  const result = await commitLocalAuthorityShadowEntry(commit);
+  const result = await commitRuntimeShadowEntry(commit);
   assert.equal(result.outcome, "delivered");
   const input = await request(f, [observed(commit)]);
   input.acknowledgement = {entry_id: (commit.entry as JsonObject).entry_id, seq: 1,

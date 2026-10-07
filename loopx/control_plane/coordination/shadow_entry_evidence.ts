@@ -9,9 +9,9 @@ import {withFileMutationLock} from "../effect_runtime_io.ts";
 import {EffectRuntimeLockTimeoutError} from "../effect_runtime_errors.ts";
 import {authorityUnicodeCompare, canonicalAuthorityBytes, hasExactAuthorityKeys} from "./authority_store_codec.ts";
 import {readShadowBootstrapSourcePath, requireShadowCaptureBinding} from "./shadow_management.ts";
-import {OUTBOX_ENTRY_FILE_PATTERN, ShadowLineageError} from "./local_authority_shadow_identity.ts";
+import {OUTBOX_ENTRY_FILE_PATTERN, ShadowLineageError} from "./runtime_shadow_identity.ts";
 import {legacyCoordinationTodoLockPath, taskLeaseLockPath} from "./legacy_writer_lock_paths.ts";
-import type {CommitEntryRequest, ShadowPartition} from "./local_authority_shadow.ts";
+import type {CommitEntryRequest, ShadowPartition} from "./runtime_shadow_candidate.ts";
 import {LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA, LOCAL_AUTHORITY_SHADOW_OUTBOX_COMMIT_SCHEMA} from "./coordination_state_contract.generated.ts";
 
 function requireLineage(condition: unknown, reason: string): asserts condition {

@@ -28,8 +28,8 @@ Use the same registry and Goal throughout:
 ```bash
 loopx --registry registry.json --format json coordination-shadow bootstrap --goal-id goal-a
 loopx --registry registry.json --format json coordination-shadow bootstrap --goal-id goal-a --execute
-loopx --registry registry.json --format json authority-shadow status --goal-id goal-a
-loopx --registry registry.json --format json authority-shadow drain --goal-id goal-a
+loopx --registry registry.json --format json coordination-shadow status --goal-id goal-a
+loopx --registry registry.json --format json coordination-shadow drain --goal-id goal-a
 loopx --registry registry.json --format json coordination-shadow inspect --goal-id goal-a
 loopx --registry registry.json --format json coordination-shadow qualify --goal-id goal-a
 loopx --registry registry.json --format json coordination-shadow read-candidate --goal-id goal-a --todo-id TODO_ID
@@ -51,7 +51,7 @@ Todo sources retain `event_log_writer_not_bound` and prevent qualification.
 
 To retire the candidate, obtain the exact current `provider_revision` from
 inspection and preview the target before execution. If an invalid cursor or
-outbox manifest blocks inspection, use `authority-shadow status` and its
+outbox manifest blocks inspection, use `coordination-shadow status` and its
 read-only provider proof. If the provider itself cannot be proved, preserve the
 scene and hold; do not guess a revision.
 

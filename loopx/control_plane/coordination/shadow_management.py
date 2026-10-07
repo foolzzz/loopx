@@ -16,7 +16,7 @@ from typing import Any
 from .coordination_state_contract_generated import (
     SHADOW_MANAGEMENT_MANIFEST_SCHEMA, SHADOW_MANAGEMENT_STATE_SCHEMA,
 )
-from .local_authority_shadow_projection import sha256_digest
+from .authority_projection import sha256_digest
 
 SHADOW_CAPTURE_PROFILE = "file_outbox_v1"
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")

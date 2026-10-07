@@ -35,7 +35,7 @@ class GateThreadRequestMixin:
         raise NotImplementedError
 
     def _gate_thread_runtime_root(self) -> Any:
-        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .paths import effective_runtime_root
 
         return effective_runtime_root(self.server.registry_path, self.server.runtime_root_override)
 

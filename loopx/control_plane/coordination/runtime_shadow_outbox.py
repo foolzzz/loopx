@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from .local_authority_shadow_projection import (
+from .authority_projection import (
     PARTITIONS,
     TODO_PARTITION,
     canonical_value,

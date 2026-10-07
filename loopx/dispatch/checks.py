@@ -36,7 +36,7 @@ def todo_status(registry: Path, runtime_root: str | None, goal_id: str, todo_id:
 def _gates_still_awaiting(registry: Path, runtime_root: str | None, goal_id: str, gate_ids: list[str]) -> list[str]:
     """Listed gates that are still open and whose thread awaits the orchestrator."""
 
-    from ..control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from ..paths import effective_runtime_root
     from ..gate_threads import AWAITING_ORCHESTRATOR, read_gate_index
 
     index = read_gate_index(effective_runtime_root(registry, runtime_root), goal_id)["gates"]

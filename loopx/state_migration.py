@@ -22,14 +22,11 @@ from .control_plane.todos.active_state_editing import atomic_write_state_text
 from .control_plane.coordination.legacy_writer_fence import legacy_coordination_todo_lock_path, require_legacy_state_replacement_allowed
 from .control_plane.work_items.task_lease import task_lease_lock_path
 from .registry import registry_goals
-from .control_plane.coordination.coordination_state_contract_generated import (
-    LOCAL_AUTHORITY_SHADOW_CONFIG_SCHEMA as AUTHORITY_SHADOW_CONFIG_SCHEMA,
-)
+
 
 
 LEGACY_RUNTIME_ROOT = home_codex_root() / "goal-harness"
 LEGACY_GLOBAL_REGISTRY = LEGACY_RUNTIME_ROOT / "registry.global.json"
-MIGRATION_SHADOW_SEED_EVIDENCE_SCHEMA = "loopx_state_migration_shadow_seed_evidence_v0"
 
 
 def now_local() -> str:
@@ -221,26 +218,6 @@ def copy_runtime_goal_dirs(
     return results
 
 
-def _uses_file_authority_shadow(goal: dict[str, Any]) -> bool:
-    coordination = goal.get("coordination")
-    if not isinstance(coordination, dict):
-        return False
-    config = coordination.get("authority_shadow")
-    return (
-        isinstance(config, dict)
-        and config.get("schema_version") == AUTHORITY_SHADOW_CONFIG_SCHEMA
-        and config.get("mode") == "file_one_way"
-    )
-
-
-def retired_authority_shadow_notices(goals: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep the migration response field, but never seed the retired observer."""
-    return [{"schema_version": MIGRATION_SHADOW_SEED_EVIDENCE_SCHEMA,
-             "goal_id": str(goal.get("id") or ""), "attempted": False,
-             "outcome": "retired", "reason_code": "local_authority_shadow_retired"}
-            for goal in goals if _uses_file_authority_shadow(goal)]
-
-
 def migrate_legacy_state(
     *,
     legacy_registry_path: Path,
@@ -392,7 +369,6 @@ def migrate_legacy_state(
                 )
             target_transaction.commit(target_payload)
 
-        authority_shadow_seeds = retired_authority_shadow_notices(incoming_goals)
 
         return {
             "ok": True,
@@ -411,7 +387,6 @@ def migrate_legacy_state(
             "project_registry_goal_count": len(target_payload.get("goals", [])),
             "active_state": active_state_results,
             "runtime_goals": runtime_results,
-            "authority_shadow_seeds": authority_shadow_seeds,
         }
 
 
@@ -451,16 +426,6 @@ def render_state_migration_markdown(payload: dict[str, Any]) -> str:
             )
             if row.get("skipped_reason"):
                 lines.append(f"  - skipped_reason: `{row.get('skipped_reason')}`")
-    authority_shadow_seeds = payload.get("authority_shadow_seeds") or []
-    if authority_shadow_seeds:
-        lines.extend(["", "## Authority Shadow Seeds"])
-        for row in authority_shadow_seeds:
-            lines.append(
-                f"- `{row.get('goal_id')}` outcome=`{row.get('outcome')}` "
-                f"attempted=`{row.get('attempted')}`"
-            )
-            if row.get("reason_code"):
-                lines.append(f"  - reason_code: `{row.get('reason_code')}`")
     global_sync = payload.get("global_sync")
     if isinstance(global_sync, dict):
         lines.extend(["", "## Global Sync"])

@@ -66,7 +66,7 @@ import {
 import {
   beginLeaseOutboxEntry,
   type LeaseOutboxCapture,
-} from "../coordination/local_authority_shadow_outbox.ts";
+} from "../coordination/runtime_shadow_outbox.ts";
 import {decodeTaskLeaseLifecycleRequest, TaskLeaseLifecycleError, TASK_LEASE_LIFECYCLE_OPERATIONS,
   type LifecycleRequest, type CanonicalLifecycleRequest, type LifecycleErrorInfo, type LifecycleStage,
   type TaskLeaseLifecycleOperation} from "./task_lease_lifecycle_request.ts";

@@ -290,7 +290,7 @@ class ChatActionService(
         except OSError:
             state_digest = None
         from .control_plane.coordination.local_authority import read_canonical_todos_if_promoted
-        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .paths import effective_runtime_root
         canonical = read_canonical_todos_if_promoted(
             runtime_root=effective_runtime_root(self.registry_path, None), goal_id=goal_id)
         return _digest(

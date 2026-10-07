@@ -171,12 +171,6 @@ def _progress_review_options(config: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _local_authority_shadow_options(config: Mapping[str, Any]) -> dict[str, Any]:
-    if _boolean_configuration("local_authority_shadow", config, "enabled"):
-        return {"local_authority_shadow_file": True}
-    return {"clear_local_authority_shadow": True}
-
-
 def _coordination_runtime_shadow_options(config: Mapping[str, Any]) -> dict[str, Any]:
     if _boolean_configuration("coordination_runtime_shadow", config, "enabled"):
         return {"coordination_runtime_shadow_file": True}
@@ -220,7 +214,6 @@ def _goal_capability_options(
         "pull_request_review": {"wait_for_ci", "review_priority"},
         "change_quality_qualification": {"enabled", "safe_fix", "strict_receipt"},
         "progress_review": {"mode", "signal", "drift_threshold", "contract_revision"},
-        "local_authority_shadow": {"enabled"},
         "coordination_runtime_shadow": {"enabled"},
         "lark_kanban_heartbeat_sync": {"enabled"},
         "periodic_report": {"enabled", "profile_preset", "route_ref", "timezone", "schedule"},
@@ -275,8 +268,6 @@ def _goal_capability_options(
         return _change_quality_options(config)
     if capability_id == "progress_review":
         return _progress_review_options(config)
-    if capability_id == "local_authority_shadow":
-        return _local_authority_shadow_options(config)
     if capability_id == "coordination_runtime_shadow":
         return _coordination_runtime_shadow_options(config)
     return {

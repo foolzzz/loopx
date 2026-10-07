@@ -12,7 +12,7 @@ from loopx.control_plane.effect_runtime import effect_runtime_result
 from canonical_authority_fixture import initialize_canonical_authority, isolate_sqlite_runtime
 from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_shadow_projection
 from loopx.control_plane.coordination.coordination_state_contract import TODO_DOMAIN_READ_RECORD_SCHEMA_VERSION, TODO_DOMAIN_RECORD_FIELDS
-from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+from loopx.control_plane.coordination.authority_projection import canonical_bytes
 
 
 def test_sqlite_cli_reopens_updates_and_recovers_missing_markdown(tmp_path, monkeypatch):

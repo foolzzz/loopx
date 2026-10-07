@@ -6,7 +6,7 @@ import {requireJsonObject} from "../runtime_decode.ts";
 import {decodeTaskLeaseAuthority, normalizeAgent, normalizeGoalId, normalizeTodoId,
   normalizeOwner, normalizeIdempotencyKey, normalizeTtl,
   type AuthorityFacts, type TodoFact, type TodoFactField} from "./task_lease_acquire.ts";
-import {decodeLocalAuthorityShadowBinding, type LocalAuthorityShadowBinding} from "../coordination/local_authority_shadow_outbox.ts";
+import {decodeRuntimeShadowBinding, type RuntimeShadowBinding} from "../coordination/runtime_shadow_outbox.ts";
 import type {LocalLeaseRequest} from "./canonical_task_lease_lifecycle.ts";
 import {TASK_LEASE_LIFECYCLE_REQUEST_SCHEMA, TASK_LEASE_CANONICAL_RENEW_REQUEST_SCHEMA,
   TASK_LEASE_CANONICAL_LIFECYCLE_REQUEST_SCHEMA, TASK_LEASE_CANONICAL_CLAIM_TRANSFER_REQUEST_SCHEMA}
@@ -61,7 +61,7 @@ export interface LifecycleRequest {
   fence_operation_id: string | null;
   current_time: Date | null;
   owner_pid: number | null;
-  runtime_shadow: LocalAuthorityShadowBinding | null;
+  runtime_shadow: RuntimeShadowBinding | null;
 }
 
 
@@ -452,6 +452,6 @@ export function decodeTaskLeaseLifecycleRequest(value: unknown): DecodedLifecycl
     fence_expected_lease_epoch: fenceExpectedLeaseEpoch,
     fence_operation_id: fenceOperationId,
     owner_pid: optionalPositiveInteger(input.owner_pid, "owner_pid"),
-    runtime_shadow: decodeLocalAuthorityShadowBinding(input.runtime_shadow),
+    runtime_shadow: decodeRuntimeShadowBinding(input.runtime_shadow),
   }};
 }

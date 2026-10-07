@@ -451,10 +451,10 @@ def test_prose_guard_ignores_resume_evaluation_clock(
     )
     assert changed is True
 
-    from loopx.control_plane.coordination.local_authority_shadow_adapter import (
+    from loopx.control_plane.coordination.runtime_shadow_adapter import (
         todo_partition_projector,
     )
-    from loopx.control_plane.coordination.local_authority_shadow_projection import (
+    from loopx.control_plane.coordination.authority_projection import (
         partition_comparison_view,
     )
 
@@ -472,7 +472,7 @@ def test_prose_guard_ignores_resume_evaluation_clock(
         return project_at_distinct_time
 
     monkeypatch.setattr(
-        "loopx.control_plane.coordination.local_authority_shadow_adapter.todo_partition_projector",
+        "loopx.control_plane.coordination.runtime_shadow_adapter.todo_partition_projector",
         ticking_projector,
     )
     goal = json.loads(registry.read_text(encoding="utf-8"))["goals"][0]
@@ -687,7 +687,7 @@ def test_refresh_owned_next_action_holds_before_state_change(tmp_path: Path) -> 
 
 
 def test_active_capture_prepare_failure_holds_primary_before_any_transition(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+    from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
     from loopx.control_plane.coordination.shadow_management import ShadowManagementError
     registry, state, root = fixture(tmp_path)
     value = json.loads(registry.read_text())
@@ -716,7 +716,7 @@ def test_all_todo_transaction_owners_enforce_active_preparation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str,
 ) -> None:
     from loopx import todos
-    from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+    from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
     from loopx.control_plane.coordination.shadow_management import ShadowManagementError
     registry, state, root = fixture(tmp_path)
     seed = todos.add_goal_todo(registry_path=registry, goal_id=GOAL, role="agent",

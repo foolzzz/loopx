@@ -142,11 +142,6 @@ COORDINATION_STATE_CONTRACT: Final = _freeze({'schema_version': 'loopx_coordinat
                              'todo_read_request_schema': 'loopx_coordination_runtime_shadow_todo_read_v0',
                              'todo_read_result_schema': 'loopx_coordination_runtime_shadow_todo_read_result_v0'},
  'local_authority_shadow_protocol': {'binding_schema': 'loopx_coordination_runtime_shadow_binding_v0',
-                                     'config_schema': 'loopx_local_authority_shadow_config_v0',
-                                     'request_schema': 'loopx_local_authority_shadow_request_v0',
-                                     'projection_schema': 'loopx_local_authority_shadow_projection_v0',
-                                     'evidence_schema': 'loopx_local_authority_shadow_evidence_v0',
-                                     'observation_receipt_schema': 'loopx_local_authority_shadow_observation_receipt_v0',
                                      'outbox_entry_schema': 'loopx_local_authority_shadow_outbox_entry_v1',
                                      'outbox_commit_schema': 'loopx_local_authority_shadow_outbox_commit_v1',
                                      'drain_cursor_schema': 'loopx_local_authority_shadow_drain_cursor_v0',
@@ -244,11 +239,6 @@ COORDINATION_RUNTIME_SHADOW_TODO_READ_REQUEST_SCHEMA: Final[str] = 'loopx_coordi
 COORDINATION_RUNTIME_SHADOW_TODO_READ_RESULT_SCHEMA: Final[str] = 'loopx_coordination_runtime_shadow_todo_read_result_v0'
 
 LOCAL_AUTHORITY_SHADOW_BINDING_SCHEMA: Final[str] = 'loopx_coordination_runtime_shadow_binding_v0'
-LOCAL_AUTHORITY_SHADOW_CONFIG_SCHEMA: Final[str] = 'loopx_local_authority_shadow_config_v0'
-LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA: Final[str] = 'loopx_local_authority_shadow_request_v0'
-LOCAL_AUTHORITY_SHADOW_PROJECTION_SCHEMA: Final[str] = 'loopx_local_authority_shadow_projection_v0'
-LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA: Final[str] = 'loopx_local_authority_shadow_evidence_v0'
-LOCAL_AUTHORITY_SHADOW_OBSERVATION_RECEIPT_SCHEMA: Final[str] = 'loopx_local_authority_shadow_observation_receipt_v0'
 LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA: Final[str] = 'loopx_local_authority_shadow_outbox_entry_v1'
 LOCAL_AUTHORITY_SHADOW_OUTBOX_COMMIT_SCHEMA: Final[str] = 'loopx_local_authority_shadow_outbox_commit_v1'
 LOCAL_AUTHORITY_SHADOW_DRAIN_CURSOR_SCHEMA: Final[str] = 'loopx_local_authority_shadow_drain_cursor_v0'

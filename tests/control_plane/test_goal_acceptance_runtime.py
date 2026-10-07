@@ -10,7 +10,7 @@ from pathlib import Path
 from canonical_authority_fixture import initialize_canonical_authority
 
 from loopx.control_plane.coordination.local_authority import read_canonical_todo_fields_if_promoted
-from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+from loopx.control_plane.coordination.authority_projection import canonical_bytes
 from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_shadow_projection
 from loopx.control_plane.testing.quota_fixtures import quota_status_payload
 from loopx.control_plane.todos.summary_item import todo_summary_source_items

@@ -46,11 +46,6 @@ const capabilityCopy: Record<WorkspaceLocale, Record<string, LocalizedCopy>> = {
       displayName: "Lark Kanban heartbeat sync",
       description: "Synchronizes accepted LoopX work state to the configured Lark Kanban heartbeat surface.",
     },
-    local_authority_shadow: {
-      displayName: "Retired authority observation",
-      description: "No longer writes observations. Retained records are read-only, not promotion evidence.",
-      readOnlyReason: "Clear the old setting with configure-goal --clear-local-authority-shadow. Runtime shadow requires separate configuration and bootstrap.",
-    },
     coordination_runtime_shadow: {
       displayName: "Coordination runtime shadow",
       description: "Captures transaction-bound Todo and task-lease mutations for reviewed whole-Goal coordination-authority promotion.",
@@ -110,11 +105,6 @@ const capabilityCopy: Record<WorkspaceLocale, Record<string, LocalizedCopy>> = {
     lark_kanban_heartbeat_sync: {
       displayName: "飞书看板心跳同步",
       description: "把 LoopX 已接受的工作状态同步到配置好的飞书看板心跳界面。",
-    },
-    local_authority_shadow: {
-      displayName: "已退役的 Authority 观测",
-      description: "不再写入观测。保留记录只读，不能作为晋升证据。",
-      readOnlyReason: "通过 configure-goal --clear-local-authority-shadow 清理旧设置；Runtime shadow 需要另行配置与 bootstrap。",
     },
     coordination_runtime_shadow: {
       displayName: "协调 Runtime 影子",

@@ -6,8 +6,8 @@ import type { JsonObject } from "../effect_program.ts";
 import { durableWriteJson } from "../effect_runtime_io.ts";
 import { authorityUnicodeCompare, canonicalAuthorityBytes } from "./authority_store_codec.ts";
 import { requireShadowCaptureBinding, ShadowManagementError } from "./shadow_management.ts";
-import { outboxEntryIdentity, OUTBOX_ENTRY_FILE_PATTERN } from "./local_authority_shadow_identity.ts";
-import { readProvenShadowSequence } from "./local_authority_shadow.ts";
+import { outboxEntryIdentity, OUTBOX_ENTRY_FILE_PATTERN } from "./runtime_shadow_identity.ts";
+import { readProvenShadowSequence } from "./runtime_shadow_candidate.ts";
 import {
   LOCAL_AUTHORITY_SHADOW_BINDING_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_DRAIN_CURSOR_SCHEMA,
@@ -36,15 +36,15 @@ export const LEASE_PARTITION = "leases";
 const LEASE_FILE = /^[A-Za-z0-9_.-]+\.json$/u;
 const LEASE_SOURCE_FIELDS = ["todo_id", "version", "lease_epoch", "status", "updated_at"] as const;
 
-export interface LocalAuthorityShadowBinding {
+export interface RuntimeShadowBinding {
   schema_version: typeof LOCAL_AUTHORITY_SHADOW_BINDING_SCHEMA;
   provider: "file_v0";
 }
 
 /** Decode the optional per-request binding; anything but the exact contract is "absent". */
-export function decodeLocalAuthorityShadowBinding(
+export function decodeRuntimeShadowBinding(
   value: unknown,
-): LocalAuthorityShadowBinding | null {
+): RuntimeShadowBinding | null {
   if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }

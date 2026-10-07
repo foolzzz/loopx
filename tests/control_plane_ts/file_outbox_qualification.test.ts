@@ -6,14 +6,14 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { canonicalAuthorityBytes } from "../../loopx/control_plane/coordination/authority_store_codec.ts";
-import { commitLocalAuthorityShadowEntry } from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
+import { commitRuntimeShadowEntry } from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
 
 test("a drained entry cannot silently bootstrap a missing candidate", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "loopx-entry-no-bootstrap-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const projection = { handoff_mode: "hard_lease", todos: [] };
   const digest = `sha256:${createHash("sha256").update(canonicalAuthorityBytes(projection)).digest("hex")}`;
-  const result = await commitLocalAuthorityShadowEntry({
+  const result = await commitRuntimeShadowEntry({
     runtime_root: root,
     goal_id: "goal-a",
     entry: {

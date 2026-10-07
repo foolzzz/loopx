@@ -1,7 +1,7 @@
 """The production Python bridge must not sanitize corruption into empty evidence."""
 import pytest
 
-from loopx.control_plane.coordination.local_authority_shadow_projection import (
+from loopx.control_plane.coordination.authority_projection import (
     ProjectionValueError, canonical_bytes, todo_partition_projection,
 )
 from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_shadow_projection

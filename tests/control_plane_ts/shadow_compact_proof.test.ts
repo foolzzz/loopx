@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { JsonObject } from "../../loopx/control_plane/effect_program.ts";
 import { coordinationTodoReadModel } from "../../loopx/control_plane/coordination/coordination_projection.ts";
-import { readLocalAuthorityShadow } from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
+import { readRuntimeShadowCandidate } from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
 import { LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA } from "../../loopx/control_plane/coordination/coordination_state_contract.generated.ts";
 import { productionScaleCoordinationFixture } from "./production_scale_coordination_fixture.ts";
 import { qualifiedPromotionSource } from "./promotion_recovery_conformance.ts";
@@ -30,8 +30,8 @@ for (const shape of ["native", "legacy"] as const) {
       goal_id: "goal-a",
       scan_limit: 10000,
     };
-    const full = await readLocalAuthorityShadow(request);
-    const compact = await readLocalAuthorityShadow({ ...request, read_model: "proof" });
+    const full = await readRuntimeShadowCandidate(request);
+    const compact = await readRuntimeShadowCandidate({ ...request, read_model: "proof" });
     assert.equal(full.status, "loaded");
     assert.equal(compact.status, "loaded");
     assert.ok(
@@ -67,10 +67,10 @@ for (const shape of ["native", "legacy"] as const) {
       );
       assert.equal("projection" in transactions[i], false);
     }
-    const progress = await readLocalAuthorityShadow({ ...request, read_model: "proof", scan_limit: 0 });
+    const progress = await readRuntimeShadowCandidate({ ...request, read_model: "proof", scan_limit: 0 });
     assert.deepEqual((progress.proof as JsonObject).transactions, []);
     assert.deepEqual((progress.proof as JsonObject).last_sequences, { todos: 1, leases: 0 });
-    const receipt = await readLocalAuthorityShadow({
+    const receipt = await readRuntimeShadowCandidate({
       ...request,
       read_model: "proof",
       scan_limit: 0,
@@ -78,6 +78,6 @@ for (const shape of ["native", "legacy"] as const) {
     });
     assert.deepEqual((receipt.proof as JsonObject).receipt, transactions[1]);
     assert.deepEqual((await source.store.loadAuthority()).status, "loaded");
-    await assert.rejects(readLocalAuthorityShadow({ ...request, read_model: "unchecked" }), /read_model/);
+    await assert.rejects(readRuntimeShadowCandidate({ ...request, read_model: "unchecked" }), /read_model/);
   });
 }

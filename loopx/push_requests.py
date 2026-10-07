@@ -301,7 +301,7 @@ def request_push(
     """
 
     from .agent_registry import load_goal_from_registry, orchestrator_agent_for_goal
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
     from .todo_acceptance import goal_uses_role_v1
 
     goal = load_goal_from_registry(Path(registry_path), goal_id)

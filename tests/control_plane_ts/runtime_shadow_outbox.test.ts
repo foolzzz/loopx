@@ -6,11 +6,11 @@ import test from "node:test";
 import { promisify } from "node:util";
 import type { JsonObject } from "../../loopx/control_plane/effect_program.ts";
 import {
-  commitLocalAuthorityShadowEntry,
-  localAuthorityShadowPartitionDigest,
-  readLocalAuthorityShadow,
-} from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
-import { outboxEntryIdentity, beginLeaseOutboxEntry } from "../../loopx/control_plane/coordination/local_authority_shadow_outbox.ts";
+  commitRuntimeShadowEntry,
+  runtimeShadowPartitionDigest,
+  readRuntimeShadowCandidate,
+} from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
+import { outboxEntryIdentity, beginLeaseOutboxEntry } from "../../loopx/control_plane/coordination/runtime_shadow_outbox.ts";
 import { requireShadowCaptureBinding } from "../../loopx/control_plane/coordination/shadow_management.ts";
 import * as schemas from "../../loopx/control_plane/coordination/coordination_state_contract.generated.ts";
 import { fixture, pendingEntry, settleFiles, todo, sha } from "./shadow_file_fixture.ts";
@@ -22,7 +22,7 @@ const PYTHON = resolveTestPython();
 test("one primary entry commits exactly once after a complete baseline", async (t) => {
   const f = await fixture(t);
   const request = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [todo()] });
-  const result = await commitLocalAuthorityShadowEntry(request);
+  const result = await commitRuntimeShadowEntry(request);
   assert.equal(result.outcome, "delivered"); assert.equal(result.cursor, "2");
   const loaded = await f.store.loadAuthority(); assert.equal(loaded.status, "loaded");
   if (loaded.status !== "loaded") return;
@@ -37,7 +37,7 @@ test("one primary entry commits exactly once after a complete baseline", async (
     assert.equal(receipt.receipts[0]?.parity_verdict, "not_evaluated");
   }
   await settleFiles(f, request, result);
-  const replay = await commitLocalAuthorityShadowEntry(request);
+  const replay = await commitRuntimeShadowEntry(request);
   assert.equal(replay.outcome, "replayed"); assert.equal(replay.cursor, "2");
   const history = await f.store.scanCommitted(null, 10);
   assert.equal(history.status, "page"); if (history.status === "page") assert.equal(history.transactions.length, 2);
@@ -46,15 +46,15 @@ test("one primary entry commits exactly once after a complete baseline", async (
 test("receipt replay rejects every changed identity field even after pending cleanup", async (t) => {
   const f = await fixture(t);
   const request = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [todo()] });
-  const result = await commitLocalAuthorityShadowEntry(request); await settleFiles(f, request, result);
+  const result = await commitRuntimeShadowEntry(request); await settleFiles(f, request, result);
   for (const field of ["prepared_sha256", "committed_sha256", "prepared_at", "committed_at"] ) {
     const changed = structuredClone(request); const entry = changed.entry as JsonObject;
     entry[field] = field.endsWith("sha256") ? sha("foreign") : "2026-09-06T01:00:00Z";
-    const replay = await commitLocalAuthorityShadowEntry(changed);
+    const replay = await commitRuntimeShadowEntry(changed);
     assert.equal(replay.outcome, "protocol_mismatch", field);
   }
   const changed = structuredClone(request); ((changed.entry as JsonObject).writer as JsonObject).operation_id = "foreign-operation";
-  assert.equal((await commitLocalAuthorityShadowEntry(changed)).outcome, "protocol_mismatch");
+  assert.equal((await commitRuntimeShadowEntry(changed)).outcome, "protocol_mismatch");
 });
 
 test("foreign root, lineage, source, sequence and digest cannot enter history", async (t) => {
@@ -66,12 +66,12 @@ test("foreign root, lineage, source, sequence and digest cannot enter history", 
     ["entry_id", `local-shadow-tx-${"f".repeat(64)}`, "entry_identity_mismatch"],
   ]) {
     const changed = structuredClone(request); (changed.entry as JsonObject)[field!] = value!;
-    assert.equal((await commitLocalAuthorityShadowEntry(changed)).reason_code, expected);
+    assert.equal((await commitRuntimeShadowEntry(changed)).reason_code, expected);
   }
   const digest = structuredClone(request); digest.partition_digest = sha("different");
-  assert.equal((await commitLocalAuthorityShadowEntry(digest)).reason_code, "partition_digest_mismatch");
+  assert.equal((await commitRuntimeShadowEntry(digest)).reason_code, "partition_digest_mismatch");
   const second = await pendingEntry(f, 2, { handoff_mode: "hard_lease", todos: [] });
-  assert.equal((await commitLocalAuthorityShadowEntry(second)).reason_code, "partition_sequence_mismatch");
+  assert.equal((await commitRuntimeShadowEntry(second)).reason_code, "partition_sequence_mismatch");
   assert.equal((await f.store.loadAuthority() as { cursor: string }).cursor, "1");
 });
 
@@ -81,7 +81,7 @@ test("first commit verifies the actual pending bytes instead of trusting a suppl
   const entry = request.entry as JsonObject;
   const path = join(f.root, "authority-shadow", "outbox", "goal-a", "todos", `0000000001-${entry.entry_id}.prepared.json`);
   await writeFile(path, `${await readFile(path, "utf8")} `);
-  assert.equal((await commitLocalAuthorityShadowEntry(request)).reason_code, "outbox_prepared_bytes_mismatch");
+  assert.equal((await commitRuntimeShadowEntry(request)).reason_code, "outbox_prepared_bytes_mismatch");
   assert.equal((await f.store.loadAuthority() as { cursor: string }).cursor, "1");
 });
 
@@ -103,7 +103,7 @@ test("a self-consistent foreign lineage entry cannot commit even with matching b
     await rename(oldPath, join(directory, `${newStem}.${suffix}.json`));
     entry[digestField!] = sha(raw);
   }
-  const rejected = await commitLocalAuthorityShadowEntry(request);
+  const rejected = await commitRuntimeShadowEntry(request);
   assert.equal(rejected.outcome, "failed");
   assert.equal(rejected.reason_code, "stale_generation");
   assert.equal((await f.store.loadAuthority() as { cursor: string }).cursor, "1");
@@ -112,21 +112,21 @@ test("a self-consistent foreign lineage entry cannot commit even with matching b
 test("abandoned settlement advances only settled sequence; unproved and implicit seeds hold", async (t) => {
   const f = await fixture(t);
   const abandoned = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [] }, { resolution: "abandoned", marker: false });
-  const result = await commitLocalAuthorityShadowEntry(abandoned); assert.equal(result.outcome, "delivered");
-  const view = await readLocalAuthorityShadow({ schema_version: schemas.LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
+  const result = await commitRuntimeShadowEntry(abandoned); assert.equal(result.outcome, "delivered");
+  const view = await readRuntimeShadowCandidate({ schema_version: schemas.LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
     runtime_root: f.root, goal_id: "goal-a", receipt_operation_id: (abandoned.entry as JsonObject).entry_id, scan_limit: 10 });
   assert.equal(view.status, "loaded");
   assert.deepEqual((view.proof as JsonObject).last_sequences, { todos: 1, leases: 0 });
   assert.deepEqual((view.proof as JsonObject).last_applied_sequences, { todos: 0, leases: 0 });
   assert.equal(((view.proof as JsonObject).receipt as JsonObject).operation_id, (abandoned.entry as JsonObject).entry_id);
   const unproved = await pendingEntry(f, 2, { handoff_mode: "hard_lease", todos: [] }, { resolution: "unproved", marker: false });
-  assert.equal((await commitLocalAuthorityShadowEntry(unproved)).reason_code, "source_transaction_unproved");
+  assert.equal((await commitRuntimeShadowEntry(unproved)).reason_code, "source_transaction_unproved");
 });
 
 test("concurrent commit_entry callers produce one exact receipt", async (t) => {
   const f = await fixture(t);
   const request = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [todo()] });
-  const results = await Promise.all([commitLocalAuthorityShadowEntry(request), commitLocalAuthorityShadowEntry(request)]);
+  const results = await Promise.all([commitRuntimeShadowEntry(request), commitRuntimeShadowEntry(request)]);
   assert.deepEqual(results.map((result) => result.outcome).sort(), ["delivered", "replayed"]);
 });
 
@@ -135,7 +135,7 @@ test("a lease writer with a missing cursor obtains its next sequence from proved
   const lease = { schema_version: "task_lease_v0", goal_id: "goal-a", todo_id: "todo_one", owner: "agent-a", version: 1,
     lease_epoch: 1, status: "active", updated_at: "2026-09-06T00:00:00Z" };
   const entry = await pendingEntry(f, 1, { leases: [lease] }, { partition: "leases", writeClass: "task_lease_acquire" });
-  const delivered = await commitLocalAuthorityShadowEntry(entry);
+  const delivered = await commitRuntimeShadowEntry(entry);
   assert.equal(delivered.outcome, "delivered");
   await settleFiles(f, entry, delivered);
   const directory = join(f.root, "authority-shadow", "outbox", "goal-a", "leases");
@@ -204,14 +204,14 @@ for (const [marker, resolution, expected] of [
   test(`marker presence ${marker} requires an independently proved ${resolution} resolution`, async (t) => {
     const f = await fixture(t);
     const request = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [todo()] }, { marker, resolution });
-    const result = await commitLocalAuthorityShadowEntry(request);
+    const result = await commitRuntimeShadowEntry(request);
     assert.equal(result.outcome, expected, JSON.stringify(result));
     if (marker && resolution === "committed") {
       await settleFiles(f, request, result);
       const relabelled = structuredClone(request);
       (relabelled.entry as JsonObject).resolution = "abandoned";
       relabelled.partition_projection = null; relabelled.partition_digest = null;
-      assert.equal((await commitLocalAuthorityShadowEntry(relabelled)).outcome, "protocol_mismatch");
+      assert.equal((await commitRuntimeShadowEntry(relabelled)).outcome, "protocol_mismatch");
     }
   });
 }
@@ -225,7 +225,7 @@ test("a missing primary mutation cannot hide behind continuous sequence numbers 
   const prepared = JSON.parse(await readFile(path, "utf8"));
   prepared.source.previous_partition_digest = (entry.source as JsonObject).previous_partition_digest;
   const raw = JSON.stringify(prepared); await writeFile(path, raw); entry.prepared_sha256 = sha(raw);
-  const result = await commitLocalAuthorityShadowEntry(request);
+  const result = await commitRuntimeShadowEntry(request);
   assert.equal(result.reason_code, "source_partition_continuity_unproved");
   assert.equal((await f.store.loadAuthority() as { cursor: string }).cursor, "1");
 });
@@ -239,7 +239,7 @@ test("Todo continuity ignores only a changed resume evaluation observation clock
     availability_reason: "resume_condition_pending",
   };
   const first = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [original] });
-  const delivered = await commitLocalAuthorityShadowEntry(first);
+  const delivered = await commitRuntimeShadowEntry(first);
   assert.equal(delivered.outcome, "delivered");
   await settleFiles(f, first, delivered);
 
@@ -255,19 +255,19 @@ test("Todo continuity ignores only a changed resume evaluation observation clock
       previousPartitionProjection: { handoff_mode: "hard_lease", todos: [reread] },
     },
   );
-  assert.equal((await commitLocalAuthorityShadowEntry(second)).outcome, "delivered");
+  assert.equal((await commitRuntimeShadowEntry(second)).outcome, "delivered");
 });
 
 test("prose bytes may change only while the canonical previous partition remains proved", async (t) => {
   const f = await fixture(t);
   await writeFile(f.statePath, `${await readFile(f.statePath, "utf8")}\n## Notes\nProse only.\n`);
   const request = await pendingEntry(f, 1, { handoff_mode: "hard_lease", todos: [todo()] });
-  assert.equal((await commitLocalAuthorityShadowEntry(request)).outcome, "delivered");
+  assert.equal((await commitRuntimeShadowEntry(request)).outcome, "delivered");
 });
 
 test("Python and TypeScript entry identity include the same root and lineage", async () => {
   const source = sha("source"); const root = sha("root");
-  const script = "from loopx.control_plane.coordination.local_authority_shadow_outbox import entry_identity\nprint(entry_identity(goal_id='goal-a',partition='leases',seq=7,source_ref='" + source + "',capture_lineage_id='lineage-a',source_root_digest='" + root + "'))";
+  const script = "from loopx.control_plane.coordination.runtime_shadow_outbox import entry_identity\nprint(entry_identity(goal_id='goal-a',partition='leases',seq=7,source_ref='" + source + "',capture_lineage_id='lineage-a',source_root_digest='" + root + "'))";
   const result = await execFileAsync(PYTHON, ["-c", script],
     { cwd: join(import.meta.dirname, "..", "..") });
   assert.equal(result.stdout.trim(), outboxEntryIdentity("goal-a", "leases", 7, source, "lineage-a", root));
@@ -289,7 +289,7 @@ test("Python and TypeScript share the stable Todo partition digest", async () =>
   };
   const script = [
     "import json, sys",
-    "from loopx.control_plane.coordination.local_authority_shadow_projection import partition_digest",
+    "from loopx.control_plane.coordination.authority_projection import partition_digest",
     "print(partition_digest(json.loads(sys.argv[1])))",
   ].join("\n");
   const result = await execFileAsync(
@@ -297,5 +297,5 @@ test("Python and TypeScript share the stable Todo partition digest", async () =>
     ["-c", script, JSON.stringify(projection)],
     { cwd: join(import.meta.dirname, "..", "..") },
   );
-  assert.equal(result.stdout.trim(), localAuthorityShadowPartitionDigest("todos", projection));
+  assert.equal(result.stdout.trim(), runtimeShadowPartitionDigest("todos", projection));
 });

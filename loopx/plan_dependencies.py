@@ -301,7 +301,7 @@ def annotate_todo_list_dependency_waits(
 ) -> dict[str, Any]:
     """Add ``dependency_wait`` to waiting rows of a ``todo list`` payload (role_v1)."""
 
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
 
     try:
         waits = dependency_waits(
@@ -468,7 +468,7 @@ def supersede_goal_todo_by(
     """
 
     from .agent_registry import lifecycle_agent_for_owner_write
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
     from .control_plane.todos.contract import compact_todo_text, normalize_todo_id
     from .todos import supersede_goal_todo, update_goal_todo
 

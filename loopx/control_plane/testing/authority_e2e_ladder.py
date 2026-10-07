@@ -39,7 +39,6 @@ from .authority_e2e_row_support import (
     sha256_hex,
     unverified,
 )
-from .authority_e2e_rows_stage2c import row_retired_observation_upgrade
 from .authority_e2e_rows_stage2c2 import (
     capture_workspace,
     delivered,
@@ -98,7 +97,6 @@ PROBE_SOURCES: tuple[Path, ...] = (
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_file_matrix.py",
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_fixtures.py",
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_row_support.py",
-    Path("loopx") / "control_plane" / "testing" / "authority_e2e_rows_stage2c.py",
     Path("loopx") / "control_plane" / "testing" / "authority_e2e_rows_stage2c2.py",
 )
 FILE_MATRIX_ROWS: tuple[str, ...] = (
@@ -335,15 +333,6 @@ LADDER_ROWS: tuple[LadderRow, ...] = (
         gate="env:postgresql",
         posix_only=False,
         run=_row_postgresql_conformance_live,
-    ),
-    LadderRow(
-        id="s2c1.retired_observation_upgrade",
-        stage="2c1",
-        title="Retired settings cannot write; explicit replacement bootstrap captures the next transaction",
-        product_path="real_cli",
-        gate="deterministic",
-        posix_only=False,
-        run=row_retired_observation_upgrade,
     ),
     LadderRow(
         id="s2c2.outbox_prepared_then_committed_entries",

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from loopx.control_plane import effect_runtime
-from loopx.control_plane.coordination.local_authority_shadow_projection import (
+from loopx.control_plane.coordination.authority_projection import (
     MAX_TRANSFER_BYTES, TRANSFER_RESULT_SCHEMA, source_effect_runtime_result,
 )
 

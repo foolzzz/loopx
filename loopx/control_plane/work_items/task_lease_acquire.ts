@@ -25,9 +25,9 @@ import {
 import { requireJsonObject } from "../runtime_decode.ts";
 import {
   beginLeaseOutboxEntry,
-  decodeLocalAuthorityShadowBinding,
-  type LocalAuthorityShadowBinding,
-} from "../coordination/local_authority_shadow_outbox.ts";
+  decodeRuntimeShadowBinding,
+  type RuntimeShadowBinding,
+} from "../coordination/runtime_shadow_outbox.ts";
 import { TASK_LEASE_ACQUIRE_REQUEST_SCHEMA, TASK_LEASE_CANONICAL_ACQUIRE_REQUEST_SCHEMA } from "../coordination/coordination_state_contract.generated.ts";
 
 export const TASK_LEASE_ACQUIRE_REQUEST_SCHEMA_VERSION =
@@ -87,7 +87,7 @@ interface AcquireRequest {
   ttl_seconds: number;
   expected_version: number | null;
   authority: AuthorityFacts;
-  runtime_shadow: LocalAuthorityShadowBinding | null;
+  runtime_shadow: RuntimeShadowBinding | null;
 }
 
 export interface LeaseRecord extends JsonObject {
@@ -424,7 +424,7 @@ function decodeRequest(value: unknown): AcquireRequest {
     ttl_seconds: normalizeTtl(request.ttl_seconds),
     expected_version: optionalInteger(request.expected_version, "expected_version"),
     authority,
-    runtime_shadow: decodeLocalAuthorityShadowBinding(request.runtime_shadow),
+    runtime_shadow: decodeRuntimeShadowBinding(request.runtime_shadow),
   };
 }
 

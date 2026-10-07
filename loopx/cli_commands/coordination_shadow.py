@@ -30,6 +30,18 @@ from ..registry import find_registry_goal
 from ..state_refresh import resolve_goal_state
 
 
+from ..control_plane.coordination.runtime_shadow_adapter import (
+    CLI_DRAIN_LOCK_TIMEOUT_SECONDS, drain_runtime_shadow_outbox, runtime_shadow_status,
+)
+from ..control_plane.coordination.runtime_shadow_outbox import OutboxError
+from ..file_lock import LockAcquireTimeoutError
+from ..paths import effective_runtime_root
+
+
+CLI_DRAIN_MAX_ENTRIES = 256
+CLI_DRAIN_BUDGET_SECONDS = 30.0
+COORDINATION_SHADOW_IO_SCHEMA = "loopx_coordination_shadow_io_cli_v0"
+
 PrintPayload = Callable[
     [dict[str, object], str, Callable[[dict[str, object]], str]], None
 ]
@@ -49,6 +61,8 @@ def register_coordination_shadow_command(
         required=True,
     )
     for name, help_text in (
+        ("drain", "Deliver pending transaction-bound outbox entries with bounded recovery."),
+        ("status", "Read capture configuration, backlog and candidate facts."),
         ("inspect", "Compare the current legacy projection with the file shadow."),
         (
             "qualify",
@@ -71,7 +85,11 @@ def register_coordination_shadow_command(
     ):
         action = actions.add_parser(name, help=help_text)
         action.add_argument("--goal-id", required=True)
-        if name != "recover-promotion":
+        if name == "drain":
+            action.add_argument("--max-entries", type=int, default=CLI_DRAIN_MAX_ENTRIES)
+            action.add_argument("--budget-seconds", type=float, default=CLI_DRAIN_BUDGET_SECONDS)
+            action.add_argument("--lock-timeout-seconds", type=float, default=CLI_DRAIN_LOCK_TIMEOUT_SECONDS)
+        if name not in {"recover-promotion", "drain", "status"}:
             action.add_argument("--project", type=Path)
             action.add_argument("--state-file", type=Path)
         if name in {"bootstrap", "rollback", "promote", "recover-promotion"}:
@@ -214,6 +232,9 @@ def handle_coordination_shadow_command(
 ) -> int | None:
     if args.command != "coordination-shadow":
         return None
+    if args.coordination_shadow_command in {"drain", "status"}:
+        return _handle_coordination_shadow_io(args, registry_path=registry_path,
+            runtime_root_arg=runtime_root_arg, output_format=output_format, print_payload=print_payload)
     try:
         registry = load_registry(registry_path)
         goal = find_registry_goal(registry, args.goal_id)
@@ -445,4 +466,148 @@ def handle_coordination_shadow_command(
             "decision_read_from_shadow": False,
         }
     print_payload(payload, output_format(args), _render)
+    return 0 if payload.get("ok") else 1
+
+
+_DRAIN_FIELDS = (
+    "outcome",
+    "reason_code",
+    "delivered",
+    "replayed",
+    "reconciled",
+    "no_op",
+    "reseeded",
+    "reclaimed_residue",
+    "pending_after",
+    "prepared_only_after",
+    "budget_exhausted",
+    "last_cursor",
+    "candidate_readback_verified",
+)
+
+
+def _drain_markdown_lines(payload: dict[str, object]) -> list[str]:
+    lines = [f"- {key}: `{payload.get(key)}`" for key in _DRAIN_FIELDS]
+    stopped_at = payload.get("stopped_at")
+    if isinstance(stopped_at, dict):
+        lines.append(
+            "- stopped_at: "
+            f"`{stopped_at.get('partition')}#{stopped_at.get('seq')}` "
+            f"→ `{stopped_at.get('outcome')}` ({stopped_at.get('reason_code')})"
+        )
+    return lines
+
+
+def _status_markdown_lines(payload: dict[str, object]) -> list[str]:
+    lines: list[str] = []
+    config = payload.get("config")
+    if isinstance(config, dict):
+        lines.append(f"- config: `{config.get('status')}`")
+    backlog = payload.get("outbox")
+    partitions = backlog.items() if isinstance(backlog, dict) else []
+    for partition, facts in partitions:
+        if isinstance(facts, dict):
+            lines.append(
+                f"- outbox.{partition}: committed_pending="
+                f"`{facts.get('committed_pending')}` prepared_only="
+                f"`{facts.get('prepared_only')}` cursor_last_seq="
+                f"`{facts.get('cursor_last_seq')}`"
+            )
+    candidate = payload.get("candidate")
+    if isinstance(candidate, dict):
+        lines.append(
+            f"- candidate: status=`{candidate.get('status')}` cursor="
+            f"`{candidate.get('cursor')}` store_identity=`{candidate.get('store_identity')}`"
+        )
+    lines.append(f"- store_bytes: `{payload.get('store_bytes')}`")
+    lines.append(f"- retention_pressure: `{payload.get('retention_pressure')}`")
+    return lines
+
+
+def _render_coordination_shadow_io(payload: dict[str, object]) -> str:
+    lines = [
+        "# LoopX Coordination Shadow",
+        "",
+        f"- ok: `{payload.get('ok')}`",
+        f"- action: `{payload.get('action')}`",
+        f"- goal_id: `{payload.get('goal_id')}`",
+    ]
+    if payload.get("error"):
+        lines.append(f"- error: {payload.get('error')}")
+    if payload.get("error_code"):
+        lines.append(f"- error_code: `{payload.get('error_code')}`")
+    if payload.get("action") == "drain":
+        lines.extend(_drain_markdown_lines(payload))
+    elif payload.get("action") == "status":
+        lines.extend(_status_markdown_lines(payload))
+    return "\n".join(lines) + "\n"
+
+
+def _handle_coordination_shadow_io(
+    args: argparse.Namespace,
+    *,
+    registry_path: Path,
+    runtime_root_arg: str | None,
+    output_format: Callable[..., str],
+    print_payload: PrintPayload,
+) -> int | None:
+    action = str(getattr(args, "coordination_shadow_command", None))
+    payload: dict[str, object]
+    try:
+        # The same resolver every writer hook uses, so drain and status address
+        # the lineage those hooks wrote.
+        runtime_root = effective_runtime_root(registry_path, runtime_root_arg)
+        if action == "drain":
+            if args.max_entries < 1:
+                raise ValueError("--max-entries must be at least 1")
+            result = drain_runtime_shadow_outbox(
+                registry_path=registry_path,
+                runtime_root=runtime_root,
+                goal_id=args.goal_id,
+                max_entries=args.max_entries,
+                budget_seconds=args.budget_seconds,
+                lock_timeout_seconds=args.lock_timeout_seconds,
+            )
+            payload = {
+                "schema_version": COORDINATION_SHADOW_IO_SCHEMA,
+                "action": "drain",
+                **result.to_payload(),
+            }
+        else:
+            payload = {
+                "schema_version": COORDINATION_SHADOW_IO_SCHEMA,
+                **runtime_shadow_status(
+                    registry_path=registry_path,
+                    runtime_root=runtime_root,
+                    goal_id=args.goal_id,
+                ),
+            }
+    except OutboxError as exc:
+        payload = {
+            "ok": False,
+            "schema_version": COORDINATION_SHADOW_IO_SCHEMA,
+            "action": action,
+            "goal_id": args.goal_id,
+            "error": str(exc),
+            "error_code": exc.reason_code,
+        }
+    except LockAcquireTimeoutError as exc:
+        payload = {
+            "ok": False,
+            "schema_version": COORDINATION_SHADOW_IO_SCHEMA,
+            "action": action,
+            "goal_id": args.goal_id,
+            "error": str(exc),
+            **exc.to_payload(),
+        }
+    except Exception as exc:
+        payload = {
+            "ok": False,
+            "schema_version": COORDINATION_SHADOW_IO_SCHEMA,
+            "action": action,
+            "goal_id": args.goal_id,
+            "error": str(exc),
+            "error_code": exc.__class__.__name__,
+        }
+    print_payload(payload, output_format(args), _render_coordination_shadow_io)
     return 0 if payload.get("ok") else 1

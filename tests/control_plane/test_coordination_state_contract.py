@@ -26,16 +26,14 @@ from loopx.control_plane.coordination.coordination_state_contract_generated impo
     DELIVERY_WORKSPACE_SNAPSHOT_REQUEST_SCHEMA,
     DELIVERY_WORKSPACE_SNAPSHOT_RESULT_SCHEMA,
     DELIVERY_WORKSPACE_SNAPSHOT_SNAPSHOT_SCHEMA,
-    LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA,
     LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA,
-    LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA,
     LOCAL_COORDINATION_TODO_SNAPSHOT_PAGE_REQUEST_SCHEMA,
     LEGACY_COORDINATION_WRITE_CHECK_REQUEST_SCHEMA,
 )
 from loopx.control_plane.turn_driver import delivery_continuity
-from loopx.control_plane.coordination.coordination_state_contract_generated import LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA as BRIDGE_SHADOW_EVIDENCE_SCHEMA, LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA as BRIDGE_SHADOW_REQUEST_SCHEMA
-from loopx.control_plane.coordination.local_authority_shadow_outbox import (
+from loopx.control_plane.coordination.runtime_shadow_outbox import (
     OUTBOX_ENTRY_SCHEMA,
+    OUTBOX_COMMIT_SCHEMA,
 )
 from loopx.control_plane.coordination.runtime_shadow import (
     build_todo_runtime_shadow_projection,
@@ -176,9 +174,9 @@ def test_python_bridge_uses_generated_local_authority_protocol_schemas() -> None
 
 
 def test_python_shadow_bridges_use_generated_protocol_schemas() -> None:
-    assert BRIDGE_SHADOW_REQUEST_SCHEMA == LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA
-    assert BRIDGE_SHADOW_EVIDENCE_SCHEMA == LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA
     assert OUTBOX_ENTRY_SCHEMA == LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA
+    assert OUTBOX_ENTRY_SCHEMA == "loopx_local_authority_shadow_outbox_entry_v1"
+    assert OUTBOX_COMMIT_SCHEMA == "loopx_local_authority_shadow_outbox_commit_v1"
     assert (
         build_todo_runtime_shadow_projection(goal_id="goal_contract", todos=[])[
             "schema_version"

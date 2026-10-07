@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
-from test_local_authority_shadow_drain import _drain, _fixture, _record_todo_write
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
+from test_runtime_shadow_drain import _drain, _fixture, _record_todo_write
 
 
 PLAN = "coordination.runtime_shadow.plan_drain"

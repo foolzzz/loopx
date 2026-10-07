@@ -77,7 +77,7 @@ def native(tmp_path: Path, module: str, function: str, request: dict) -> dict:
 
 
 def history(tmp_path: Path, runtime: Path) -> list[dict]:
-    result = native(tmp_path, "loopx/control_plane/coordination/local_authority_shadow.ts", "readLocalAuthorityShadow", {
+    result = native(tmp_path, "loopx/control_plane/coordination/runtime_shadow_candidate.ts", "readRuntimeShadowCandidate", {
         "schema_version": "loopx_coordination_runtime_shadow_outbox_read_v0", "runtime_root": str(runtime),
         "goal_id": "goal-a", "scan_limit": 10000,
     })
@@ -163,7 +163,7 @@ def test_public_cli_and_independent_native_writer_qualify_one_complete_lineage(t
     read = cli(registry, runtime, "coordination-shadow", "read-candidate", "--goal-id", "goal-a", "--todo-id", first["todo_id"])
     assert read["read_candidate"]["read_candidate_qualified"] is True
     assert read["read_candidate"]["decision_read_from_shadow"] is False
-    proof = native(tmp_path, "loopx/control_plane/coordination/local_authority_shadow.ts", "readLocalAuthorityShadow", {
+    proof = native(tmp_path, "loopx/control_plane/coordination/runtime_shadow_candidate.ts", "readRuntimeShadowCandidate", {
         "schema_version": "loopx_coordination_runtime_shadow_outbox_read_v0", "runtime_root": str(runtime),
         "goal_id": "goal-a", "scan_limit": 10000,
     })
@@ -505,9 +505,9 @@ def test_public_committed_primary_cannot_be_relabelled_abandoned_by_native_reque
     from shadow_e2e_fixture import workspace as crash_workspace
 
     from loopx.control_plane.coordination import (
-        local_authority_shadow_adapter as adapter,
+        runtime_shadow_adapter as adapter,
     )
-    from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+    from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 
     w = crash_workspace(tmp_path)
     w.crash("before_commit", "todo", "add", "--role", "agent", "--text", "A committed primary is never abandoned")
@@ -523,7 +523,7 @@ def test_public_committed_primary_cannot_be_relabelled_abandoned_by_native_reque
     assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
     assert w.state.read_bytes() == primary
     assert w.drain()["ok"] is True
-    view = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     [transaction] = view["proof"]["transactions"][1:]
     assert transaction["receipts"][0]["resolution"] == "committed"
     assert transaction["receipts"][0]["no_op"] is False

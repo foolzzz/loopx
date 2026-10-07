@@ -21,19 +21,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from ..coordination.authority_core import HandoffMode
-from ..coordination.coordination_state_contract_generated import (
-    LOCAL_AUTHORITY_SHADOW_CONFIG_SCHEMA,
-)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TS_READBACK_PROBE = Path("tests") / "control_plane_ts" / "authority_store_readback_probe.ts"
 DEFAULT_REGISTERED_AGENTS: tuple[str, ...] = ("agent-a", "agent-b")
 RUNTIME_ROOT_BINDINGS: tuple[str, ...] = ("registry", "cli_override", "cli_override_divergent")
 HANDOFF_MODES: tuple[str, ...] = tuple(mode.value for mode in HandoffMode)
-LOCAL_AUTHORITY_SHADOW_CONFIG = {
-    "schema_version": LOCAL_AUTHORITY_SHADOW_CONFIG_SCHEMA,
-    "mode": "file_one_way",
-}
 
 JsonObject = dict[str, Any]
 
@@ -91,7 +84,7 @@ class GoalWorkspace:
 
     @property
     def shadow_directory(self) -> Path:
-        return self.runtime_root / "authority-shadow" / "file" / self.goal_id
+        return self.runtime_root / "authority-shadow" / "file-v0"
 
     def cli_prefix(self) -> list[str]:
         prefix = ["--registry", str(self.registry_path)]
@@ -99,31 +92,6 @@ class GoalWorkspace:
             prefix.extend(["--runtime-root", str(self.runtime_root)])
         prefix.extend(["--format", "json"])
         return prefix
-
-
-@dataclass(frozen=True)
-class LegacyMigrationSource:
-    """A legacy registry/runtime pair whose old shadow lineage must never migrate."""
-
-    old_goal_id: str
-    new_goal_id: str
-    old_store_identity: str
-    legacy_revision: str
-    private_marker: str
-    legacy_registry: Path
-    target_registry: Path
-    legacy_runtime: Path
-    target_runtime: Path
-    source_repo: Path
-    target_repo: Path
-    home: Path
-
-    @property
-    def target_shadow_directory(self) -> Path:
-        return self.target_runtime / "authority-shadow" / "file" / self.new_goal_id
-
-    def cli_prefix(self) -> list[str]:
-        return ["--registry", str(self.target_registry), "--format", "json"]
 
 
 @dataclass(frozen=True)
@@ -172,7 +140,6 @@ def build_goal_workspace(
     *,
     goal_id: str,
     handoff_mode: str = "legacy",
-    shadow_enabled: bool = False,
     runtime_root_binding: str = "registry",
     registered_agents: Sequence[str] = DEFAULT_REGISTERED_AGENTS,
 ) -> GoalWorkspace:
@@ -206,8 +173,6 @@ def build_goal_workspace(
         "agent_model": "peer_v1",
         "registered_agents": list(registered_agents),
     }
-    if shadow_enabled:
-        coordination["authority_shadow"] = dict(LOCAL_AUTHORITY_SHADOW_CONFIG)
     registry_path = root / f"{goal_id}-registry.json"
     registry_path.write_text(
         json.dumps(
@@ -236,106 +201,6 @@ def build_goal_workspace(
         home=home,
         runtime_root_binding=runtime_root_binding,
         registry_runtime_root=registry_runtime_root,
-    )
-
-
-def build_legacy_migration_source(
-    root: Path,
-    *,
-    old_goal_id: str,
-    new_goal_id: str,
-    old_store_identity: str = "file:11111111111111111111111111111111",
-    registered_agents: Sequence[str] = DEFAULT_REGISTERED_AGENTS,
-) -> LegacyMigrationSource:
-    """Lift the state-migration shadow fixture: a legacy goal with a stale lineage."""
-
-    legacy_runtime = root / "legacy-runtime"
-    target_runtime = root / "target-runtime"
-    source_repo = root / "legacy-repo"
-    target_repo = root / "target-repo"
-    home = root / "migration-home"
-    for directory in (source_repo, target_repo, home):
-        directory.mkdir()
-    source_state = source_repo / "ACTIVE_GOAL_STATE.md"
-    source_state.write_text(
-        "---\n"
-        f"goal_id: {old_goal_id}\n"
-        "handoff_mode: soft_claim\n"
-        "updated_at: 2026-09-02T00:00:00+10:00\n"
-        "---\n\n"
-        "## Agent Todo\n\n"
-        "- [ ] Preserve the new local authority only.\n",
-        encoding="utf-8",
-    )
-    legacy_registry = root / "legacy-registry.json"
-    legacy_registry.write_text(
-        json.dumps(
-            {
-                "schema_version": "0.1",
-                "common_runtime_root": str(legacy_runtime),
-                "goals": [
-                    {
-                        "id": old_goal_id,
-                        "status": "active",
-                        "repo": str(source_repo),
-                        "state_file": source_state.name,
-                        "coordination": {
-                            "agent_model": "peer_v1",
-                            "registered_agents": list(registered_agents),
-                            "authority_shadow": dict(LOCAL_AUTHORITY_SHADOW_CONFIG),
-                        },
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    lease_dir = legacy_runtime / "goals" / old_goal_id / "task-leases"
-    lease_dir.mkdir(parents=True)
-    (lease_dir / "safe-local.json").write_text(
-        json.dumps(
-            {
-                "goal_id": old_goal_id,
-                "todo_id": "safe-local",
-                "owner": registered_agents[0],
-                "version": 1,
-                "lease_epoch": 1,
-                "status": "released",
-            }
-        ),
-        encoding="utf-8",
-    )
-    legacy_revision = "file:99:legacy-lineage"
-    private_marker = "must-never-migrate"
-    source_shadow = legacy_runtime / "authority-shadow" / "file" / old_goal_id
-    source_shadow.mkdir(parents=True)
-    (source_shadow / "store-identity").write_text(old_store_identity, encoding="utf-8")
-    (source_shadow / "authority-store-legacy.json").write_text(
-        json.dumps(
-            {
-                "goal_id": old_goal_id,
-                "store_identity": old_store_identity,
-                "provider_revision": legacy_revision,
-                "cursor": "99",
-                "private_provider_byte": private_marker,
-                "source_path": str(source_repo),
-            }
-        ),
-        encoding="utf-8",
-    )
-    return LegacyMigrationSource(
-        old_goal_id=old_goal_id,
-        new_goal_id=new_goal_id,
-        old_store_identity=old_store_identity,
-        legacy_revision=legacy_revision,
-        private_marker=private_marker,
-        legacy_registry=legacy_registry,
-        target_registry=root / "target-registry.json",
-        legacy_runtime=legacy_runtime,
-        target_runtime=target_runtime,
-        source_repo=source_repo,
-        target_repo=target_repo,
-        home=home,
     )
 
 
@@ -527,15 +392,12 @@ __all__ = [
     "GoalWorkspace",
     "HANDOFF_MODES",
     "JsonObject",
-    "LOCAL_AUTHORITY_SHADOW_CONFIG",
-    "LegacyMigrationSource",
     "ProbeError",
     "REPO_ROOT",
     "RUNTIME_ROOT_BINDINGS",
     "TS_READBACK_PROBE",
     "TapSummary",
     "build_goal_workspace",
-    "build_legacy_migration_source",
     "cli_command",
     "cli_env",
     "kill_now",

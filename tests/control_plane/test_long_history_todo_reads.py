@@ -59,7 +59,7 @@ def test_display_cannot_bypass_full_source_resume_evaluation(condition: dict | N
 def test_capture_preserves_archived_dependency_for_real_canonical_cli_read(tmp_path: Path) -> None:
     from loopx.history import load_registry
     from loopx.control_plane.coordination.runtime_shadow import build_runtime_shadow_source_snapshot
-    from loopx.control_plane.coordination.local_authority_shadow_adapter import todo_partition_projector
+    from loopx.control_plane.coordination.runtime_shadow_adapter import todo_partition_projector
     from tests.control_plane.canonical_authority_fixture import initialize_canonical_authority
     state, runtime, registry = tmp_path / "STATE.md", tmp_path / "runtime", tmp_path / "registry.json"
     state.write_text("# Goal\n\n## Agent Todo\n\n- [ ] Waiting work\n"

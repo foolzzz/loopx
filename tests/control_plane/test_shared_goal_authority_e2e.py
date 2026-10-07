@@ -8,7 +8,6 @@ separately so the standalone runner cannot report green while unverified.
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 from collections.abc import Iterator
@@ -25,22 +24,6 @@ PENDING_ONLY_ROW_ID = "s2c2.sustained_parity_soak"
 PENDING_ROW_IDS = (PENDING_ONLY_ROW_ID,)
 CHEAP_DETERMINISTIC_ROW_ID = "s0.file_matrix_twelve_rows"
 FULL_LADDER_VARIABLE = "LOOPX_LADDER_FULL"
-# Rows whose assertions the in-repo CLI E2E suite already pins through the same
-# product path. The pytest job runs close to its time budget, so the default CI
-# projection keeps the rows that only the ladder exercises and defers these to
-# the example runner (or LOOPX_LADDER_FULL=1).
-# Rows the default CI projection skips, each named with the product-CLI E2E
-# test that pins the same assertions; a guard below fails when a twin is
-# renamed or deleted so the skip cannot outlive its coverage.
-CLI_E2E_TWIN_FILE = Path(__file__).with_name("test_local_authority_shadow_cli_e2e.py")
-CLI_E2E_COVERAGE = {
-    "s2c1.retired_observation_upgrade": "test_retired_setting_cannot_enable_capture_or_satisfy_bootstrap",
-}
-CLI_E2E_COVERED_ROW_IDS = tuple(CLI_E2E_COVERAGE)
-CLI_E2E_COVERAGE_REASON = (
-    "pinned by tests/control_plane/test_local_authority_shadow_cli_e2e.py; "
-    "run examples/shared-goal-authority-e2e/ladder.py or set LOOPX_LADDER_FULL=1"
-)
 # The Stage 2C parity half: every row below is executable through the public
 # CLI and the shadow management interfaces. They carry the ``stage2c_e2e``
 # marker so CI runs them in the stage2c correctness job with the other real
@@ -66,15 +49,12 @@ STAGE_2C2_POSIX_ONLY_ROW_IDS = (
 
 
 def _row_parameters() -> Iterator[object]:
-    full_ladder = os.environ.get(FULL_LADDER_VARIABLE) == "1"
     for row in ladder.LADDER_ROWS:
         marks = []
         if row.posix_only:
             marks.append(
                 pytest.mark.skipif(os.name == "nt", reason="requires POSIX cross-process flock and SIGKILL")
             )
-        if row.id in CLI_E2E_COVERED_ROW_IDS and not full_ladder:
-            marks.append(pytest.mark.skip(reason=CLI_E2E_COVERAGE_REASON))
         if row.stage == "2c2":
             marks.append(pytest.mark.stage2c_e2e)
         yield pytest.param(row, id=row.id, marks=marks)
@@ -103,13 +83,12 @@ def test_ladder_row_passes_or_is_declared_unverified(
 
 def test_registry_vocabulary_and_pending_rows_are_declared_not_claimed() -> None:
     row_ids = [row.id for row in ladder.LADDER_ROWS]
-    assert set(CLI_E2E_COVERED_ROW_IDS) < set(row_ids)
     pending_ids = [row.id for row in ladder.PENDING_ROWS]
     assert len(set(row_ids)) == len(row_ids)
     assert set(row_ids).isdisjoint(pending_ids)
     assert [row.id for row in ladder.LADDER_ROWS if row.stage == "2c2"] == list(STAGE_2C2_ROW_IDS)
     assert pending_ids == list(PENDING_ROW_IDS)
-    assert {row.stage for row in ladder.LADDER_ROWS} == {"0", "1", "2b", "2c1", "2c2"}
+    assert {row.stage for row in ladder.LADDER_ROWS} == {"0", "1", "2b", "2c2"}
     assert {row.stage for row in ladder.PENDING_ROWS} == {"2c2"}
     assert all("#3819" not in row.pending_until for row in ladder.PENDING_ROWS)
     for row_id in STAGE_2C2_ROW_IDS:
@@ -321,14 +300,6 @@ def test_privacy_leak_confined_to_bindings_still_fails_the_run() -> None:
     assert report["exit_policy"]["exit_code"] == 1
     # No relaxation flag reaches a privacy violation.
     assert ladder.exit_code_for(report["summary"], allow_unverified=True, allow_pending=True) == 1
-
-
-def test_ci_projection_skips_only_rows_whose_cli_e2e_twin_still_exists() -> None:
-    tree = ast.parse(CLI_E2E_TWIN_FILE.read_text(encoding="utf-8"))
-    defined = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
-    for row_id, twin in CLI_E2E_COVERAGE.items():
-        ladder.row_by_id(row_id)
-        assert twin in defined, f"{row_id} is skipped by default but its twin {twin} no longer exists"
 
 
 def test_list_prints_rows_and_pending_declarations(

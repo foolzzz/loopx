@@ -220,7 +220,7 @@ class ChatGateActionMixin:
         ``already_applied``; a missing one runs now.
         """
 
-        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .paths import effective_runtime_root
         from .plan_cards import settle_gate_decision
 
         settled = settle_gate_decision(

@@ -81,7 +81,7 @@ def test_missing_replaced_stale_context_requires_reread_and_preserves_delivery(t
 def test_context_reads_real_canonical_todo_and_owner_acceptance(tmp_path, monkeypatch, provider):
     from canonical_authority_fixture import initialize_canonical_authority, isolate_sqlite_runtime
     from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_shadow_projection
-    from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+    from loopx.control_plane.coordination.authority_projection import canonical_bytes
     from loopx.control_plane.goals.checkpoint_context_io import _source_facts, _source_guard
     from loopx.control_plane.quota.settlement import SettlementIdentity
     import hashlib

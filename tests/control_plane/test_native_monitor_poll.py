@@ -30,7 +30,7 @@ def _canonical(tmp_path, native=False, provider="file", lease=None):
         handoff_mode="hard_lease" if lease is not None else "soft_claim")
     if native:
         from loopx.control_plane.coordination.coordination_state_contract import TODO_DOMAIN_RECORD_FIELDS
-        from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+        from loopx.control_plane.coordination.authority_projection import canonical_bytes
         records = [{**{k: v for k, v in item.items() if k in TODO_DOMAIN_RECORD_FIELDS},
             "schema_version": "todo_domain_record_v0"} for item in projection["todos"]]
         projection["todos"] = records

@@ -152,9 +152,8 @@ import {
 import {executeTaskLeaseAcquire} from "./work_items/task_lease_acquire.ts";
 import { executeTaskLeaseLifecycle } from "./work_items/task_lease_lifecycle.ts";
 import {
-  readLocalAuthorityShadow,
-  recordLocalAuthorityShadow,
-} from "./coordination/local_authority_shadow.ts";
+  readRuntimeShadowCandidate,
+} from "./coordination/runtime_shadow_candidate.ts";
 import { evaluateTaskLeaseLifecycleDecision } from "./work_items/task_lease_lifecycle_decision.ts";
 import {
   bootstrapCoordinationRuntimeShadow,
@@ -598,9 +597,8 @@ export function createEffectRuntimeHandlers(
     ["scheduler.monitor_successor.plan", planMonitorSuccessor],
     ["scheduler.monitor_target.select", selectMonitorTodoRequest],
     ["capabilities.issue_fix.monitor_reconciliation.plan", planIssueFixMonitorReconciliation],
-    ["coordination.local_authority_shadow.record", recordLocalAuthorityShadow],
     ["coordination.runtime_shadow.commit_entry", deliverShadowEntry],
-    ["coordination.runtime_shadow.outbox_read", readLocalAuthorityShadow],
+    ["coordination.runtime_shadow.outbox_read", readRuntimeShadowCandidate],
     ["coordination.runtime_shadow.plan_drain", readShadowDrainPlan],
     [
       "effect.program_from_ordered_steps",
