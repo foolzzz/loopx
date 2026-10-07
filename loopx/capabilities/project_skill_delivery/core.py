@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from loopx import __version__
+from ...paths import project_registry_path
+
 
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
@@ -287,7 +289,7 @@ def inspect_project_skill(
         "skill_id": normalized_skill_id,
         "delivery": "project_managed_copy",
         "project": str(project_root),
-        "project_connected": (project_root / ".loopx" / "registry.json").is_file(),
+        "project_connected": (project_registry_path(project_root)).is_file(),
         "source": str(source),
         "source_digest": source_digest,
         "status": aggregate_status,

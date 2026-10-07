@@ -5,6 +5,8 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from ..semantic_preference import application_receipt, recall
 
 
@@ -50,8 +52,7 @@ def validate_issue_fix_pr_description_publication(
     """Require only proof that the PR-description recall path executed."""
 
     recall_required = (
-        Path(project).expanduser().resolve()
-        / ".loopx/config/semantic-preference.json"
+        project_state_path(Path(project).expanduser().resolve(), "config", "semantic-preference.json")
     ).exists()
     preference = (
         build_packet.get("semantic_preference")

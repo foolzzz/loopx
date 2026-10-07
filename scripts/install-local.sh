@@ -49,7 +49,6 @@ repo_root="$(cd "$script_dir/.." && pwd)"
 
 bin_dir="${LOOPX_BIN_DIR:-$HOME/.local/bin}"
 shell_profile="${LOOPX_SHELL_PROFILE:-}"
-codex_home="${CODEX_HOME:-$HOME/.codex}"
 skills_dir_explicit=0
 if [[ "${LOOPX_SKILLS_DIR+x}" == "x" ]]; then
   if [[ -z "$LOOPX_SKILLS_DIR" ]]; then
@@ -58,7 +57,6 @@ if [[ "${LOOPX_SKILLS_DIR+x}" == "x" ]]; then
   fi
   skills_dir_explicit=1
 fi
-skills_dir="${LOOPX_SKILLS_DIR:-$codex_home/skills}"
 entry_host_surface="${LOOPX_ENTRY_HOST_SURFACE:-}"
 if [[ -n "$entry_host_surface" && "$entry_host_surface" != "ark-managed-agent" ]]; then
   echo "loopx installer error: unsupported LOOPX_ENTRY_HOST_SURFACE: $entry_host_surface" >&2
@@ -663,6 +661,13 @@ if [[ -z "$shell_profile" ]]; then
 fi
 
 configure_python_runtime
+if [[ -n "${CODEX_HOME:-}" ]]; then
+  codex_home="$CODEX_HOME"
+else
+  codex_home="$(PYTHONSAFEPATH=1 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
+    "$LOOPX_PYTHON" -c 'from loopx.paths import home_codex_root; print(home_codex_root())')"
+fi
+skills_dir="${LOOPX_SKILLS_DIR:-$codex_home/skills}"
 promote_default=0
 if resolve_default_promotion; then
   promote_default=1

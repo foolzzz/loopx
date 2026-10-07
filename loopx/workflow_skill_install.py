@@ -11,6 +11,8 @@ import sys
 import tempfile
 from typing import Any, Iterator, Mapping
 
+from .paths import home_codex_root
+
 from . import __version__
 from .file_lock import exclusive_file_lock
 from .skill_install_readback import (
@@ -151,7 +153,7 @@ def resolve_workflow_skill_source() -> dict[str, Any]:
 def default_workflow_skills_dir(env: Mapping[str, str] | None = None) -> Path:
     source_env = os.environ if env is None else env
     configured = str(source_env.get("CODEX_HOME") or "").strip()
-    codex_root = Path(configured).expanduser() if configured else Path.home() / ".codex"
+    codex_root = Path(configured).expanduser() if configured else home_codex_root()
     return codex_root / "skills"
 
 

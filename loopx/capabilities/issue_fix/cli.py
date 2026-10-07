@@ -8,7 +8,7 @@ from typing import Any
 from ...agent_registry import load_goal_from_registry
 from ...boundary_authority import checkpointed_boundary_authority_summary
 from ...control_plane.runtime.time import now_utc_iso
-from ...paths import resolve_runtime_root
+from ...paths import resolve_runtime_root, DEFAULT_PROJECT_REGISTRY
 from ...domain_packs.issue_fix import (
     default_issue_fix_candidate_preflight_ledger_path,
     default_issue_fix_domain_state_ledger_path,
@@ -1098,7 +1098,7 @@ def handle_issue_fix_command(
                             runtime_root_arg,
                             registry_path=(
                                 registry_path
-                                or Path(".loopx/registry.json")
+                                or DEFAULT_PROJECT_REGISTRY
                             ),
                         ).resolve()
                     )

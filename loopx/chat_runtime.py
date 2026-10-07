@@ -10,6 +10,8 @@ import threading
 import time
 from typing import Any, Callable, Mapping, Protocol
 
+from .paths import codex_home_path
+
 from .chat_manager import (
     MANAGER_AGENT_GOAL_ID, MANAGER_CONTEXT_VERSION,
     is_manager_channel, manager_agent_objective, manager_model_config,
@@ -285,11 +287,7 @@ class ChatRuntimeController:
         self.manager_scope_resolver = manager_scope_resolver
         self.codex_bin = codex_bin
         # Capture once; the service's startup environment is not session identity.
-        self.codex_home = Path(
-            os.environ.get("LOOPX_CHAT_CODEX_HOME")
-            or os.environ.get("CODEX_HOME")
-            or "~/.codex"
-        ).expanduser().resolve()
+        self.codex_home = codex_home_path(os.environ.get("LOOPX_CHAT_CODEX_HOME")).resolve()
         self.claude_bin = claude_bin
         self.kiro_cli_bin = kiro_cli_bin
         self.startup_timeout_sec = startup_timeout_sec

@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from loopx.paths import default_runtime_root  # noqa: E402
+from loopx.paths import home_codex_root, default_runtime_root  # noqa: E402
 from loopx.rollout_event_log import (  # noqa: E402
     build_rollout_event,
     append_rollout_event,
@@ -164,7 +164,7 @@ def main() -> int:
     _add_common_path_args(sessions_parser)
     sessions_parser.add_argument("--agent-id")
     sessions_parser.add_argument("--todo-id")
-    sessions_parser.add_argument("--session-root", default="~/.codex/sessions")
+    sessions_parser.add_argument("--session-root", default=str(home_codex_root() / "sessions"))
     sessions_parser.set_defaults(func=handle_observe_codex_sessions)
 
     args = parser.parse_args()

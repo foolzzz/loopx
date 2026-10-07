@@ -170,12 +170,14 @@ PY
 }
 
 resolve_chat_codex_home() {
-  "$1" - "$chat_plist" <<'PY'
+  PYTHONSAFEPATH=1 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" "$1" - "$chat_plist" <<'PY'
 import os
 from pathlib import Path
 import plistlib
 import shlex
 import sys
+
+from loopx.paths import home_codex_root
 
 target = Path(sys.argv[1])
 selected = os.environ.get("LOOPX_CHAT_CODEX_HOME")
@@ -196,8 +198,8 @@ if not selected and target.exists():
                 if word == "export" and words[index + 1].startswith("CODEX_HOME="):
                     selected = words[index + 1].split("=", 1)[1]
                     break
-    selected = selected or str(Path.home() / ".codex")
-selected = selected or os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")
+    selected = selected or str(home_codex_root())
+selected = selected or os.environ.get("CODEX_HOME") or str(home_codex_root())
 path = Path(selected).expanduser()
 if not path.is_absolute():
     raise SystemExit("LoopX Chat Codex home must be absolute")

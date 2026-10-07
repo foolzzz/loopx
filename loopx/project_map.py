@@ -13,6 +13,7 @@ from .paths import (
     project_goal_state_dir,
     rel_or_abs,
     resolve_runtime_root,
+    DEFAULT_PROJECT_REGISTRY,
 )
 from .state_refresh import (
     derive_recommended_action,
@@ -43,7 +44,7 @@ READ_ONLY_MAP_OPT_IN_GATE = "read_only_map_opt_in"
 PROJECT_INVENTORY_PATHS = (
     "README.md",
     "AGENTS.md",
-    ".loopx/registry.json",
+    DEFAULT_PROJECT_REGISTRY.as_posix(),
     PROJECT_GOAL_STATE_ROOT.as_posix(),
     COLLOCATED_PROJECT_GOAL_STATE_ROOT.as_posix(),
     "docs",
@@ -136,7 +137,7 @@ def collect_project_inventory(project: Path | None, *, goal_id: str | None = Non
             }
         )
     registry_check = next(
-        (item for item in checks if item.get("path") == ".loopx/registry.json"),
+        (item for item in checks if item.get("path") == DEFAULT_PROJECT_REGISTRY.as_posix()),
         None,
     )
     goal_dir_check = next(
@@ -277,7 +278,7 @@ def derive_residual_risks(record: dict[str, Any], *, opt_in_required: bool) -> l
     missing_paths = {str(item.get("path")) for item in checks if isinstance(item, dict) and not item.get("exists")}
     missing_roles = {str(item.get("role")) for item in checks if isinstance(item, dict) and not item.get("exists")}
     goal_id = str(record.get("goal_id") or "")
-    if ".loopx/registry.json" in missing_paths:
+    if DEFAULT_PROJECT_REGISTRY.as_posix() in missing_paths:
         risks.append("project_local_registry_not_detected")
     goal_state_roots = {
         PROJECT_GOAL_STATE_ROOT.as_posix(),
@@ -288,7 +289,7 @@ def derive_residual_risks(record: dict[str, Any], *, opt_in_required: bool) -> l
     if "goal_state_dir" in missing_roles:
         risks.append(f"project_goal_state_dir_not_detected:{goal_id}" if goal_id else "project_goal_state_dir_not_detected")
     if (
-        ".loopx/registry.json" in missing_paths
+        DEFAULT_PROJECT_REGISTRY.as_posix() in missing_paths
         or goal_state_roots.issubset(missing_paths)
         or "goal_state_dir" in missing_roles
     ):

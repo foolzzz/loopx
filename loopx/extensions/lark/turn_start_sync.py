@@ -14,6 +14,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from ...file_lock import (
     LockAcquireTimeoutError,
     LockAcquisitionPolicy,
@@ -87,7 +89,7 @@ def _cursor_path(project: Path, *, route_key: str, source_fingerprint: str) -> P
     match = SOURCE_FINGERPRINT_PATTERN.fullmatch(source_fingerprint)
     if match is None:
         raise ValueError("Lark turn-start sync source fingerprint is invalid")
-    trusted_root = (project / ".loopx" / "inbox" / ".turn-start").resolve()
+    trusted_root = (project_state_path(project, "inbox", ".turn-start")).resolve()
     cursor_path = (trusted_root / route_key / f"{match.group(1)}.json").resolve()
     if not cursor_path.is_relative_to(trusted_root):
         raise ValueError("Lark turn-start sync cursor path escapes its private root")
@@ -209,7 +211,7 @@ def _dispatch_cursor_path(project: Path, *, source_fingerprint: str) -> Path:
     if match is None:
         raise ValueError("Lark turn-start dispatch fingerprint is invalid")
     trusted_root = (
-        project / ".loopx" / "inbox" / ".turn-start" / ".dispatch"
+        project_state_path(project, "inbox", ".turn-start") / ".dispatch"
     ).resolve()
     cursor_path = (trusted_root / f"{match.group(1)}.json").resolve()
     if not cursor_path.is_relative_to(trusted_root):

@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from ...file_lock import exclusive_file_lock
 
 COMMAND = "/loopx-deepresearch"
@@ -26,7 +28,7 @@ COVERAGE_WINDOW_SOURCES = 3
 
 _STATE_FILENAME = "research.json"
 _REPORT_FILENAME = "report.md"
-_LEDGER_DIR = Path(".loopx") / "deepresearch"
+_LEDGER_DIR = project_state_path(Path(), "deepresearch")
 
 
 def _now_iso() -> str:

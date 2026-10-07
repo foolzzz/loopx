@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from .goal_channel_contracts import operation_packet
 from .private_json import write_private_json_atomic
 
@@ -27,12 +29,12 @@ def _agent_inbox_config(
     digest = hashlib.sha256(
         f"{goal.get('id')}\0{agent_id}\0{app_ref}\0{chat_id}".encode()
     ).hexdigest()[:20]
-    config_ref = f".loopx/config/lark-goal-topics/{digest}.json"
+    config_ref = project_state_path(Path(), "config", "lark-goal-topics", f"{digest}.json").as_posix()
     config_path = project / config_ref
     payload = {
         "schema_version": "lark_event_inbox_config_v0",
         "enabled": True,
-        "inbox_dir": f".loopx/inbox/lark-goal-topics/{digest}",
+        "inbox_dir": project_state_path(Path(), "inbox", "lark-goal-topics", digest).as_posix(),
         # Goal Topic routing applies this same scope before ingestion. Keeping
         # the local inbox declaration identical prevents an addressed-only
         # stream from being projected as thread-complete.

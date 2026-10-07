@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from ...chat_manager import MANAGER_AGENT_OBJECTIVE
 from ...file_lock import exclusive_file_lock
 from .manager_routing import (
@@ -821,12 +823,12 @@ def _inbox_config(
     digest = hashlib.sha256(
         f"{profile}\0{chat_id}\0{route.get('topic_root_message_id')}".encode("utf-8")
     ).hexdigest()[:20]
-    config_ref = f".loopx/config/lark-goal-topics/{digest}.json"
+    config_ref = project_state_path(Path(), "config", "lark-goal-topics", f"{digest}.json").as_posix()
     config_path = runtime_root / config_ref
     payload = {
         "schema_version": "lark_event_inbox_config_v0",
         "enabled": True,
-        "inbox_dir": f".loopx/inbox/lark-goal-topics/{digest}",
+        "inbox_dir": project_state_path(Path(), "inbox", "lark-goal-topics", digest).as_posix(),
         "capture_scope": "configured_chat_all",
         "topic_root_message_id": str(route.get("topic_root_message_id") or ""),
         "material_review": {
@@ -894,7 +896,7 @@ def process_lark_goal_topic_event(
         message_id = str(route.get("message_id") or "")
         if not MESSAGE_ID_PATTERN.fullmatch(message_id):
             raise ValueError("manager route has an invalid message id")
-        lock_dir = Path(runtime_root).expanduser().resolve() / ".loopx/locks/lark-manager"
+        lock_dir = project_state_path(Path(runtime_root).expanduser().resolve(), "locks", "lark-manager")
         lock_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(lock_dir, 0o700)
         with exclusive_file_lock(

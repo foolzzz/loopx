@@ -5,6 +5,8 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_registry_path, project_state_path
+
 from ...control_plane.reward_memory import reward_memory_goal_policy
 from ...domain_packs.issue_fix import (
     default_issue_fix_domain_state_ledger_path,
@@ -489,7 +491,7 @@ def handle_issue_fix_reviewer_command(
             inbox_hooks = require_reviewer_provider_hooks()
             config_ref = str(
                 sinks_input.get("feedback_inbox_config")
-                or ".loopx/config/lark/event-inbox.json"
+                or project_state_path(Path(), "config", "lark", "event-inbox.json").as_posix()
             )
             if args.message_id:
                 payload = inbox_hooks.acknowledge(
@@ -550,7 +552,7 @@ def handle_issue_fix_reviewer_command(
                 inbox_hooks = require_reviewer_provider_hooks()
                 default_config_ref = str(
                     sinks_input.get("feedback_inbox_config")
-                    or ".loopx/config/lark/event-inbox.json"
+                    or project_state_path(Path(), "config", "lark", "event-inbox.json").as_posix()
                 )
                 lark_sink_count = sum(
                     1
@@ -696,7 +698,7 @@ def handle_issue_fix_reviewer_command(
                     inbox_hooks = require_reviewer_provider_hooks()
                     config_ref = str(
                         notification_sinks_input.get("feedback_inbox_config")
-                        or ".loopx/config/lark/event-inbox.json"
+                        or project_state_path(Path(), "config", "lark", "event-inbox.json").as_posix()
                     )
                     try:
                         history_match = inbox_hooks.contains_text(
@@ -731,7 +733,7 @@ def handle_issue_fix_reviewer_command(
                         path
                         for path in (
                             registry_path,
-                            requested_project / ".loopx" / "registry.json",
+                            project_registry_path(requested_project),
                         )
                         if path is not None
                     )

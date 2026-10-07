@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 from typing import Any, Mapping, Sequence
 
+from .paths import home_codex_root
+
 from . import __version__
 
 SKILL_INSTALL_READBACK_SCHEMA_VERSION = "loopx_skill_install_readback_v1"
@@ -66,7 +68,7 @@ def alternate_loopx_skills_root(skills_dir: Path) -> Path | None:
     them.
     """
 
-    codex_root = Path(os.environ.get("CODEX_HOME") or (_user_home() / ".codex")) / "skills"
+    codex_root = Path(os.environ.get("CODEX_HOME") or home_codex_root(_user_home())) / "skills"
     agents_root = _user_home() / ".agents" / "skills"
     try:
         target = skills_dir.expanduser().resolve()

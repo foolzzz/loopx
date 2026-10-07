@@ -7,6 +7,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ..paths import project_state_path
+
 from ..capabilities.deep_research.runtime import (
     DEFAULT_MAX_SOURCES,
     DEFAULT_MAX_SUBQUESTIONS,
@@ -225,7 +227,7 @@ def handle_deepresearch_command(
                     "ok": True,
                     "schema_version": "loopx_deepresearch_started_v0",
                     "question": state["question"],
-                    "state_path": str(project / ".loopx" / "deepresearch" / "research.json"),
+                    "state_path": str(project_state_path(project, "deepresearch", "research.json")),
                     "packet": build_packet(state, cli_bin="loopx", project=project),
                 }
             )

@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from .paths import codex_home_path
+
 from .chat import (
     CHAT_AGENT_RESPONSE_SCHEMA_VERSION,
     CHAT_REVIEW_CLOSE_TAG,
@@ -479,11 +481,7 @@ class CodexChatAgentSession:
                 )
         # Pin the host store explicitly, including compatibility retries. Never
         # redirect an existing thread by inheriting a different launch context.
-        runtime_home = (
-            (codex_home or Path(os.environ.get("CODEX_HOME") or "~/.codex"))
-            .expanduser()
-            .resolve()
-        )
+        runtime_home = codex_home_path(codex_home).resolve()
         runtime_env = os.environ.copy()
         runtime_env["CODEX_HOME"] = str(runtime_home)
         command = [resolved, "app-server"]

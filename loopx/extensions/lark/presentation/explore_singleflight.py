@@ -7,6 +7,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any
 
+from ....paths import project_state_path
+
 from ....file_lock import try_exclusive_file_lock
 
 
@@ -15,7 +17,7 @@ def default_lark_explore_config_path(registry_path: Path | None = None) -> Path:
         expanded = registry_path.expanduser()
         if expanded.parent.name == ".loopx":
             return expanded.parent / "lark-explore.json"
-    return Path.cwd() / ".loopx" / "lark-explore.json"
+    return project_state_path(Path.cwd(), "lark-explore.json")
 
 
 def source_lark_explore_config_path(

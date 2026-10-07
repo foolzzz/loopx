@@ -8,11 +8,13 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from ...paths import project_state_path
+
 
 PLAN_SCHEMA_VERSION = "loopx_integration_branch_plan_v0"
 STATUS_SCHEMA_VERSION = "loopx_integration_branch_status_v0"
 SYNC_SCHEMA_VERSION = "loopx_integration_branch_sync_v0"
-DEFAULT_PLAN_PATH = Path(".loopx/integration-branch.json")
+DEFAULT_PLAN_PATH = project_state_path(Path(), "integration-branch.json")
 ZERO_SHA = "0" * 40
 
 
@@ -44,7 +46,7 @@ def _repository_root(repo_path: str | Path) -> Path:
 
 
 def _plan_path(repo: Path, plan_file: str | Path | None) -> Path:
-    state_root = (repo / ".loopx").resolve()
+    state_root = (project_state_path(repo)).resolve()
     if not state_root.is_relative_to(repo):
         raise IntegrationBranchError(
             "repository `.loopx` state root must not resolve outside the repository"

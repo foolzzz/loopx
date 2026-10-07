@@ -4,6 +4,8 @@ import argparse
 from collections.abc import Callable
 from pathlib import Path
 
+from ..paths import project_registry_path
+
 from ..control_plane.runtime.goal_project_route import resolve_goal_project_route
 from ..history import load_registry
 from ..registry import registry_goals
@@ -64,7 +66,7 @@ def _resolve_benchmark_project(
         return project
 
     requested = Path(project_override).expanduser().resolve()
-    requested_registry = requested / ".loopx" / "registry.json"
+    requested_registry = project_registry_path(requested)
     route_registry = registry_path
     if not _registry_has_goal(route_registry, goal_id) and _registry_has_goal(
         requested_registry, goal_id

@@ -18,6 +18,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from ...paths import project_registry_path, project_state_path
+
 
 
 class NativeCodexIsolationError(RuntimeError):
@@ -222,7 +224,7 @@ def _replace_path_prefix(value: Any, source: str, target: str) -> tuple[Any, int
 
 
 def _generated_runtime_files(storage_root: Path) -> tuple[Path, ...]:
-    goals_root = storage_root / ".loopx/runtime/goals"
+    goals_root = project_state_path(storage_root, "runtime", "goals")
     if not goals_root.exists():
         return ()
     if goals_root.is_symlink() or not goals_root.is_dir():
@@ -347,8 +349,8 @@ def rebase_native_codex_loopx_workspace_state(
         )
 
     registry_paths = (
-        resolved_storage / ".loopx/registry.json",
-        resolved_storage / ".loopx/runtime/registry.global.json",
+        project_registry_path(resolved_storage),
+        project_state_path(resolved_storage, "runtime", "registry.global.json"),
     )
     existing_registries = tuple(path for path in registry_paths if path.is_file())
     if not existing_registries:

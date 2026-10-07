@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
+from ....paths import project_state_path
+
 from ....control_plane.todos.contract import (
     TODO_STATUS_BLOCKED,
     TODO_STATUS_DEFERRED,
@@ -693,7 +695,7 @@ def default_lark_kanban_config_path(registry_path: Path | None = None) -> Path:
         expanded = registry_path.expanduser()
         if expanded.parent.name == ".loopx":
             return expanded.parent / "lark-kanban.json"
-    return Path.cwd() / ".loopx" / "lark-kanban.json"
+    return project_state_path(Path.cwd(), "lark-kanban.json")
 
 
 def read_lark_kanban_local_config(path: Path) -> dict[str, Any]:

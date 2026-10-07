@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from .event_collector import (
     _executable_prefix,
     _jq_projection,
@@ -490,8 +492,7 @@ def _operation_callback_consume_argv(
 
 def _operation_callback_status_path(project: str | Path) -> Path:
     return (
-        Path(project).expanduser().resolve()
-        / ".loopx"
+        project_state_path(Path(project).expanduser().resolve())
         / "runtime"
         / "lark-collector"
         / "operation-callback-status.json"

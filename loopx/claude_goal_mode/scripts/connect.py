@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from loopx.paths import project_registry_path
+
 from loopx.control_plane.projects.registry_codec import (
     ProjectRegistryProtocolError,
     add_project_registry_backend,
@@ -67,7 +69,7 @@ def main():
     if a.registry:
         reg = Path(a.registry)
     else:
-        reg = proj / ".loopx" / "registry.json"
+        reg = project_registry_path(proj)
         if not reg.exists() and (proj / ".goal-harness" / "registry.json").exists():
             reg = proj / ".goal-harness" / "registry.json"
     if reg.exists():

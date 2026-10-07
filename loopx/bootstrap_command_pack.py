@@ -49,7 +49,7 @@ from .project_prompt import (
     render_refresh_state_command,
     shell_arg,
 )
-from .paths import global_registry_path, project_goal_state_file, resolve_runtime_root
+from .paths import global_registry_path, project_goal_state_file, resolve_runtime_root, project_registry_path
 from .registry import registry_goals, resolve_state_file
 from .slash_commands import build_slash_command_catalog
 from .thread_agent_binding import normalize_thread_id, resolve_thread_agent_binding
@@ -265,7 +265,7 @@ def inspect_bootstrap_connection(
         explicit_runtime_root = resolve_runtime_root(
             {},
             runtime_root_arg,
-            registry_path=input_project / ".loopx" / "registry.json",
+            registry_path=project_registry_path(input_project),
         ).resolve()
         explicit_global_registry = global_registry_path(explicit_runtime_root)
     alias = (
@@ -287,7 +287,7 @@ def inspect_bootstrap_connection(
         if alias.get("applied") and alias.get("canonical_project")
         else input_project
     )
-    registry_path = resolved_project / ".loopx" / "registry.json"
+    registry_path = project_registry_path(resolved_project)
     registry_exists = registry_path.exists()
     registry, registry_error = _read_registry(registry_path) if registry_exists else (None, None)
     inferred_goal_id = goal_id or default_goal_id(resolved_project)
