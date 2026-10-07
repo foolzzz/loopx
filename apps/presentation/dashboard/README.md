@@ -19,7 +19,7 @@ English. This replaces the previous unconditional Chinese default.
 Choose **Settings → Language** to override detection. Explicit choices remain in
 the existing `loopx-pw-locale` browser storage entry and survive reloads and
 upgrades on the same origin. A different host/port, cleared browser storage, or a
-fresh desktop webview starts detection again. When storage is blocked, language
+fresh browser context starts detection again. When storage is blocked, language
 changes last for the current session only.
 
 首次打开时，工作区按浏览器语言偏好顺序选择英文或简体中文；没有匹配语言或无法
@@ -120,12 +120,10 @@ curl -fsS http://127.0.0.1:8767/chat/ >/dev/null
 curl -fsS http://127.0.0.1:8767/status.json
 ```
 
-If a LoopX Chat service is already running on the default port (for example
-started by the Tauri desktop shell), `loopx dashboard` detects it by its exact
+If a LoopX Chat service is already running on the default port, `loopx dashboard` detects it by its exact
 capability fingerprint and reuses it instead of failing: it prints the running
 URL and opens the browser/PWA route, then exits without starting a second
-server. The desktop shell reuses the same services in the opposite order, so
-the browser/PWA and native entry points can be started in either order.
+server.
 
 ### Built-In Chat Agents
 

@@ -186,7 +186,7 @@ the installed release's `doctor`, `capability show`, Host readback, and versione
 
 The `v1.0.0` product milestone is the Personal Workspace, not blanket promotion of every staged
 authority path or optional Provider. It brings cross-Goal overview, Agent lanes, completed work,
-Capability settings, verified reports, Goal Channels, and desktop recovery into one operator surface
+Capability settings, verified reports, and Goal Channels into one operator surface
 while preserving the authority of the CLI, typed Kernel, and project state. Follow the
 [1.0 Workspace operations chapter](./workspace-v1.md) through startup, readback,
 preview/apply/receipt, configuration, and disable checks before entering the project-onboarding or

@@ -18,6 +18,13 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Removed
 
+- Removed the native desktop client, Tauri shell, signed update/repair/rollback
+  UI, desktop release workflows, and their bundling, signing, feed, and validation
+  helpers. Use `loopx dashboard` for the browser/PWA workspace; Settings and
+  Goal navigation remain available.
+- **Wire change:** `loopx doctor` no longer returns `desktop_installation` or
+  the `desktop_app_runtime_pairing` check. CLI installation, release provenance,
+  freshness, and managed-service diagnostics remain supported.
 - Removed the unused synthetic `loopx.visible_governance` projection and its
   dedicated smoke. It had no product or CLI consumer; existing status, quota,
   task-lease, and decision-scope contracts remain unchanged.

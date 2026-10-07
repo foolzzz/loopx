@@ -28,17 +28,6 @@ automatically.
 
 ## Slash Command Fallback
 
-When asked to upgrade LoopX on a machine with the desktop App, inspect the App
-bundle and its runtime as well as the CLI. `loopx doctor` exposes
-`desktop_installation` for standard macOS install locations; a paired bundle
-still does not prove which App process is running. Upgrade the App and its
-bundled runtime together, then restart and verify the App, CLI and service
-source revisions. Never claim a desktop upgrade from CLI/HTTP checks alone:
-current App builds ask before replacing a different CLI runtime (update the
-App, or align the CLI to the App's bundled runtime), while an older build can
-still replace a separately upgraded CLI with its bundle.
-Keep SSH host verification separate; a host without an App needs no App install.
-
 When the visible user message is exactly a LoopX slash command or starts with a
 LoopX slash command plus arguments, do not treat it as ordinary chat.
 

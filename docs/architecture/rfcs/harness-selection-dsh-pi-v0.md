@@ -2,13 +2,13 @@
 
 Status: evidence-backed implementation assessment, not a runtime promotion.
 Scope: the shared goals of [Reliability Diagnostics](./long-running-agent-reliability-diagnostics-governed-delivery-v0.md)
-and [Desktop Execution Frontends](./desktop-execution-frontends-v0.md).
+and [Agent Session Execution Modes](./agent-session-execution-modes-v0.md).
 [中文](./harness-selection-dsh-pi-v0.zh-CN.md)
 
 ## Decision
 
 Keep **DSH as the first L1 event source**. Do not infer that DSH is already the
-preferred production Mode B runtime. Retain Pi as a managed-runtime candidate.
+preferred production managed runtime. Retain Pi as a managed-runtime candidate.
 The first choice minimizes the cost of qualifying an existing passive observer;
 the second requires lifecycle, provider, crash-recovery and outcome evidence
 that a plugin event fixture cannot supply. No quantitative winner is claimed.
@@ -19,7 +19,7 @@ credential-bound; its default-host resolution shipped in PR #4443, and the
 steward channel reaches it through the one-segment chat transport recorded
 below. The **L1 event source and session-owning runtime** role stays opt-in and
 is not promoted by that binding; it still needs the C0, C1, overhead, retention
-and Mode B rows.
+and `managed_runtime` rows.
 
 ## Managed Execution Surface (2026-09-15)
 
@@ -67,7 +67,7 @@ dated 2026-09-15 and is written to land with the managed stack:
 | Default managed execution host | LoopX Turn plus the `dsh` host adapter, bound to an operator-supplied model endpoint | shipped product default, credential-resolved: the managed `dsh` host when the operator credential is configured, the individual `codex-cli` host when it is not; `LOOPX_TURN_HOST` re-points whichever resolved and an explicit `--host` wins (PR #4443, default resolution with this change) | keep the typed host request/result, independent validation, and the operator-owned credential boundary; do not replace it without an equal or stronger contract |
 | Steward channel executor | the interactive Chat transport the steward answers on | one machine setting, then one service-environment value, then the shipped product default: this machine's `steward_executor` machine configuration (edited from the Dashboard, read back by `loopx machine-config describe`/`inspect`, landed 2026-09-16) selects the executor for that machine, `LOOPX_MANAGER_ENDPOINT` bootstraps or names an unlisted adapter, and the shipped default stays `codex` on every machine; a selection of the managed host (`dsh`) moves the model and the reasoning effort with it | the segment transport's typed limits (no streaming, no cross-turn host session, read-only sandbox) stay disclosed and read back, no managed lane may depend on an individual subscription, and the namespace stores no credential and grants no authority |
 | Supported alternative Turn host | LoopX Turn plus the `codex-cli` adapter | explicitly selectable, and the credential-resolved default of the managed row above on a machine with no operator credential; it is the `individual` executor kind, so it is billed to one person's CLI login | no managed lane may *silently* depend on an individual's personal CLI subscription: the individual host is reached only as that credential-resolved default and is read back as `no_operator_credential`, never substituted for a host the operator selected |
-| L1 event source and session-owning runtime candidate | DSH | opt-in, not promoted; the bounded Turn host role is the default row above | the C0, C1, overhead, retention and Mode B rows in this document being run and reviewed |
+| L1 event source and session-owning runtime candidate | DSH | opt-in, not promoted; the bounded Turn host role is the default row above | the C0, C1, overhead, retention and `managed_runtime` rows in this document being run and reviewed |
 | Optional visible host loop | Pi | not a managed runtime | declare a per-binding session mode with readback, prove single-executor behavior under restart, "conversation is not a receipt", non-authoritative host-local state, and one real-host restart row |
 
 ### Optional Ark governed Turn profile
@@ -266,11 +266,9 @@ The implementation paths below are repository-relative:
 - `loopx/capabilities/reliability_diagnostics/{receipt,projection}.py`: independent
   validation, integrity classification and authority-free diagnostic readback.
 - `loopx/dsh_goal_mode/turn_host_adapter.py`: a bounded Turn connector, opaque
-  session lineage, SDK calls and failure translation, not a desktop outer loop.
+  session lineage, SDK calls and failure translation, not a managed outer loop.
 - `loopx/pi_goal_mode/{loopx-goal.ts,pi-goal-loop-runtime.mjs}`: a visible-host
   integration with bindings and continuation behavior; not a passive observer.
-- `apps/desktop/loopx-control-plane/src-tauri/src/services.rs`: service process
-  management must not be mistaken for the complete managed Agent lifecycle.
 
 The dsh pin moved in two steps, and reading this document needs both states.
 `main` today pins `deepseek-harness-sdk==0.1.2a3`. The managed stack moves that
@@ -300,7 +298,7 @@ input, not permission to replace LoopX's installed package or assume API parity.
 | --- | --- | --- | --- |
 | Passive observation | LoopX ships a separate observer entry, three session publication hooks and pre-append rejection | SDK offers `session.subscribe`; extensions also offer interception hooks | DSH has a qualified contract slice; a Pi adapter must choose subscription over intervention and prove isolation |
 | Session identity / resume | Existing Turn connector derives session lineage; observer separately requires exact goal/session/run identity | SDK separates AgentSession from AgentSessionRuntime replacement/resume operations | Test identity after restart/fork for each adapter; method availability is not durable recovery proof |
-| One bounded attempt | LoopX already has a DSH Turn host with timeout and failure mapping | Existing Pi goal mode includes continuation and pause behavior | Neither native loop may silently become the Desktop scheduler; avoid two outer loops |
+| One bounded attempt | LoopX already has a DSH Turn host with timeout and failure mapping | Existing Pi goal mode includes continuation and pause behavior | Neither native loop may silently become the managed scheduler; avoid two outer loops |
 | Packaging | Dedicated observer export/bundle and packed smokes exist | Extension discovery is part of SDK resource loading | Verify the actually loaded package/profile, not just source imports; neither boundary is OS isolation |
 | Provider profiles | SDK connector/version constraints are explicit | SDK exposes runtime/model construction | Qualify the same route, model, tools and budget; harness choice does not establish provider compatibility |
 | Public safety | Producer and Python consumer independently validate; shared counterfactuals exist | Tool/context hooks can expose or change raw content | A Pi observer needs first-append redaction and negative fixtures, not transcript copying |
@@ -342,7 +340,7 @@ native session publication
   -> integrity receipt + diagnostic projection
   -> operator presentation only
 
-canonical eligibility -> Desktop supervisor -> bounded Turn -> validation/writeback
+canonical eligibility -> LoopX host supervisor -> bounded Turn -> validation/writeback
 ```
 
 There is no arrow from diagnostics back to eligibility. `valid` means the
@@ -370,7 +368,7 @@ atomic: a partial last line remains an invalid-input signal rather than being
 silently dropped. The command does not activate an observer, discover a binding,
 write a ledger, call a model, or change a Goal/Todo/lease.
 
-This is an executable readback seam, **not a shipped Mode B panel or supervisor**.
+This is an executable readback seam, **not a shipped `managed_runtime` panel or supervisor**.
 A future panel must bind exact goal/session/run identity, show observation age
 and integrity independently of task status, and refuse to label a multi-run or
 stale goal ledger as the current session's health. It must remain operator-only,
@@ -395,7 +393,7 @@ loop before adding an owner-reviewed read budget/snapshot strategy.
 4. **Retention/deletion:** owner chooses maximum age/bytes, active-writer handling,
    export/support access, backup scope and delete verification. Dry-run inventory
    must precede deletion; never truncate an active ledger to meet a size cap.
-5. **Mode B acceptance:** separately exercise start/resume/interrupt/close,
+5. **`managed_runtime` acceptance:** separately exercise start/resume/interrupt/close,
    process crash, stale session identity, duplicate completion, timeout and
    provider failure in a disposable runtime. Verify one Turn at a time and
    canonical validation/writeback before spending quota or requesting another.
@@ -407,13 +405,13 @@ No live model execution or retention deletion is authorized by this document.
 Milestone ownership stays with
 [Agent Session Execution Modes](./agent-session-execution-modes-v0.md). This
 document owns the C0, C1, overhead and retention evidence for the L1 observer
-arm, and the Mode B acceptance above for a session-owning runtime; the M1-M4
+arm, and the `managed_runtime` acceptance above for a session-owning runtime; the M1-M4
 integration milestones and the cross-frontend projection row remain that
 document's, and nothing here defines mode inference or a second executor.
 
 ## Delivery Sequence
 
-This comparison plus combined CLI readback can be reviewed now. A Mode B panel
+This comparison plus combined CLI readback can be reviewed now. A `managed_runtime` panel
 requires the exact-session read contract and bounded refresh path first; it must
 not be a second generic monitoring subsystem. Run C0/C1 and overhead experiments
 as separately budgeted work, then submit only reusable fixes and safe evidence.
@@ -681,7 +679,7 @@ operator-local path is recorded here.
 | Manager M1 — useful host agent | The channel resolves and reports its effective executor, model, reasoning effort and source, the executor selection does not follow a credential, and a host that cannot launch fails with a typed reason instead of a silent individual-login fallback | Shipped: selected endpoint with its source and default-rule reason, the executor's `execution_profile`, `executor_kind`, and the `channel_binding` readback (PR #4446 with the Turn-side readback in PR #4443; the unconditional default and the segment transport land with this change). The upstream **session identity** is still not projected to the channel, so a channel answer cannot yet prove which session served it |
 | Manager M2 — semantic continuation | Receiver resolution across registered running lanes; typed per-source coverage and freshness; a goal-level milestone the report can lead with instead of coverage disclaimers | Partially implemented. Typed source failures and one real source read are recorded below; the local peer directory is shipped. Cross-directory receiver resolution, complete semantic requests/return and a synthesizable Goal-level milestone remain open. Source reading does not complete M2 |
 | Manager M3 — automatic complete exchange | A persisted answer that exceeds or violates the channel's outbound text contract is split and re-sent under a stable answer identity; an ambiguous or failed send is reconciled instead of replaced by a local notice; the return path survives a transport restart; rich markdown renders as structured text | Partially mitigated. `loopx/extensions/lark/outbound.py` fails closed on an over-limit or malformed payload, and the channel reports that local failure without re-delivering the persisted answer; one answer carries no idempotency identity, so a retry can duplicate it; structured rendering is not guaranteed |
-| Host modes M0-M1 | The channel's executor selection and its bounded one-segment execution | Selection is covered by PR #4446 and the Turn-side selection by PR #4443; bounded one-segment execution is covered by the Mode B acceptance above. The channel itself now reaches the managed host through the segment transport, so the managed host's own one-segment execution is reachable from the channel; what remains open is that the segment is not a session, so cross-turn host continuity is still not offered |
+| Host modes M0-M1 | The channel's executor selection and its bounded one-segment execution | Selection is covered by PR #4446 and the Turn-side selection by PR #4443; bounded one-segment execution is covered by the `managed_runtime` acceptance above. The channel itself now reaches the managed host through the segment transport, so the managed host's own one-segment execution is reachable from the channel; what remains open is that the segment is not a session, so cross-turn host continuity is still not offered |
 | Host modes M2-M3 | Attached-host parity, typed unavailability, and mode-aware projection with no mode inference and no second executor | Partly shipped: the channel's managed segment transport holds one executor per binding, refuses a second start with the typed `managed_host_chat_segment_in_flight`, and discards an interrupted segment's answer instead of letting it enter visible history. The channel readback also carries the mode-aware projection: it quotes the Session's own `session_mode` and `status`, reads a channel with no Session as `unbound`, and names a mode outside the closed set as `unrecognized` instead of deriving a mode from the executor it resolved. Still not implemented: attached-host parity, and an external audience still degrades to `restricted` |
 
 ### Remote-source coverage acceptance (2026-09-16)

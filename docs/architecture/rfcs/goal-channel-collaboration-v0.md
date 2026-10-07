@@ -422,3 +422,338 @@ The first slice must prove:
 - local-private binding files remain ignored and untracked;
 - public packets do not contain chat ids, member ids, message ids, profile
   names, local paths, raw provider payloads, or credentials.
+
+## Agent-scoped conversation proposal
+
+The following shared session and ingress design remains proposed. Moving it here
+does not enable an adapter, replace shipped Goal Channel behavior, or qualify
+Web/Lark convergence. Session identity and mode admission belong to
+[Agent Session Execution Modes](agent-session-execution-modes-v0.md).
+
+## Agent-scoped Web and Lark convergence
+
+The short-term collaboration product is not a separate status Bot. It is a
+second frontend transport for an Agent's real working session:
+
+```text
+LoopX Goal
+  -> Agent A
+       -> working session A (attached or managed)
+            -> Web Chat
+            -> Lark Bot connection A
+  -> Agent B
+       -> working session B (attached or managed)
+            -> Web Chat
+            -> Lark Bot connection B
+```
+
+In v0, each Agent may have at most one active `lark_bot` connection. This is a
+logical Agent-to-connection binding; it does not require a unique Lark
+application credential for every Agent. One Bot application may serve multiple
+connections if the local broker preserves explicit Agent and channel routing.
+
+### One ordered working conversation
+
+The baseline project coordinator surface is the existing **Goal → Chat**. A
+registered peer may carry that responsibility instead; neither choice creates
+a separate coordinator conversation or changes the steward's cross-Goal role.
+[Explicit Codex continuation](../../reference/goal-chat-continuation.md) reuses
+the composer with explicit enable/pause/continue, streamed work and original local
+history. It joins the existing delegation service and independently accepted
+member results; queue/inbox/steer retain distinct receipts. First-use settings
+select an existing execution binding without granting authority by registration.
+Lark/other-lead parity and unattended operation remain separate requirements.
+
+In live-steering and queued-session modes, Web and Lark messages enter one
+serialized ingress stream for the selected Agent session. Each message records
+public-safe transport metadata such as `origin=web` or `origin=lark`, but origin
+does not select a different Agent, conversation history, executor, or LoopX
+state machine.
+
+The session router assigns ordering before delivery to the runtime. A
+simultaneous Web and Lark message may wait, interrupt through an explicit
+control action, or fail closed according to session policy; it may not create
+two concurrent Agent attempts. Responses may be projected to both surfaces
+according to connection policy while preserving one canonical sequence.
+
+An asynchronous inbox event is different: it remains owner-private external
+input until the selected Agent drains and interprets it. Only the accepted
+Agent-facing message or resulting durable effect joins the working-session
+sequence. Provider collection alone does not create conversation history,
+task authority, a Turn, or quota spend.
+
+### Agent binding, not Goal-wide or runtime-specific binding
+
+A Lark connection binds to a concrete Agent within a Goal. If a Goal has
+multiple Agents and the connection does not identify one, routing fails closed.
+The Bot talks directly to that working Agent; it does not first ask a manager
+Agent to classify or relay the message. The binding is not hard-coded to Codex:
+the Agent's execution session may be an attached Codex App today or a managed
+Pi/`dsh` session later.
+
+## Agent-scoped external Connector model
+
+Lark group ingress and Lark document comments are two instances of one
+provider-neutral Connector boundary. A Connector binds an external source to
+one registered Agent and advertises only the operations it can actually
+perform:
+
+```text
+agent_external_connector_v0 = {
+  goal_ref,
+  agent_ref,
+  provider_kind,
+  source_kind,
+  source_ref,             // opaque owner-local reference
+  capture_policy,
+  ingress_policy,
+  response_policy,
+  cursor_ref,
+  lifecycle,
+  capabilities[]
+}
+```
+
+The same provider may expose several source kinds. For example, a Lark group
+source may advertise live delivery, history catch-up, thread reply, and ACK,
+while a document-comment source may advertise incremental listing, anchor and
+reply-chain readback, comment reply, and resolved-state observation. Missing
+capabilities remain unavailable; LoopX does not emulate them by scraping an
+unrelated surface.
+
+A Connector capability may also expose typed `permission_requirements` with
+the provider identity, exact scopes, publication requirement, and an official
+repair URL bound to the selected App. The provider extension owns those facts;
+the LoopX core only renders the typed guidance. Realtime receive, response
+write, and history catch-up remain separate capabilities and must not be
+collapsed into one generic "message permission" flag.
+
+### Authority material versus collaboration events
+
+A durable document and its comments have different authority semantics:
+
+- the document body is registered as a Goal authority material with freshness,
+  revision, owner status, and conflict policy;
+- a comment is owner-private external input addressed to an Agent, not an
+  accepted requirement, Todo mutation, or repository fact by itself; and
+- incorporating a comment requires an explicit durable effect such as a Todo
+  update, accepted design revision, no-follow-up rationale, or owner gate.
+
+Reading the body does not advance the comment cursor. Listing comments does not
+make the document authoritative. A comment that contradicts accepted state is
+recorded as a pending decision or evidence gap rather than silently changing
+Goal truth.
+
+### Capture, replay, and acknowledgement
+
+Every event-source Connector owns a stable provider event id, incremental
+cursor or equivalent checkpoint, bounded catch-up policy, and idempotency key.
+Real-time subscription and history catch-up feed the same deduplicated inbox so
+that events created before attachment or during downtime are not silently
+lost. A source may be filtered by mention, author, document, comment state,
+anchor, or configured source scope without changing its delivery mode.
+
+The Agent processes one accepted event with this ordering:
+
+```text
+capture and deduplicate
+  -> mark processing
+  -> read fresh Goal and authority state
+  -> record durable effect or explicit no-follow-up rationale
+  -> send an optional response through a declared Connector capability
+  -> verify provider readback
+  -> ACK and advance the source cursor
+```
+
+No ACK or cursor advance may precede the durable effect and required verified
+response. A crash replays the same event idempotently. Private bodies, authors,
+provider ids, source references, and comment text remain in owner-local inbox
+storage; status and quota see content-free urgency only.
+
+### Delivery into the working Agent
+
+Connector capture and Agent delivery remain orthogonal. A live group message
+may steer the current working session, wait in its ordered queue, or wake an
+asynchronous Agent inbox. A document comment normally enters through
+`async_inbox`, but the same event may be submitted into a verified live session
+when an explicit policy permits it. In all cases it targets the existing bound
+Agent and never starts a shadow manager or a fresh conversation implicitly.
+
+### Short-term Goal Channel bridge
+
+The existing Goal Channel transport may provide the first Lark delivery path,
+provided that its Goal-level connection is refined with an explicit target
+Agent and is routed into that Agent's existing ordered session. This bridge is
+an incremental implementation path, not permission to keep a second IM-only
+conversation lifecycle.
+
+If accepted, this Agent-scoped proposal refines the Goal-level binding constraint
+above for interactive chat. Goal-wide Kanban, lifecycle
+notifications, and shared collaboration artifacts may remain Goal-scoped;
+inbound working conversation is Agent-scoped.
+
+## Agent-scoped Bot ingress modes
+
+Agent-to-Bot connections and peer collaboration need the same three explicit
+ingress semantics. User-facing names are **inbox**, **queue** and **steer**;
+the existing vocabulary below remains. They express delivery intent for one
+bound Agent, not three Agents or a natural-language classifier. This proposal
+extends the common policy to peer ingress; it does not ship a new API or change
+existing adapters merely by renaming their input:
+
+```text
+agent_bot_ingress_mode_v0 =
+  live_steering
+  | session_queue
+  | async_inbox
+```
+
+The three policies solve different availability conditions:
+
+| Mode | Delivery target | Availability model | Durable boundary |
+|---|---|---|---|
+| `live_steering` | The specified active execution in the bound working session | Host can apply input at a declared safe point | Existing session/event store and consumption receipt; no second executor |
+| `session_queue` | A subsequent work input in the same bound session | Current work finishes or explicitly yields its execution before delivery | Owner-local durable ordered ingress queue keyed by Agent and session |
+| `async_inbox` | The next eligible LoopX Agent turn after an explicit drain | No Agent process needs to remain alive | Existing provider-owned event inbox plus content-free quota urgency |
+
+This refines the earlier queue phrase "when it next accepts input": a host that
+merges pending input into the active work has not thereby implemented the
+proposed queue semantics. Qualify the change explicitly, preserving old profile
+behavior until its opt-in implementation and compatibility tests pass.
+
+Persist the requested mode, permitted fallback and actual delivery disposition
+with existing ingress identity and recipient scope. Readback distinguishes
+durable receipt, queued dispatch, host consumption and steering application;
+work adoption/acceptance remains with collaboration/work owners. Model prose or
+HTTP success is not a consumption receipt. Unknown capabilities fail explicitly.
+Frontend, CLI and Lark show the effective mode, waiting reason and result on the
+original work/conversation surface, rather than creating a separate team board.
+
+### Delivery intent does not choose the wake policy
+
+The mode determines where input may be consumed; the binding's existing
+continuation owner determines whether another execution opportunity is admitted.
+This proposed matrix qualifies adapters without adding a fourth ingress mode:
+
+| Recipient condition | Required behavior |
+| --- | --- |
+| Active turn or pending tool | Inbox remains for explicit drain; queue waits for a subsequent turn; steer targets the exact active generation and declared safe input boundary. Acceptance cannot imply that an already submitted model/tool request was preempted. |
+| Idle or turn complete | Persist eligible inbox/queue input. Only the configured continuation owner may admit a new turn after scope/budget checks; without that policy, show pending input. Steer is unavailable without an active target. |
+| Finalizing or interrupted | Preserve late input/result identity without reopening the finishing turn. Recheck after finalization; explicit interruption cannot be undone by a notification. Resume follows the existing owner and pause policy. |
+| Unloaded or disconnected | Persistence does not prove a live session. Recover only through the qualified binding path, revalidate scope and generation, and retain an actionable pending/unavailable observation when recovery is unsupported. |
+
+A queued input is not a promise to start a turn; a provider's trigger flag is
+not LoopX admission. Multiple accepted messages may enter one eligible turn,
+but independent work requests retain their identities and return obligations.
+Use the [handoff contract](capable-manager-semantic-handoff-v0.md#request-identity-and-result-routing-across-a-team)
+for those relations, rather than treating one transport receipt as a join.
+
+Project three separate facts: the ingress receipt, the actual execution/wakeup
+observation, and the work result/acceptance. Never show a saved message as
+"the Agent is working" or a wake notification as "result received". Notification
+loss must leave the saved input/result discoverable through readback; replay or
+reconnect must deduplicate application by ingress/result identity and cannot start a second executor. Extend the existing
+corrected-input fixture with idle input without a wake policy, finalization races,
+coalesced notifications and restart between result commit and notification.
+These are design requirements; every host still needs its own qualification.
+
+### Capture, ingress, and reply are orthogonal
+
+Provider selection and Agent delivery must not reuse one overloaded flag. The
+initial Lark group shape is:
+
+```text
+capture_scope: mentions | configured_chat_all
+ingress_mode: live_steering | session_queue | async_inbox
+reply_mode: source_thread | topic_reply | configured_mirror
+```
+
+`capture_scope` answers which provider events are eligible. `ingress_mode`
+answers how one eligible event reaches the Agent. `reply_mode` answers where a
+verified response is delivered. The existing `incoming_mode=mentions|all`
+expresses capture scope only; it is not proof of session attachment.
+
+The persisted inbox scope must equal the effective provider routing scope. An
+`addressed_only` stream is never projected as `thread_complete`, even when it
+has an enabled source-message reply binding. `configured_chat_all` remains an
+explicit owner choice: it stores the configured conversation for domain
+interpretation, but only typed questions, mentions, or verified bot replies
+activate `reply_due`.
+
+Mention admission binds both the App id and the Bot open id returned by the
+verified provider profile. A rendered display name is a compatibility signal,
+not the only identity proof. Every rejected provider event retains one
+content-free decision reason such as `not_addressed` or `topic_mismatch` in
+listener health, so an event that was seen but not persisted cannot disappear
+behind a bare `ignored` status.
+
+Fallback is explicit and defaults to fail closed. A `live_steering`
+connection may opt into `session_queue` or `async_inbox` when the session is
+unavailable, but it may not silently start another runtime or write the same
+event to multiple modes. The selected mode, fallback decision, and dedupe key
+produce one content-free ingress receipt.
+
+### Live steering
+
+`live_steering` submits into a verified Agent working-session binding. It
+shares the Web ingress serializer, upstream resume identity, interrupt policy,
+workspace, runtime, trust, and capability boundary. If that binding is stale,
+ambiguous, terminal, or owned by another Agent, delivery fails closed.
+
+Steering is transport, not task authority. Read-only input can be consumed by
+the active session without claiming new work. A material effect still requires
+the fresh LoopX decision, validation, writeback, and settlement appropriate to the attached or
+managed execution mode.
+
+Steer targets the current execution generation and its next supported safe input
+point; it is not interrupt/restart. While an external tool is outstanding, the
+host may durably accept a pending correction without claiming it was applied.
+If safe injection is unavailable, report that fact and use only the request's
+explicit fallback. Never fabricate a tool result to deliver the correction.
+An invalidated tool call needs an explicit cancellation disposition; reconcile
+its late result against the current input version and execution fence. The
+message itself neither cancels all peers nor revokes their authority.
+
+### Session queue
+
+`session_queue` is a broker-owned buffer for a known Agent working session. It
+preserves stable event dedupe, per-session order, bounded size, expiry,
+backpressure, cancellation, and crash-safe dispatch. It is not the LoopX Todo
+queue and may not mutate Goal priority, claim work, or grant capabilities.
+
+After the current work ends or explicitly yields execution, the broker submits
+the oldest eligible entry through normal serialized ingress. A pending-tool
+idle observation alone is not that boundary. A missing or replaced session
+requires an explicit rebind or dead-letter decision; it does not silently
+route the entry to a fresh Agent history.
+
+### Asynchronous inbox
+
+`async_inbox` reuses the existing Lark event inbox and collector rather than
+keeping an Agent process alive. The collector writes owner-private bounded
+events. LoopX projects only `operator_inbox_urgency_v0`: pending/question/
+mention/reply counts, oldest age, and `reply_due`, never message bodies,
+senders, provider ids, private paths, or chat ids.
+
+When `reply_due=true`, the inbox lane preempts ordinary advancement and monitor
+work at the next eligible admission; this does not interrupt an active execution.
+The selected Agent drains bounded content, interprets it against fresh
+Goal state, writes any durable effect first, sends at most one idempotent
+source-thread reply with provider readback, and only then ACKs. Drain alone is
+read-only; collection or ACK is never semantic authority.
+
+The Goal Topic compatibility runtime currently composes provider collection,
+an Inbox file, a Goal Chat answer, reply, and ACK inline. That path is useful
+evidence but is not Agent-scoped convergence when it opens a generic Agent
+session or fails to register inbox urgency on the bound Goal. The implementation
+must split provider collection from ingress policy, require the registered
+Agent id, and either submit through a verified working-session binding or
+publish the inbox pointer to the canonical quota path.
+
+Qualify the three modes with one corrected-input fixture: pending tool, busy and
+offline recipient, expired message, full queue, duplicate/conflicting identity,
+session replacement, sender revocation and late tool result. Assert the actual
+consumption boundary and fallback, not just message existence. Inbox drain must
+not claim work acceptance; queue must not alter active work; steer must not claim
+application before the host receipt. These are proposed acceptance requirements,
+not evidence that every host currently supports all modes.

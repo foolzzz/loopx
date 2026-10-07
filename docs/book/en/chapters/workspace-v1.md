@@ -13,7 +13,7 @@ the end, you should be able to:
   completed work;
 - explain why Workspace writes pass through typed preview, governed apply, and verified receipt;
 - distinguish Capability visibility, Goal configuration, Provider readiness, and current-Turn eligibility;
-- understand what authority Goal Channels, periodic reports, and desktop updates add, and how to disable
+- understand what authority Goal Channels and periodic reports add, and how to disable
   each path.
 
 ## What 1.0 actually ships
@@ -57,7 +57,7 @@ curl -fsS http://127.0.0.1:8767/status.json
 ```
 
 `loopx dashboard` serves the packaged Workspace, status projection, and Agent Chat together. If a matching
-desktop shell already runs the service, the command reuses the process only after validating its capability
+service already runs, the command reuses the process only after validating its capability
 fingerprint; it does not start a second source of truth. Ports are defaults, not permanent contracts, so
 automation should consume the URL printed by the command.
 
@@ -186,22 +186,6 @@ wakes the work, and `enabled: true` plus an explicit `route_ref` on a machine or
 standing delivery. Pause the Automation, disable the profile, or disable the subscription to stop its
 corresponding path. Successful generation is not proof of successful external delivery; Provider, sender
 identity, route, and message readback are verified separately.
-
-## Desktop updates and recovery
-
-The 1.0 macOS updater pairs the App and bundled runtime at one revision. Older desktop shells require one
-manual replacement. Afterwards, use **Recovery & updates** to select stable or main explicitly, install,
-and restart.
-
-- **Validate:** compare the App version, Workspace runtime identity, `loopx --version`, and `loopx doctor`;
-- **Repair:** **Repair this version** reinstalls the runtime bundled with the current App;
-- **Roll back:** when a verified backup exists, use **Restore previous version**, restart, and recheck identity;
-- **Boundary:** updates use fixed official feeds. macOS uses updater signatures plus ad-hoc code signing and
-  must not be described as notarized. Restoring an install does not promise to reverse a future incompatible
-  Goal schema.
-
-Browser and PWA users continue through the CLI update flow. A CLI update cannot repair native shell startup
-or updater defects.
 
 ## 1.0 acceptance checklist
 

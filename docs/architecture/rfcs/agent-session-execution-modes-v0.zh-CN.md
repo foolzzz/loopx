@@ -3,12 +3,12 @@
 - **RFC 状态：** Draft，维护者评审中。
 - **交付成熟度：** Partial。挂接宿主（attached host）的绑定、broker 与运行时围栏已在
   `main` 上交付；下文中的跨宿主接入契约仍是提案，且只被部分强制。
-- **作者 / 负责人：** 由维护者指示整理的契约。它把桌面端提案中已有的会话归属决策
-  抽取并规范化。会话归属与宿主接入决策需要维护者接受。
+- **作者 / 负责人：** 由维护者指示整理的契约。它将挂接/托管会话归属决策
+  跨宿主规范化。会话归属与宿主接入决策需要维护者接受。
 - **创建日期：** 2026-09-15
 - **最近规范性修订：** 2026-09-15
 - **实现基线：** `6c3da75ca`
-- **相关契约：** [桌面执行前端](desktop-execution-frontends-v0.zh-CN.md)、
+- **相关契约：** [Goal Channel 协作](goal-channel-collaboration-v0.zh-CN.md)、
   [单属主本地守护进程](single-owner-local-daemon-v0.md)、
   [有能力的管家与语义交接](capable-manager-semantic-handoff-v0.zh-CN.md)、
   [受治理的 Turn](../../reference/protocols/loopx-turn-v0.md)、
@@ -45,8 +45,8 @@
 5. 模式与传输、事件源、用户可见的宿主模式选择、以及入口/投递模式相互正交。绑定没有
    声明的投递能力不可用，并且不可用必须失败关闭，而不是静默改派到另一个执行器。
 
-保持不变的部分：桌面端产品流程、连接器模型与 Web/Lark 收敛仍属于
-[桌面执行前端 RFC](desktop-execution-frontends-v0.zh-CN.md)；本地服务身份与监督仍属于
+保持不变的部分：连接器模型与 Web/Lark 收敛仍属于
+[Goal Channel 协作](goal-channel-collaboration-v0.zh-CN.md)；本地服务身份与监督仍属于
 [单属主守护进程 RFC](single-owner-local-daemon-v0.md)；有界 Turn 事务仍属于
 [LoopX Turn v0](../../reference/protocols/loopx-turn-v0.md)；面向用户的宿主选择仍属于
 [宿主模式规划 v0](../../reference/protocols/host-mode-plan-v0.md)；管家语义与延续路径
@@ -77,7 +77,7 @@ LoopX 启动，另一种已经属于其他宿主。当绑定没有说明自己�
   的权威。
 
 现有属主无法各自解决这个问题。LoopX Chat store 知道绑定，broker 知道 claim 与完成
-回执，桌面前端知道自己的产品流程，而每个外部宿主知道自己的进程语义。缺少一份统一的
+回执，浏览器前端知道自己的产品流程，而每个外部宿主知道自己的进程语义。缺少一份统一的
 接入契约时，每个新宿主都会重新裁定会话归属，而每一次重新裁定都是一次产生第二权威的
 机会。这一风险是具体的而非假设的：一个可选的本地宿主原型为 AI 主导的团队工作引入
 了对话式建档和自己的一套有界执行，它必须被接入同一份契约，而不是另立一份。
@@ -113,8 +113,8 @@ LoopX 启动，另一种已经属于其他宿主。当绑定没有说明自己�
 
 ### 非目标
 
-- 桌面端产品流程、连接器模型、Web/Lark 收敛与 Bot 入口模式。这些
-  仍属于 [桌面执行前端 RFC](desktop-execution-frontends-v0.zh-CN.md)。
+- 连接器模型、Web/Lark 收敛与 Bot 入口模式。这些
+  仍属于 [Goal Channel 协作](goal-channel-collaboration-v0.zh-CN.md)。
 - 本地服务身份、就绪、监督与迁移。这些仍属于
   [单属主守护进程 RFC](single-owner-local-daemon-v0.md)。
 - 管家语义、语义交接与会话延续路径。这些仍属于
@@ -143,7 +143,7 @@ LoopX 启动，另一种已经属于其他宿主。当绑定没有说明自己�
 | CLI 面 | `loopx worker-bridge attached-session-bind`、`-list`、`-claim`、`-complete` 存在于 [`loopx/cli_commands/worker_bridge.py`](../../../loopx/cli_commands/worker_bridge.py)，并在 [broker 指南](../../integrations/attached-agent-session-broker.md) 与 [worker-bridge 安装契约](../../integrations/worker-bridge-install-contract.md) 中记录。 |
 | 原会话委派 | [`loopx delegation`](../../reference/local-delegation.md#use-an-existing-agent-conversation-through-its-shell) 让有 shell 能力的原 Agent 使用与 MCP 相同的显式执行绑定；`operations` 无需记住 ID 即可找回自身委派，重新核验 accepted，明确单条不可用及剩余分页。新挂载工具的 Goal Chat 复用同一目录，已存在的原生线程恢复时保留原工具 schema；不创建 Agent、不迁移宿主，也不安装自动唤醒策略。 |
 | 聚焦测试 | [`tests/test_attached_session_cli.py`](../../../tests/test_attached_session_cli.py) 与 `tests/test_chat_codex_home.py::test_attached_session_uses_existing_host_not_managed_adapter` 覆盖 bind/claim/complete 与"不启动托管适配器"的围栏。 |
-| 产品级提案 | [桌面执行前端 RFC](desktop-execution-frontends-v0.zh-CN.md) 拥有 Mode A/Mode B 的产品对比、连接器与事件源正交性，以及桌面端非目标。 |
+| 协作提案 | [Goal Channel 协作](goal-channel-collaboration-v0.zh-CN.md) 拥有连接器/事件源正交性与 Agent 级入口。 |
 | 宿主侧循环指引 | [Codex CLI TUI loop](../../product/runtimes/codex-cli/codex-cli-tui-loop.md) 记录了一个可见宿主的会话挂接自动化与恢复选项。 |
 
 这些事实尚未确立的内容：没有跨宿主接入契约，没有关于轮换或替换已绑定工作会话的
@@ -200,7 +200,7 @@ coordinator 复用限定范围的委派、独立验收与结果返回。
 | --- | --- | --- |
 | 发现/创建/复用 Agent | Registry、directory、onboarding 和配置的 execution profile | 稳定 Agent 身份、生效范围和支持能力；重复创建不产生第二身份 |
 | 挂接/启动/恢复/停止 | 本 RFC 的 binding 与选定 host adapter | 精确会话/代际、实际执行或阻塞、取消和替换读回；attached host 不获得替身执行器 |
-| 发送/接收/返回 | Collaboration request owner 与[入口策略](desktop-execution-frontends-v0.zh-CN.md#agent-scoped-bot-ingress-modes) | 请求/实际 inbox、queue、steer 语义；投递、消费、工作采用仍是不同事实 |
+| 发送/接收/返回 | Collaboration request owner 与[入口策略](goal-channel-collaboration-v0.zh-CN.md#agent-scoped-bot-ingress-modes) | 请求/实际 inbox、queue、steer 语义；投递、消费、工作采用仍是不同事实 |
 | 领取/验证/结算 | 既有 Todo、lease、acceptance、quota owner | 当前执行 proof 与独立验收；宿主不能自行证明工作完成 |
 
 这些是语义操作族，不是新增的万能 adapter API。主 Agent 和获授权的 managed worker
@@ -370,13 +370,111 @@ root，都不同于注册身份数和展示上限。不要只为展示这些观�
 |---|---|---|
 | 执行模式 | `managed_runtime`、`attached_host` | 本 RFC |
 | 续跑 owner（提案） | LoopX Turn driver、原生 Goal runtime、同会话 host driver | 本 RFC；按选定 profile 验证，不从 provider 或部署位置推断 |
-| 传输 | web chat、Lark、CLI | 桌面执行前端 RFC；传输绝不改变模式 |
+| 传输 | web chat、Lark、CLI | Goal Channel 协作 RFC；传输绝不改变模式 |
 | 事件源 | 群消息、文档评论、monitor 观察、入站文件 | 连接器与协作契约 |
-| 入口/投递模式 | `live_steering`、`session_queue`、`async_inbox` | 桌面执行前端 RFC，按绑定门控 |
+| 入口/投递模式 | `live_steering`、`session_queue`、`async_inbox` | Goal Channel 协作 RFC，按绑定门控 |
 | 宿主模式选择 | `visible_tui`、`isolated_headless_turn`、`im_gateway`、`shell_service`、`hybrid_handoff` | [宿主模式规划 v0](../../reference/protocols/host-mode-plan-v0.md) |
 
 新增或移除传输、事件源不会创建、替换或迁移会话。改变模式是独立的显式操作，拥有自己的
 回执。选择宿主模式不授权执行模式。
+
+### 托管运行时与 Provider 契约
+
+这些保留的宿主中立要求仍为提案；契约归位不证明监督器或新运行时已具备资格。
+`managed_runtime` 是规范模式标签。宿主拥有进程监督，LoopX 拥有接入与验收。
+
+### 托管循环控制器
+
+托管模式使用 LoopX 拥有的运行时监督器作为外层循环：
+
+```text
+fresh LoopX state
+  -> gate, quota, and selected Todo decision
+  -> create one idempotent loopx_turn_v0 envelope
+  -> Pi or dsh executes one bounded attempt
+  -> independent validation
+  -> canonical LoopX writeback
+  -> quota spend only after accepted writeback
+  -> scheduler hint: continue, wait, replan, or stop
+  -> LoopX host supervisor decides whether to request another Turn
+```
+
+`loopx_turn_v0` 保持为有界事务。它不会变成永恒循环或第二个调度器。监督器负责
+进程存活、一次一个 Turn 的串行化、取消、退避、唤醒、崩溃恢复和会话恢复。
+LoopX 仍然负责工作是否有资格执行、结果是否被接受。
+
+该模式不依赖运行时的原生 Goal 抽象。现有 Pi Goal 扩展仍然是受支持的
+visible-host 集成，但托管 Pi 可以复用 Pi 的 Agent/session/tool surface，
+而不用该扩展充当运行时调度器。同样，现有 `dsh` Turn 连接器是很好的起点；
+托管契约不得依赖一个未被接受的本地插件实现。
+
+### 运行时适配器契约
+
+Pi 和 `dsh` 实现同一个窄托管运行时契约，而不假装其内部循环相同。至少它提供：
+
+- 安装与版本探测；
+- 能力发现；
+- 创建、恢复、中断和关闭会话；
+- 提交一个有界宿主请求；
+- 流式输出 public-safe 进度和最终结果事件；
+- 返回不透明 owner-local 会话引用；以及
+- 把运行时失败映射为稳定的 LoopX 错误类别。
+
+适配器可以在自己的 owner-local 存储中保留本地转录、检查点和工具日志。LoopX
+只存储协调、验证和恢复所需的标识符与回执。
+
+### Provider 配置契约
+
+运行时选择与 provider 选择正交。Ark Agent Plan 是命名的托管 provider 预设。
+显式配置引导、作用域内的用户意图与 Agent 自主分配共同选择合格 profile，
+不把 provider 规则散落在 LoopX 内核各处。
+
+一个 provider 配置必须暴露或解析：
+
+- provider 与路由标识符；
+- owner-local 凭据引用；
+- 受支持的模型发现；
+- API surface 与流式支持；
+- 输入/输出模态与工具调用支持；
+- 已宣称时的推理/思考模式；
+- 已宣称时的上下文与输出限制；
+- 可用时的用量与限流遥测；以及
+- 一个脱敏的健康检查结果。
+
+能力发现是有版本的证据。未知或冲突的 provider 能力在显式探测解决前保持未知。
+监督器不得静默回退到不同的模型、路由、provider 或计费方案。
+
+Ark Agent Plan 有自己的受支持模型、凭据和用量边界。适配器因此必须验证 Plan
+路由，而不是假设标准 Ark 端点支持的模型会自动通过 Plan 配置可用。凭据和
+原始 provider 响应保持 owner-local。
+
+### 两种模式中由 Goal 绑定的外部能力
+
+运行时和 provider 选择并不能定义 Agent 的完整工具集。挂接与托管工作会话
+必须从所选 Agent 的 Goal 绑定投影相同的外部能力。本 RFC 不新增
+`external toolkit` 运行时对象，也不新增另一套 capability-pack 契约。现有
+边界已经足够：
+
+- extension 拥有 provider 打包、安装、revision、启用、doctor 与回滚；
+- external capability 拥有 caller-outcome 契约、operation、权限、schema、
+  验证、readback 与回执；以及
+- 可选的 domain capability pack 只在确实需要领域语义时拥有领域策略、状态
+  与投影。
+
+一个恰好包含多个 skill、命令和服务的仓库只是一份源分发。它的所有者可以
+维护源清单，但每个可执行 operation 都必须通过现有 extension 与 capability
+契约进入 LoopX。安装仓库、发现 prompt skill 或观察到同名 provider 都不会
+授予权威。除非 Goal 绑定选择了一个确切且 ready 的 revision，否则重复
+provider 失败关闭。
+
+只读 operation 可以复用持久 Goal 绑定，而不创建工作事实。物质 operation
+必须绑定当前获准的工作尝试；托管模式使用受治理的 Turn 事务，挂接模式则保留
+等价的宿主或 automation 决策与结算证据。两条路径都不能允许 capability
+provider 直接变更 Goal 或 Todo 状态。
+
+私有 provider coordinates、凭据、日志、trace、数据库行和文档内容保持
+owner-local。LoopX 持久状态只保存 public-safe 的 capability 与 operation
+身份、provider revision 与 profile digest、有界证据引用和已准入回执。
 
 ## 6. 跨 RFC 与协议的归属地图
 
@@ -385,7 +483,6 @@ root，都不同于注册身份数和展示上限。不要只为展示这些观�
 
 | 文档 | 拥有的内容 | 与本 RFC 的关系 |
 |---|---|---|
-| [桌面执行前端](desktop-execution-frontends-v0.zh-CN.md) | 桌面端产品形态、Mode A/Mode B 产品对比、Web/Lark 收敛、连接器与 Bot 入口模型、桌面端交付切片 | 本 RFC 使用的模式对比来源。本 RFC 抽取与属主无关的会话执行契约；那份 RFC 保留前端产品流程，并应在模式接入上引用本 RFC。 |
 | [单属主本地守护进程](single-owner-local-daemon-v0.md) | 服务 profile 身份、就绪、受监督组合、生命周期回执、迁移 | 拥有 LoopX 组件的*进程与服务*归属。托管宿主只有在那份 RFC 下才能作为受监督服务运行；本 RFC 不创建守护进程、监听器或端点。 |
 | [有能力的管家与语义交接](capable-manager-semantic-handoff-v0.zh-CN.md) | 管家能力、语义交接、会话与产品延续（§5.7）、延续路径选择、结果返回 | 拥有跨会话延续：同会话恢复、同 Agent 替换、跨 Agent 接管。本 RFC 拥有模式标签与绑定归属；交接不得隐式改变模式。 |
 | [管家运行时 profile](manager-runtime-profile-v0.zh-CN.md) | 管家的有效运行时 profile：沙箱、提示词、托管工作区指令、配置修订与回读一致性 | 托管模式的 profile 细节。本 RFC 要求模式显式且可回读；profile 内容与其批准仍在那份文档。 |
@@ -404,8 +501,8 @@ root，都不同于注册身份数和展示上限。不要只为展示这些观�
 
 有两点值得显式说明：
 
-- 桌面 RFC 仍然是其前端的产品级提案。本 RFC 不取代它；关于桌面界面流程或连接器的
-  冲突在那份文档解决。
+- Goal Channel RFC 拥有 Web/Lark 对话收敛与 Connector 入口；本 RFC 拥有会话身份、
+  模式接入与托管生命周期。
 - 管家、延续与交接 RFC 拥有*连续性*。本 RFC 拥有*身份*：哪个会话、以哪种模式、在哪个
   Agent 下，是当前执行器。延续操作消费该绑定；它们不重新定义它。
 
@@ -556,7 +653,7 @@ M3 不得成为第二个模式事实来源。
 
 | 日期 | 决策 | 负责人 / 批准 | 备选 | 变更的规范章节 |
 |---|---|---|---|---|
-| 2026-09-15 | 会话执行模式是显式、持久化、按绑定的契约；桌面 RFC 保留产品流程，延续类 RFC 保留延续路径 | 仓库属主，经 RFC 评审与合并 | 隐式模式推断；通用适配器；自动迁移到托管 | 第 1-6 节 |
+| 2026-09-15 | 会话执行模式是显式、持久化、按绑定的契约；协作仍归 Goal Channel RFC，延续类 RFC 保留延续路径 | 仓库属主，经 RFC 评审与合并 | 隐式模式推断；通用适配器；自动迁移到托管 | 第 1-6 节 |
 
 没有其他决策获得批准。第 13 节中的建议仍是提案。
 
@@ -569,7 +666,7 @@ M3 不得成为第二个模式事实来源。
 | E3 | 挂接 broker 有界等待 claim，且绝不启动运行时 | `6c3da75ca`，源码审计 | `loopx/attached_session.py` 的 bind、claim、complete | pass（源码） | 边界作为常量评审；无长稳证据 |
 | E4 | 挂接会话绝不启动托管适配器，并以类型化错误失败关闭 | `6c3da75ca`，聚焦测试 | `tests/test_chat_codex_home.py::test_attached_session_uses_existing_host_not_managed_adapter`、`loopx/chat_runtime.py` | pass（聚焦测试） | 覆盖所述围栏，不覆盖每条投递路径 |
 | E5 | bind、claim、complete 可通过 CLI 触达 | `6c3da75ca`，聚焦测试 | `tests/test_attached_session_cli.py`、`loopx/cli_commands/worker_bridge.py` | pass（聚焦测试） | 合成宿主夹具，不是真实外部宿主 |
-| E6 | 桌面前端提案已包含 Mode A/Mode B 对比及其非目标 | `6c3da75ca`，文档审计 | `docs/architecture/rfcs/desktop-execution-frontends-v0.md` | pass（文档） | 是提案，不是已交付产品行为 |
+| E6 | 桌面前端提案已包含 Mode A/Mode B 对比及其非目标 | `6c3da75ca`，文档审计 | [历史提案](https://github.com/loopx-project/loopx/blob/6c3da75ca/docs/architecture/rfcs/desktop-execution-frontends-v0.md) | pass（文档） | 已退役提案；共享契约现归本 RFC 与 Goal Channel |
 | E7 | 一个可选本地宿主原型提出带有对话式建档的宿主自持执行面 | 公开 PR #4376，评审期 head | 该 PR 上的公开评审发现 | proposed，未被接受 | 打开的 PR 是候选，不是接入证据 |
 
 ## 附录 D：被拒绝或被取代的备选

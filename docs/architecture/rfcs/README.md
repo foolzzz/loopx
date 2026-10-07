@@ -248,7 +248,7 @@ changes.
 
 - [Single-Owner Local Daemon v0](single-owner-local-daemon-v0.md)
   - **RFC status:** Draft.
-  - **Delivery on `main`:** Proposal only; existing Desktop ownership repair is shipped.
+  - **Delivery on `main`:** Proposal only; local service ownership remains separately qualified.
   - **Current boundary:** Service-profile identity, component readiness, supervised
     composition, and recoverable migration are proposed for #3930. A unified
     `loopxd` service has not shipped.
@@ -272,14 +272,6 @@ changes.
     [#3749](https://github.com/huangruiteng/loopx/pull/3749), and
     [#3755](https://github.com/huangruiteng/loopx/pull/3755). General
     multi-capability promotion remains under review.
-- [LoopX Desktop Execution Frontends v0](desktop-execution-frontends-v0.md)
-  ([中文版](desktop-execution-frontends-v0.zh-CN.md))
-  - **RFC status:** Draft.
-  - **Delivery on `main`:** Supporting foundations implemented.
-  - **Current boundary:** Attached and managed runtime, desktop, and connector
-    pieces exist, but the unified execution-frontend/session-ownership contract
-    and cross-transport convergence are not accepted as one shipped product
-    boundary.
 - [Agent Session Execution Modes v0](agent-session-execution-modes-v0.md)
   ([中文版](agent-session-execution-modes-v0.zh-CN.md))
   - **RFC status:** Draft, under maintainer review.
@@ -288,8 +280,8 @@ changes.
   - **Current boundary:** Normalizes the attached/managed session-ownership
     decision into one cross-host admission rule: an explicit persisted mode per
     binding, one executor per Agent binding, capability-gated delivery that
-    fails closed, and no implicit mode change. Desktop product flows stay with
-    the Desktop frontends RFC, local service lifecycle with the daemon RFC, and
+    fails closed, and no implicit mode change. Web/Lark ingress stays with
+    the Goal Channel RFC, local service lifecycle with the daemon RFC, and
     continuation with the manager RFC. Optional preview hosts, session
     rotation, and host promotion remain unapproved.
 - [Goal Channel Collaboration v0](goal-channel-collaboration-v0.md)
@@ -299,7 +291,7 @@ changes.
   - **Current boundary:** Goal-bound Lark groups, Kanban, gate notifications,
     shared targets, and Bot runtime integration are shipped. The
     provider-neutral multi-surface model remains draft, and interactive
-    transport is refined by the Desktop Frontends RFC.
+    transport is refined by its Agent-scoped conversation proposal.
 - [Agent IM, LoopX, and OpenViking Collaboration v0](agent-im-openviking-collaboration-v0.md)
   - **RFC status:** Draft.
   - **Delivery on `main`:** Proposal only.

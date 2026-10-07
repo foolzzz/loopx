@@ -64,13 +64,7 @@ contract](docs/reference/protocols/lark-manager-context-authority-v0.md).
 loopx dashboard
 ```
 
-`loopx dashboard` is the supported browser/PWA launch path. You can also download
-native desktop previews from the [1.0 release](https://github.com/loopx-project/loopx/releases/tag/v1.0.0);
-they reuse the same loopback services and Goal state. Apple Silicon macOS supports
-signed App updates that pair the shell with its bundled runtime, plus repair and
-recovery. Python 3.11+ is required; the App is ad-hoc signed, not notarized.
-Windows preview installers currently use manual updates and a separately installed CLI.
-[Desktop installation, updates, and source development](apps/desktop/loopx-control-plane/README.md).
+`loopx dashboard` is the supported browser/PWA launch path.
 
 <details>
 <summary>Capability settings</summary>

@@ -62,8 +62,8 @@ hook isolation, not an OS-process-isolation claim.
   its roadmap; the `dsh` event source is the recorded answer to owner
   decision 2, and the C1 run, overhead report, and retention profile remain
   open before P0 exit.
-- [Desktop Execution Frontends](../../../docs/architecture/rfcs/desktop-execution-frontends-v0.md)
-  Mode B is the managed runtime this observer is built for: the Desktop-owned
+- [Agent Session Execution Modes](../../../docs/architecture/rfcs/agent-session-execution-modes-v0.md)
+  `managed_runtime` is the managed runtime this observer is built for: the LoopX-owned
   runtime supervisor may consume the receipt and projection as diagnostic
   inputs, while the observer keeps no supervisor authority.
 

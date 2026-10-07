@@ -55,12 +55,7 @@ LoopX 1.0 将这些长程控制状态汇入 Personal Workspace。你可以在一
 loopx dashboard
 ```
 
-`loopx dashboard` 是受支持的浏览器 / PWA 启动方式。也可从
-[1.0 Release](https://github.com/loopx-project/loopx/releases/tag/v1.0.0) 下载桌面预览版，
-复用同一组 loopback 服务与 Goal 状态。Apple Silicon macOS 支持签名 App 更新，
-将桌面壳与内置运行时配套升级，并提供修复与恢复入口；需要 Python 3.11+，
-App 为 ad-hoc 签名，尚未 notarize。Windows 预览版目前手动更新，需单独安装 CLI。
-[桌面安装、更新与源码开发指南](apps/desktop/loopx-control-plane/README.md)。
+`loopx dashboard` 是受支持的浏览器 / PWA 启动方式。
 
 <details>
 <summary>能力设置</summary>

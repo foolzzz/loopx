@@ -60,7 +60,7 @@ python -m build --sdist --wheel
 `release-build` requires authenticated `gh` read access and Node/npm. It downloads
 the preceding stable version's wheel and `SHA256SUMS`, verifies the checksum, and
 carries its current assets into the new bundle. Missing predecessor artifacts or
-a checksum mismatch stop the release; desktop prereleases and later versions are
+a checksum mismatch stop the release; prereleases and later versions are
 excluded. A repository with no predecessor can bootstrap without history.
 
 Both wheel and sdist include the verified bundle. A normal package build fails
@@ -68,9 +68,7 @@ if it is absent/stale; editable installation remains available before a frontend
 build. Building a wheel from the sdist requires no Node or network access for the
 frontend. Release CI installs both wheel forms outside the checkout and requests
 every delivered file through the actual Chat HTTP handler, then runs workspace
-browser scenarios against the isolated installed interpreter. Desktop packaging adds
-the qualified generated bundle to its exact Git source archive and rejects dirty
-or mismatched frontend inputs.
+browser scenarios against the isolated installed interpreter.
 
 ## Upgrade window and rollback
 

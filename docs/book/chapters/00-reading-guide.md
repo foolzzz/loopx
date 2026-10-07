@@ -170,7 +170,7 @@ CLI/App convergence 与 Stage 4 distribution cleanup 仍是后续方向。
 
 `v1.0.0` 的产品里程碑是 Personal Workspace，而不是一次对所有 staged authority 或可选 Provider
 的整体提升。它把跨 Goal 总览、Agent lane、已完成任务、Capability 设置、verified reports、
-Goal Channel 与桌面恢复汇集到一个 operator surface，同时保留 CLI、typed Kernel 与项目状态的
+Goal Channel 汇集到一个 operator surface，同时保留 CLI、typed Kernel 与项目状态的
 事实所有权。沿[1.0 Workspace 操作章](./workspace-v1.md)完成启动、readback、preview/apply/receipt、
 配置与停用验收，再进入项目接入或开发者贡献主线。
 

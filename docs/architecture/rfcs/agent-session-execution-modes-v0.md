@@ -4,13 +4,13 @@
 - **Delivery maturity:** Partial. The attached-host binding, broker, and runtime
   fencing already ship on `main`; the cross-host admission contract below is
   proposed and only partially enforced.
-- **Authors / owners:** Maintainer-directed contract. It extracts and normalizes
-  the session-ownership decision already described for the Desktop frontend.
+- **Authors / owners:** Maintainer-directed contract. It normalizes
+  the attached/managed session-ownership decision across supported hosts.
   Session-ownership and host-admission decisions require maintainer acceptance.
 - **Created:** 2026-09-15
 - **Last normative revision:** 2026-09-15
 - **Implementation baseline:** `6c3da75ca`
-- **Related contracts:** [Desktop execution frontends](desktop-execution-frontends-v0.md),
+- **Related contracts:** [Goal Channel collaboration](goal-channel-collaboration-v0.md),
   [Single-owner local daemon](single-owner-local-daemon-v0.md),
   [Capable manager and semantic handoff](capable-manager-semantic-handoff-v0.md),
   [Governed Turn](../../reference/protocols/loopx-turn-v0.md),
@@ -60,9 +60,8 @@ Todos, sessions, or execution.
    not advertise is unavailable, and unavailability fails closed rather than
    silently routing work to a different executor.
 
-What remains unchanged: Desktop product flows, connector model, and Web/Lark
-convergence stay with the
-[Desktop execution frontends RFC](desktop-execution-frontends-v0.md); local
+What remains unchanged: the connector model and Web/Lark convergence stay with
+[Goal Channel collaboration](goal-channel-collaboration-v0.md); local
 service identity and supervision stay with the
 [single-owner daemon RFC](single-owner-local-daemon-v0.md); the bounded Turn
 transaction stays with [LoopX Turn v0](../../reference/protocols/loopx-turn-v0.md);
@@ -103,13 +102,13 @@ projection and the real executor diverge. Observed failure shapes:
   records beside LoopX and becomes a second, quieter authority.
 
 The existing owners cannot solve this locally. The LoopX Chat store knows the
-binding, the broker knows the claim and completion receipts, the Desktop
+binding, the broker knows the claim and completion receipts, the browser
 frontend knows its product flow, and each external host knows its own process
 semantics. Without one admitted contract, every new host re-decides session
 ownership, and each re-decision is another chance to create a second authority.
 That risk is concrete rather than hypothetical: an optional local host
 prototype for AI-led team work introduces conversational setup and its own
-bounded execution outside the Desktop frontend, and it must be admitted to the
+bounded execution outside the browser frontend, and it must be admitted to the
 same contract instead of defining a parallel one.
 
 ### Invariants
@@ -152,9 +151,8 @@ Every implementation must preserve these properties.
 
 ### Non-goals
 
-- Desktop product flows, connector model, Web/Lark convergence, and bot ingress
-  modes. Those stay with the
-  [Desktop execution frontends RFC](desktop-execution-frontends-v0.md).
+- Connector model, Web/Lark convergence, and bot ingress modes. Those stay with
+  [Goal Channel collaboration](goal-channel-collaboration-v0.md).
 - Local service identity, readiness, supervision, and migration. Those stay
   with the [single-owner daemon RFC](single-owner-local-daemon-v0.md).
 - Manager semantics, semantic handoff, and session-continuation paths. Those
@@ -184,7 +182,7 @@ Audited at `6c3da75ca`. These are current facts, not proposed behavior.
 | CLI surface | `loopx worker-bridge attached-session-bind`, `-list`, `-claim`, and `-complete` exist in [`loopx/cli_commands/worker_bridge.py`](../../../loopx/cli_commands/worker_bridge.py), documented in the [broker guide](../../integrations/attached-agent-session-broker.md) and the [worker-bridge install contract](../../integrations/worker-bridge-install-contract.md). |
 | Existing-session delegation | [`loopx delegation`](../../reference/local-delegation.md#use-an-existing-agent-conversation-through-its-shell) exposes the same explicitly bound work as MCP to an existing shell-capable Agent. `operations` recovers requester-scoped work without remembered IDs, rechecks acceptance and exposes unavailable items and further pages. Newly tool-equipped Goal Chat consumes the same inventory; resumed native threads keep their original tool schema. It does not provision an Agent, migrate a host or install an automatic wake policy. |
 | Focused tests | [`tests/test_attached_session_cli.py`](../../../tests/test_attached_session_cli.py) and `tests/test_chat_codex_home.py::test_attached_session_uses_existing_host_not_managed_adapter` cover bind/claim/complete and the no-managed-adapter fence. |
-| Product-level proposal | The [Desktop execution frontends RFC](desktop-execution-frontends-v0.md) owns the Mode A/Mode B product comparison, the connector and event-source orthogonality, and the Desktop non-goals. |
+| Collaboration proposal | [Goal Channel collaboration](goal-channel-collaboration-v0.md) owns connector/event-source orthogonality and Agent-scoped ingress. |
 | Host-side loop guidance | [Codex CLI TUI loop](../../product/runtimes/codex-cli/codex-cli-tui-loop.md) documents session-attached automation and resume options for one visible host. |
 
 Not established by these facts: there is no cross-host admission contract, no
@@ -250,7 +248,7 @@ artifact is not accepted work.
 | --- | --- | --- |
 | Discover/create/reuse an Agent | Registry, directory, onboarding and configured execution profile | Stable Agent identity, effective scope and supported capabilities; repeated creation does not duplicate the identity |
 | Attach/start/resume/stop | This RFC's binding and the selected host adapter | Exact session/generation, actual running or blocked state, cancellation and replacement readback; attached hosts never acquire a substitute executor |
-| Send/receive/return | Collaboration request owner and the [ingress policies](desktop-execution-frontends-v0.md#agent-scoped-bot-ingress-modes) | Requested/effective inbox, queue or steer semantics; delivery, consumption and work adoption remain distinct |
+| Send/receive/return | Collaboration request owner and the [ingress policies](goal-channel-collaboration-v0.md#agent-scoped-bot-ingress-modes) | Requested/effective inbox, queue or steer semantics; delivery, consumption and work adoption remain distinct |
 | Claim/validate/settle | Existing Todo, lease, acceptance and quota owners | Current execution proof and independent acceptance; a host cannot certify its own completion |
 
 These are semantic operation families, not a new universal adapter API. Both a
@@ -467,14 +465,128 @@ Six axes that are frequently confused, each with one owner:
 | --- | --- | --- |
 | Execution mode | `managed_runtime`, `attached_host` | This RFC |
 | Continuation owner (proposed) | LoopX Turn driver, native Goal runtime, same-session host driver | This RFC; qualification per selected profile, never inferred from provider or location |
-| Transport | web chat, Lark, CLI | Desktop frontends RFC; transports never change mode |
+| Transport | web chat, Lark, CLI | Goal Channel collaboration RFC; transports never change mode |
 | Event source | group message, document comment, monitor observation, inbound file | Connector and collaboration contracts |
-| Ingress/delivery mode | `live_steering`, `session_queue`, `async_inbox` | Desktop frontends RFC, gated per binding |
+| Ingress/delivery mode | `live_steering`, `session_queue`, `async_inbox` | Goal Channel collaboration RFC, gated per binding |
 | Host-mode selection | `visible_tui`, `isolated_headless_turn`, `im_gateway`, `shell_service`, `hybrid_handoff` | [Host mode plan v0](../../reference/protocols/host-mode-plan-v0.md) |
 
 Adding or removing a transport or event source does not create, replace, or
 migrate a session. Changing mode is a separate explicit operation with its own
 receipt. Selecting a host mode does not authorize a session mode.
+
+### Managed runtime and provider contracts
+
+These retained host-neutral requirements remain proposed; no supervisor or new
+runtime is qualified by moving the contract. `managed_runtime` is the canonical
+mode tag. The host owns process supervision; LoopX owns admission and acceptance.
+
+### Managed loop controller
+
+Managed mode uses a LoopX-owned runtime supervisor as the outer loop:
+
+```text
+fresh LoopX state
+  -> gate, quota, and selected Todo decision
+  -> create one idempotent loopx_turn_v0 envelope
+  -> Pi or dsh executes one bounded attempt
+  -> independent validation
+  -> canonical LoopX writeback
+  -> quota spend only after accepted writeback
+  -> scheduler hint: continue, wait, replan, or stop
+  -> LoopX host supervisor decides whether to request another Turn
+```
+
+`loopx_turn_v0` stays a bounded transaction. It does not become an eternal
+loop or a second scheduler. The supervisor is responsible for process
+liveness, one-Turn-at-a-time serialization, cancellation, backoff, wakeup,
+crash recovery, and session resume. LoopX remains responsible for whether work
+is eligible and whether an outcome is accepted.
+
+This mode does not depend on a runtime's native Goal abstraction. The existing
+Pi Goal extension remains a supported visible-host integration, but managed Pi
+may reuse Pi's Agent/session/tool surfaces without using that extension as the
+runtime scheduler. Likewise, the existing `dsh` Turn connector is a useful
+starting point; the managed contract must not depend on an unaccepted native
+plugin implementation.
+
+### Runtime adapter contract
+
+Pi and `dsh` implement the same narrow managed-runtime contract without
+pretending that their internal loops are identical. At minimum it provides:
+
+- install and version probe;
+- capability discovery;
+- create, resume, interrupt, and close session;
+- submit one bounded host request;
+- stream public-safe progress and final result events;
+- return an opaque owner-local session reference; and
+- map runtime failures into stable LoopX error classes.
+
+The adapter may keep native transcripts, checkpoints, and tool logs in its own
+owner-local storage. LoopX stores only the identifiers and receipts required
+for reconciliation, validation, and resume.
+
+### Provider profile contract
+
+Runtime choice and provider choice are orthogonal. Ark Agent Plan is a named
+managed-provider preset. Guided configuration, scoped user intent and Agent
+allocation select an eligible profile; no provider rule is embedded throughout
+the LoopX kernel.
+
+A provider profile must expose or resolve:
+
+- provider and route identifiers;
+- an owner-local credential reference;
+- supported model discovery;
+- API surface and streaming support;
+- input/output modalities and tool-call support;
+- reasoning or thinking modes when advertised;
+- context and output limits when advertised;
+- usage and rate-limit telemetry when available; and
+- a redacted health-check result.
+
+Capability discovery is versioned evidence. Unknown or conflicting provider
+capabilities remain unknown until an explicit probe resolves them. The supervisor
+must not silently fall back to a different model, route, provider, or billing
+plan.
+
+Ark Agent Plan has its own supported-model, credential, and usage boundary.
+The adapter must therefore validate the Plan route instead of assuming that a
+model supported by a standard Ark endpoint is automatically available through
+the Plan profile. Credentials and raw provider responses remain owner-local.
+
+### Goal-bound external capabilities in both modes
+
+Runtime and provider selection do not define the Agent's complete toolset.
+Attached and managed working sessions must project the same external
+capabilities from the selected Agent's Goal binding. This RFC does not add an
+`external toolkit` runtime object or another capability-pack contract. The
+existing boundaries remain sufficient:
+
+- an extension owns provider packaging, installation, revision, enablement,
+  doctor, and rollback;
+- an external capability owns the caller-outcome contract, operations,
+  permissions, schemas, validation, readback, and receipts; and
+- an optional domain capability pack owns domain policy, state, and projection
+  when those semantics are actually required.
+
+A repository that happens to contain multiple skills, commands, and services
+is only a source distribution. Its owner may keep a source inventory, but each
+executable operation must enter LoopX through an existing extension and
+capability contract. Installing the repository, finding a prompt skill, or
+observing a same-named provider grants no authority. Duplicate providers fail
+closed unless the Goal binding selects one exact ready revision.
+
+Read-only operations may reuse the durable Goal binding without creating work
+truth. A material operation must bind to the current authorized work attempt;
+managed mode uses the governed Turn transaction, while attached mode preserves
+the equivalent host or automation decision and settlement evidence. Neither
+path may let a capability provider mutate Goal or Todo state directly.
+
+Private provider coordinates, credentials, logs, traces, database rows, and
+document content remain owner-local. LoopX durable state keeps only public-safe
+capability and operation identity, provider revision and profile digests,
+bounded evidence references, and admitted receipts.
 
 ## 6. Ownership map across RFCs and protocols
 
@@ -484,7 +596,6 @@ extending this RFC with a competing rule.
 
 | Document | Owns | Relationship to this RFC |
 | --- | --- | --- |
-| [Desktop execution frontends](desktop-execution-frontends-v0.md) | Desktop product shape, Mode A/Mode B product comparison, Web/Lark convergence, connector and bot ingress model, Desktop delivery slices | Source of the mode comparison used here. This RFC extracts the owner-agnostic session-execution contract; that RFC keeps frontend product flows and should reference this one for mode admission. |
 | [Single-owner local daemon](single-owner-local-daemon-v0.md) | Service-profile identity, readiness, supervised composition, lifecycle receipts, migration | Owns *process and service* ownership for LoopX components. A managed host may run as a supervised service only under that RFC; this RFC does not create daemons, listeners, or endpoints. |
 | [Capable manager and semantic handoff](capable-manager-semantic-handoff-v0.md) | Manager capability, semantic handoff, session and product continuity (§5.7), continuation path selection, result return | Owns continuity across sessions: same-session resume, same-Agent replacement, cross-Agent takeover. This RFC owns the mode tag and binding ownership; a handoff may not change mode implicitly. |
 | [Manager runtime profile](manager-runtime-profile-v0.md) | The manager's effective runtime profile: sandbox, prompt, managed workspace instructions, configuration revision and readback agreement | A managed-mode profile detail. This RFC requires the mode to be explicit and read back; profile content and its approval stay there. |
@@ -503,9 +614,8 @@ extending this RFC with a competing rule.
 
 Two consequences worth stating explicitly:
 
-- The Desktop RFC remains the product-level proposal for its frontend. This RFC
-  does not supersede it, and a conflict about Desktop screen flow or connectors
-  is resolved there.
+- The Goal Channel RFC owns Web/Lark conversation convergence and Connector
+  ingress; this RFC owns session identity, mode admission and managed lifecycle.
 - The manager, continuation, and handoff RFCs own *continuity*. This RFC owns
   *identity*: which session, in which mode, under which Agent, is the current
   executor. Continuity operations consume that binding; they do not redefine it.
@@ -697,7 +807,7 @@ become a second source of mode truth.
 
 | Date | Decision | Owner / approval | Alternatives | Normative sections changed |
 | --- | --- | --- | --- | --- |
-| 2026-09-15 | Session execution mode is an explicit, persisted, per-binding contract; the Desktop RFC keeps product flows, and continuity RFCs keep continuation paths | Repository owner, through RFC review and merge | Implicit mode inference; universal adapter; automatic migration to managed | Sections 1-6 |
+| 2026-09-15 | Session execution mode is an explicit, persisted, per-binding contract; collaboration remains with the Goal Channel RFC, and continuity RFCs keep continuation paths | Repository owner, through RFC review and merge | Implicit mode inference; universal adapter; automatic migration to managed | Sections 1-6 |
 
 No other decision is approved. Recommendations in Section 13 remain proposals.
 
@@ -710,7 +820,7 @@ No other decision is approved. Recommendations in Section 13 remain proposals.
 | E3 | The attached broker bounds claim waits and never starts a runtime | `6c3da75ca`, source audit | `loopx/attached_session.py` bind, claim, and complete | pass (source) | Bounds are reviewed as constants; no soak evidence |
 | E4 | Attached sessions never start a managed adapter and fail closed with typed errors | `6c3da75ca`, focused test | `tests/test_chat_codex_home.py::test_attached_session_uses_existing_host_not_managed_adapter`, `loopx/chat_runtime.py` | pass (focused test) | Covers the described fence, not every delivery path |
 | E5 | Bind, claim, and complete are reachable through the CLI | `6c3da75ca`, focused test | `tests/test_attached_session_cli.py`, `loopx/cli_commands/worker_bridge.py` | pass (focused test) | Synthetic host fixtures, not a real external host |
-| E6 | The Desktop frontend proposal already contains the Mode A/Mode B comparison and its non-goals | `6c3da75ca`, document audit | `docs/architecture/rfcs/desktop-execution-frontends-v0.md` | pass (document) | A proposal, not shipped product behavior |
+| E6 | The Desktop frontend proposal already contains the Mode A/Mode B comparison and its non-goals | `6c3da75ca`, document audit | [Historical proposal](https://github.com/loopx-project/loopx/blob/6c3da75ca/docs/architecture/rfcs/desktop-execution-frontends-v0.md) | pass (document) | Retired proposal; shared contracts now belong to this RFC and Goal Channel |
 | E7 | An optional local host prototype proposes a host-owned execution surface with conversational setup | Public pull request #4376, open at review head | Public review findings on that pull request | proposed, not accepted | An open pull request is a candidate, not admission evidence |
 
 ## Appendix D: Rejected or superseded alternatives
