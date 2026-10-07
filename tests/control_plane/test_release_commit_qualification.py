@@ -2,22 +2,14 @@ from __future__ import annotations
 
 import copy
 import json
-import os
-import runpy
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from loopx import __version__
-from loopx.control_plane.testing.actual_default_model_behavior_portfolio import (
-    ACTUAL_DEFAULT_MODEL_BEHAVIOR_CONTRAST_COUNT,
-    ACTUAL_DEFAULT_MODEL_BEHAVIOR_REPEAT_ATTEMPTS,
-    ACTUAL_DEFAULT_MODEL_BEHAVIOR_SCENARIO_COUNT,
-)
 from loopx.control_plane.testing.release_commit_qualification import (
     EXPECTED_RESULT_SCHEMA_BY_QUALIFICATION,
     REQUIRED_QUALIFICATION_IDS,
@@ -64,21 +56,6 @@ def _summary(qualification_id: str, *, commit: str = COMMIT) -> dict[str, object
             "host_passed": True,
         },
         "public_boundary": {"scanned_path_count": 8, "violation_count": 0},
-        "doubao_actual_default": {
-            "model_id": "doubao-seed-1.6",
-            "topology": "actual_default_one_arm",
-            "scenario_count": ACTUAL_DEFAULT_MODEL_BEHAVIOR_SCENARIO_COUNT,
-            "contrast_count": ACTUAL_DEFAULT_MODEL_BEHAVIOR_CONTRAST_COUNT,
-            "contrast_failure_count": 0,
-            "repeats_per_scenario": ACTUAL_DEFAULT_MODEL_BEHAVIOR_REPEAT_ATTEMPTS,
-            "actor_call_count": (
-                ACTUAL_DEFAULT_MODEL_BEHAVIOR_SCENARIO_COUNT
-                * ACTUAL_DEFAULT_MODEL_BEHAVIOR_REPEAT_ATTEMPTS
-            ),
-            "failure_count": 0,
-            "skip_count": 0,
-            "qualification_passed": True,
-        },
     }
     return summaries[qualification_id]
 
@@ -136,6 +113,17 @@ def test_exact_release_manifest_qualifies_required_release_checks() -> None:
     assert receipt["read_boundary"]["release_mutation_invoked"] is False
 
 
+def test_retired_model_receipt_is_rejected_without_requiring_a_provider() -> None:
+    manifest = _manifest()
+    assert set(REQUIRED_QUALIFICATION_IDS) == {
+        "pytest", "ruff", "mypy", "risk_canary", "full_public",
+        "install_upgrade_host", "public_boundary",
+    }
+    manifest["qualifications"]["doubao_actual_default"] = _check("pytest")
+    with pytest.raises(ValueError, match="unknown ids"):
+        build_exact_release_commit_qualification(manifest)
+
+
 def test_source_identity_drift_and_dirty_checkout_fail_closed() -> None:
     manifest = _manifest()
     manifest["qualifications"]["full_public"]["source"]["git_tree"] = "4" * 40
@@ -160,15 +148,13 @@ def test_source_identity_drift_and_dirty_checkout_fail_closed() -> None:
 def test_failed_skipped_and_semantically_invalid_checks_do_not_qualify() -> None:
     manifest = _manifest()
     manifest["qualifications"]["ruff"]["status"] = "skipped"
-    manifest["qualifications"]["doubao_actual_default"]["summary"][
-        "contrast_failure_count"
-    ] = 1
+    manifest["qualifications"]["public_boundary"]["summary"]["violation_count"] = 1
     receipt = build_exact_release_commit_qualification(manifest, observed_source=_source())
 
     assert receipt["ready_for_release"] is False
     assert receipt["decision"] == "hold_failed_qualification"
     assert set(receipt["qualification_failures"]) == {
-        "doubao_actual_default_failed",
+        "public_boundary_failed",
         "ruff_skipped",
     }
 
@@ -300,74 +286,3 @@ def test_release_qualification_cli_redacts_manifest_path_errors(tmp_path: Path) 
     payload = json.loads(result.stdout)
     assert payload["error"] == "manifest_unreadable"
     assert str(tmp_path) not in result.stdout
-
-
-def test_live_doubao_script_prefers_candidate_checkout_over_pythonpath(
-    tmp_path: Path,
-) -> None:
-    shadow = tmp_path / "shadow"
-    shadow_loopx = shadow / "loopx"
-    shadow_loopx.mkdir(parents=True)
-    (shadow_loopx / "__init__.py").write_text(
-        'raise RuntimeError("loaded shadow loopx")\n',
-        encoding="utf-8",
-    )
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(REPO_ROOT / "scripts" / "qualify-doubao-model-behavior-live.py"),
-            "--help",
-        ],
-        cwd=tmp_path,
-        env={**os.environ, "PYTHONPATH": str(shadow)},
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "Run the actual-default behavior portfolio" in result.stdout
-    assert "loaded shadow loopx" not in result.stderr
-
-
-@pytest.mark.parametrize(
-    ("extra_args", "ordinary_timeout", "vision_timeout"),
-    [([], 90.0, 180.0), (["--timeout-seconds", "12", "--required-vision-timeout-seconds", "34"], 12.0, 34.0)],
-)
-def test_live_doubao_timeout_extension_is_scoped_to_required_vision(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    extra_args: list[str],
-    ordinary_timeout: float,
-    vision_timeout: float,
-) -> None:
-    script = runpy.run_path(str(REPO_ROOT / "scripts" / "qualify-doubao-model-behavior-live.py"))
-    main = script["main"]
-    globals_ = main.__globals__
-    observed: dict[str, float] = {}
-    actor_names = (
-        "DoubaoModelBehaviorActor",
-        "DoubaoOnboardingModelBehaviorActor",
-        "DoubaoSelectedTodoToolBehaviorActor",
-        "DoubaoReplanSemanticActionBehaviorActor",
-        "DoubaoScopedGateSuccessorToolBehaviorActor",
-        "DoubaoCapabilityMonitorRepairToolBehaviorActor",
-        "DoubaoTerminalSettlementToolBehaviorActor",
-    )
-    for name in actor_names:
-        def make_actor(actor_name: str) -> SimpleNamespace:
-            def from_environment(**kwargs: object) -> object:
-                observed[actor_name] = float(kwargs["timeout_seconds"])
-                return object()
-            return SimpleNamespace(from_environment=from_environment)
-        monkeypatch.setitem(globals_, name, make_actor(name))
-    monkeypatch.setitem(globals_, "collect_release_source_identity", lambda _root: {"git_dirty": False})
-    monkeypatch.setitem(globals_, "build_actual_default_model_behavior_scenario_inputs", lambda _root: ({}, {}))
-    monkeypatch.setitem(globals_, "run_actual_default_model_behavior_portfolio", lambda *args, **kwargs: {"qualification_passed": True})
-    monkeypatch.setattr(sys, "argv", ["qualify-doubao-model-behavior-live.py", "--qualification-id", "timeout-scope", *extra_args])
-
-    assert main() == 0
-    assert json.loads(capsys.readouterr().out)["qualification_passed"] is True
-    assert observed["DoubaoReplanSemanticActionBehaviorActor"] == vision_timeout
-    assert all(observed[name] == ordinary_timeout for name in actor_names if name != "DoubaoReplanSemanticActionBehaviorActor")

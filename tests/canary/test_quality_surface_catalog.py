@@ -23,7 +23,11 @@ def test_current_high_risk_surfaces_have_no_catalog_drift() -> None:
     assert audit["drift_count"] == 0
     assert audit["repository_reference_validation"] == "performed"
     assert audit["classified_surface_count"] == audit["high_risk_profile_count"]
-    assert audit["gaps"] == []
+    assert {(gap["surface_id"], gap["layer"]) for gap in audit["gaps"]} == {
+        ("agent-facing-cli-output", "model_behavior"),
+        ("first-connect", "model_behavior"),
+        ("peer-agent-runtime", "model_behavior"),
+    }
 
 
 def test_packaged_audit_keeps_classification_without_source_checkout() -> None:

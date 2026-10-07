@@ -856,7 +856,6 @@ def main() -> int:
         "Quality Layers",
         "Agent-Facing Output Budgets",
         "Decision Replay And Issue #2191",
-        "Doubao Model-Behavior Gate",
         "Benchmark Research Evidence",
     ]:
         assert required in quality_guide, required

@@ -347,7 +347,7 @@ R4 原来的 generic-executor 提案以 no-follow-up 关闭。只有当另一个
 3. `EffectTurn` 和 `EffectProgram` 被 CLI quota、turn driver 和 bootstrap construction 消费，而不只是测试和 renderer。
 4. 没有 effect 抽象保持 test-only。
 5. Maintainability、import-graph、CLI output 和 hot-path interface ratchets 无新增 exception 通过。
-6. Doubao/model-behavior shadow qualification 覆盖变更后的 agent-facing packets。
+6. Provider-neutral model-behavior fixture qualification 覆盖变更后的 agent-facing packets。
 
 阶段：
 
@@ -364,7 +364,7 @@ R4 原来的 generic-executor 提案以 no-follow-up 关闭。只有当另一个
 
 - 热模块行数：`loopx/quota.py` 1049、`loopx/status.py` 1392、`loopx/heartbeat_prompt.py` 159。
 - Maintainability ratchet：`ok=true`，无 unreviewed findings，无 stale exceptions。
-- 聚焦 M6 audit suite：172 通过，覆盖 quota parity、status re-export、heartbeat support、effect interpreter/program/turn families、CLI output budget/differential、import boundaries、model-behavior/Doubao shadow 和 turn driver/executor。
+- 聚焦 M6 audit suite：172 通过，覆盖 quota parity、status re-export、heartbeat support、effect interpreter/program/turn families、CLI output budget/differential、import boundaries、model-behavior fixture coverage 和 turn driver/executor。
 - `loopx canary quality-audit`：`ready=true`、`gap_count=0`、`drift_count=0`。
 
 ### M7：Effect Program Runtime
@@ -595,7 +595,7 @@ effect_request -> interpretation -> observation -> next_effect
 - focused pytest 覆盖新 seam 并与旧路径 parity；
 - thin public smoke 练习真实 CLI 或 host path；
 - CLI output budget regression 保持绿色；
-- model-behavior / Doubao shadow qualification 覆盖 agent-facing packet 变更；
+- provider-neutral model-behavior fixture qualification 覆盖 agent-facing packet 变更；
 - canary premerge 包含 `core-control-plane` 和 `canary-runner` profiles。
 
 ## Non-Goals

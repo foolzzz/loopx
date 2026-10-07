@@ -60,8 +60,8 @@ Todos, sessions, or execution.
    not advertise is unavailable, and unavailability fails closed rather than
    silently routing work to a different executor.
 
-What remains unchanged: Desktop product flows, connector model, Web/Lark
-convergence, and computer-use scope stay with the
+What remains unchanged: Desktop product flows, connector model, and Web/Lark
+convergence stay with the
 [Desktop execution frontends RFC](desktop-execution-frontends-v0.md); local
 service identity and supervision stay with the
 [single-owner daemon RFC](single-owner-local-daemon-v0.md); the bounded Turn
@@ -152,8 +152,8 @@ Every implementation must preserve these properties.
 
 ### Non-goals
 
-- Desktop product flows, connector model, Web/Lark convergence, bot ingress
-  modes, and optional computer use. Those stay with the
+- Desktop product flows, connector model, Web/Lark convergence, and bot ingress
+  modes. Those stay with the
   [Desktop execution frontends RFC](desktop-execution-frontends-v0.md).
 - Local service identity, readiness, supervision, and migration. Those stay
   with the [single-owner daemon RFC](single-owner-local-daemon-v0.md).
@@ -484,7 +484,7 @@ extending this RFC with a competing rule.
 
 | Document | Owns | Relationship to this RFC |
 | --- | --- | --- |
-| [Desktop execution frontends](desktop-execution-frontends-v0.md) | Desktop product shape, Mode A/Mode B product comparison, Web/Lark convergence, connector and bot ingress model, optional computer use, Desktop delivery slices | Source of the mode comparison used here. This RFC extracts the owner-agnostic session-execution contract; that RFC keeps frontend product flows and should reference this one for mode admission. |
+| [Desktop execution frontends](desktop-execution-frontends-v0.md) | Desktop product shape, Mode A/Mode B product comparison, Web/Lark convergence, connector and bot ingress model, Desktop delivery slices | Source of the mode comparison used here. This RFC extracts the owner-agnostic session-execution contract; that RFC keeps frontend product flows and should reference this one for mode admission. |
 | [Single-owner local daemon](single-owner-local-daemon-v0.md) | Service-profile identity, readiness, supervised composition, lifecycle receipts, migration | Owns *process and service* ownership for LoopX components. A managed host may run as a supervised service only under that RFC; this RFC does not create daemons, listeners, or endpoints. |
 | [Capable manager and semantic handoff](capable-manager-semantic-handoff-v0.md) | Manager capability, semantic handoff, session and product continuity (§5.7), continuation path selection, result return | Owns continuity across sessions: same-session resume, same-Agent replacement, cross-Agent takeover. This RFC owns the mode tag and binding ownership; a handoff may not change mode implicitly. |
 | [Manager runtime profile](manager-runtime-profile-v0.md) | The manager's effective runtime profile: sandbox, prompt, managed workspace instructions, configuration revision and readback agreement | A managed-mode profile detail. This RFC requires the mode to be explicit and read back; profile content and its approval stay there. |
@@ -504,8 +504,8 @@ extending this RFC with a competing rule.
 Two consequences worth stating explicitly:
 
 - The Desktop RFC remains the product-level proposal for its frontend. This RFC
-  does not supersede it, and a conflict about Desktop screen flow, connectors,
-  or computer use is resolved there.
+  does not supersede it, and a conflict about Desktop screen flow or connectors
+  is resolved there.
 - The manager, continuation, and handoff RFCs own *continuity*. This RFC owns
   *identity*: which session, in which mode, under which Agent, is the current
   executor. Continuity operations consume that binding; they do not redefine it.

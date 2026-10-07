@@ -45,7 +45,7 @@
 5. 模式与传输、事件源、用户可见的宿主模式选择、以及入口/投递模式相互正交。绑定没有
    声明的投递能力不可用，并且不可用必须失败关闭，而不是静默改派到另一个执行器。
 
-保持不变的部分：桌面端产品流程、连接器模型、Web/Lark 收敛与 computer use 范围仍属于
+保持不变的部分：桌面端产品流程、连接器模型与 Web/Lark 收敛仍属于
 [桌面执行前端 RFC](desktop-execution-frontends-v0.zh-CN.md)；本地服务身份与监督仍属于
 [单属主守护进程 RFC](single-owner-local-daemon-v0.md)；有界 Turn 事务仍属于
 [LoopX Turn v0](../../reference/protocols/loopx-turn-v0.md)；面向用户的宿主选择仍属于
@@ -113,7 +113,7 @@ LoopX 启动，另一种已经属于其他宿主。当绑定没有说明自己�
 
 ### 非目标
 
-- 桌面端产品流程、连接器模型、Web/Lark 收敛、Bot 入口模式与可选 computer use。这些
+- 桌面端产品流程、连接器模型、Web/Lark 收敛与 Bot 入口模式。这些
   仍属于 [桌面执行前端 RFC](desktop-execution-frontends-v0.zh-CN.md)。
 - 本地服务身份、就绪、监督与迁移。这些仍属于
   [单属主守护进程 RFC](single-owner-local-daemon-v0.md)。
@@ -385,7 +385,7 @@ root，都不同于注册身份数和展示上限。不要只为展示这些观�
 
 | 文档 | 拥有的内容 | 与本 RFC 的关系 |
 |---|---|---|
-| [桌面执行前端](desktop-execution-frontends-v0.zh-CN.md) | 桌面端产品形态、Mode A/Mode B 产品对比、Web/Lark 收敛、连接器与 Bot 入口模型、可选 computer use、桌面端交付切片 | 本 RFC 使用的模式对比来源。本 RFC 抽取与属主无关的会话执行契约；那份 RFC 保留前端产品流程，并应在模式接入上引用本 RFC。 |
+| [桌面执行前端](desktop-execution-frontends-v0.zh-CN.md) | 桌面端产品形态、Mode A/Mode B 产品对比、Web/Lark 收敛、连接器与 Bot 入口模型、桌面端交付切片 | 本 RFC 使用的模式对比来源。本 RFC 抽取与属主无关的会话执行契约；那份 RFC 保留前端产品流程，并应在模式接入上引用本 RFC。 |
 | [单属主本地守护进程](single-owner-local-daemon-v0.md) | 服务 profile 身份、就绪、受监督组合、生命周期回执、迁移 | 拥有 LoopX 组件的*进程与服务*归属。托管宿主只有在那份 RFC 下才能作为受监督服务运行；本 RFC 不创建守护进程、监听器或端点。 |
 | [有能力的管家与语义交接](capable-manager-semantic-handoff-v0.zh-CN.md) | 管家能力、语义交接、会话与产品延续（§5.7）、延续路径选择、结果返回 | 拥有跨会话延续：同会话恢复、同 Agent 替换、跨 Agent 接管。本 RFC 拥有模式标签与绑定归属；交接不得隐式改变模式。 |
 | [管家运行时 profile](manager-runtime-profile-v0.zh-CN.md) | 管家的有效运行时 profile：沙箱、提示词、托管工作区指令、配置修订与回读一致性 | 托管模式的 profile 细节。本 RFC 要求模式显式且可回读；profile 内容与其批准仍在那份文档。 |
@@ -404,8 +404,8 @@ root，都不同于注册身份数和展示上限。不要只为展示这些观�
 
 有两点值得显式说明：
 
-- 桌面 RFC 仍然是其前端的产品级提案。本 RFC 不取代它；关于桌面界面流程、连接器或
-  computer use 的冲突在那份文档解决。
+- 桌面 RFC 仍然是其前端的产品级提案。本 RFC 不取代它；关于桌面界面流程或连接器的
+  冲突在那份文档解决。
 - 管家、延续与交接 RFC 拥有*连续性*。本 RFC 拥有*身份*：哪个会话、以哪种模式、在哪个
   Agent 下，是当前执行器。延续操作消费该绑定；它们不重新定义它。
 

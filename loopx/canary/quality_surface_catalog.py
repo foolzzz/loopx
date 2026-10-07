@@ -252,9 +252,13 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "host_upgrade": _not_applicable(
                 "Host activation and upgrade continuity are owned by the onboarding and install surfaces."
             ),
-            "model_behavior": _covered(
-                "actual_default_model_behavior_portfolio_v0",
-                "onboarding_actual_behavior_qualification_v0"
+            "model_behavior": _deferred(
+                owner="maintainers",
+                rationale=(
+                    "The bundled live model qualifier is retired. Provider-neutral "
+                    "fixture/oracle tests do not prove live model behavior; any "
+                    "caller-supplied provider observation needs separate evidence."
+                ),
             ),
             "release_gate": _covered(
                 "loopx canary premerge --profile agent-facing-cli-output-budget"
@@ -293,8 +297,9 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "host_upgrade": _covered(
                 "examples/release/release-version-contract-smoke.py"
             ),
-            "model_behavior": _covered(
-                "actual_default_model_behavior_portfolio_v0"
+            "model_behavior": _not_applicable(
+                "Release qualification aggregates deterministic lane receipts; "
+                "the retired provider-specific receipt is no longer a release gate."
             ),
             "release_gate": _covered(
                 "loopx canary premerge --profile release-promotion",
@@ -447,9 +452,13 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "host_upgrade": _covered(
                 "examples/control_plane/agent-onboard-host-loop-activation-smoke.py"
             ),
-            "model_behavior": _covered(
-                "actual_default_model_behavior_portfolio_v0",
-                "onboarding_actual_behavior_qualification_v0"
+            "model_behavior": _deferred(
+                owner="maintainers",
+                rationale=(
+                    "The bundled live model qualifier is retired. Provider-neutral "
+                    "fixture/oracle tests do not prove live model behavior; any "
+                    "caller-supplied provider observation needs separate evidence."
+                ),
             ),
             "release_gate": _covered(
                 "loopx canary premerge --profile first-connect-contract"
@@ -486,10 +495,13 @@ QUALITY_SURFACE_CATALOG: tuple[dict[str, Any], ...] = (
             "host_upgrade": _covered(
                 "examples/project/configure-goal-global-sync-smoke.py"
             ),
-            "model_behavior": _covered(
-                "actual_default_model_behavior_portfolio_v0",
-                "turn_peer_agent_identity",
-                "turn_same_agent_continuation",
+            "model_behavior": _deferred(
+                owner="maintainers",
+                rationale=(
+                    "The bundled live model qualifier is retired. Provider-neutral "
+                    "fixture/oracle tests do not prove live model behavior; any "
+                    "caller-supplied provider observation needs separate evidence."
+                ),
             ),
             "release_gate": _covered("loopx canary premerge --profile peer-agent-runtime"),
         },

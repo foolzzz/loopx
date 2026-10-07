@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from loopx.control_plane.testing.replan_vision_closeout_behavior import (
+from vision_closeout_support import (
     VisionHostAdmissionRejected,
     dispatch_vision_closeout,
 )

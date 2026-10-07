@@ -50,11 +50,13 @@ from .onboarding_model_behavior_qualification import (
     build_onboarding_postcondition_observation,
     run_onboarding_model_behavior_phase,
 )
-from .selected_todo_tool_behavior import (
-    SELECTED_TODO_TOOL_FIXTURE_ACTION_TEXT,
-    SELECTED_TODO_TOOL_FIXTURE_TODO_ID,
-)
 from .replan_vision_closeout_behavior import required_vision_scenario_contract
+
+SELECTED_TODO_TOOL_FIXTURE_TODO_ID = "todo_portfolio001"
+SELECTED_TODO_TOOL_FIXTURE_ACTION_TEXT = (
+    "Read only `fixture/selected-lane.json`; use its self-contained JSON to verify "
+    "the selected lane contract."
+)
 
 ACTUAL_DEFAULT_MODEL_BEHAVIOR_PORTFOLIO_SCHEMA_VERSION = (
     "actual_default_model_behavior_portfolio_v0"
