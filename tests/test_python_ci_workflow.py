@@ -390,3 +390,24 @@ def test_typescript_core_shards_feed_one_complete_coverage_report() -> None:
     forward = WORKFLOW.split("  node-forward-compatibility:\n", 1)[1].split("  test-shard:\n", 1)[0]
     assert "github.event_name != 'pull_request'" in forward
     assert "continue-on-error: true" in forward
+
+
+def test_chat_bundle_qualifies_installed_wheel_and_sdist_before_upload() -> None:
+    producer = WORKFLOW.split("  chat-bundle:\n", 1)[1].split("  kernel-static-checks:\n", 1)[0]
+    package = producer.split("name: Qualify installed Chat in wheel and rebuilt sdist", 1)[1]
+    assert 'python -m build --sdist --wheel --outdir "$dist_dir"' in package
+    assert 'python -m venv "$installed_env"' in package
+    assert package.count('python scripts/verify_installed_chat.py --python "$installed_env/bin/python"') == 2
+    assert package.index('"$installed_env/bin/python" -m pip wheel') < package.rindex('python scripts/verify_installed_chat.py')
+    browser = package.split("name: Exercise the installed Chat page", 1)[1]
+    assert "LOOPX_PYTHON_BIN: ${{ runner.temp }}/chat-installed/bin/python" in browser
+    assert "npm run smoke:personal-workspace-packaged" in browser
+    assert browser.index("npm run smoke:personal-workspace-packaged") < browser.index("actions/upload-artifact")
+    assert "continue-on-error" not in producer
+    assert producer.count("PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/chat-playwright") == 2
+    source_browser = producer.split("name: Qualify the actual compiled UI", 1)[1].split("name: Qualify installed Chat", 1)[0]
+    assert 'find "$PLAYWRIGHT_BROWSERS_PATH" -type f -name chrome-headless-shell' in source_browser
+    assert 'export LOOPX_CHROME_HEADLESS_SHELL' in source_browser
+    assert 'test -n "$LOOPX_CHROME_HEADLESS_SHELL"' in source_browser
+    assert '"$LOOPX_CHROME_HEADLESS_SHELL" >> "$GITHUB_ENV"' in source_browser
+    assert source_browser.index('export LOOPX_CHROME_HEADLESS_SHELL') < source_browser.index("npm run smoke:personal-workspace-packaged")

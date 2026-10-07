@@ -50,7 +50,7 @@ both frontend-only and mixed/backend PRs pass through this producer. On pull req
 may differ from the branch head. Generated-file Git cleanliness is no longer a
 qualification gate. Browser, integrity and workflow gates remain required.
 
-Release Artifacts checks out the exact release tag and runs:
+For an explicit maintainer package build, check out the exact release tag and run:
 
 ```sh
 python scripts/chat_bundle.py release-build --tag vX.Y.Z --repo loopx-project/loopx
@@ -66,9 +66,10 @@ excluded. A repository with no predecessor can bootstrap without history.
 Both wheel and sdist include the verified bundle. A normal package build fails
 if it is absent/stale; editable installation remains available before a frontend
 build. Building a wheel from the sdist requires no Node or network access for the
-frontend. Release CI installs both wheel forms outside the checkout and requests
-every delivered file through the actual Chat HTTP handler, then runs workspace
-browser scenarios against the isolated installed interpreter.
+frontend. The Chat qualification CI verifies both wheel forms outside the
+checkout, requests every delivered file through the actual Chat HTTP handler,
+and runs workspace browser scenarios against the isolated installed interpreter.
+These checks do not upload release assets or publish packages.
 
 ## Upgrade window and rollback
 

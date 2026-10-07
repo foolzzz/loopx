@@ -747,7 +747,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             "docs/update-notes",
             "loopx/cli_commands/issue_fix",
             "loopx/cli_commands/content_ops",
-            "scripts/update_notes_release_job.py",
         ),
         "checks": [
             {
@@ -783,7 +782,7 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             {
                 "command": "python3 examples/update-notes-archive-smoke.py",
                 "tier": "default",
-                "reason": "checks public update-note archive, automation wiring, and private-boundary exclusions",
+                "reason": "checks public update-note archive and private-boundary exclusions",
             },
             {
                 "command": "python3 examples/issue-fix-workflow-e2e-smoke.py",
