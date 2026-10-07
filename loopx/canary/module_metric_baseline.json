@@ -69,7 +69,7 @@
     "loopx/extensions/lark/presentation/kanban.py": {
       "any_count": 95,
       "dict_any_count": 0,
-      "lines": 2791
+      "lines": 2793
     },
     "loopx/heartbeat_prompt.py": {
       "any_count": 17,
