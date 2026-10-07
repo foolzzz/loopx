@@ -30,7 +30,16 @@ PATH_LITERAL = re.compile(r"(?<![\w.-])\.(?:loopx|codex)(?![\w.-])")
 QUOTED = r'''"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`'''
 JS_TOKENS = re.compile(r"(?P<comment>//[^\n]*|/\*[\s\S]*?\*/)|(?P<literal>" + QUOTED + ")")
 SHELL_TOKENS = re.compile(
-    r"(?P<comment>\#[^\n]*)|(?P<literal>" + QUOTED + r")|(?P<bare>[^\s\"'`#]+)"
+    # Shell comments start a word; a hash within a word is literal content.
+    r"(?P<comment>(?<![^\s;&|()<>])\#[^\n]*)|(?P<literal>" + QUOTED
+    + r")|(?P<bare>(?:\\[\s\S]|[^\s\"'`\\;&|()<>])+)"
+)
+POWERSHELL_QUOTED = r'"(?:`[\s\S]|""|[^"`])*"' + r"|'(?:''|[^'])*'"
+POWERSHELL_TOKENS = re.compile(
+    # PowerShell also has block comments and uses backticks for escaping.
+    r"(?P<comment>(?<![^\s;|(){}\[\]'\"])(?:<\#[\s\S]*?\#>|\#[^\n]*))"
+    r"|(?P<literal>" + POWERSHELL_QUOTED
+    + r")|(?P<bare>(?:`[\s\S]|[^\s\"'`;|(){}\[\]])+)"
 )
 
 
@@ -81,7 +90,13 @@ def _python_literals(path: str, source: str) -> list[tuple[int, str]]:
 def _source_literals(path: str, source: str) -> list[tuple[int, str]]:
     if Path(path).suffix == ".py":
         return _python_literals(path, source)
-    lexer = SHELL_TOKENS if Path(path).suffix in SHELL_SUFFIXES else JS_TOKENS
+    suffix = Path(path).suffix
+    if suffix == ".ps1":
+        lexer = POWERSHELL_TOKENS
+    elif suffix in SHELL_SUFFIXES:
+        lexer = SHELL_TOKENS
+    else:
+        lexer = JS_TOKENS
     literals = []
     line = 1
     offset = 0
@@ -140,7 +155,23 @@ def _regressions(
         ("skills/probe/scripts/check.py", 'root = Path.home() / ".loopx"', 1),
         ("scripts/probe.sh", 'root="${LOOPX_RUNTIME_ROOT:-$HOME/.loopx}"', 1),
         ("scripts/probe.sh", 'root=$HOME/.codex/sessions', 1),
+        ("scripts/probe.sh", 'root=$HOME/foo#bar/.codex', 1),
+        ("scripts/probe.bash", 'root=$HOME/foo#bar/.codex', 1),
+        ("scripts/probe.zsh", 'root=$HOME/foo#bar/.codex', 1),
+        ("scripts/probe.sh", r'root=$HOME/foo\#bar/.codex', 1),
+        ("scripts/probe.sh", 'root="$HOME/foo#bar/.codex" # .loopx', 1),
+        ("scripts/probe.sh", "root='foo#bar/.codex'", 1),
+        ("scripts/probe.sh", 'root="foo"#bar/.codex', 1),
         ("scripts/probe.ps1", 'Join-Path $HOME ".codex"', 1),
+        ("scripts/probe.ps1", 'Write-Output foo#bar/.codex', 1),
+        ("scripts/probe.ps1", 'Write-Output foo<#/.codex#>', 1),
+        ("scripts/probe.ps1", 'Write-Output `#bar/.codex', 1),
+        ("scripts/probe.ps1", '$root = "$HOME/foo#bar/.codex" # .loopx', 1),
+        ("scripts/probe.ps1", "$root = 'foo#bar/.codex'", 1),
+        ("scripts/probe.ps1", '$root = "<# literal .codex #>"', 1),
+        ("scripts/probe.ps1", '$root = "quoted `"# .codex`""', 1),
+        ("scripts/probe.ps1", "$root = 'quoted ''# .codex'''", 1),
+        ("scripts/probe.ps1", '<# ".loopx" #>\n$root = ".codex"\n<# ".codex" #>', 1),
         ("scripts/probe.sh", 'python - <<\'PY\'\nroot = Path.home() / ".codex"\nPY\n', 1),
         ("loopx/probe.py", 'a = ".loopx"; b = ".loopx"', 2),
         ("loopx/probe.py", 'a = "~/.loopx and ~/.codex"', 2),
@@ -159,6 +190,13 @@ def test_detector_finds_path_literal_forms(path: str, source: str, count: int) -
         ("loopx/probe.py", 'name = ".loopx-python"; other = "loopx.paths"'),
         ("apps/probe.ts", '// "~/.loopx"\n/* ".codex/skills" */\nconst x = "loopx"'),
         ("scripts/probe.sh", '# root=$HOME/.loopx\nroot="default" # .codex/skills'),
+        ("scripts/probe.sh", 'root=default;# ".codex"\n# .loopx'),
+        ("scripts/probe.sh", 'true &&# .codex\ntrue |# .loopx'),
+        ("scripts/probe.ps1", '<#\nUses ".codex" and ".loopx/goals".\n#>\n$root = "default"'),
+        ("scripts/probe.ps1", '$root = "default"<#\nUses ".codex".\n#>'),
+        ("scripts/probe.ps1", '$root = "default"#.codex\n# .loopx'),
+        ("scripts/probe.ps1", '$root = "default";# .codex'),
+        ("scripts/probe.ps1", '# <#\n# ".codex"\n$root = "default"'),
     ],
 )
 def test_detector_ignores_prose_and_unrelated_names(path: str, source: str) -> None:
@@ -178,6 +216,14 @@ def test_detector_ignores_prose_and_unrelated_names(path: str, source: str) -> N
 )
 def test_detector_excludes_nonproduction_sources(path: str) -> None:
     assert _inventory({path: 'root = "~/.loopx"'}) == {}
+
+
+def test_powershell_block_comment_preserves_literal_line_numbers() -> None:
+    source = '<#\nUses ".loopx".\n#>\n$root = ".codex"'
+    assert [
+        line for line, literal in _source_literals("scripts/probe.ps1", source)
+        if PATH_LITERAL.search(literal)
+    ] == [4]
 
 
 def test_budget_cannot_trade_deleted_literals_for_new_values_or_files() -> None:
