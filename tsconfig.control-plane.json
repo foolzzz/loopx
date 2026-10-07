@@ -85,7 +85,7 @@
     "tests/control_plane_ts/sqlite_runtime_admission.test.ts",
     "tests/control_plane_ts/local_authority_provider.test.ts",
     "tests/control_plane_ts/sqlite_authority_process.ts",
-    "tests/control_plane_ts/local_authority_shadow.test.ts",
+    "tests/control_plane_ts/runtime_shadow_candidate.test.ts",
     "tests/control_plane_ts/coordination_runtime_shadow.test.ts",
     "tests/control_plane_ts/coordination_projection.test.ts",
     "tests/control_plane_ts/coordination_state_contract.test.ts",
