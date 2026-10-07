@@ -570,19 +570,30 @@ validate_release_candidate() {
   fi
 
   local doctor_json
-  if ! doctor_json="$(PATH="$candidate/scripts:$PATH" "$candidate_wrapper" --format json doctor --deep --installation-only)"; then
-    echo "loopx installer error: release candidate doctor validation failed" >&2
-    return 1
-  fi
-  LOOPX_CANDIDATE_DOCTOR_JSON="$doctor_json" "${LOOPX_PYTHON:-python3}" - <<'PY'
+  local doctor_status=0
+  doctor_json="$(PATH="$candidate/scripts:$PATH" "$candidate_wrapper" --format json doctor --deep --installation-only)" || doctor_status=$?
+  LOOPX_CANDIDATE_DOCTOR_STATUS="$doctor_status" \
+    LOOPX_CANDIDATE_DOCTOR_JSON="$doctor_json" "${LOOPX_PYTHON:-python3}" - <<'PY'
 import json
 import os
 import sys
 
+doctor_status = int(os.environ["LOOPX_CANDIDATE_DOCTOR_STATUS"])
 try:
     payload = json.loads(os.environ["LOOPX_CANDIDATE_DOCTOR_JSON"])
-except (KeyError, json.JSONDecodeError) as exc:
-    print(f"loopx installer error: release candidate doctor output is invalid: {exc}", file=sys.stderr)
+    if not isinstance(payload, dict) or not isinstance(payload.get("checks"), list):
+        raise ValueError("invalid check envelope")
+    if any(
+        not isinstance(item, dict) or not isinstance(item.get("id"), str)
+        for item in payload["checks"]
+    ):
+        raise ValueError("invalid check row")
+except (KeyError, ValueError):
+    # Never echo malformed JSON, check details or interpreter paths.
+    print(
+        "loopx installer error: release candidate doctor output is invalid "
+        f"(doctor_exit={doctor_status})", file=sys.stderr,
+    )
     raise SystemExit(1)
 
 required_checks = {
@@ -602,12 +613,66 @@ failed = sorted(
     for check_id in required_checks
     if not checks.get(check_id, {}).get("ok")
 )
-if payload.get("mode") != "deep" or not payload.get("ok") or missing or failed:
+known_checks = required_checks | {"command_available", "typescript_effect_runtime_ready"}
+failed_required = sorted({
+    item["id"] if item.get("id") in known_checks else "unrecognized_check"
+    for item in checks.values()
+    if item.get("required") and not item.get("ok")
+})
+if (
+    doctor_status or payload.get("mode") != "deep" or not payload.get("ok")
+    or missing or failed or failed_required
+):
     print(
         "loopx installer error: release candidate is incomplete "
-        f"(missing_checks={missing}, failed_checks={failed})",
+        f"(doctor_exit={doctor_status}, missing_checks={missing}, "
+        f"failed_checks={sorted(set(failed) | set(failed_required))})",
         file=sys.stderr,
     )
+    candidate = payload.get("release_candidate")
+    representative = (
+        candidate.get("representative_cli") if isinstance(candidate, dict) else None
+    )
+    commands = representative.get("commands") if isinstance(representative, dict) else None
+    results = commands.get("results") if isinstance(commands, dict) else None
+    # Project only fixed probe names and numeric exit codes; raw details may
+    # contain command lines, local paths, or other private context.
+    if isinstance(results, dict):
+        for name in ("version", "commands", "status_help", "quota_help"):
+            probe = results.get(name)
+            if not isinstance(probe, dict) or probe.get("ok"):
+                continue
+            code = probe.get("returncode")
+            detail = probe.get("detail")
+            reason = (
+                "timeout" if isinstance(detail, str) and detail.startswith("TimeoutExpired:")
+                else "execution_failed"
+            )
+            outcome = f"exit={code}" if type(code) is int and -255 <= code <= 255 else reason
+            print(f"loopx installer diagnostic: command_probe={name} {outcome}", file=sys.stderr)
+    runtime = payload.get("typescript_control_plane")
+    if isinstance(runtime, dict) and "typescript_effect_runtime_ready" in failed_required:
+        status = runtime.get("status")
+        if not isinstance(status, str) or status not in {
+            "missing", "unsupported", "package_invalid", "probe_failed",
+        }:
+            status = "unrecognized"
+        semantic = runtime.get("semantic_probe")
+        if not isinstance(semantic, str) or semantic not in {"not_run", "failed", "passed"}:
+            semantic = "unrecognized"
+        lifecycle = runtime.get("runtime_lifecycle")
+        code = lifecycle.get("diagnostic_code") if isinstance(lifecycle, dict) else None
+        if not isinstance(code, str) or code not in {
+            "startup_lock_timeout", "runtime_startup_timeout", "runtime_request_timeout",
+            "semantic_probe_failed", "semantic_probe_shape_mismatch",
+            "packaged_runtime_source_unreadable",
+        }:
+            code = "unrecognized"
+        print(
+            f"loopx installer diagnostic: typescript_status={status} "
+            f"semantic_probe={semantic} diagnostic_code={code}",
+            file=sys.stderr,
+        )
     raise SystemExit(1)
 PY
 }
