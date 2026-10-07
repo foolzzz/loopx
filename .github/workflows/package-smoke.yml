@@ -43,6 +43,9 @@ jobs:
         run: |
           python -m compileall -q packages/loopx-codex-provider-routing/src
           python packages/loopx-codex-provider-routing/smoke/codex_provider_routing_smoke.py
+          python packages/loopx-codex-provider-routing/smoke/integration_contract_smoke.py
+          python packages/loopx-codex-provider-routing/smoke/schema_contract_smoke.py
+          python packages/loopx-codex-provider-routing/smoke/cli_plan_smoke.py
           python packages/loopx-codex-provider-routing/smoke/recovery_contracts_smoke.py
           python packages/loopx-codex-provider-routing/smoke/operator_smoke.py
       - name: Validate installed entrypoint and example schemas

@@ -1,27 +1,21 @@
 from __future__ import annotations
 
 import re
+import math
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from itertools import pairwise
 from typing import Any
 
+from .schema_contract import REQUEST_SCHEMA_VERSION as REQUEST_SCHEMA_VERSION
+from .schema_contract import RESPONSE_SCHEMA_VERSION as RESPONSE_SCHEMA_VERSION
+
 CATALOG_SCHEMA_VERSION = "codex_provider_routing_catalog_v1"
-RUNTIME_STATUS_SCHEMA_VERSION = "codex_provider_routing_runtime_status_v0"
-REQUEST_SCHEMA_VERSION = "loopx_codex_provider_routing_request_v0"
-RESPONSE_SCHEMA_VERSION = "loopx_codex_provider_routing_response_v0"
+RUNTIME_STATUS_SCHEMA_VERSION = "codex_provider_routing_runtime_status_v1"
 INTEGRATION_CANDIDATE_SCHEMA_VERSION = "codex_provider_integration_candidate_v0"
-HEARTBEAT_TRANSPORT_SCHEMA_VERSION = "codex_app_heartbeat_transport_qualification_v0"
-HOST_CONTROL_RECOVERY_SCHEMA_VERSION = "codex_host_control_recovery_qualification_v0"
-DESKTOP_PATCH_SCHEMA_VERSION = "codex_desktop_patch_qualification_v0"
 QUOTA_RECOVERY_SCHEMA_VERSION = "codex_quota_recovery_qualification_v0"
 TOOL_TRANSPORT_SCHEMA_VERSION = "codex_tool_transport_qualification_v0"
 OUTAGE_RECOVERY_SCHEMA_VERSION = "codex_outage_recovery_qualification_v0"
-
-RECOVERABLE_HOST_CONTROL_NAMES = {
-    "automation_update",
-    "send_message_to_thread",
-}
 
 FORBIDDEN_KEYS = {
     "account_id",
@@ -46,7 +40,7 @@ ALLOWED_PROVIDERS = {"codex", "openai_compatibility"}
 ALLOWED_TOOL_TRANSPORTS = {"function_call", "custom_tool_call"}
 ALLOWED_REASONING_LEVELS = {"low", "medium", "high", "xhigh", "max", "ultra"}
 ALLOWED_CHANGE_SEAMS = {
-    "desktop_runtime_patch",
+    "cli_configuration",
     "history_projection",
     "integration_candidate",
     "modality_routing",
@@ -55,15 +49,13 @@ ALLOWED_CHANGE_SEAMS = {
     "request_normalizer",
     "retry_policy",
     "route_fallback",
-    "settings_revision",
     "sse_lifecycle",
-    "ssh_bridge",
     "transport_pool",
     "tool_transport",
 }
 SYMBOLIC_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 MODEL_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9./-]{0,127}$")
-GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,191}$")
+GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,191}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SENSITIVE_VALUE_PATTERNS = (
     re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE),
@@ -104,6 +96,15 @@ def _string_list(value: Any, field: str) -> list[str]:
     return list(value)
 
 
+def _integer(value: Any, field: str) -> int:
+    # JSON Schema integers include integral JSON numbers such as 300.0.
+    if type(value) is int:
+        return value
+    if type(value) is float and math.isfinite(value) and value.is_integer():
+        return int(value)
+    raise TypeError(f"{field} must be an integer")
+
+
 def _boolean(value: Any, field: str, *, default: bool | None = None) -> bool:
     if value is None and default is not None:
         return default
@@ -117,130 +118,6 @@ def _utc_datetime(value: Any, field: str) -> datetime:
     return datetime.fromisoformat(timestamp)
 
 
-def qualify_desktop_patch(observation: Mapping[str, Any]) -> dict[str, Any]:
-    """Qualify an already-built, patched Codex desktop runtime."""
-
-    reject_private_material(observation)
-    _reject_unexpected_keys(
-        observation,
-        {
-            "anchor_state",
-            "changed_file_count",
-            "per_file_integrity_match_count",
-            "header_integrity_matches_bundle_metadata",
-            "signature_valid",
-            "launch_succeeded",
-            "heartbeat_readback_succeeded",
-        },
-        "desktop_patch",
-    )
-    anchor_state = _non_empty_string(
-        observation.get("anchor_state"), "desktop_patch.anchor_state"
-    )
-    if anchor_state not in {
-        "unpatched_unique",
-        "patched_unique",
-        "unsupported",
-        "ambiguous",
-    }:
-        raise ValueError("desktop_patch.anchor_state is unsupported")
-    changed_file_count = observation.get("changed_file_count")
-    match_count = observation.get("per_file_integrity_match_count")
-    if (
-        not isinstance(changed_file_count, int)
-        or isinstance(changed_file_count, bool)
-        or changed_file_count < 0
-    ):
-        raise TypeError(
-            "desktop_patch.changed_file_count must be a non-negative integer"
-        )
-    if (
-        not isinstance(match_count, int)
-        or isinstance(match_count, bool)
-        or match_count < 0
-    ):
-        raise TypeError(
-            "desktop_patch.per_file_integrity_match_count must be a non-negative "
-            "integer"
-        )
-    if changed_file_count == 0:
-        raise ValueError("desktop_patch.changed_file_count must be positive")
-    if match_count > changed_file_count:
-        raise ValueError(
-            "desktop_patch.per_file_integrity_match_count exceeds changed files"
-        )
-
-    anchor_failure_codes = {
-        "unpatched_unique": "desktop_patch_not_applied",
-        "unsupported": "desktop_patch_anchor_unsupported",
-        "ambiguous": "desktop_patch_anchor_ambiguous",
-    }
-    checks = [
-        {
-            "id": "patched_anchor_unique",
-            "passed": anchor_state == "patched_unique",
-            "failure_code": anchor_failure_codes.get(
-                anchor_state, "desktop_patch_anchor_not_unique"
-            ),
-        },
-        {
-            "id": "per_file_integrity",
-            "passed": match_count == changed_file_count,
-            "failure_code": "asar_file_integrity_stale",
-        },
-        {
-            "id": "header_integrity",
-            "passed": _boolean(
-                observation.get("header_integrity_matches_bundle_metadata"),
-                "desktop_patch.header_integrity_matches_bundle_metadata",
-            ),
-            "failure_code": "asar_header_integrity_stale",
-        },
-        {
-            "id": "signature",
-            "passed": _boolean(
-                observation.get("signature_valid"),
-                "desktop_patch.signature_valid",
-            ),
-            "failure_code": "desktop_signature_invalid",
-        },
-        {
-            "id": "launch",
-            "passed": _boolean(
-                observation.get("launch_succeeded"),
-                "desktop_patch.launch_succeeded",
-            ),
-            "failure_code": "desktop_launch_failed",
-        },
-        {
-            "id": "heartbeat_readback",
-            "passed": _boolean(
-                observation.get("heartbeat_readback_succeeded"),
-                "desktop_patch.heartbeat_readback_succeeded",
-            ),
-            "failure_code": "heartbeat_transport_readback_failed",
-        },
-    ]
-    failure_codes = [check["failure_code"] for check in checks if not check["passed"]]
-    return {
-        "schema_version": DESKTOP_PATCH_SCHEMA_VERSION,
-        "qualified": not failure_codes,
-        "failure_codes": failure_codes,
-        "checks": checks,
-        "required_order": [
-            "match_exactly_one_versioned_anchor",
-            "apply_length_preserving_patch",
-            "refresh_changed_file_integrity",
-            "refresh_asar_header_integrity_in_bundle_metadata",
-            "sign_runtime",
-            "launch_runtime",
-            "read_back_heartbeat_transport",
-        ],
-        "responsible_layer": "codex_desktop_runtime_builder",
-        "effect_boundary": "content_free_observation_only",
-    }
-
-
 def qualify_outage_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
     """Qualify state transitions after a provider-wide outage ends.
 
@@ -251,6 +128,9 @@ def qualify_outage_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
     request that needs native capabilities is admitted.
     """
 
+    from .schema_contract import validate_payload
+
+    validate_payload("qualify_outage_recovery", observation)
     reject_private_material(observation)
     _reject_unexpected_keys(
         observation,
@@ -369,6 +249,9 @@ def qualify_outage_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
 def qualify_quota_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
     """Ensure an applied account reset invalidates older provider cooldown state."""
 
+    from .schema_contract import validate_payload
+
+    validate_payload("qualify_quota_recovery", observation)
     reject_private_material(observation)
     _reject_unexpected_keys(
         observation,
@@ -467,6 +350,9 @@ def qualify_quota_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
 def qualify_tool_transport(observation: Mapping[str, Any]) -> dict[str, Any]:
     """Qualify the response item shape used to dispatch one tool call."""
 
+    from .schema_contract import validate_payload
+
+    validate_payload("qualify_tool_transport", observation)
     reject_private_material(observation)
     _reject_unexpected_keys(
         observation,
@@ -516,230 +402,8 @@ def qualify_tool_transport(observation: Mapping[str, Any]) -> dict[str, Any]:
         "responsible_layer": (
             "provider_response_adapter"
             if requested != observed
-            else "codex_app_tool_dispatch"
+            else "codex_cli_tool_dispatch"
         ),
-        "effect_boundary": "content_free_observation_only",
-    }
-
-
-def qualify_heartbeat_transport(observation: Mapping[str, Any]) -> dict[str, Any]:
-    """Check the host boundary used to inject one scheduled heartbeat turn."""
-
-    reject_private_material(observation)
-    _reject_unexpected_keys(
-        observation,
-        {"turn_trigger", "payload_kind", "delivery_kind", "message_role", "tool_name"},
-        "heartbeat_transport",
-    )
-    turn_trigger = _non_empty_string(
-        observation.get("turn_trigger"), "heartbeat_transport.turn_trigger"
-    )
-    if turn_trigger != "automation_heartbeat":
-        raise ValueError(
-            "heartbeat_transport.turn_trigger must be automation_heartbeat"
-        )
-    payload_kind = _non_empty_string(
-        observation.get("payload_kind"), "heartbeat_transport.payload_kind"
-    )
-    if payload_kind != "heartbeat_xml":
-        raise ValueError("heartbeat_transport.payload_kind must be heartbeat_xml")
-    delivery_kind = _non_empty_string(
-        observation.get("delivery_kind"), "heartbeat_transport.delivery_kind"
-    )
-    if delivery_kind not in {"user_input", "tool_output"}:
-        raise ValueError(
-            "heartbeat_transport.delivery_kind must be user_input or tool_output"
-        )
-
-    message_role = observation.get("message_role")
-    tool_name = observation.get("tool_name")
-    if delivery_kind == "user_input":
-        if message_role != "user":
-            raise ValueError("heartbeat user_input must declare message_role=user")
-        if tool_name is not None:
-            raise ValueError("heartbeat user_input must not declare tool_name")
-        qualified = True
-        failure_code = None
-    else:
-        if message_role is not None:
-            raise ValueError("heartbeat tool_output must not declare message_role")
-        tool_name = _non_empty_string(tool_name, "heartbeat_transport.tool_name")
-        qualified = False
-        failure_code = (
-            "heartbeat_mislabeled_as_automation_tool_output"
-            if tool_name == "automation_update"
-            else "heartbeat_injected_as_tool_output"
-        )
-
-    return {
-        "schema_version": HEARTBEAT_TRANSPORT_SCHEMA_VERSION,
-        "qualified": qualified,
-        "failure_code": failure_code,
-        "required_delivery": {
-            "delivery_kind": "user_input",
-            "message_role": "user",
-        },
-        "observed_delivery": {
-            "delivery_kind": delivery_kind,
-            "message_role": message_role,
-            "tool_name": tool_name,
-        },
-        "responsible_layer": "codex_app_heartbeat_transport",
-        "prompt_or_model_remediation": False,
-    }
-
-
-def qualify_host_control_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
-    """Qualify a content-free observation of CPA orphan host-output recovery."""
-
-    reject_private_material(observation)
-    _reject_unexpected_keys(
-        observation,
-        {
-            "tool_name",
-            "call_id_present",
-            "matching_call_count",
-            "semantic_output_present",
-            "observed_action",
-            "projection",
-            "error_status",
-        },
-        "host_control_recovery",
-    )
-    tool_name = _non_empty_string(
-        observation.get("tool_name"), "host_control_recovery.tool_name"
-    )
-    call_id_present = _boolean(
-        observation.get("call_id_present"),
-        "host_control_recovery.call_id_present",
-    )
-    matching_call_count = observation.get("matching_call_count")
-    if (
-        not isinstance(matching_call_count, int)
-        or isinstance(matching_call_count, bool)
-        or matching_call_count < 0
-    ):
-        raise TypeError(
-            "host_control_recovery.matching_call_count must be a non-negative integer"
-        )
-    semantic_output_present = _boolean(
-        observation.get("semantic_output_present"),
-        "host_control_recovery.semantic_output_present",
-    )
-    observed_action = _non_empty_string(
-        observation.get("observed_action"),
-        "host_control_recovery.observed_action",
-    )
-    if observed_action not in {"project_as_user", "fail_closed"}:
-        raise ValueError(
-            "host_control_recovery.observed_action must be project_as_user or fail_closed"
-        )
-
-    recoverable = (
-        tool_name in RECOVERABLE_HOST_CONTROL_NAMES
-        and not call_id_present
-        and matching_call_count == 0
-        and semantic_output_present
-    )
-    expected_action = "project_as_user" if recoverable else "fail_closed"
-    checks = [
-        {
-            "id": "recovery_action",
-            "passed": observed_action == expected_action,
-            "expected": expected_action,
-            "observed": observed_action,
-        }
-    ]
-
-    projection = observation.get("projection")
-    error_status = observation.get("error_status")
-    if expected_action == "project_as_user":
-        if not isinstance(projection, Mapping):
-            projection = {}
-        else:
-            _reject_unexpected_keys(
-                projection,
-                {
-                    "type",
-                    "role",
-                    "tool_identity_removed",
-                    "semantic_output_preserved",
-                    "next_action_observed",
-                    "next_action_matches_instruction",
-                },
-                "host_control_recovery.projection",
-            )
-        checks.extend(
-            [
-                {
-                    "id": "projection_type",
-                    "passed": projection.get("type") == "message",
-                },
-                {
-                    "id": "projection_role",
-                    "passed": projection.get("role") == "user",
-                },
-                {
-                    "id": "tool_identity_removed",
-                    "passed": projection.get("tool_identity_removed") is True,
-                },
-                {
-                    "id": "semantic_output_preserved",
-                    "passed": projection.get("semantic_output_preserved") is True,
-                },
-                {
-                    "id": "next_action_observed",
-                    "passed": projection.get("next_action_observed") is True,
-                },
-                {
-                    "id": "instruction_follow_through",
-                    "passed": projection.get("next_action_matches_instruction") is True,
-                },
-                {
-                    "id": "no_error_status",
-                    "passed": error_status is None,
-                },
-            ]
-        )
-    else:
-        checks.extend(
-            [
-                {
-                    "id": "typed_fail_closed",
-                    "passed": error_status == 409,
-                },
-                {
-                    "id": "no_projection_on_rejection",
-                    "passed": projection is None,
-                },
-            ]
-        )
-
-    return {
-        "schema_version": HOST_CONTROL_RECOVERY_SCHEMA_VERSION,
-        "qualified": all(check["passed"] for check in checks),
-        "expected_action": expected_action,
-        "checks": checks,
-        "required_contract": {
-            "allowlisted_tools": sorted(RECOVERABLE_HOST_CONTROL_NAMES),
-            "recoverable_shape": {
-                "call_id_present": False,
-                "matching_call_count": 0,
-                "semantic_output_present": True,
-            },
-            "projection": {
-                "type": "message",
-                "role": "user",
-                "remove_tool_identity": True,
-                "preserve_semantic_output": True,
-            },
-            "negative_paths": {
-                "action": "fail_closed",
-                "status": 409,
-            },
-            "qualification_requires_instruction_follow_through": True,
-        },
-        "responsible_layer": "cpa_provider_history_normalizer",
         "effect_boundary": "content_free_observation_only",
     }
 
@@ -786,9 +450,7 @@ def _compile_profiles(raw_profiles: Any) -> dict[str, dict[str, Any]]:
         provider = _non_empty_string(raw.get("provider"), f"profiles[{index}].provider")
         if provider not in ALLOWED_PROVIDERS:
             raise ValueError(f"unsupported provider for {profile_id}: {provider}")
-        priority = raw.get("priority")
-        if not isinstance(priority, int) or isinstance(priority, bool):
-            raise TypeError(f"profile {profile_id} needs integer priority")
+        priority = _integer(raw.get("priority"), "profile.priority")
         modalities = _string_list(
             raw.get("input_modalities"), f"profiles[{index}].input_modalities"
         )
@@ -880,6 +542,9 @@ def _eligible_profiles(
 
 
 def compile_catalog(source: Mapping[str, Any]) -> dict[str, Any]:
+    from .schema_contract import validate_payload
+
+    validate_payload("compile_catalog", source)
     reject_private_material(source)
     profiles = _compile_profiles(source.get("profiles"))
     rings = _compile_rings(source.get("rings"), profiles)
@@ -1176,6 +841,9 @@ def compile_catalog(source: Mapping[str, Any]) -> dict[str, Any]:
 def normalize_selector_request(normalization: Mapping[str, Any]) -> dict[str, Any]:
     """Resolve one public selector before provider alias mapping or body handling."""
 
+    from .schema_contract import validate_payload
+
+    validate_payload("normalize_selector_request", normalization)
     reject_private_material(normalization)
     _reject_unexpected_keys(
         normalization,
@@ -1184,6 +852,7 @@ def normalize_selector_request(normalization: Mapping[str, Any]) -> dict[str, An
             "model_selector",
             "service_tier",
             "required_tool_transport",
+            "required_modalities",
         },
         "normalization",
     )
@@ -1215,7 +884,15 @@ def normalize_selector_request(normalization: Mapping[str, Any]) -> dict[str, An
         selector["default_service_tier"] == "fast"
         or requested_tier == catalog["fast_request_service_tier"]
     )
-    eligible_candidates = selector["candidates"]
+    required_modalities = normalization.get("required_modalities", [])
+    profiles = {item["id"]: item for item in catalog["profiles"]}
+    if not set(required_modalities) <= set(selector["input_modalities"]):
+        raise ValueError("selector does not admit required modalities")
+    eligible_candidates = _eligible_profiles(
+        selector["candidates"], profiles, required_modalities=set(required_modalities)
+    )
+    if not eligible_candidates:
+        raise ValueError("selector has no modality-eligible candidates")
     fallback_policy = selector["fallback_policy"]
     required_tool_transport = normalization.get("required_tool_transport")
     if required_tool_transport is not None:
@@ -1228,7 +905,7 @@ def normalize_selector_request(normalization: Mapping[str, Any]) -> dict[str, An
         eligible_candidates = _eligible_profiles(
             eligible_candidates,
             profiles,
-            required_modalities=set(),
+            required_modalities=set(required_modalities),
             required_tool_transport=required_tool_transport,
         )
         fallback_policy = "required_tool_transport_only"
@@ -1242,7 +919,7 @@ def normalize_selector_request(normalization: Mapping[str, Any]) -> dict[str, An
         eligible_candidates = _eligible_profiles(
             selector["candidates"],
             profiles,
-            required_modalities=set(),
+            required_modalities=set(required_modalities),
             require_fast=True,
             required_tool_transport=required_tool_transport,
         )
@@ -1262,6 +939,7 @@ def normalize_selector_request(normalization: Mapping[str, Any]) -> dict[str, An
         "fallback_policy": fallback_policy,
         "eligible_candidates": eligible_candidates,
         "required_tool_transport": required_tool_transport,
+        "required_modalities": required_modalities,
     }
 
 
@@ -1303,8 +981,10 @@ def _quota_windows(raw: Any, field: str) -> list[dict[str, Any]]:
             raise ValueError(f"{field} has duplicate window id: {window_id}")
         ids.add(window_id)
         used = _percentage(item.get("used_percent"), f"{field}[{index}].used_percent")
-        minutes = item.get("window_minutes")
-        if not isinstance(minutes, int) or isinstance(minutes, bool) or minutes <= 0:
+        minutes = _integer(
+            item.get("window_minutes"), f"{field}[{index}].window_minutes"
+        )
+        if minutes <= 0:
             raise ValueError(f"{field}[{index}].window_minutes must be positive")
         reset_at = item.get("reset_at")
         if reset_at is not None:
@@ -1370,6 +1050,9 @@ def _legal_attempt_orders(
 def project_runtime_status(status: Mapping[str, Any]) -> dict[str, Any]:
     """Validate and project content-free host, route and account observations."""
 
+    from .schema_contract import validate_payload
+
+    validate_payload("project_runtime_status", status)
     reject_private_material(status)
     _reject_unexpected_keys(
         status,
@@ -1400,13 +1083,17 @@ def project_runtime_status(status: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(host, Mapping):
         raise TypeError("status.host_identity must be an object")
     expected_host = {
-        "state": "retained",
+        "state": host.get("state"),
         "projection": "not_projected",
         "route_binding": "none",
     }
-    if dict(host) != expected_host:
+    if dict(host) != expected_host or host.get("state") not in {
+        "retained",
+        "not_applicable",
+        "unknown",
+    }:
         raise ValueError(
-            "host identity must be retained, not projected and independent of routing"
+            "host identity must be typed, not projected and independent of routing"
         )
 
     observation = status.get("execution_observation")
@@ -1547,9 +1234,9 @@ def project_runtime_status(status: Mapping[str, Any]) -> dict[str, Any]:
         )
         projected_activity: dict[str, int] = {}
         for key in ("success", "failed", "window_minutes"):
-            value = activity.get(key)
+            value = _integer(activity.get(key), f"{field}.recent_activity.{key}")
             minimum = 1 if key == "window_minutes" else 0
-            if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+            if value < minimum:
                 raise ValueError(f"{field}.recent_activity.{key} is invalid")
             projected_activity[key] = value
         accounts.append(
@@ -1589,229 +1276,33 @@ def project_runtime_status(status: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def qualify_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
-    reject_private_material(snapshot)
-    expected_visible = {
-        "auto/gpt-5.6-sol",
-        "fast/auto/gpt-5.6-sol",
-        "codex-a/gpt-5.6-sol",
-        "fast/codex-a/gpt-5.6-sol",
-        "codex-b/gpt-5.6-sol",
-        "fast/codex-b/gpt-5.6-sol",
-        "gpt-5.6-luna",
-        "ark/deepseek-v4-flash",
-    }
-    preset = snapshot.get("routing_preset", "legacy-ab-sol")
-    if preset not in {"legacy-ab-sol", "abc-sol-astra"}:
-        raise ValueError("unsupported snapshot routing preset")
-    expected_hidden = {"gpt-5.6-sol"}
-    expected_rows = expected_visible
-    if preset == "abc-sol-astra":
-        from .selectors import MODEL_FAMILIES, ROUTES, VISIBLE_SELECTORS
+    """Qualify CLI configuration readback, never online routing or entitlement."""
+    from .schema_contract import validate_payload
 
-        expected_rows = set(ROUTES) | {
-            "ark/deepseek-v4-flash",
-            "deepseek-v4-flash",
-            "deepseek-v4-flash-ga-260731",
-            "deepseek-v4-pro-ga-260813",
-        }
-        expected_visible = set(VISIBLE_SELECTORS)
-        expected_hidden = set(MODEL_FAMILIES) | (expected_rows - expected_visible)
-    expected_fast = {slug for slug in expected_rows if slug.startswith("fast/")}
-    expected_native = {slug for slug in expected_rows if "gpt-" in slug}
-    checks: list[dict[str, Any]] = []
-
-    def check(check_id: str, passed: bool, detail: str) -> None:
-        checks.append({"id": check_id, "passed": bool(passed), "detail": detail})
-
-    visible = set(
-        _string_list(snapshot.get("visible_models"), "snapshot.visible_models")
-    )
-    hidden = set(_string_list(snapshot.get("hidden_models"), "snapshot.hidden_models"))
-    check(
-        "visible_routes",
-        visible == expected_visible,
-        "selector exposes the selected routing preset",
-    )
-    check(
-        "hidden_alias",
-        expected_hidden <= hidden,
-        "compatibility aliases remain hidden",
-    )
-    modalities = snapshot.get("input_modalities")
-    if not isinstance(modalities, Mapping):
-        raise TypeError("snapshot.input_modalities must be an object")
-    check(
-        "codex_image_admission",
-        all(
-            set(modalities.get(slug, [])) == {"text", "image"}
-            for slug in expected_native
-        ),
-        "subscription selectors declare text and image",
-    )
-    check(
-        "ark_text_only",
-        set(modalities.get("ark/deepseek-v4-flash", [])) == {"text"},
-        "Ark remains text-only",
-    )
-    fast_models = set(_string_list(snapshot.get("fast_models"), "snapshot.fast_models"))
-    check(
-        "fast_projection",
-        fast_models == expected_fast,
-        "Fast compatibility rows retain their tier metadata",
-    )
-    selector_tiers = snapshot.get("selector_default_service_tiers")
-    if not isinstance(selector_tiers, Mapping):
-        raise TypeError("snapshot.selector_default_service_tiers must be an object")
-    standard_selectors = expected_rows - fast_models
-    check(
-        "fast_default_off",
-        snapshot.get("default_service_tier") == "default"
-        and all(selector_tiers.get(slug) == "default" for slug in standard_selectors)
-        and all(selector_tiers.get(slug) == "fast" for slug in fast_models),
-        "ordinary rows stay Standard while explicit Fast rows opt into Fast",
-    )
-    normalizer = snapshot.get("request_normalizer")
-    check(
-        "request_normalizer",
-        isinstance(normalizer, Mapping)
-        and normalizer.get("active") is True
-        and normalizer.get("selector_prefix") == "fast/"
-        and normalizer.get("fast_request_service_tier") == "priority"
-        and normalizer.get("ordinary_selector_action") == "preserve"
-        and normalizer.get("effective_priority_admission") == "fast_capable_only",
-        "normalizer preserves ordinary tiers and constrains effective Fast requests",
-    )
-    check(
-        "loopback_endpoint",
-        snapshot.get("endpoint_host") in {"127.0.0.1", "localhost"},
-        "CPA endpoint is loopback-only",
-    )
-    check(
-        "modality_aware_affinity",
-        snapshot.get("affinity_policy") == "hint_revalidated_per_attempt",
-        "Auto affinity is revalidated against required modalities per attempt",
-    )
-    route_traversal = snapshot.get("route_traversal")
-    if not isinstance(route_traversal, Mapping):
-        raise TypeError("snapshot.route_traversal must be an object")
-    expected_traversal = {
-        "auto/gpt-5.6-sol": {
-            "entrypoint": "affinity_then_first",
-            "ordered_candidates": ["codex-a", "codex-b", "ark-text"],
-            "fallback_tail": ["ark-text"],
-        },
-        "fast/auto/gpt-5.6-sol": {
-            "entrypoint": "affinity_then_first",
-            "ordered_candidates": ["codex-a", "codex-b"],
-            "fallback_tail": [],
-        },
-        "codex-a/gpt-5.6-sol": {
-            "entrypoint": "codex-a",
-            "ordered_candidates": ["codex-a", "codex-b", "ark-text"],
-            "fallback_tail": ["ark-text"],
-        },
-        "fast/codex-a/gpt-5.6-sol": {
-            "entrypoint": "codex-a",
-            "ordered_candidates": ["codex-a", "codex-b"],
-            "fallback_tail": [],
-        },
-        "codex-b/gpt-5.6-sol": {
-            "entrypoint": "codex-b",
-            "ordered_candidates": ["codex-b", "codex-a", "ark-text"],
-            "fallback_tail": ["ark-text"],
-        },
-        "fast/codex-b/gpt-5.6-sol": {
-            "entrypoint": "codex-b",
-            "ordered_candidates": ["codex-b", "codex-a"],
-            "fallback_tail": [],
-        },
-        "gpt-5.6-luna": {
-            "entrypoint": "affinity_then_first",
-            "ordered_candidates": ["codex-a", "codex-b"],
-            "fallback_tail": [],
-        },
-    }
-    if preset == "abc-sol-astra":
-        expected_traversal = {
-            slug: {
-                "entrypoint": "affinity_then_first"
-                if slug.removeprefix("fast/").startswith(("auto/", "auto-with-ds/"))
-                or slug == "gpt-5.6-luna"
-                else f"codex-{route['order'][0]}",
-                "ordered_candidates": [f"codex-{slot}" for slot in route["order"]]
-                + route["tail"],
-                "fallback_tail": route["tail"],
-            }
-            for slug, route in ROUTES.items()
-        }
-    traversal_rows: dict[str, Mapping[str, Any]] = {}
-    for slug in expected_traversal:
-        raw_row = route_traversal.get(slug)
-        if not isinstance(raw_row, Mapping):
-            raise TypeError(f"snapshot.route_traversal[{slug}] must be an object")
-        traversal_rows[slug] = raw_row
-        _string_list(
-            raw_row.get("ordered_candidates"),
-            f"snapshot.route_traversal[{slug}].ordered_candidates",
-        )
-        _string_list(
-            raw_row.get("fallback_tail"),
-            f"snapshot.route_traversal[{slug}].fallback_tail",
-        )
-    check(
-        "preferred_route_order",
-        all(
-            traversal_rows[slug].get("entrypoint") == expected["entrypoint"]
-            and traversal_rows[slug].get("ordered_candidates")
-            == expected["ordered_candidates"]
-            for slug, expected in expected_traversal.items()
-        ),
-        "subscription selectors use the expected ring entrypoint and order",
-    )
-    check(
-        "terminal_fallback_tail",
-        all(
-            traversal_rows[slug].get("fallback_tail") == expected["fallback_tail"]
-            for slug, expected in expected_traversal.items()
-        ),
-        "only eligible Standard routes append Ark; Fast and Luna have no heterogeneous tail",
-    )
-    check(
-        "fast_capable_only",
-        all(
-            traversal_rows[slug].get("ordered_candidates")
-            == expected_traversal[slug]["ordered_candidates"]
-            and traversal_rows[slug].get("fallback_tail") == []
-            for slug in fast_models
-        ),
-        "Fast rows remain inside the selected Fast-capable account ring",
-    )
-    check(
-        "single_cycle_traversal",
-        all(row.get("max_cycles") == 1 for row in traversal_rows.values()),
-        "every resilient route traverses the account ring at most once",
-    )
-    check(
-        "settings_revision",
-        snapshot.get("settings_revision_durable") is True
-        and snapshot.get("turn_revision_matches") is True,
-        "new turn uses a durable settings revision",
-    )
-    check(
-        "commit_barrier",
-        snapshot.get("commit_barrier") == "before_first_visible_output_or_tool_call",
-        "transparent failover ends before visible output or tool call",
-    )
+    validate_payload("qualify_snapshot", snapshot)
+    checks = [
+        {"id": "cli_version", "passed": snapshot["codex_cli_version"] == "0.160.0"},
+        {"id": "profile_config", "passed": snapshot["profile_config_parsed"]},
+        {"id": "catalog_readback", "passed": snapshot["catalog_readback_matches"]},
+        {"id": "provider_readback", "passed": snapshot["provider_readback_matches"]},
+    ]
     return {
-        "qualified": all(item["passed"] for item in checks),
+        "schema_version": "codex_cli_configuration_qualification_v1",
+        "qualified": all(row["passed"] for row in checks),
         "checks": checks,
+        "scope": "offline_configuration_only",
+        "online_qualification": "held",
+        "effect_boundary": "content_free_observation_only",
     }
 
 
 def build_upgrade_plan(upgrade: Mapping[str, Any]) -> dict[str, Any]:
+    from .schema_contract import validate_payload
+
+    validate_payload("upgrade_plan", upgrade)
     reject_private_material(upgrade)
-    current = _non_empty_string(upgrade.get("current_ref"), "upgrade.current_ref")
-    target = _non_empty_string(upgrade.get("target_ref"), "upgrade.target_ref")
+    current = _git_ref(upgrade.get("current_ref"), "upgrade.current_ref")
+    target = _git_ref(upgrade.get("target_ref"), "upgrade.target_ref")
     changed_seams = _string_list(upgrade.get("changed_seams"), "upgrade.changed_seams")
     unknown = sorted(set(changed_seams) - ALLOWED_CHANGE_SEAMS)
     if unknown:
@@ -1823,14 +1314,7 @@ def build_upgrade_plan(upgrade: Mapping[str, Any]) -> dict[str, Any]:
             "foreign_reasoning",
             "tool_causality",
         ],
-        "desktop_runtime_patch": [
-            "versioned_anchor_unique",
-            "asar_member_integrity",
-            "asar_header_integrity",
-            "desktop_signature",
-            "desktop_launch",
-            "heartbeat_transport_readback",
-        ],
+        "cli_configuration": ["cli_version", "profile_config", "provider_readback"],
         "integration_candidate": [
             "exact_base_head",
             "exact_ordered_source_heads",
@@ -1875,13 +1359,7 @@ def build_upgrade_plan(upgrade: Mapping[str, Any]) -> dict[str, Any]:
             "single_ring_cycle",
             "terminal_tail_once",
         ],
-        "ssh_bridge": ["loopback_binds", "reconnect", "existing_task_resume"],
-        "modality_routing": ["image_a_b", "ark_text_only", "no_eligible_fail_closed"],
-        "settings_revision": [
-            "durable_readback",
-            "turn_revision_match",
-            "old_turn_isolation",
-        ],
+        "modality_routing": ["declared_modality_admission", "no_eligible_fail_closed"],
     }
     for seam in changed_seams:
         matrix.extend(seam_checks[seam])
@@ -1911,6 +1389,9 @@ def reconcile_integration_candidate(candidate: Mapping[str, Any]) -> dict[str, A
     implementing Git fetch, merge, push, or deployment effects.
     """
 
+    from .schema_contract import validate_payload
+
+    validate_payload("reconcile_integration_candidate", candidate)
     reject_private_material(candidate)
     _reject_unexpected_keys(
         candidate,
@@ -2088,3 +1569,52 @@ def reconcile_integration_candidate(candidate: Mapping[str, Any]) -> dict[str, A
         },
         "effect_boundary": "read_only_public_safe_plan",
     }
+
+
+def compile_cli_plan(cli_plan: Mapping[str, Any]) -> dict[str, Any]:
+    """Pin a symbolic CLI launch declaration; deployment and credentials stay trusted."""
+    from .schema_contract import validate_payload
+
+    validate_payload("compile_cli_plan", cli_plan)
+    source = cli_plan["catalog_source"]
+    catalog = compile_catalog(source)
+    normalized = normalize_selector_request(
+        {
+            "catalog_source": source,
+            "model_selector": cli_plan["model_selector"],
+            "service_tier": cli_plan["service_tier"],
+            "required_modalities": cli_plan["required_capabilities"]["modalities"],
+            "required_tool_transport": cli_plan["required_capabilities"][
+                "tool_transport"
+            ],
+        }
+    )
+    selector = next(
+        row
+        for row in catalog["selector_rows"]
+        if row["slug"] == cli_plan["model_selector"]
+    )
+    if cli_plan["reasoning_effort"] not in selector["reasoning_levels"]:
+        raise ValueError("reasoning effort is not declared by selector")
+    profiles = {row["id"]: row for row in catalog["profiles"]}
+    # Online heterogeneous history qualification is held. Do not advertise it
+    # as usable merely because metadata admits one isolated request shape.
+    if any(
+        profiles[slot]["provider"] != "codex"
+        for slot in normalized["eligible_candidates"]
+    ):
+        raise ValueError(
+            "heterogeneous CLI plans require independent online qualification"
+        )
+    result = {key: value for key, value in cli_plan.items() if key != "catalog_source"}
+    result.update(
+        {
+            "schema_version": "codex_cli_route_launch_plan_v1",
+            "service_tier": normalized["service_tier"].get("value", "default"),
+            "eligible_candidates": normalized["eligible_candidates"],
+            "qualification": "declaration_only",
+            "online_qualification": "held",
+            "provider_overrides": {},
+        }
+    )
+    return result

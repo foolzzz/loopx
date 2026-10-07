@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+# ruff: noqa: E402 -- resolve this checkout before importing the package
+
 import contextlib
 import io
 import json
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE_ROOT / "src"))
+
 from loopx_codex_provider_routing.operator import rollback, run, snapshot
-from loopx_codex_provider_routing.operator_catalog import AppCatalog
+from loopx_codex_provider_routing.operator_catalog import CLIModelCatalog
 from loopx_codex_provider_routing.operator_runtime import (
     CPAOperator,
     sha256,
@@ -20,9 +26,9 @@ from loopx_codex_provider_routing.operator_runtime import (
 from loopx_codex_provider_routing.operator_settings import OperatorSettings
 from loopx_codex_provider_routing.selectors import (
     ROUTES,
-    VISIBLE_SELECTORS,
     aliases_for_slot,
     compiled_routes,
+    routing_source,
 )
 
 
@@ -37,17 +43,17 @@ class OperatorTests(unittest.TestCase):
             runtime_root=str(runtime), temporary_root=str(self.root / "temporary")
         )
         self.data = {
-            "schema_version": "loopx_cpa_local_operator_v1",
+            "schema_version": "loopx_cpa_local_operator_v2",
             "paths": paths,
             "binary_sha256": "0" * 64,
-            "plugin_sha256": "0" * 64,
             "source_commit": "0" * 40,
             "port": 19876,
             "launchd_label": "org.example.cpa-test",
-            "ark_base_url": "https://api.example.invalid/v1",
-            "ark_model": "deepseek-v4-flash-ga-260731",
-            "ark_pro_model": "deepseek-v4-pro-ga-260813",
+            "profile_name": "cpa-native",
+            "cpa_client_env_key": "CPA_CLIENT_KEY",
+            "fallback_routes": [],
         }
+        self.data["paths"]["codex_home"] = str(self.root / "codex-home")
         self.settings = OperatorSettings(self.data)
         self.runtime = CPAOperator(self.settings)
         self.config = self.root / "operator.json"
@@ -76,13 +82,14 @@ class OperatorTests(unittest.TestCase):
         write_private(r.MODEL_CATALOG, json.dumps({"models": []}))
 
     def test_default_is_plan_without_files_or_processes(self):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            self.assertEqual(run(["--config", str(self.config), "serve"]), 0)
-        self.assertFalse(self.runtime.RUNTIME_ROOT.exists())
-        receipt = json.loads(output.getvalue())
-        self.assertFalse(receipt["executed"])
-        self.assertNotIn(str(self.root), output.getvalue())
+        for command in ("serve", "write-profile", "install-profile", "probe"):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(run(["--config", str(self.config), command]), 0)
+            self.assertFalse(self.runtime.RUNTIME_ROOT.exists())
+            receipt = json.loads(output.getvalue())
+            self.assertFalse(receipt["executed"])
+            self.assertNotIn(str(self.root), output.getvalue())
 
     def test_private_configuration_and_exact_targets(self):
         self.config.chmod(0o644)
@@ -150,14 +157,18 @@ class OperatorTests(unittest.TestCase):
                 [p for p in row["candidates"] if p == "ark-text"], expected_tail
             )
 
-    def test_runtime_never_maps_subscription_selectors_to_ark(self):
-        config = self.runtime.runtime_config("fixture-key", management_secret="fixture")
-        compatibility = config.split("openai-compatibility:", 1)[1]
-        self.assertIn('alias: "ark/deepseek-v4-flash"', compatibility)
-        native_only = [slug for slug, route in ROUTES.items() if not route["tail"]]
-        for alias in (*native_only, "gpt-5.6-sol", "gpt-6-astra"):
-            self.assertNotIn(f'alias: "{alias}"', compatibility)
-        self.assertIn("disable-cooling: false", config)
+    def test_native_only_requires_no_ark_key_or_plugin(self):
+        with patch.dict("os.environ", {"ARK_API_KEY": "must-not-be-read"}):
+            self.assertEqual(self.runtime.load_ark_key(None), "")
+        config = self.runtime.runtime_config("", management_secret="fixture")
+        self.assertNotIn("openai-compatibility", config)
+        self.assertNotIn("plugins:", config)
+        self.assertFalse(
+            any(
+                entry["alias"].startswith("auto-with-ds/")
+                for entry in self.runtime.aliases_for_slot("a")
+            )
+        )
 
     def test_cooldown_reset_is_scoped_and_not_a_health_claim(self):
         self.seed()
@@ -245,158 +256,239 @@ class OperatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             rollback(self.runtime, "../outside")
 
-    def test_catalog_uses_native_model_metadata_and_fast_parity(self):
-        self.seed()
-        base = {
-            "input_modalities": ["text", "image"],
-            "supported_reasoning_levels": [
-                {"effort": e}
-                for e in ("low", "medium", "high", "xhigh", "max", "ultra")
+    def metadata(self):
+        return {
+            "schema_version": "codex_cli_model_metadata_v1",
+            "codex_cli_version": "0.160.0",
+            "source_kind": "synthetic",
+            "models": [
+                {
+                    "slug": model,
+                    "display_name": model,
+                    "description": "Synthetic model metadata",
+                    "input_modalities": ["text", "image"],
+                    "default_reasoning_level": "high",
+                    "supported_reasoning_levels": [
+                        {"effort": effort, "description": effort}
+                        for effort in ("low", "medium", "high", "xhigh")
+                    ],
+                    "additional_speed_tiers": ["fast"],
+                    "service_tiers": [
+                        {
+                            "id": "priority",
+                            "name": "Fast",
+                            "description": "Synthetic tier",
+                        }
+                    ],
+                    "context_window": 100000,
+                }
+                for model in ("gpt-5.6-sol", "gpt-5.6-luna", "gpt-6-astra")
             ],
-            "additional_speed_tiers": ["fast"],
-            "service_tiers": [{"id": "priority"}],
         }
-        for key, models in (
-            ("gpt_cache", ["gpt-5.6-sol", "gpt-5.6-luna"]),
-            ("astra_cache", ["gpt-6-astra"]),
-            ("ark_catalog", [self.data["ark_model"], self.data["ark_pro_model"]]),
-        ):
-            write_private(
-                self.settings.paths[key],
-                json.dumps(
-                    {
-                        "models": [
-                            {
-                                **base,
-                                "slug": model,
-                                "input_modalities": ["text"]
-                                if key == "ark_catalog"
-                                else ["text", "image"],
-                                "context_window": 100000
-                                if model == "gpt-6-astra"
-                                else 50000,
-                            }
-                            for model in models
-                        ]
-                    }
-                ),
-            )
-        catalog = AppCatalog(self.runtime)
-        rows = {m["slug"]: m for m in catalog.generate_catalog()["models"]}
-        self.assertEqual(len(rows), 25)
-        self.assertEqual(
-            {slug for slug, row in rows.items() if row["visibility"] == "list"},
-            {
-                "auto/gpt-5.6-sol",
-                "fast/auto/gpt-5.6-sol",
-                "auto-with-ds/gpt-5.6-sol",
-                "auto/gpt-6-astra",
-                "fast/auto/gpt-6-astra",
-                "auto-with-ds/gpt-6-astra",
-                "gpt-5.6-luna",
+
+    def seed_plan(self):
+        source = routing_source()
+        source["profiles"] = [
+            member for member in source["profiles"] if member["id"].startswith("codex-")
+        ]
+        source["routes"] = [
+            route for route in source["routes"] if not route.get("fallback_tail")
+        ]
+        plan = {
+            "catalog_source": source,
+            "route_id": "native-route",
+            "routing_revision": "v1",
+            "deployment_ref": "cpa-native-v1",
+            "provider_id": "cpa",
+            "model_selector": "auto/gpt-5.6-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "required_capabilities": {
+                "modalities": ["text"],
+                "tool_transport": "custom_tool_call",
             },
+            "codex_version_requirement": "0.160.0",
+        }
+        write_private(
+            self.settings.paths["route_plan"],
+            json.dumps(
+                {
+                    "schema_version": "loopx_codex_provider_routing_request_v1",
+                    "operation": "compile_cli_plan",
+                    "cli_plan": plan,
+                }
+            ),
         )
-        self.assertEqual(
-            rows["gpt-6-astra"]["context_window"],
-            rows["auto/gpt-6-astra"]["context_window"],
+        write_private(
+            self.settings.paths["model_metadata"], json.dumps(self.metadata())
         )
-        for slug in VISIBLE_SELECTORS:
-            if slug.startswith("auto-with-ds/"):
-                self.assertEqual(rows[slug]["service_tiers"], [])
+
+    def test_auth_rollback_holds_running_or_unknown_writer_before_any_write(self):
+        self.seed()
+        backup = snapshot(self.runtime)
+        write_private(self.runtime.MODEL_CATALOG, '{"new": true}')
+        original = {
+            path: path.read_bytes()
+            for path in (
+                self.runtime.MODEL_CATALOG,
+                self.runtime.SLOTS_FILE,
+                self.runtime.AUTH_DIR / "a.json",
+            )
+        }
+        for pid_content, alive in (("4242", True), ("unknown", False), ("0", False)):
+            write_private(self.runtime.PID_FILE, pid_content)
+            with (
+                patch.object(self.runtime, "pid_alive", return_value=alive),
+                self.assertRaisesRegex(RuntimeError, "credential writer"),
+            ):
+                rollback(self.runtime, backup)
+            self.assertTrue(
+                all(path.read_bytes() == content for path, content in original.items())
+            )
+
+    def test_profile_snapshot_rollback_does_not_touch_live_auth_membership(self):
+        self.seed()
+        self.seed_plan()
+        original = self.runtime.SLOTS_FILE.read_bytes()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            run(["--config", str(self.config), "--execute", "write-profile"])
+        installed = self.runtime.INSTALLED_PROFILE
+        write_private(installed, CLIModelCatalog(self.runtime).profile_content())
+        with patch.object(self.runtime, "pid_alive", return_value=True) as alive:
+            rollback(self.runtime, json.loads(output.getvalue())["rollback_snapshot"])
+            alive.assert_not_called()
+        self.assertFalse(self.runtime.PROFILE_FILE.exists())
+        self.assertTrue(installed.exists())
+        self.assertEqual(self.runtime.SLOTS_FILE.read_bytes(), original)
+
+    def test_catalog_uses_versioned_native_metadata(self):
+        self.seed_plan()
+        catalog = CLIModelCatalog(self.runtime)
+        rows = {row["slug"]: row for row in catalog.generate_catalog()["models"]}
+        self.assertEqual(len(rows), 19)
+        self.assertFalse(any(slug.startswith("auto-with-ds/") for slug in rows))
         for slug, row in rows.items():
+            self.assertEqual(row["input_modalities"], ["text", "image"])
             self.assertEqual(
                 row["default_service_tier"],
                 "fast" if slug.startswith("fast/") else None,
             )
-            if "astra" in slug:
-                self.assertEqual(row["context_window"], 100000)
-        self.assertEqual(
-            rows["codex-c/gpt-6-astra"]["supported_reasoning_levels"][-1]["effort"],
-            "ultra",
-        )
-        self.assertNotIn(
-            "ultra",
-            [
-                r["effort"]
-                for r in rows["auto/gpt-6-astra"]["supported_reasoning_levels"]
-            ],
-        )
         catalog.write_catalog()
         first = sha256(self.runtime.MODEL_CATALOG)
         catalog.write_catalog()
         self.assertEqual(first, sha256(self.runtime.MODEL_CATALOG))
-        with (
-            patch.object(self.runtime, "check_artifacts"),
-            contextlib.redirect_stdout(io.StringIO()),
-        ):
-            self.runtime.validate()
-            broken = json.loads(self.runtime.MODEL_CATALOG.read_text())
-            row = next(
-                row
-                for row in broken["models"]
-                if row["slug"] == "auto-with-ds/gpt-6-astra"
-            )
-            row["additional_speed_tiers"] = ["fast"]
-            write_private(self.runtime.MODEL_CATALOG, json.dumps(broken))
-            with self.assertRaisesRegex(RuntimeError, "standard-only"):
-                self.runtime.validate()
 
-    def test_new_preset_qualification_and_negative_fast_admission(self):
+    def test_plan_rejects_inconsistent_operator_candidates_before_writing(self):
+        self.seed_plan()
+        request = json.loads(self.settings.paths["route_plan"].read_text())
+        source = request["cli_plan"]["catalog_source"]
+        source["profiles"] = source["profiles"][:2]
+        source["rings"][0]["members"] = ["codex-a", "codex-b"]
+        source["routes"] = [
+            route for route in source["routes"] if route["slug"] == "auto/gpt-5.6-sol"
+        ]
+        write_private(self.settings.paths["route_plan"], json.dumps(request))
+        with self.assertRaisesRegex(ValueError, "operator routing preset"):
+            CLIModelCatalog(self.runtime).write_profile()
+        self.assertFalse(self.runtime.RUNTIME_ROOT.exists())
+
+    def test_metadata_rejects_unknown_and_prompt_fields(self):
         from copy import deepcopy
 
-        from loopx_codex_provider_routing.contract import qualify_snapshot
+        self.seed_plan()
+        for key in ("prompt", "raw_body", "base_instructions", "unknown"):
+            metadata = deepcopy(self.metadata())
+            metadata["models"][0][key] = "synthetic"
+            write_private(self.settings.paths["model_metadata"], json.dumps(metadata))
+            with self.assertRaises(ValueError):
+                CLIModelCatalog(self.runtime).generate_catalog()
 
-        package = Path(__file__).resolve().parents[1]
-        baseline = json.loads(
-            (package / "examples" / "qualification-snapshot.json").read_text()
-        )["snapshot"]
-        observation = deepcopy(baseline)
-        observation["routing_preset"] = "abc-sol-astra"
-        native = set(ROUTES)
-        ark = {
-            "ark/deepseek-v4-flash",
-            "deepseek-v4-flash",
-            "deepseek-v4-flash-ga-260731",
-            "deepseek-v4-pro-ga-260813",
-        }
-        observation["visible_models"] = sorted(VISIBLE_SELECTORS)
-        observation["hidden_models"] = sorted((native | ark) - VISIBLE_SELECTORS) + [
-            "gpt-5.6-sol",
-            "gpt-6-astra",
-        ]
-        observation["fast_models"] = sorted(
-            slug for slug in native if slug.startswith("fast/")
+        for field, value in (
+            ("context_window", {"raw_body": "synthetic"}),
+            (
+                "service_tiers",
+                [{"id": "priority", "description": {"prompt": "synthetic"}}],
+            ),
+            ("upgrade", {"prompt": "synthetic"}),
+        ):
+            metadata = deepcopy(self.metadata())
+            metadata["models"][0][field] = value
+            write_private(self.settings.paths["model_metadata"], json.dumps(metadata))
+            with self.assertRaises(ValueError):
+                CLIModelCatalog(self.runtime).generate_catalog()
+
+    def test_independent_profile_apply_readback_and_rollback(self):
+        import tomllib
+
+        self.seed_plan()
+        self.runtime.INSTALLED_PROFILE.parent.mkdir()
+        untouched = {}
+        for name in (
+            "config.toml",
+            "auth.json",
+            "sessions/existing",
+            "automations/existing",
+        ):
+            target = self.runtime.INSTALLED_PROFILE.parent / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("synthetic original")
+            untouched[target] = target.read_bytes()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(
+                run(["--config", str(self.config), "--execute", "install-profile"]), 0
+            )
+        receipt = json.loads(output.getvalue())
+        profile = tomllib.loads(self.runtime.INSTALLED_PROFILE.read_text())
+        self.assertNotIn("profiles", profile)
+        self.assertEqual(profile["model"], "auto/gpt-5.6-sol")
+        self.assertEqual(profile["model_providers"]["cpa"]["env_key"], "CPA_CLIENT_KEY")
+        self.assertEqual(profile["model_providers"]["cpa"]["request_max_retries"], 0)
+        rollback(self.runtime, receipt["rollback_snapshot"])
+        self.assertFalse(self.runtime.INSTALLED_PROFILE.exists())
+        for target, content in untouched.items():
+            self.assertEqual(target.read_bytes(), content)
+        self.assertNotIn(str(self.root), output.getvalue())
+
+    def test_install_refuses_existing_unrelated_profile(self):
+        self.seed_plan()
+        write_private(self.runtime.INSTALLED_PROFILE, 'model = "owner-choice"')
+        with self.assertRaises(ValueError):
+            CLIModelCatalog(self.runtime).write_profile(install=True)
+        self.assertEqual(
+            self.runtime.INSTALLED_PROFILE.read_text(), 'model = "owner-choice"'
         )
-        observation["input_modalities"] = {
-            slug: ["text", "image"] if slug in native else ["text"]
-            for slug in native | ark
-        }
-        observation["selector_default_service_tiers"] = {
-            slug: "fast" if slug.startswith("fast/") else "default"
-            for slug in native | ark
-        }
-        observation["route_traversal"] = {}
-        for slug, route in ROUTES.items():
-            observation["route_traversal"][slug] = {
-                "entrypoint": "affinity_then_first"
-                if slug.removeprefix("fast/").startswith(("auto/", "auto-with-ds/"))
-                or slug == "gpt-5.6-luna"
-                else f"codex-{route['order'][0]}",
-                "ordered_candidates": [f"codex-{slot}" for slot in route["order"]]
-                + route["tail"],
-                "fallback_tail": route["tail"],
-                "max_cycles": 1,
-            }
-        self.assertTrue(qualify_snapshot(observation)["qualified"])
-        visible_regression = deepcopy(observation)
-        visible_regression["visible_models"].append("codex-b/gpt-6-astra")
-        self.assertFalse(qualify_snapshot(visible_regression)["qualified"])
-        broken = deepcopy(observation)
-        broken["route_traversal"]["fast/codex-c/gpt-6-astra"][
-            "ordered_candidates"
-        ].append("ark-text")
-        self.assertFalse(qualify_snapshot(broken)["qualified"])
-        self.assertTrue(qualify_snapshot(baseline)["qualified"])
+
+    def test_rollback_retains_modified_installed_profile(self):
+        self.seed_plan()
+        catalog = CLIModelCatalog(self.runtime)
+        backup = snapshot(self.runtime, profile_content=catalog.profile_content())
+        catalog.write_profile(install=True)
+        write_private(self.runtime.INSTALLED_PROFILE, 'model = "owner-change"')
+        with self.assertRaises(ValueError):
+            rollback(self.runtime, backup)
+        self.assertTrue(self.runtime.INSTALLED_PROFILE.exists())
+
+    def test_target_roots_reject_codex_stores_and_ancestor_symlinks(self):
+        from copy import deepcopy
+
+        for target in (
+            self.root / ".codex",
+            self.root / "Codex.app" / "data",
+            self.root / "sessions",
+            self.root / "automations",
+        ):
+            data = deepcopy(self.data)
+            data["paths"]["runtime_root"] = str(target)
+            with self.assertRaises(ValueError):
+                OperatorSettings(data)
+        linked = self.root / "linked"
+        linked.symlink_to(self.root, target_is_directory=True)
+        data = deepcopy(self.data)
+        data["paths"]["runtime_root"] = str(linked / "runtime")
+        with self.assertRaises(ValueError):
+            OperatorSettings(data)
 
     def test_failed_reconcile_does_not_patch_earlier_slots(self):
         from unittest.mock import patch
@@ -421,6 +513,12 @@ class OperatorTests(unittest.TestCase):
             rollback(self.runtime, backup)
         self.assertEqual(self.runtime.MODEL_CATALOG.read_text(), '{"new": true}')
 
+        path.unlink()
+        with self.assertRaises(ValueError):
+            rollback(self.runtime, backup)
+        self.assertFalse(path.exists())
+        self.assertEqual(self.runtime.MODEL_CATALOG.read_text(), '{"new": true}')
+
     def test_rollback_deactivates_new_enrollment_without_deleting_tokens(self):
         self.seed()
         write_private(
@@ -437,14 +535,25 @@ class OperatorTests(unittest.TestCase):
         self.assertEqual(data["refresh_token"], "fixture-refresh")
         self.assertNotIn("c", self.runtime.load_slots())
 
-    def test_config_fallback_requires_explicit_four_route_opt_in(self):
-        config = self.runtime.runtime_config(
+    def test_config_fallback_requires_explicit_route_opt_in(self):
+        from copy import deepcopy
+
+        data = deepcopy(self.data)
+        data.update(
+            fallback_routes=["auto-with-ds/gpt-6-astra"],
+            ark_base_url="https://api.example.invalid/v1",
+            ark_model="deepseek-v4-flash-ga-260731",
+            ark_pro_model="deepseek-v4-pro-ga-260813",
+        )
+        data["paths"]["ark_env_file"] = str(self.root / "ark-env")
+        runtime = CPAOperator(OperatorSettings(data))
+        config = runtime.runtime_config(
             "fixture-only", management_secret="fixture-management"
         )
         self.assertIn('alias: "auto-with-ds/gpt-6-astra"', config)
+        self.assertNotIn('alias: "auto-with-ds/gpt-5.6-sol"', config)
         self.assertNotIn('alias: "codex-c/gpt-6-astra"', config)
         self.assertNotIn('alias: "fast/', config)
-        self.assertNotIn('alias: "gpt-5.6-luna"', config)
         self.assertIn('host: "127.0.0.1"', config)
 
 

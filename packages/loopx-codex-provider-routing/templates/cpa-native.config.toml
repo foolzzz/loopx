@@ -1,0 +1,20 @@
+# Public-safe shape for an independent <name>.config.toml file, Codex CLI 0.160.0.
+# Replace placeholders only in operator-owned private output. Per-command opt-in:
+# codex --profile cpa-native debug prompt-input
+model = "auto/gpt-5.6-sol"
+model_provider = "local-cpa"
+model_reasoning_effort = "high"
+model_catalog_json = "<CONTROLLED_MODEL_CATALOG_JSON>"
+service_tier = "default"
+
+[model_providers.local-cpa]
+name = "CPA"
+base_url = "http://127.0.0.1:<LOOPBACK_CPA_PORT>/v1"
+env_key = "CPA_CLIENT_KEY"
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false
+request_max_retries = 0
+stream_max_retries = 0
+# No auth/session, sandbox, approval, MCP, hooks or project trust overrides.
+# No legacy [profiles] tables. Catalog readback is not online qualification.

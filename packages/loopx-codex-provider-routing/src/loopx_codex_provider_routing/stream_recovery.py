@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from .contract import reject_private_material
+from .contract import _integer, reject_private_material
 
 
 def qualify_stream_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
@@ -13,6 +13,9 @@ def qualify_stream_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
     or an arbitrary network failure. Effects and raw evidence stay with the
     operator and provider transport.
     """
+    from .schema_contract import validate_payload
+
+    validate_payload("qualify_stream_recovery", observation)
     reject_private_material(observation)
     integers = {
         "previous_idle_timeout_ms": 1,
@@ -36,7 +39,7 @@ def qualify_stream_recovery(observation: Mapping[str, Any]) -> dict[str, Any]:
     if observation["failure_kind"] != "sse_idle_timeout":
         raise ValueError("stream_recovery requires an observed sse_idle_timeout")
     for key, minimum in integers.items():
-        if type(observation[key]) is not int or observation[key] < minimum:
+        if _integer(observation[key], f"stream_recovery.{key}") < minimum:
             raise TypeError(f"stream_recovery.{key} requires an integer >= {minimum}")
     for key in booleans:
         if type(observation[key]) is not bool:

@@ -13,15 +13,17 @@ import secrets
 import sys
 from pathlib import Path
 
-from .operator_catalog import AppCatalog
+from .operator_catalog import CLIModelCatalog
 from .operator_runtime import CPAOperator, sha256, write_private
-from .operator_settings import OperatorSettings
+from .operator_settings import OperatorSettings, reject_symlinks
 from .selectors import SLOTS
 
 COMMANDS = (
     "prepare",
     "reconcile",
     "write-catalog",
+    "write-profile",
+    "install-profile",
     "probe",
     "validate",
     "status",
@@ -36,31 +38,67 @@ COMMANDS = (
 )
 
 
-def snapshot(runtime: CPAOperator) -> str:
-    """Snapshot only the fixed catalog and registered credentials, never task stores."""
+def snapshot(
+    runtime: CPAOperator,
+    *,
+    profile_content: str | None = None,
+    profile_target: Path | None = None,
+    include_auth: bool = True,
+) -> str:
+    """Snapshot allowlisted artifacts and routing metadata, never host stores."""
+    runtime.check_target_boundaries()
     snapshot_id = dt.datetime.now(dt.timezone.utc).strftime(
         "%Y%m%dT%H%M%SZ-"
     ) + secrets.token_hex(4)
     directory = runtime.STATE_DIR / "operator-backups" / snapshot_id
+    reject_symlinks(directory)
     directory.mkdir(parents=True, mode=0o700)
-    targets = [runtime.SLOTS_FILE, runtime.MODEL_CATALOG]
-    targets += [runtime.AUTH_DIR / name for name in runtime.load_slots().values()]
-    entries = []
+    targets = [runtime.MODEL_CATALOG]
+    if include_auth:
+        targets += [runtime.SLOTS_FILE, runtime.PROFILE_FILE]
+        targets += [runtime.AUTH_DIR / name for name in runtime.load_slots().values()]
+        if runtime.INSTALLED_PROFILE is not None:
+            targets.append(runtime.INSTALLED_PROFILE)
+    elif profile_target is not None:
+        if profile_target not in {runtime.PROFILE_FILE, runtime.INSTALLED_PROFILE}:
+            raise ValueError("profile snapshot target is outside the allowlist")
+        targets.append(profile_target)
+    entries, absent_profiles = [], []
     for index, target in enumerate(targets):
+        relative = (
+            "installed_profile"
+            if target == runtime.INSTALLED_PROFILE
+            else str(target.relative_to(runtime.RUNTIME_ROOT))
+        )
         if not target.exists():
+            if profile_content is not None and target in {
+                runtime.PROFILE_FILE,
+                runtime.INSTALLED_PROFILE,
+            }:
+                absent_profiles.append(
+                    {
+                        "target": relative,
+                        "generated_sha256": hashlib.sha256(
+                            profile_content.encode()
+                        ).hexdigest(),
+                    }
+                )
             continue
-        relative = str(target.relative_to(runtime.RUNTIME_ROOT))
         content = target.read_text(encoding="utf-8")
         saved = directory / f"{index}.json"
         write_private(saved, content)
         entries.append(
             {"target": relative, "backup": saved.name, "sha256": sha256(saved)}
         )
-    write_private(directory / "manifest.json", json.dumps({"files": entries}))
+    write_private(
+        directory / "manifest.json",
+        json.dumps({"files": entries, "absent_profiles": absent_profiles}),
+    )
     return snapshot_id
 
 
 def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
+    runtime.check_target_boundaries()
     if (
         not snapshot_id
         or Path(snapshot_id).name != snapshot_id
@@ -68,10 +106,17 @@ def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
     ):
         raise ValueError("rollback requires a snapshot identifier")
     directory = runtime.STATE_DIR / "operator-backups" / snapshot_id
+    reject_symlinks(directory)
     if directory.is_symlink() or (directory / "manifest.json").is_symlink():
         raise ValueError("snapshot must not be a symbolic link")
-    entries = json.loads((directory / "manifest.json").read_text())["files"]
-    allowed = {"state/oauth-slots.json", "codex-model-catalog.json"}
+    manifest = json.loads((directory / "manifest.json").read_text())
+    if not isinstance(manifest, dict) or set(manifest) != {"files", "absent_profiles"}:
+        raise ValueError("invalid snapshot manifest")
+    entries = manifest["files"]
+    profile_relative = str(runtime.PROFILE_FILE.relative_to(runtime.RUNTIME_ROOT))
+    allowed = {"state/oauth-slots.json", "codex-model-catalog.json", profile_relative}
+    if runtime.INSTALLED_PROFILE is not None:
+        allowed.add("installed_profile")
     prepared = []
     for entry in entries:
         relative, name = entry["target"], entry["backup"]
@@ -82,7 +127,12 @@ def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
             raise ValueError("snapshot target is outside the operator allowlist")
         if Path(name).name != name:
             raise ValueError("invalid backup member")
-        source, target = directory / name, runtime.RUNTIME_ROOT / relative
+        source = directory / name
+        target = (
+            runtime.INSTALLED_PROFILE
+            if relative == "installed_profile"
+            else runtime.RUNTIME_ROOT / relative
+        )
         if (
             source.is_symlink()
             or target.is_symlink()
@@ -90,6 +140,38 @@ def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
         ):
             raise ValueError("snapshot integrity check failed")
         prepared.append((target, source.read_text()))
+    restores_auth = any(
+        target == runtime.SLOTS_FILE or target.parent == runtime.AUTH_DIR
+        for target, _ in prepared
+    )
+    if restores_auth:
+        pid = runtime.read_pid()
+        if (
+            runtime.PID_FILE.exists() and (pid is None or pid <= 1)
+        ) or runtime.pid_alive(pid):
+            raise RuntimeError(
+                "stop the dedicated CPA credential writer before restoring routing metadata"
+            )
+    deletions = []
+    for entry in manifest["absent_profiles"]:
+        if set(entry) != {"target", "generated_sha256"} or entry["target"] not in {
+            profile_relative,
+            "installed_profile",
+        }:
+            raise ValueError("invalid absent profile target")
+        target = (
+            runtime.INSTALLED_PROFILE
+            if entry["target"] == "installed_profile"
+            else runtime.PROFILE_FILE
+        )
+        if target is None or target.is_symlink():
+            raise ValueError("invalid absent profile target")
+        if target.exists():
+            if sha256(target) != entry["generated_sha256"]:
+                raise ValueError(
+                    "generated profile changed since installation; retain it"
+                )
+            deletions.append(target)
     # OAuth refresh tokens rotate. Restore routing metadata onto the newest
     # credential, never roll a live credential back to a stale refresh token.
     restored = []
@@ -97,7 +179,11 @@ def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
     for target, content in prepared:
         if target == runtime.SLOTS_FILE:
             previous_slots = json.loads(content)
-        if target.parent == runtime.AUTH_DIR and target.exists():
+        if target.parent == runtime.AUTH_DIR:
+            if not target.exists():
+                raise ValueError(
+                    "current credential is missing; stale tokens cannot be restored"
+                )
             current = json.loads(target.read_text())
             old = json.loads(content)
             if current.get("account_id") != old.get("account_id"):
@@ -132,6 +218,8 @@ def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
                     restored.append((path, json.dumps(data, separators=(",", ":"))))
     for target, content in restored:
         write_private(target, content)
+    for target in deletions:
+        target.unlink()
 
 
 def enroll(runtime: CPAOperator, slot: str) -> None:
@@ -225,32 +313,55 @@ def run(argv=None) -> int:
         return 0
     runtime = CPAOperator(settings)
     runtime.check_target_boundaries()
-    catalog = AppCatalog(runtime)
-    if args.command in {"reconcile", "write-catalog", "enroll"}:
-        receipt["rollback_snapshot"] = snapshot(runtime)
+    catalog = CLIModelCatalog(runtime)
+    if args.command in {
+        "reconcile",
+        "write-catalog",
+        "enroll",
+        "write-profile",
+        "install-profile",
+    }:
+        content = (
+            catalog.profile_content()
+            if args.command in {"write-profile", "install-profile"}
+            else None
+        )
+        if args.command == "install-profile":
+            target = runtime.INSTALLED_PROFILE
+            if target is None:
+                raise ValueError("profile installation requires explicit codex_home")
+            if target.exists() and target.read_text() != content:
+                raise ValueError("existing profile differs; choose a new profile name")
+        profile_target = (
+            runtime.INSTALLED_PROFILE
+            if args.command == "install-profile"
+            else runtime.PROFILE_FILE
+            if args.command == "write-profile"
+            else None
+        )
+        receipt["rollback_snapshot"] = snapshot(
+            runtime,
+            profile_content=content,
+            profile_target=profile_target,
+            include_auth=args.command in {"reconcile", "enroll"},
+        )
     captured = io.StringIO()
     # Diagnostics can contain local paths. Public receipts return only typed,
     # symbolic results; raw management data and subprocess output stay local.
     with contextlib.redirect_stdout(captured):
-        if args.command == "write-catalog":
+        if args.command in {"write-profile", "install-profile"}:
+            catalog.write_profile(install=args.command == "install-profile")
+            receipt.update(
+                profile_name=settings.data["profile_name"],
+                qualification="configuration_only",
+                online_qualification="held",
+            )
+        elif args.command == "write-catalog":
             catalog.write_catalog()
             receipt["model_count"] = len(catalog.generate_catalog()["models"])
         elif args.command == "probe":
             result = catalog.probe()
-            receipt["passed"] = result["passed"]
-            receipt["model_count"] = len(result["projected_selectors"])
-            receipt["visible_selectors"] = result["visible_selectors"]
-            receipt["checks"] = {
-                k: result[k]
-                for k in (
-                    "missing",
-                    "unexpected_visible",
-                    "hidden",
-                    "cpa_missing",
-                    "route_mismatches",
-                    "wrong_default_service_tiers",
-                )
-            }
+            receipt.update(result)
         elif args.command == "enroll":
             runtime.prepare()
             enroll(runtime, args.slot)
@@ -262,7 +373,7 @@ def run(argv=None) -> int:
         elif args.command == "rollback":
             rollback(runtime, args.snapshot_id)
         elif args.command in {"start", "serve"}:
-            getattr(runtime, args.command)(settings.paths["ark_env_file"])
+            getattr(runtime, args.command)(settings.paths.get("ark_env_file"))
         elif args.command == "route-status":
             runtime.route_status(modality=args.modality, fast=args.fast)
             receipt["observation"] = json.loads(captured.getvalue())

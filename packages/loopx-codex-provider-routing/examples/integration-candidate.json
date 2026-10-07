@@ -1,7 +1,7 @@
 {
   "integration": {
-    "base_ref": "origin/dev",
-    "integration_branch": "codex/integrated-dev",
+    "base_ref": "origin-dev",
+    "integration_branch": "codex-integrated-dev",
     "last_sync": {
       "base_sha": "1111111111111111111111111111111111111111",
       "integration_sha": "6666666666666666666666666666666666666666",
@@ -44,7 +44,7 @@
         "head_sha": "2222222222222222222222222222222222222222",
         "id": "history-normalization",
         "kind": "pull_request",
-        "ref": "fork/provider-history-normalization"
+        "ref": "fork-provider-history-normalization"
       },
       {
         "changed_seams": [
@@ -53,7 +53,7 @@
         "head_sha": "3333333333333333333333333333333333333333",
         "id": "transport-pool",
         "kind": "pull_request",
-        "ref": "fork/reusable-http2-transport"
+        "ref": "fork-reusable-http2-transport"
       },
       {
         "changed_seams": [
@@ -63,7 +63,7 @@
         "head_sha": "4444444444444444444444444444444444444444",
         "id": "modality-routing",
         "kind": "public_safe_patch",
-        "ref": "operator/modality-routing"
+        "ref": "operator-modality-routing"
       },
       {
         "changed_seams": [
@@ -72,7 +72,7 @@
         "head_sha": "5555555555555555555555555555555555555555",
         "id": "route-fallback",
         "kind": "pull_request",
-        "ref": "fork/route-specific-fallback"
+        "ref": "fork-route-specific-fallback"
       },
       {
         "changed_seams": [
@@ -82,7 +82,7 @@
         "head_sha": "7777777777777777777777777777777777777777",
         "id": "compat-stream-repair",
         "kind": "public_safe_patch",
-        "ref": "operator/compat-stream-repair"
+        "ref": "operator-compat-stream-repair"
       },
       {
         "changed_seams": [
@@ -91,10 +91,10 @@
         "head_sha": "8888888888888888888888888888888888888888",
         "id": "rate-limit-wait",
         "kind": "pull_request",
-        "ref": "fork/openai-compat-bounded-rate-limit-waits"
+        "ref": "fork-openai-compat-bounded-rate-limit-waits"
       }
     ]
   },
   "operation": "reconcile_integration_candidate",
-  "schema_version": "loopx_codex_provider_routing_request_v0"
+  "schema_version": "loopx_codex_provider_routing_request_v1"
 }

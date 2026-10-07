@@ -10,7 +10,7 @@ Guides are task-oriented paths for people starting or operating LoopX.
 - [Custom Agent runner integration](custom-agent-runner-integration.md)
 - [Custom Agent runner integration (中文)](custom-agent-runner-integration.zh-CN.md)
 - [Experimental planner-worker mode](planner-worker-experimental.md)
-- [Codex App multi-provider routing extension](../../packages/loopx-codex-provider-routing/README.md)
+- [Codex CLI provider-routing extension](../../packages/loopx-codex-provider-routing/README.md)
 - [Codex 多 App 隔离与运维最佳实践（中文）](codex-multi-app-best-practices.zh-CN.md)
 
 Stable semantics belong in [reference contracts](../reference/README.md);

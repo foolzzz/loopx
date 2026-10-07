@@ -16,6 +16,20 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking optional provider-routing extension 0.12.0:** the managed protocol,
+  request and response move to v1 with fully closed schemas; App desktop-patch,
+  heartbeat and host-control operations are removed without aliases.
+  `qualify_snapshot` now checks offline Codex CLI configuration, and
+  `compile_cli_plan` returns a symbolic native-route launch declaration.
+  The separately invoked operator uses v2 settings and standalone
+  `<name>.config.toml` profiles with explicit install targets, preserving global
+  config, current credentials and session stores. LoopX Turn, Chat, Dashboard
+  and Lark do not consume these plans; online CPA acceptance remains held
+  pending an authorized deployment and request budget. See the
+  [operator guide](packages/loopx-codex-provider-routing/OPERATOR.md).
+
 ### Removed
 
 - Removed the native desktop client, Tauri shell, signed update/repair/rollback

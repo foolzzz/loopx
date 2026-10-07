@@ -1,4 +1,4 @@
-"""Credential-free selector definitions shared by CPA and the App catalog."""
+"""Credential-free selector definitions shared by CPA and the CLI catalog."""
 
 from .contract import compile_catalog
 
@@ -138,7 +138,7 @@ def compiled_routes():
 
 
 # The existing contract compiler owns ring traversal and Fast admission.
-# Both credential aliases and App rows consume its resolved candidates.
+# Both credential aliases and CLI rows consume its resolved candidates.
 for _row in compiled_routes()["selector_rows"]:
     _spec = ROUTES[_row["slug"]]
     _spec["order"] = [

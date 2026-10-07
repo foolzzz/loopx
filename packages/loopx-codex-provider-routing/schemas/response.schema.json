@@ -1,76 +1,2043 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "oneOf": [
-    {
+  "$defs": {
+    "account_result": {
+      "additionalProperties": false,
       "properties": {
-        "error": false,
-        "ok": {
-          "const": true
+        "profile_id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "quota": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/quota_result"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recent_activity": {
+          "$ref": "#/$defs/activity"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "degraded",
+            "unavailable",
+            "unknown"
+          ]
         }
       },
       "required": [
+        "profile_id",
+        "state",
+        "recent_activity",
+        "quota"
+      ],
+      "type": "object"
+    },
+    "activity": {
+      "additionalProperties": false,
+      "properties": {
+        "failed": {
+          "$ref": "#/$defs/count"
+        },
+        "success": {
+          "$ref": "#/$defs/count"
+        },
+        "window_minutes": {
+          "$ref": "#/$defs/positive_integer"
+        }
+      },
+      "required": [
+        "success",
+        "failed",
+        "window_minutes"
+      ],
+      "type": "object"
+    },
+    "catalog_reasoning": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ]
+    },
+    "catalog_result": {
+      "additionalProperties": false,
+      "properties": {
+        "credential_free": {
+          "const": true
+        },
+        "default_service_tier": {
+          "const": "default"
+        },
+        "fast_request_service_tier": {
+          "const": "priority"
+        },
+        "fast_selector_prefix": {
+          "const": "fast/"
+        },
+        "profiles": {
+          "items": {
+            "$ref": "#/$defs/compiled_profile"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "rings": {
+          "items": {
+            "$ref": "#/$defs/ring"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/route_result"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "schema_version": {
+          "const": "codex_provider_routing_catalog_v1"
+        },
+        "selector_rows": {
+          "items": {
+            "$ref": "#/$defs/selector_result"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "credential_free",
+        "default_service_tier",
+        "fast_selector_prefix",
+        "fast_request_service_tier",
+        "profiles",
+        "rings",
+        "routes",
+        "selector_rows"
+      ],
+      "type": "object"
+    },
+    "change_seam": {
+      "enum": [
+        "history_projection",
+        "integration_candidate",
+        "modality_routing",
+        "model_catalog",
+        "quota_recovery",
+        "request_normalizer",
+        "retry_policy",
+        "route_fallback",
+        "sse_lifecycle",
+        "transport_pool",
+        "tool_transport",
+        "cli_configuration"
+      ]
+    },
+    "check": {
+      "additionalProperties": false,
+      "properties": {
+        "failure_code": {
+          "$ref": "#/$defs/code"
+        },
+        "id": {
+          "$ref": "#/$defs/code"
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "passed",
+        "failure_code"
+      ],
+      "type": "object"
+    },
+    "cli_plan_result": {
+      "additionalProperties": false,
+      "properties": {
+        "codex_version_requirement": {
+          "const": "0.160.0"
+        },
+        "deployment_ref": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "eligible_candidates": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "model_selector": {
+          "$ref": "#/$defs/model_selector"
+        },
+        "online_qualification": {
+          "const": "held"
+        },
+        "provider_id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "provider_overrides": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "qualification": {
+          "const": "declaration_only"
+        },
+        "reasoning_effort": {
+          "$ref": "#/$defs/reasoning_effort"
+        },
+        "required_capabilities": {
+          "$ref": "#/$defs/required_capabilities"
+        },
+        "route_id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "routing_revision": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "schema_version": {
+          "const": "codex_cli_route_launch_plan_v1"
+        },
+        "service_tier": {
+          "enum": [
+            "default",
+            "priority"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "route_id",
+        "routing_revision",
+        "deployment_ref",
+        "provider_id",
+        "model_selector",
+        "reasoning_effort",
+        "service_tier",
+        "required_capabilities",
+        "codex_version_requirement",
+        "eligible_candidates",
+        "qualification",
+        "online_qualification",
+        "provider_overrides"
+      ],
+      "type": "object"
+    },
+    "code": {
+      "pattern": "^(?!.*\\bsk-[A-Za-z0-9_-]{12,})[a-z][a-z0-9_]{0,95}(?![\\s\\S])",
+      "type": "string"
+    },
+    "compiled_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "input_modalities": {
+          "$ref": "#/$defs/modalities"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "provider": {
+          "enum": [
+            "codex",
+            "openai_compatibility"
+          ]
+        },
+        "supports_fast": {
+          "type": "boolean"
+        },
+        "tool_transports": {
+          "items": {
+            "$ref": "#/$defs/tool_transport"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "priority",
+        "input_modalities",
+        "tool_transports",
+        "supports_fast"
+      ],
+      "type": "object"
+    },
+    "count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "display_label": {
+      "maxLength": 120,
+      "minLength": 1,
+      "pattern": "^(?! +$)(?!.*(?:@|[Bb][Ee][Aa][Rr][Ee][Rr] |\\bsk-[A-Za-z0-9_-]{12,}|/|\\\\|\\n|\\r))[A-Za-z0-9 ·→—()_.:+-]+(?![\\s\\S])",
+      "type": "string"
+    },
+    "drift": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "base_moved",
+                "integration_head_moved"
+              ]
+            },
+            "last_sync_sha": {
+              "$ref": "#/$defs/git_sha"
+            },
+            "observed_sha": {
+              "$ref": "#/$defs/git_sha"
+            },
+            "ref": {
+              "$ref": "#/$defs/public_ref"
+            }
+          },
+          "required": [
+            "kind",
+            "ref",
+            "last_sync_sha",
+            "observed_sha"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "source_moved"
+            },
+            "last_sync_sha": {
+              "$ref": "#/$defs/git_sha"
+            },
+            "observed_sha": {
+              "$ref": "#/$defs/git_sha"
+            },
+            "source_id": {
+              "$ref": "#/$defs/symbolic_id"
+            }
+          },
+          "required": [
+            "kind",
+            "source_id",
+            "last_sync_sha",
+            "observed_sha"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "execution_result": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "attempted_profiles": {
+              "items": {
+                "$ref": "#/$defs/symbolic_id"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "fallback_used": {
+              "type": "boolean"
+            },
+            "observed_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "outcome": {
+              "const": "success"
+            },
+            "selected_profile": {
+              "$ref": "#/$defs/symbolic_id"
+            }
+          },
+          "required": [
+            "observed_at",
+            "attempted_profiles",
+            "outcome",
+            "fallback_used",
+            "selected_profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "attempted_profiles": {
+              "items": {
+                "$ref": "#/$defs/symbolic_id"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "fallback_used": {
+              "type": "boolean"
+            },
+            "observed_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "outcome": {
+              "const": "failed"
+            }
+          },
+          "required": [
+            "observed_at",
+            "attempted_profiles",
+            "outcome",
+            "fallback_used"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "fast_selector": {
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "$ref": "#/$defs/display_label"
+        },
+        "fallback_policy": {
+          "const": "fast_capable_only"
+        }
+      },
+      "required": [
+        "display_name",
+        "fallback_policy"
+      ],
+      "type": "object"
+    },
+    "git_sha": {
+      "pattern": "^[0-9a-f]{40}(?![\\s\\S])",
+      "type": "string"
+    },
+    "host_identity": {
+      "additionalProperties": false,
+      "properties": {
+        "projection": {
+          "const": "not_projected"
+        },
+        "route_binding": {
+          "const": "none"
+        },
+        "state": {
+          "enum": [
+            "not_applicable",
+            "unknown",
+            "retained"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "projection",
+        "route_binding"
+      ],
+      "type": "object"
+    },
+    "integration_result": {
+      "additionalProperties": false,
+      "properties": {
+        "core_integration_plan": {
+          "additionalProperties": false,
+          "properties": {
+            "base_ref": {
+              "$ref": "#/$defs/public_ref"
+            },
+            "integration_branch": {
+              "$ref": "#/$defs/public_ref"
+            },
+            "source_refs": {
+              "items": {
+                "$ref": "#/$defs/public_ref"
+              },
+              "minItems": 2,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "base_ref",
+            "integration_branch",
+            "source_refs"
+          ],
+          "type": "object"
+        },
+        "covered_seams": {
+          "items": {
+            "$ref": "#/$defs/change_seam"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "deployment_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "artifact": {
+              "const": "content_addressed_binary_with_sha256"
+            },
+            "rollback_trigger": {
+              "const": "any_failed_readback_or_unexplained_regression"
+            },
+            "sequence": {
+              "items": {
+                "$ref": "#/$defs/code"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "session_store_policy": {
+              "const": "preserve_in_place_never_copy_or_delete"
+            }
+          },
+          "required": [
+            "artifact",
+            "sequence",
+            "rollback_trigger",
+            "session_store_policy"
+          ],
+          "type": "object"
+        },
+        "drift_reasons": {
+          "items": {
+            "$ref": "#/$defs/drift"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "effect_boundary": {
+          "const": "read_only_public_safe_plan"
+        },
+        "reconcile_steps": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "required_seams": {
+          "items": {
+            "$ref": "#/$defs/change_seam"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "schema_version": {
+          "const": "codex_provider_integration_candidate_v0"
+        },
+        "source_order": {
+          "items": {
+            "$ref": "#/$defs/integration_source"
+          },
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "status": {
+          "enum": [
+            "sync_required",
+            "in_sync"
+          ]
+        },
+        "sync_required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "sync_required",
+        "drift_reasons",
+        "required_seams",
+        "covered_seams",
+        "source_order",
+        "core_integration_plan",
+        "reconcile_steps",
+        "deployment_contract",
+        "effect_boundary"
+      ],
+      "type": "object"
+    },
+    "integration_source": {
+      "additionalProperties": false,
+      "properties": {
+        "changed_seams": {
+          "items": {
+            "$ref": "#/$defs/change_seam"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "head_sha": {
+          "$ref": "#/$defs/git_sha"
+        },
+        "id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "kind": {
+          "enum": [
+            "pull_request",
+            "public_safe_patch"
+          ]
+        },
+        "ref": {
+          "$ref": "#/$defs/public_ref"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "ref",
+        "head_sha",
+        "changed_seams"
+      ],
+      "type": "object"
+    },
+    "modalities": {
+      "items": {
+        "enum": [
+          "text",
+          "image"
+        ]
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "model_selector": {
+      "pattern": "^(?!.*\\bsk-[A-Za-z0-9_-]{12,})(?!.*\\.\\.)[a-z0-9][a-z0-9./-]{0,127}(?![\\s\\S])",
+      "type": "string"
+    },
+    "normalization_result": {
+      "additionalProperties": false,
+      "properties": {
+        "default_service_tier": {
+          "enum": [
+            "default",
+            "fast"
+          ]
+        },
+        "eligible_candidates": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "fallback_policy": {
+          "enum": [
+            "route_default",
+            "fast_capable_only",
+            "required_tool_transport_only",
+            "fast_and_required_tool_transport_only"
+          ]
+        },
+        "normalized_model_selector": {
+          "$ref": "#/$defs/model_selector"
+        },
+        "original_model_selector": {
+          "$ref": "#/$defs/model_selector"
+        },
+        "required_modalities": {
+          "items": {
+            "enum": [
+              "text",
+              "image"
+            ]
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "required_tool_transport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/tool_transport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service_tier": {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "enum": [
+                "preserve",
+                "force_priority"
+              ]
+            },
+            "value": {
+              "enum": [
+                "default",
+                "priority"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "original_model_selector",
+        "normalized_model_selector",
+        "default_service_tier",
+        "service_tier",
+        "fallback_policy",
+        "eligible_candidates",
+        "required_tool_transport",
+        "required_modalities"
+      ],
+      "type": "object"
+    },
+    "outage_result": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/check"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "effect_boundary": {
+          "const": "content_free_observation_only"
+        },
+        "expected_action": {
+          "enum": [
+            "invalidate_cooldown_and_revalidate_affinity",
+            "retain_cooldown_until_recovery_observed"
+          ]
+        },
+        "failure_codes": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "outage_ended": {
+          "type": "boolean"
+        },
+        "qualified": {
+          "type": "boolean"
+        },
+        "required_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "degraded_affinity": {
+              "const": "fallback_binding_revalidated_before_native_capability_request"
+            },
+            "incident_cooldown": {
+              "const": "outage_end_newer_than_source_invalidates_cooldown"
+            },
+            "native_capability": {
+              "const": "fail_closed_when_no_eligible_native_provider"
+            },
+            "recovery_gate": {
+              "const": "bounded_probe_before_fallback_admission"
+            }
+          },
+          "required": [
+            "incident_cooldown",
+            "recovery_gate",
+            "degraded_affinity",
+            "native_capability"
+          ],
+          "type": "object"
+        },
+        "responsible_layer": {
+          "const": "cpa_provider_health_state_and_selector"
+        },
+        "schema_version": {
+          "const": "codex_outage_recovery_qualification_v0"
+        }
+      },
+      "required": [
+        "qualified",
+        "failure_codes",
+        "checks",
+        "effect_boundary",
+        "schema_version",
+        "outage_ended",
+        "expected_action",
+        "responsible_layer",
+        "required_contract"
+      ],
+      "type": "object"
+    },
+    "percent": {
+      "maximum": 100,
+      "minimum": 0,
+      "type": "number"
+    },
+    "positive_integer": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "public_ref": {
+      "pattern": "^(?!.*\\bsk-[A-Za-z0-9_-]{12,})(?!.*\\.\\.)(?!.*(?:\\.lock|\\.)$)[A-Za-z0-9][A-Za-z0-9._-]{0,191}(?![\\s\\S])",
+      "type": "string"
+    },
+    "quota_recovery_result": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/check"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "effect_boundary": {
+          "const": "content_free_observation_only"
+        },
+        "expected_action": {
+          "enum": [
+            "invalidate_and_probe",
+            "retain_cooldown"
+          ]
+        },
+        "failure_codes": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "qualified": {
+          "type": "boolean"
+        },
+        "required_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "fallback_gate": {
+              "const": "probe_recovered_account_before_fallback"
+            },
+            "new_quota_limit": {
+              "const": "a_new_probe_may_create_a_new_cooldown"
+            },
+            "reset_receipt_ordering": {
+              "const": "newer_reset_invalidates_older_cooldown"
+            }
+          },
+          "required": [
+            "reset_receipt_ordering",
+            "fallback_gate",
+            "new_quota_limit"
+          ],
+          "type": "object"
+        },
+        "reset_supersedes_cooldown": {
+          "type": "boolean"
+        },
+        "responsible_layer": {
+          "const": "cpa_provider_health_state"
+        },
+        "schema_version": {
+          "const": "codex_quota_recovery_qualification_v0"
+        }
+      },
+      "required": [
+        "qualified",
+        "failure_codes",
+        "checks",
+        "effect_boundary",
+        "schema_version",
+        "reset_supersedes_cooldown",
+        "expected_action",
+        "responsible_layer",
+        "required_contract"
+      ],
+      "type": "object"
+    },
+    "quota_result": {
+      "additionalProperties": false,
+      "properties": {
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/quota_window_result"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        }
+      },
+      "required": [
+        "observed_at",
+        "windows"
+      ],
+      "type": "object"
+    },
+    "quota_window_result": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "remaining_percent": {
+          "$ref": "#/$defs/percent"
+        },
+        "reset_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "used_percent": {
+          "$ref": "#/$defs/percent"
+        },
+        "window_minutes": {
+          "$ref": "#/$defs/positive_integer"
+        }
+      },
+      "required": [
+        "id",
+        "used_percent",
+        "window_minutes",
+        "reset_at",
+        "remaining_percent"
+      ],
+      "type": "object"
+    },
+    "reasoning_effort": {
+      "enum": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "required_capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "modalities": {
+          "$ref": "#/$defs/modalities"
+        },
+        "tool_transport": {
+          "$ref": "#/$defs/tool_transport"
+        }
+      },
+      "required": [
+        "modalities",
+        "tool_transport"
+      ],
+      "type": "object"
+    },
+    "ring": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/symbolic_id"
+        },
+        "max_cycles": {
+          "const": 1
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "members",
+        "max_cycles"
+      ],
+      "type": "object"
+    },
+    "route_result": {
+      "additionalProperties": false,
+      "properties": {
+        "alias_for": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/model_selector"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "display_name": {
+          "$ref": "#/$defs/display_label"
+        },
+        "eligible_candidates": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/symbolic_id"
+            },
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "propertyNames": {
+            "enum": [
+              "text",
+              "image"
+            ]
+          },
+          "type": "object"
+        },
+        "entrypoint": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/symbolic_id"
+                },
+                {
+                  "const": "affinity_then_first"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fallback_tail": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "fast_candidates": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "fast_selector": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/fast_selector"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input_modalities": {
+          "$ref": "#/$defs/modalities"
+        },
+        "reasoning_levels": {
+          "items": {
+            "$ref": "#/$defs/catalog_reasoning"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "ring_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/symbolic_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "routing_mode": {
+          "enum": [
+            "auto",
+            "preferred",
+            "manual",
+            "alias"
+          ]
+        },
+        "routing_policy": {
+          "$ref": "#/$defs/routing_policy"
+        },
+        "slug": {
+          "$ref": "#/$defs/model_selector"
+        },
+        "supports_fast": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "enum": [
+            "visible",
+            "hidden"
+          ]
+        }
+      },
+      "required": [
+        "slug",
+        "display_name",
+        "visibility",
+        "routing_mode",
+        "alias_for",
+        "ring_id",
+        "entrypoint",
+        "fallback_tail",
+        "input_modalities",
+        "reasoning_levels",
+        "candidates",
+        "eligible_candidates",
+        "supports_fast",
+        "fast_selector",
+        "fast_candidates",
+        "routing_policy"
+      ],
+      "type": "object"
+    },
+    "routing_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_filter": {
+          "const": "required_modalities_service_tier_and_tool_transport"
+        },
+        "commit_barrier": {
+          "const": "before_first_visible_output_or_tool_call"
+        },
+        "foreign_history": {
+          "const": "normalize_or_quarantine"
+        },
+        "max_cycles": {
+          "const": 1
+        },
+        "on_no_eligible_provider": {
+          "const": "fail_closed_before_first_output"
+        },
+        "session_affinity": {
+          "enum": [
+            "hint_revalidated_per_attempt",
+            "disabled"
+          ]
+        },
+        "traversal": {
+          "enum": [
+            "one_ring_pass_then_tail",
+            "ordered_candidates_once"
+          ]
+        }
+      },
+      "required": [
+        "candidate_filter",
+        "on_no_eligible_provider",
+        "session_affinity",
+        "traversal",
+        "max_cycles",
+        "commit_barrier",
+        "foreign_history"
+      ],
+      "type": "object"
+    },
+    "selector_result": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/symbolic_id"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "default_service_tier": {
+          "enum": [
+            "default",
+            "fast"
+          ]
+        },
+        "display_name": {
+          "$ref": "#/$defs/display_label"
+        },
+        "fallback_policy": {
+          "enum": [
+            "route_default",
+            "fast_capable_only"
+          ]
+        },
+        "input_modalities": {
+          "$ref": "#/$defs/modalities"
+        },
+        "reasoning_levels": {
+          "items": {
+            "$ref": "#/$defs/catalog_reasoning"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "request_service_tier_action": {
+          "enum": [
+            "preserve",
+            "force_priority"
+          ]
+        },
+        "route_slug": {
+          "$ref": "#/$defs/model_selector"
+        },
+        "slug": {
+          "$ref": "#/$defs/model_selector"
+        },
+        "visibility": {
+          "enum": [
+            "visible",
+            "hidden"
+          ]
+        }
+      },
+      "required": [
+        "slug",
+        "route_slug",
+        "display_name",
+        "visibility",
+        "input_modalities",
+        "reasoning_levels",
+        "candidates",
+        "default_service_tier",
+        "request_service_tier_action",
+        "fallback_policy"
+      ],
+      "type": "object"
+    },
+    "snapshot_result": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "enum": [
+                  "cli_version",
+                  "profile_config",
+                  "catalog_readback",
+                  "provider_readback"
+                ]
+              },
+              "passed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "passed"
+            ],
+            "type": "object"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "effect_boundary": {
+          "const": "content_free_observation_only"
+        },
+        "online_qualification": {
+          "const": "held"
+        },
+        "qualified": {
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "codex_cli_configuration_qualification_v1"
+        },
+        "scope": {
+          "const": "offline_configuration_only"
+        }
+      },
+      "required": [
+        "schema_version",
+        "qualified",
+        "checks",
+        "scope",
+        "online_qualification",
+        "effect_boundary"
+      ],
+      "type": "object"
+    },
+    "status_result": {
+      "additionalProperties": false,
+      "properties": {
+        "accounts": {
+          "items": {
+            "$ref": "#/$defs/account_result"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "credential_free": {
+          "const": true
+        },
+        "execution": {
+          "$ref": "#/$defs/execution_result"
+        },
+        "host_identity": {
+          "$ref": "#/$defs/host_identity"
+        },
+        "route_intent": {
+          "additionalProperties": false,
+          "properties": {
+            "fast": {
+              "type": "boolean"
+            },
+            "legal_attempt_orders": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/symbolic_id"
+                },
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": false
+            },
+            "modality": {
+              "enum": [
+                "text",
+                "image"
+              ]
+            },
+            "required_tool_transport": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/tool_transport"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "route_slug": {
+              "$ref": "#/$defs/model_selector"
+            },
+            "routing_mode": {
+              "enum": [
+                "auto",
+                "preferred",
+                "manual"
+              ]
+            },
+            "selector_slug": {
+              "$ref": "#/$defs/model_selector"
+            }
+          },
+          "required": [
+            "selector_slug",
+            "route_slug",
+            "routing_mode",
+            "modality",
+            "fast",
+            "required_tool_transport",
+            "legal_attempt_orders"
+          ],
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "codex_provider_routing_runtime_status_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "credential_free",
+        "host_identity",
+        "route_intent",
+        "execution",
+        "accounts"
+      ],
+      "type": "object"
+    },
+    "stream_result": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/check"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "effect_boundary": {
+          "const": "content_free_observation_only"
+        },
+        "failure_codes": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "qualified": {
+          "type": "boolean"
+        },
+        "required_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_must_come_from_upstream": {
+              "const": true
+            },
+            "idle_timeout_setting": {
+              "const": "stream_idle_timeout_ms"
+            },
+            "provider_internal_cause": {
+              "const": "unverified"
+            },
+            "retry_only_repair": {
+              "const": false
+            },
+            "retry_setting": {
+              "const": "stream_max_retries"
+            },
+            "session_store_mutation": {
+              "const": "none"
+            }
+          },
+          "required": [
+            "idle_timeout_setting",
+            "retry_setting",
+            "retry_only_repair",
+            "completion_must_come_from_upstream",
+            "session_store_mutation",
+            "provider_internal_cause"
+          ],
+          "type": "object"
+        },
+        "responsible_layer": {
+          "const": "provider_stream_transport"
+        },
+        "schema_version": {
+          "const": "codex_stream_recovery_qualification_v0"
+        }
+      },
+      "required": [
+        "qualified",
+        "failure_codes",
+        "checks",
+        "effect_boundary",
+        "schema_version",
+        "responsible_layer",
+        "required_contract"
+      ],
+      "type": "object"
+    },
+    "symbolic_id": {
+      "pattern": "^(?!.*\\bsk-[A-Za-z0-9_-]{12,})[a-z0-9][a-z0-9-]{0,63}(?![\\s\\S])",
+      "type": "string"
+    },
+    "timestamp": {
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z(?![\\s\\S])",
+      "type": "string"
+    },
+    "tool_result": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/check"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "effect_boundary": {
+          "const": "content_free_observation_only"
+        },
+        "failure_codes": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": false
+        },
+        "qualified": {
+          "type": "boolean"
+        },
+        "required_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "admission_filter": {
+              "const": "required_tool_transport"
+            },
+            "custom_tool_call": {
+              "const": "preserve_raw_code_payload_and_item_type"
+            },
+            "on_no_eligible_provider": {
+              "const": "fail_closed_before_first_output"
+            }
+          },
+          "required": [
+            "admission_filter",
+            "custom_tool_call",
+            "on_no_eligible_provider"
+          ],
+          "type": "object"
+        },
+        "responsible_layer": {
+          "enum": [
+            "provider_response_adapter",
+            "codex_cli_tool_dispatch"
+          ]
+        },
+        "schema_version": {
+          "const": "codex_tool_transport_qualification_v0"
+        }
+      },
+      "required": [
+        "qualified",
+        "failure_codes",
+        "checks",
+        "effect_boundary",
+        "schema_version",
+        "responsible_layer",
+        "required_contract"
+      ],
+      "type": "object"
+    },
+    "tool_transport": {
+      "enum": [
+        "function_call",
+        "custom_tool_call"
+      ]
+    },
+    "upgrade_result": {
+      "additionalProperties": false,
+      "properties": {
+        "changed_seams": {
+          "items": {
+            "$ref": "#/$defs/change_seam"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "current_ref": {
+          "$ref": "#/$defs/public_ref"
+        },
+        "required_checks": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "rollback_trigger": {
+          "const": "any_failed_check_or_unexplained_regression"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "target_ref": {
+          "$ref": "#/$defs/public_ref"
+        }
+      },
+      "required": [
+        "current_ref",
+        "target_ref",
+        "changed_seams",
+        "steps",
+        "required_checks",
+        "rollback_trigger"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "compile_catalog"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/catalog_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
         "request_schema_version",
         "operation",
         "result"
-      ]
+      ],
+      "type": "object"
     },
     {
+      "additionalProperties": false,
       "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "compile_cli_plan"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/cli_plan_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "normalize_selector_request"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/normalization_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "project_runtime_status"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/status_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "qualify_snapshot"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/snapshot_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "qualify_outage_recovery"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/outage_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "qualify_quota_recovery"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/quota_recovery_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "qualify_tool_transport"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/tool_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "qualify_stream_recovery"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/stream_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "reconcile_integration_candidate"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/integration_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operation": {
+          "const": "upgrade_plan"
+        },
+        "request_schema_version": {
+          "const": "loopx_codex_provider_routing_request_v1"
+        },
+        "result": {
+          "$ref": "#/$defs/upgrade_result"
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "request_schema_version",
+        "operation",
+        "result"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "const": "invalid_request"
+        },
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
         "ok": {
           "const": false
         },
-        "operation": false,
-        "request_schema_version": false,
-        "result": false
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
       },
       "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
         "error"
-      ]
-    }
-  ],
-  "properties": {
-    "error": {
-      "minLength": 1,
-      "type": "string"
-    },
-    "extension_id": {
-      "const": "loopx-codex-provider-routing"
-    },
-    "ok": {
-      "type": "boolean"
-    },
-    "operation": {
-      "enum": [
-        "compile_catalog",
-        "normalize_selector_request",
-        "project_runtime_status",
-        "qualify_desktop_patch",
-        "qualify_heartbeat_transport",
-        "qualify_host_control_recovery",
-        "qualify_outage_recovery",
-        "qualify_quota_recovery",
-        "qualify_snapshot",
-        "qualify_tool_transport",
-        "qualify_stream_recovery",
-        "reconcile_integration_candidate",
-        "upgrade_plan"
-      ]
-    },
-    "request_schema_version": {
-      "const": "loopx_codex_provider_routing_request_v0"
-    },
-    "result": {
+      ],
       "type": "object"
     },
-    "schema_version": {
-      "const": "loopx_codex_provider_routing_response_v0"
+    {
+      "additionalProperties": false,
+      "properties": {
+        "doctor": {
+          "const": "ready"
+        },
+        "effect_boundary": {
+          "const": "read_only_public_safe"
+        },
+        "extension_id": {
+          "const": "loopx-codex-provider-routing"
+        },
+        "ok": {
+          "const": true
+        },
+        "operations": {
+          "items": {
+            "enum": [
+              "compile_catalog",
+              "compile_cli_plan",
+              "normalize_selector_request",
+              "project_runtime_status",
+              "qualify_snapshot",
+              "qualify_outage_recovery",
+              "qualify_quota_recovery",
+              "qualify_tool_transport",
+              "qualify_stream_recovery",
+              "reconcile_integration_candidate",
+              "upgrade_plan"
+            ]
+          },
+          "maxItems": 11,
+          "minItems": 11,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "schema_version": {
+          "const": "loopx_codex_provider_routing_response_v1"
+        }
+      },
+      "required": [
+        "schema_version",
+        "extension_id",
+        "ok",
+        "doctor",
+        "operations",
+        "effect_boundary"
+      ],
+      "type": "object"
     }
-  },
-  "required": [
-    "ok",
-    "schema_version",
-    "extension_id"
-  ],
-  "type": "object"
+  ]
 }
