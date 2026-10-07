@@ -44,6 +44,13 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   pytest. Existing line budgets and registration ownership assertions are
   unchanged.
 
+### Fixed
+
+- Local installation now reports failed candidate doctor checks even when
+  doctor exits nonzero, with bounded command-probe and TypeScript runtime
+  diagnostics. Raw doctor JSON and check details are excluded from the summary;
+  failed candidates still cannot replace the default executable.
+
 ## [2.1.0] - 2026-10-07
 
 ### Changed
