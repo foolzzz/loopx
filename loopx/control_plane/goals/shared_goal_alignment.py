@@ -37,6 +37,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from ...paths import DEFAULT_PROJECT_REGISTRY
+
 from ...agent_registry import registered_agent_ids_for_goal
 from ...event_sourced_state import (
     AppendOnlyStateEventStore,
@@ -64,7 +66,7 @@ REVISION_BASIS_STATE_EVENT_LOG = "state_event_log"
 REVISION_BASIS_MARKDOWN_ACTIVE_STATE = "markdown_active_state"
 BASIS_SOURCE_STATE_EVENT_LOG = "state_event_log"
 BASIS_SOURCE_UNBOUND = "unbound"
-DEFAULT_REGISTRY_RELATIVE_PATH = Path(".loopx") / "registry.json"
+DEFAULT_REGISTRY_RELATIVE_PATH = DEFAULT_PROJECT_REGISTRY
 
 
 def _canonical_digest(value: object) -> str:

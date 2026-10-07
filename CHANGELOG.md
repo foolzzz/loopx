@@ -22,6 +22,11 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   dedicated smoke. It had no product or CLI consumer; existing status, quota,
   task-lease, and decision-scope contracts remain unchanged.
 
+- Removed duplicate project-state and Codex-home path construction from runtime,
+  CLI, Chat, Lark and installation readback consumers. They use `loopx.paths`
+  without changing path layout, environment precedence or explicit overrides.
+  A source-level pytest budget prevents new raw path literals outside that owner.
+
 ## [2.1.0] - 2026-10-07
 
 ### Changed

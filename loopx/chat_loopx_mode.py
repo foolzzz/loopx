@@ -12,6 +12,8 @@ from pathlib import Path
 import threading
 import time
 
+from .paths import project_state_path
+
 from .agent_registry import load_goal_from_registry, registered_agent_ids_for_goal
 from .chat_codex_goal import CodexGoalDriver, validate_goal_chat
 from .control_plane.effect_runtime import effect_runtime_result
@@ -161,7 +163,7 @@ class ChatLoopXMode:
             )
         path = (workspace / relative).resolve()
         if (
-            not path.is_relative_to(workspace / ".loopx" / "config")
+            not path.is_relative_to(project_state_path(workspace, "config"))
             or not path.is_file()
             or path.stat().st_size > 1_000_000
         ):

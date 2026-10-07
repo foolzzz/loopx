@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from . import __version__
-from .paths import default_runtime_root, default_registry_path, global_registry_path
+from .paths import default_runtime_root, default_registry_path, global_registry_path, project_registry_path
 
 
 GLOBAL_OPTIONS_WITH_VALUE = frozenset({"--registry", "--runtime-root", "--format"})
@@ -157,7 +157,7 @@ def resolve_cli_registry(
 		and not registry_was_configured
 	)
 	if project_register_uses_default_registry:
-		registry_path = Path(args.knowledge_root).expanduser() / ".loopx" / "registry.json"
+		registry_path = project_registry_path(Path(args.knowledge_root).expanduser())
 	if (
 		args.command not in _REGISTRY_OPTIONAL_COMMANDS
 		and not project_register_uses_default_registry

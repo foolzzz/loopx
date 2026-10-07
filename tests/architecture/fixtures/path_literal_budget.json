@@ -1,0 +1,215 @@
+{
+  "description": "Residual raw path literals: per-file, per-literal SHA256 occurrence budgets may only decrease. loopx/paths.py owns path definitions; providers, validation and rendered labels remain counted.",
+  "files": {
+    "apps/presentation/dashboard/src/features/personal-workspace/capability-localization.ts": {
+      "a5915284977ac9db163e11369920bb1618fcc9bf1e0ec49cc8c8f0f2655dc87a": 1,
+      "dba433ad28c0f5a5c84a734a65a74b1f44d72a2020a1c06024fcb604036b80ac": 1
+    },
+    "apps/presentation/dashboard/src/features/personal-workspace/context-drawer.tsx": {
+      "39bddf02b226b2aa1c3ae0cd467248eef208bb707e8808125a049afdca07066d": 1
+    },
+    "apps/presentation/dashboard/src/features/personal-workspace/i18n.tsx": {
+      "3e95d93a639ac910a6563ba53eba28381566743f6af8cbeef2fa65a2b5c376e7": 1,
+      "f8cbe7d331f18296889490dc34af1f13f3ea7846f064e5d9c700a0ab1cf63147": 1
+    },
+    "demo/auto_research/demo_e2e.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "demo/auto_research/knn_demo_workspace.py": {
+      "65a66edcb461c8fa20e2eb941b14d677997cc60fdaf3a4a3f8a3b3943fc66a4a": 1
+    },
+    "demo/multi_agent/contract.py": {
+      "77f4549e5c9d4afe7f4bed36b349b4f693590ff45f68d23fe1d590c71baa0a8d": 1
+    },
+    "demo/visible_multi_agent_launcher.py": {
+      "a1d1128ffe5a2849afb3ac4cad6413b6d75453babc7cac579b95c66a565fe4cc": 2,
+      "e9b114c4eaef9cee9b78e1ab9541e8630d65572b76ee7ec43539e4cc400d1a16": 1
+    },
+    "demo/workspace/__main__.py": {
+      "a1d1128ffe5a2849afb3ac4cad6413b6d75453babc7cac579b95c66a565fe4cc": 1
+    },
+    "loopx/bootstrap.py": {
+      "956515ebc60a5f79f6d42322328d3d434502e9d029b4aa3ef1f2b275519af4b5": 2
+    },
+    "loopx/bootstrap_command_pack.py": {
+      "07a6576de4f6c75789febaf3ca5b101551049e1ff80c4935c9d43912ad6565d9": 1,
+      "ef22c3834c2901626206bc2560b57da5032c52c7d552572c8035ee95bc66aa36": 1
+    },
+    "loopx/capabilities/benchmark_toolkit/artifacts.py": {
+      "2dc325c675da27caff2d715ad8e2061fa654a6f2a1bb453c75db3fd15eef3b63": 1,
+      "f87f3941ed47d3d975051b74691e402f0af342b38661f42ee1bd2901a577d5a0": 1
+    },
+    "loopx/capabilities/configuration_ui.py": {
+      "5723867c8e2c74a4dbe37ac2da3eb6530a162186c4ba36b67f9fdad5b2a11945": 1,
+      "884ba201dec0849f73234eae61bc34112e3fcced98f2fc9aaf64e937766b33e4": 1
+    },
+    "loopx/capabilities/deep_research/catalog_entry.py": {
+      "15d75aa0e4f01321d3f8770e0ea4af9d21eff71cea57e36939bcbdf83c22f76c": 1,
+      "4c582eb5a202850b53d0b65f2bed571748954df1c10ac64d07fc55a2942bbddb": 1,
+      "6a9d6f131d97454b71554d0df97b5e2f385b3f1d31de4b84339d4b45da75b213": 1,
+      "c65266b1a398b2e4f747d7e4a486800c4b7b68a76e8fbd1b50359c9f2796f822": 1
+    },
+    "loopx/capabilities/integration_branch/core.py": {
+      "6cce5c221dd2de27b72d054e480931a94c999764a48415bce980314821f58975": 1,
+      "845c7be9f6213911538056a60b34515cbb4a3cf80ceee915ee6e97fcec1d78de": 1
+    },
+    "loopx/capabilities/issue_fix/reviewer_notification.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/capabilities/project_skill_delivery/core.py": {
+      "c9aace37cd964faf72a795a1a9129a7663c8e43aae762ceae05daa45659ce037": 1
+    },
+    "loopx/chat_lark_api.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 2
+    },
+    "loopx/chat_loopx_mode.py": {
+      "8bd34b76be92a9c7f4c02f76b2f38f38ac6dfb03454d31b14ca89b9e402be57c": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/cli_commands/agent_config.py": {
+      "d83fb2eb227dbefe9309426df8b1963a0e2590081ed39ccf7fad658d30031e81": 1
+    },
+    "loopx/cli_commands/deepresearch.py": {
+      "14dbe3bd30e534ed9cfe6f88d6f2e7adbaacc1b6011638eea0eba553e00abf5c": 1
+    },
+    "loopx/cli_commands/dispatch.py": {
+      "43ced09324ca44fb8550c63f56cc272d1c4a03abccdfa924e029279e43907518": 1
+    },
+    "loopx/cli_commands/ml_experiment.py": {
+      "2bf09374062220287b538f340cac1723d8f7ef28e11bc232b958dd6d275d1745": 2
+    },
+    "loopx/cli_commands/registry_admin.py": {
+      "87fc8b2aee76f7bab1211b46c6217db3b1e49ccefff12e54b1a35d3c813f0771": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/cli_commands/registry_admin_configure.py": {
+      "772f6ab47660807882b234ef992c3fd1d7c4eb20545a5a86fa610b54dbccdcab": 1,
+      "99291d8c28336230c4ba37eee0958cb71da8f41692f814df27f5198b16234a5c": 1,
+      "aeced0eb27fbedd2266f06ab9c82f0ed8c9ff461ee579e5c33a5d119070a1a07": 1,
+      "cb74cac89f3cab6726263d1133173eba8fe14a96ba1278c732eb4f69a121b1df": 1
+    },
+    "loopx/cli_commands/registry_admin_lifecycle.py": {
+      "874f5a0381cced3d5773730680d2ed9f7c27eb17c3b489c776ee744c7978eae0": 2,
+      "8c063d7cef80f03c1f034cc5e6b8cb665223c8b81e71239a354d87624a944d98": 1,
+      "ef336b92c7eca5c7949ec0190c8147dca4774978eb1547a885e2b744ae381ba0": 1,
+      "fcecadd1f7fafac46d851b8a23eb5dfd626e10d5a0913025f4ea747e4c1422ed": 1
+    },
+    "loopx/cli_commands/support_control_backup.py": {
+      "894b8d5477571b316dd8b0263aba7a9f2e7a664f32ab9bc7c9bc5f41d7683f58": 1
+    },
+    "loopx/cli_commands/turn_registration.py": {
+      "c87dbcd730a02698a5676e7e574289d8fb58cec0d8b9b570d32ee81fced9de4a": 1
+    },
+    "loopx/cli_commands/workflow_skills.py": {
+      "c612bcbfe5b6768c926c693cd265864f0ae7797ed75fb3dc56a75c41c54e48b3": 1
+    },
+    "loopx/configuration_catalog.py": {
+      "2aac7802d56af2805f01b20cfc7e7a13461a2ef8f8e6a4b5945adcb114d43a40": 2
+    },
+    "loopx/configure_goal.py": {
+      "689b1623e466a67a373185a8c265dea7b63bc058d09307319e7b5ccdaaa55c26": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/contract.py": {
+      "a1d1128ffe5a2849afb3ac4cad6413b6d75453babc7cac579b95c66a565fe4cc": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 2
+    },
+    "loopx/control_plane/goals/botmux_runtime.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/control_plane/runtime/runtime_projection_route.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/control_plane/work_items/operator_inbox.py": {
+      "4119fbe18bd1fbf16a96654464a535d171f74caaf230571dbd6c581536383712": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/dispatch/dispatcher.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/doctor.py": {
+      "7998bce9a05d607b7904237c1d4157db743fe0db9e0f91590fd01062d5a571e2": 1,
+      "9c05b36c16d4b5dc0e74e39025dcb1e1681d19080dc037b3cf04ed379fb9323c": 1
+    },
+    "loopx/extensions/lark/event_collector.py": {
+      "7d32353bd5488e314d0c03ef8243b41227c2f3565b933161829d37d2cbcddc10": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/extensions/lark/event_inbox.py": {
+      "3fbe258c441f2bd380ec991a2f093f158769204ab610c1cd05fcf3900f3234c7": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/extensions/lark/goal_channel_contracts.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/extensions/lark/goal_channel_lifecycle.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 2
+    },
+    "loopx/extensions/lark/goal_channel_notification.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/extensions/lark/goal_channel_runtime.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/extensions/lark/presentation/explore_singleflight.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/extensions/lark/presentation/kanban.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/goal_mode_context.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/orchestration.py": {
+      "4d394170ea5390863b259224a29e7461da94eef0a2742e8a6231e6e3b098e99c": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/pi_goal_mode/pi-goal-loop-runtime.mjs": {
+      "7a08afbdd8c00799e20fff7a0d8e249258ce34c1106162ca0295952f16a4f0e7": 1
+    },
+    "loopx/pr_review.py": {
+      "cb800a3c3d9cab0b69c8b93ef9dd2df37aed80889f8ca7390a426bc1b24995d1": 1
+    },
+    "loopx/project_prompt.py": {
+      "180239dc00664abb72925254df65ec11cc0d10c7a293cbbd39a35f45f95fb921": 1,
+      "948cd7623e100d2d88013e119deb64db2848528990f9aa6b4c7717f90fadaecb": 1
+    },
+    "loopx/project_uninstall.py": {
+      "2e0e51c03d66b188e24b2d4fb3e651e68870e0b044f98cb5d4b8d3fa1c5a2e33": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/registry.py": {
+      "a1d1128ffe5a2849afb3ac4cad6413b6d75453babc7cac579b95c66a565fe4cc": 1,
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/semantics/project_registry_io.py": {
+      "18f2a97b1de76ce00f7b513c00f3b42d521ed5ec88240bcd3d7a474138353269": 1,
+      "34fb32a55338fbb10a587adfe82bc75c3d3be85e089bf61d93da5b0507ddc040": 1
+    },
+    "loopx/state_backup.py": {
+      "f6d165c2ee49ce64f82999cf3b666a23a1207f4e14ba196001b37e9dd255773f": 1,
+      "f9b7b4be77a6cba7f0f23a554a2e36b774a8558bf66cc6f806e5e704a808a3f4": 1
+    },
+    "loopx/state_migration.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "loopx/worker_bridge.py": {
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
+    },
+    "packages/dsh-loopx-plugin/src/driver.ts": {
+      "412546b0b3e4a264099e2ce9646a8d68a5aa7d26c6f75fbd8625533fe01fb260": 3
+    },
+    "packages/dsh-loopx-plugin/src/goalbar/read-model.ts": {
+      "412546b0b3e4a264099e2ce9646a8d68a5aa7d26c6f75fbd8625533fe01fb260": 1,
+      "c36efd64458a9d595baa5567d86db931245dbc6ea3122db4c5f67fc3dabcfac4": 1
+    },
+    "packages/dsh-loopx-plugin/src/observer.ts": {
+      "a8db926966531eab99df42f5bd19713c4d66a2c59881d4dec9669e744442b62e": 1
+    },
+    "scripts/semantic_production_scan.mjs": {
+      "412546b0b3e4a264099e2ce9646a8d68a5aa7d26c6f75fbd8625533fe01fb260": 1,
+      "7fe6e447a1e8a7d7592532b269fca9d421bd0edb2d4eac54d0c1554dc8f3ec34": 1
+    }
+  },
+  "schema_version": 1
+}

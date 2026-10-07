@@ -16,6 +16,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from ...agent_registry import registered_agent_ids_for_goal
 from ...chat_manager import MANAGER_AGENT_GOAL_ID
 from ...control_plane.goals.configure_goal_service import (
@@ -748,7 +750,7 @@ def connect_lark_goal_topic(
                 f"{profile}\0{safe_chat_id}\0{root_message_id}".encode()
             ).hexdigest()[:20]
             connector_cursor_ref = (
-                f".loopx/inbox/lark-goal-topics/{runtime_digest}/processed.json"
+                project_state_path(Path(), "inbox", "lark-goal-topics", runtime_digest, "processed.json").as_posix()
             )
         connector_binding = build_external_connector_binding(
             goal_ref=goal_id,

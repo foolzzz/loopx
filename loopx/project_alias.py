@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .paths import default_runtime_root, global_registry_path
+from .paths import default_runtime_root, global_registry_path, project_registry_path
 from .registry import registry_goals
 
 
@@ -118,7 +118,7 @@ def resolve_canonical_project_alias(
         }
 
     primary_repo = _primary_repo_from_common_dir(target_common_dir)
-    current_registry = _resolve_path(resolved_project / ".loopx" / "registry.json")
+    current_registry = _resolve_path(project_registry_path(resolved_project))
     candidates: list[dict[str, Any]] = []
     for goal in registry_goals(payload):
         candidate_goal_id = str(goal.get("id") or "")

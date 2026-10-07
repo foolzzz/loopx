@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 from typing import Any
 
+from ...paths import project_state_path
+
 from ...registry import atomic_write_json
 from ..projects.registry_codec import SOURCE_SESSION_PROFILE_ID
 from ..todos.active_state_editing import fsync_state_directory
@@ -31,7 +33,7 @@ def alias_digest(goal_id: str) -> str:
 
 
 def lifetime_root(registry_path: Path) -> Path:
-    return registry_path.parent / ".loopx" / "lifecycle" / "goal-instance"
+    return project_state_path(registry_path.parent, "lifecycle", "goal-instance")
 
 
 def guard_path(registry_path: Path, goal_id: str) -> Path:

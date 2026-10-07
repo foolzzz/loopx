@@ -423,7 +423,7 @@
     },
     {
       "site": "loopx/claude_goal_mode/scripts/connect.py::<module>.main::codec_read:load_project_registry#1",
-      "line": 75,
+      "line": 77,
       "column": 23,
       "kind": "codec_read",
       "api": "load_project_registry",
@@ -431,7 +431,7 @@
     },
     {
       "site": "loopx/claude_goal_mode/scripts/goalmode_cmd.py::<module>.goal_detail::codec_read:load_registry#1",
-      "line": 134,
+      "line": 136,
       "column": 20,
       "kind": "codec_read",
       "api": "load_registry",
@@ -455,7 +455,7 @@
     },
     {
       "site": "loopx/cli_commands/benchmark_dispatch.py::<module>._registry_has_goal::codec_read:load_registry#1",
-      "line": 44,
+      "line": 46,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1167,7 +1167,7 @@
     },
     {
       "site": "loopx/control_plane/goals/shared_goal_alignment.py::<module>._project_shared_goal_alignment::codec_read:load_registry#1",
-      "line": 228,
+      "line": 230,
       "column": 28,
       "kind": "codec_read",
       "api": "load_registry",
@@ -1671,7 +1671,7 @@
     },
     {
       "site": "loopx/project_map.py::<module>.read_only_project_map_run::codec_read:load_registry#1",
-      "line": 481,
+      "line": 482,
       "column": 16,
       "kind": "codec_read",
       "api": "load_registry",

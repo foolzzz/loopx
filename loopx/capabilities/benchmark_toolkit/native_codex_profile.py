@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY
+from ...paths import SHELL_DEFAULT_GLOBAL_REGISTRY, project_registry_path, project_state_path
 from ...skill_install_readback import (
     PACKAGED_HOST_SKILL_IDS,
     SKILL_INSTALL_READBACK_FILENAME,
@@ -309,12 +309,12 @@ def render_native_codex_goal_prompt(
     registry = (
         Path(registry_path).expanduser()
         if registry_path is not None
-        else project / ".loopx" / "registry.json"
+        else project_registry_path(project)
     ).resolve()
     runtime = (
         Path(runtime_root).expanduser()
         if runtime_root is not None
-        else project / ".loopx" / "runtime"
+        else project_state_path(project, "runtime")
     ).resolve()
     command = [
         str(profile.cli_bin),

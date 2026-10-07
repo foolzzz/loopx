@@ -36,6 +36,8 @@ DEFAULT_AGENT = "cc"
 # registry-driven context, shared with the hooks/MCP
 sys.path.insert(0, str(HERE.parent / "hooks"))
 from goal_state import goal_context, find_registry, loop_md_path  # noqa: E402
+from loopx.paths import project_registry_path  # noqa: E402
+
 from loopx.control_plane.heartbeat.rules import (  # noqa: E402
     HOST_LOOP_SAFETY_RULE,
     RUNTIME_REPAIR_ROUTING_RULE,
@@ -233,7 +235,7 @@ def main():
         registry = str(reg)
     else:
         goal_id = slug(proj.name)
-        registry = str(proj / ".loopx" / "registry.json")
+        registry = str(project_registry_path(proj))
         # Claude projects keep goal state under .claude/ (not the default .loopx/goals/)
         state_file = f".claude/goals/{goal_id}/ACTIVE_GOAL_STATE.md"
         r = gh(["bootstrap", "--project", str(proj), "--goal-id", goal_id,

@@ -6,6 +6,7 @@ from pathlib import Path
 
 RUNTIME_ROOT_ENV = "LOOPX_RUNTIME_ROOT"
 LOOPX_STATE_DIRNAME = ".loopx"
+CODEX_HOME_DIRNAME = ".codex"
 DEFAULT_PROJECT_REGISTRY = Path(LOOPX_STATE_DIRNAME) / "registry.json"
 PROJECT_GOAL_STATE_ROOT = Path(LOOPX_STATE_DIRNAME) / "goals"
 COLLOCATED_PROJECT_GOAL_STATE_ROOT = Path(LOOPX_STATE_DIRNAME) / "project-goals"
@@ -22,6 +23,38 @@ GLOBAL_REGISTRY_FILENAME = "registry.global.json"
 # project instead.
 SHELL_DEFAULT_RUNTIME_ROOT = f"${{{RUNTIME_ROOT_ENV}:-$HOME/{LOOPX_STATE_DIRNAME}}}"
 SHELL_DEFAULT_GLOBAL_REGISTRY = f"{SHELL_DEFAULT_RUNTIME_ROOT}/{GLOBAL_REGISTRY_FILENAME}"
+
+
+def project_state_path(project: Path, *parts: str) -> Path:
+    """Build a lexical project-owned path, independent of the runtime root.
+
+    Callers retain their own expansion, resolution and containment checks.
+    Goal state must use :func:`project_goal_state_dir` for overlap protection.
+    """
+
+    return Path(project) / LOOPX_STATE_DIRNAME / Path(*parts)
+
+
+def project_registry_path(project: Path) -> Path:
+    """Return the conventional project registry without environment overrides."""
+
+    return Path(project) / DEFAULT_PROJECT_REGISTRY
+
+
+def home_codex_root(home: Path | None = None) -> Path:
+    """Return Codex's conventional store under a home, ignoring CODEX_HOME."""
+
+    return (Path.home() if home is None else Path(home)) / CODEX_HOME_DIRNAME
+
+
+def codex_home_path(value: str | Path | None = None) -> Path:
+    """Resolve an explicit Codex home, then CODEX_HOME, then its home default.
+
+    Preserve relative paths and whitespace; resolving or pinning the store
+    remains the caller's responsibility, separate from LoopX runtime state.
+    """
+
+    return Path(value or os.environ.get("CODEX_HOME") or home_codex_root()).expanduser()
 
 
 def home_runtime_root(home: Path | None = None) -> Path:
@@ -132,7 +165,7 @@ def registry_project_root(registry_path: Path) -> Path:
 
     expanded = registry_path.expanduser().resolve()
     parent = expanded.parent
-    return parent.parent if parent.name == ".loopx" else parent
+    return parent.parent if parent.name == LOOPX_STATE_DIRNAME else parent
 
 
 def resolve_runtime_root(

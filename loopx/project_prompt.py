@@ -15,6 +15,7 @@ from .paths import (
     SHELL_DEFAULT_GLOBAL_REGISTRY,
     project_goal_state_file,
     resolve_runtime_root,
+    project_registry_path,
 )
 
 DEFAULT_HANDOFF_OBJECTIVE = "<OBJECTIVE_FROM_GOAL_DOC>"
@@ -425,7 +426,7 @@ def build_new_project_prompt(
     effective_runtime_root = resolve_runtime_root(
         {},
         runtime_root_arg,
-        registry_path=project / ".loopx" / "registry.json",
+        registry_path=project_registry_path(project),
     )
     resolved_goal_id = goal_id or default_goal_id(project)
     resolved_objective = objective or DEFAULT_HANDOFF_OBJECTIVE
@@ -546,7 +547,7 @@ def build_codex_cli_bootstrap_message(
     effective_runtime_root = resolve_runtime_root(
         {},
         runtime_root_arg,
-        registry_path=project / ".loopx" / "registry.json",
+        registry_path=project_registry_path(project),
     )
     command_runtime_root = str(effective_runtime_root) if runtime_root_arg else None
     connect_command = render_codex_cli_bootstrap_connect_command(

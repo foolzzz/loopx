@@ -77,7 +77,7 @@ from .history import load_registry
 from .chat_completed_todos import CompletedTodoPages, CompletedTodoRequestMixin
 from .chat_gate_thread_api import CHAT_GATE_THREAD_PATH, CHAT_GATE_THREAD_REPLY_PATH, GateThreadRequestMixin
 from .kiro_cli_goal_mode import KIRO_CLI_BIN
-from .paths import resolve_runtime_root
+from .paths import resolve_runtime_root, project_registry_path
 from .release_manifest import release_runtime_identity
 from .registry import registry_goals, resolve_state_file
 from .state_projection import build_active_state_structured_projection
@@ -1469,7 +1469,7 @@ def serve_chat(
         validate_bundle(resolved_assets, source_root=Path(__file__).resolve().parents[1])
     if not (resolved_assets / "index.html").is_file():
         raise FileNotFoundError("LoopX Chat web assets are unavailable; reinstall LoopX or rebuild the chat bundle")
-    resolved_registry_path = registry_path or (Path.home() / ".loopx" / "registry.json")
+    resolved_registry_path = registry_path or (project_registry_path(Path.home()))
     resolved_runtime_root_override = str(runtime_root_override) if runtime_root_override else None
     resolved_scan_roots = scan_roots if scan_roots is not None else [Path.cwd()]
     registry = load_registry(resolved_registry_path) if resolved_registry_path.exists() else {}

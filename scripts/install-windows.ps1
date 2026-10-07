@@ -12,15 +12,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($SkillsDir)) {
-    $codexHome = if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
-        Join-Path $HOME ".codex"
-    } else {
-        $env:CODEX_HOME
-    }
-    $SkillsDir = Join-Path $codexHome "skills"
-}
-
 $previousPythonPath = $env:PYTHONPATH
 $env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($previousPythonPath)) {
     $repoRoot
@@ -28,6 +19,18 @@ $env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($previousPythonPath)) {
     "$repoRoot$([IO.Path]::PathSeparator)$previousPythonPath"
 }
 try {
+    if ([string]::IsNullOrWhiteSpace($SkillsDir)) {
+        $codexHome = if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
+            $resolvedHome = & $Python -c 'import sys; from pathlib import Path; from loopx.paths import home_codex_root; print(home_codex_root(Path(sys.argv[1])))' $HOME
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not resolve the default Codex home using the selected Python"
+            }
+            $resolvedHome
+        } else {
+            $env:CODEX_HOME
+        }
+        $SkillsDir = Join-Path $codexHome "skills"
+    }
     $installerArgs = @(
         "-m", "loopx.windows_install",
         "--source-root", $repoRoot,

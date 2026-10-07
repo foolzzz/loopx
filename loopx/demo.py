@@ -7,7 +7,7 @@ from .bootstrap import (
     DEFAULT_DOMAIN,
     bootstrap_project,
 )
-from .paths import default_runtime_root
+from .paths import default_runtime_root, DEFAULT_PROJECT_REGISTRY, project_registry_path
 from .quota import build_quota_should_run
 from .state_refresh import refresh_state_run
 from .status import collect_status
@@ -42,7 +42,7 @@ def run_demo(
 ) -> dict[str, Any]:
     project = project.expanduser().resolve()
     runtime_root = runtime_root.expanduser().resolve() if runtime_root else default_runtime_root()
-    registry_path = project / ".loopx" / "registry.json"
+    registry_path = project_registry_path(project)
     goal_doc = project / "GOAL.md"
     project.mkdir(parents=True, exist_ok=True)
     if goal_doc.exists():
@@ -146,13 +146,13 @@ def run_demo(
         "quota": quota,
         "next_commands": [
             f"cd {project}",
-            'registry="$PWD/.loopx/registry.json"',
+            f'registry="$PWD/{DEFAULT_PROJECT_REGISTRY.as_posix()}"',
             'loopx --registry "$registry" status --scan-root "$PWD"',
             f'loopx --registry "$registry" --format json quota should-run --goal-id {goal_id} --runtime-profile generic_cli',
         ],
         "dashboard_status_commands": [
             f"cd {project}",
-            'registry="$PWD/.loopx/registry.json"',
+            f'registry="$PWD/{DEFAULT_PROJECT_REGISTRY.as_posix()}"',
             'loopx --registry "$registry" serve-status --scan-root "$PWD" --port 8765',
         ],
         "dashboard_status_scope": "project-local-demo",

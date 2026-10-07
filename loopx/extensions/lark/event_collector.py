@@ -12,6 +12,8 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ...paths import project_state_path
+
 from .event_inbox import (
     ROUTE_KEY_PATTERN,
     SAFE_PROFILE_PATTERN,
@@ -409,7 +411,7 @@ def _service_file(config: Mapping[str, Any]) -> Path:
 
 def _service_payload(config: Mapping[str, Any], argv: Sequence[str]) -> bytes:
     root = Path(config["project"])
-    runtime = root / ".loopx" / "runtime" / "lark-collector"
+    runtime = project_state_path(root, "runtime", "lark-collector")
     if config["supervisor"] == "launchd":
         return plistlib.dumps(
             {
@@ -561,7 +563,7 @@ def install_lark_event_collector(
         }
     service_path = _service_file(config)
     service_path.parent.mkdir(parents=True, exist_ok=True)
-    (Path(config["project"]) / ".loopx" / "runtime" / "lark-collector").mkdir(
+    (project_state_path(Path(config["project"]), "runtime", "lark-collector")).mkdir(
         parents=True, exist_ok=True
     )
     temporary = service_path.with_suffix(service_path.suffix + ".tmp")
@@ -655,8 +657,7 @@ def inspect_lark_event_collector(
     )
     installed = service_path.is_file()
     callback_status_path = (
-        Path(config["project"])
-        / ".loopx"
+        project_state_path(Path(config["project"]))
         / "runtime"
         / "lark-collector"
         / "operation-callback-status.json"

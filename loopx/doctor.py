@@ -18,7 +18,7 @@ from .control_plane.runtime.promotion_readiness import (
 )
 from .control_plane.runtime.time import chronology_key
 from .install_contract import NO_CLONE_INSTALL_URL
-from .paths import default_runtime_root, global_registry_path
+from .paths import default_runtime_root, global_registry_path, codex_home_path
 from .python_install_owner import PythonInstallOwner, python_distribution_upgrade_command, resolve_python_install_owner
 from .capabilities.project_skill_delivery import discover_project_scoped_skill_ids
 from .registry_writability import probe_registry_write_path
@@ -142,7 +142,7 @@ def user_local_bin() -> Path:
 
 
 def codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+    return codex_home_path()
 
 
 def codex_skill_roots() -> tuple[Path, ...]:

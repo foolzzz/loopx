@@ -18,6 +18,8 @@ import tempfile
 import tomllib
 from typing import Any
 
+from ...paths import codex_home_path
+
 from ...file_lock import exclusive_file_lock
 
 
@@ -72,11 +74,7 @@ def public_codex_host_capacity(payload: dict[str, Any]) -> dict[str, Any]:
 def _codex_home() -> Path:
     """Match the LoopX managed Chat runtime's host-store precedence."""
 
-    return Path(
-        os.environ.get("LOOPX_CHAT_CODEX_HOME")
-        or os.environ.get("CODEX_HOME")
-        or Path.home() / ".codex"
-    ).expanduser()
+    return codex_home_path(os.environ.get("LOOPX_CHAT_CODEX_HOME"))
 
 
 def _limit(value: Any, *, field: str) -> int | None:

@@ -10,6 +10,8 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from ...paths import project_state_path
+
 
 CURSOR_SCHEMA_VERSION = "lark_group_history_cursor_v1"
 LEGACY_CURSOR_SCHEMA_VERSION = "lark_group_history_cursor_v0"
@@ -52,7 +54,7 @@ def group_history_source_fingerprint(
 
 
 def group_history_cursor_path(project: Path, route_key: str) -> Path:
-    return project / ".loopx" / "inbox" / ".history" / f"{route_key}.json"
+    return project_state_path(project, "inbox", ".history") / f"{route_key}.json"
 
 
 def group_history_cursor_digest(state: Mapping[str, Any]) -> str:

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from ...history import load_registry
-from ...paths import registry_project_root
+from ...paths import registry_project_root, project_registry_path
 from ...registry import registry_goals
 from .runtime_projection_route import resolve_goal_source_runtime_route
 
@@ -44,7 +44,7 @@ def resolve_goal_project_route(
     _, goal = load_goal(source_registry)
     if goal is None and project_override is not None:
         requested = Path(project_override).expanduser().resolve()
-        project_registry = requested / ".loopx" / "registry.json"
+        project_registry = project_registry_path(requested)
         if project_registry.is_file() and project_registry.resolve() != source_registry:
             route = resolve_goal_source_runtime_route(
                 registry_path=project_registry,

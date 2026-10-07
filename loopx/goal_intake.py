@@ -20,6 +20,8 @@ import os
 import shutil
 from pathlib import Path
 from typing import Any
+from .paths import project_registry_path
+
 
 REQUIREMENTS_SOURCE_ID = "goal-requirements"
 
@@ -98,7 +100,7 @@ def create_goal(
     repo_entries = _repo_entries(list(repos or []), base=Path.cwd())
     doc_text = doc.read_text(encoding="utf-8")
     goal_objective = objective or _objective_from_doc(doc_text, f"Deliver goal {goal_id}")
-    registry = Path(registry_path).expanduser() if registry_path else state_home / ".loopx" / "registry.json"
+    registry = Path(registry_path).expanduser() if registry_path else project_registry_path(state_home)
     if not registry.is_absolute():
         registry = state_home / registry
     stored_doc = state_home / "docs" / "goals" / goal_id / doc.name

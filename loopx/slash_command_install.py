@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .paths import DEFAULT_PROJECT_REGISTRY, codex_home_path
+
 from .agy_goal_mode import agy_home as _agy_home
 from .kiro_cli_goal_mode import (
     SKILLS_ROOT_LABEL as _KIRO_SKILLS_ROOT_LABEL,
@@ -148,7 +150,7 @@ def _dsh_native_loopx_instructions(*, cli_bin: str) -> list[str]:
         ),
         (
             "For a status/continuation request with no new task, first run "
-            f'`{cli_bin} --registry .loopx/registry.json --format json '
+            f'`{cli_bin} --registry {DEFAULT_PROJECT_REGISTRY.as_posix()} --format json '
             'resolve-agent-thread --host-surface deepseek-harness-native '
             '--thread-id "$DSH_SESSION_ID"`; do not create a new Goal from an '
             "empty or inspection-only request."
@@ -412,7 +414,7 @@ def materialize_loopx_entry_skill(
 
 
 def _codex_home(value: str | None = None) -> Path:
-    raw = value or os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")
+    raw = str(codex_home_path(value))
     return Path(raw).expanduser()
 
 

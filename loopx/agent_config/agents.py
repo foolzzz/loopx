@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..paths import project_state_path
+
 from ..reasoning_effort import REASONING_EFFORTS
 from .codex_config import normalize_codex_config_override
 from ._yaml import load_yaml_file
@@ -57,7 +59,7 @@ RUNTIME_PROVIDER_KINDS = {
     "claude-code": ("anthropic",),
     "codex-cli": ("openai", "openai-compatible", "codex-cpa"),
 }
-PROJECT_AGENTS_DIR = Path(".loopx") / "agents"
+PROJECT_AGENTS_DIR = project_state_path(Path(), "agents")
 
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _AGENT_FIELDS = (

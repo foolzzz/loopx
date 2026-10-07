@@ -11,7 +11,7 @@ import tarfile
 from typing import Any
 
 from . import __version__
-from .paths import default_runtime_root, global_registry_path
+from .paths import default_runtime_root, global_registry_path, home_codex_root, project_state_path
 
 
 STATE_BACKUP_SCHEMA_VERSION = "loopx_state_backup_v0"
@@ -24,7 +24,7 @@ def _utc_timestamp() -> str:
 
 
 def _codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+    return Path(os.environ.get("CODEX_HOME", home_codex_root())).expanduser()
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -150,7 +150,7 @@ def _discover_targets(
         warnings.extend(target_warnings)
 
     add("runtime_root", runtime_root, "runtime-root")
-    add("project_loopx", project / ".loopx", "project/.loopx")
+    add("project_loopx", project_state_path(project), "project/.loopx")
     add("project_claude_goals", project / ".claude" / "goals", "project/.claude/goals")
     add("project_local_goals", project / ".local" / "goals", "project/.local/goals")
 
@@ -197,7 +197,7 @@ def _discover_targets(
                 reachable_project_roots.add(str(repo))
                 add(
                     f"registry_project_loopx:{goal_id}",
-                    repo / ".loopx",
+                    project_state_path(repo),
                     f"registry-projects/{project_segment}/.loopx",
                 )
                 add(

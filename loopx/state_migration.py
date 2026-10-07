@@ -11,7 +11,7 @@ from typing import Any
 
 from .registry import find_registry_goal
 from .file_lock import exclusive_cross_runtime_file_lock
-from .paths import resolve_runtime_root
+from .paths import resolve_runtime_root, home_codex_root
 from .control_plane.projects.registry_codec import (
     ProjectRegistryTransaction,
     load_project_registry,
@@ -27,7 +27,7 @@ from .control_plane.coordination.coordination_state_contract_generated import (
 )
 
 
-LEGACY_RUNTIME_ROOT = Path.home() / ".codex" / "goal-harness"
+LEGACY_RUNTIME_ROOT = home_codex_root() / "goal-harness"
 LEGACY_GLOBAL_REGISTRY = LEGACY_RUNTIME_ROOT / "registry.global.json"
 MIGRATION_SHADOW_SEED_EVIDENCE_SCHEMA = "loopx_state_migration_shadow_seed_evidence_v0"
 

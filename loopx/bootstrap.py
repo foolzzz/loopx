@@ -40,7 +40,7 @@ from .orchestration import (
     DEFAULT_ORCHESTRATION_MODE,
     MULTI_SUBAGENT_ORCHESTRATION_MODE,
 )
-from .paths import project_goal_state_file, rel_or_abs, resolve_runtime_root
+from .paths import project_goal_state_file, rel_or_abs, resolve_runtime_root, DEFAULT_PROJECT_REGISTRY
 from .control_plane.goals.active_state_metadata import markdown_blockquote, markdown_frontmatter_string
 from .registry_writability import probe_registry_write_path
 
@@ -257,7 +257,7 @@ def build_goal_entry(
         },
         "execution_profile": compact_execution_profile(execution_profile),
         "next_probe": next_probe
-        or f"loopx --registry .loopx/registry.json check --scan-root {project}",
+        or f"loopx --registry {DEFAULT_PROJECT_REGISTRY.as_posix()} check --scan-root {project}",
         "guards": [
             "read-only by default",
             "do not mutate production systems without explicit user approval",

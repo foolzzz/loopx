@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
+from .paths import project_state_path
+
 from .file_lock import exclusive_file_lock
 
 
@@ -37,8 +39,7 @@ def default_domain_state_file_path(
     compact_pack = _domain_state_token(domain_pack, field="domain_pack")
     compact_filename = _domain_state_token(filename, field="filename")
     return (
-        Path(project).expanduser()
-        / ".loopx"
+        project_state_path(Path(project).expanduser())
         / "domain-state"
         / compact_goal_id
         / compact_pack
