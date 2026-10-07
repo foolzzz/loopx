@@ -158,3 +158,34 @@ def test_project_goal_state_lives_under_the_project_loopx_directory(tmp_path: Pa
         project / ".loopx" / "goals" / "goal-a" / "ACTIVE_GOAL_STATE.md"
     )
     assert project_goal_state_file(Path(), "goal-a").as_posix() == ".loopx/goals/goal-a/ACTIVE_GOAL_STATE.md"
+
+
+def test_project_paths_are_lexical_and_do_not_follow_runtime_overrides(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from loopx.paths import project_registry_path, project_state_path
+
+    monkeypatch.setenv(RUNTIME_ROOT_ENV, str(home / "runtime"))
+    assert project_state_path(Path("repo"), "inbox", "events") == Path("repo/.loopx/inbox/events")
+    assert project_registry_path(Path("repo")) == Path("repo/.loopx/registry.json")
+    assert project_registry_path(Path()) == Path(".loopx/registry.json")
+    assert project_registry_path(home) == home / ".loopx/registry.json"
+
+
+@pytest.mark.parametrize("configured", [None, "", "~/configured", "relative/codex"])
+def test_codex_home_resolver_preserves_environment_and_explicit_precedence(
+    home: Path, monkeypatch: pytest.MonkeyPatch, configured: str | None
+) -> None:
+    from loopx.paths import codex_home_path, home_codex_root
+
+    monkeypatch.setenv(RUNTIME_ROOT_ENV, str(home / "runtime"))
+    if configured is None:
+        monkeypatch.delenv("CODEX_HOME", raising=False)
+    else:
+        monkeypatch.setenv("CODEX_HOME", configured)
+    expected = Path(configured).expanduser() if configured else home / ".codex"
+    assert codex_home_path() == expected
+    assert codex_home_path("~/explicit") == home / "explicit"
+    assert codex_home_path("") == expected
+    assert home_codex_root() == home / ".codex"
+    assert home_codex_root(Path("other-home")) == Path("other-home/.codex")
