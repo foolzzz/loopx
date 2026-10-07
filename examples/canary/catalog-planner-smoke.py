@@ -105,8 +105,15 @@ SELECTION_CASES: tuple[tuple[str, dict[str, object], tuple[str, ...], tuple[str,
                        "surfaces": ["review-packet handoff-only operator packet read-path"]},
      ("agent-facing-cli-output-budget", "cli-command-contract", "control-plane-refactor", "repo-architecture-budget", "review-packet-read-path", "status-read-path"),
      ("human-decision", "work-routing")),
+    # Catalog projection triggers remain in Evidence Lifecycle. State And Boundary
+    # no longer lists retired-setting projection; select it via explicit authority.
+    # The dedicated event read-path domain profile remains selected in both cases.
     ("event read", {"changed_files": ["loopx/event_sourced_state.py", "loopx/rollout_event_log.py"],
                     "surfaces": ["event projection downstream read event-store read-path"]},
+     ("event-sourced-read-path", "frontstage-rollout", "repo-architecture-budget", "status-read-path"),
+     ("evidence-lifecycle",)),
+    ("event read with authority", {"changed_files": ["loopx/event_sourced_state.py", "loopx/rollout_event_log.py"],
+                                   "surfaces": ["event projection downstream read event-store read-path authority"]},
      ("event-sourced-read-path", "frontstage-rollout", "repo-architecture-budget", "status-read-path"),
      ("evidence-lifecycle", "state-and-boundary")),
     ("cli", {"changed_files": ["loopx/cli.py", "loopx/cli_commands/version.py"],
