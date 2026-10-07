@@ -807,7 +807,7 @@ become a second source of mode truth.
 
 | Date | Decision | Owner / approval | Alternatives | Normative sections changed |
 | --- | --- | --- | --- | --- |
-| 2026-09-15 | Session execution mode is an explicit, persisted, per-binding contract; collaboration remains with the Goal Channel RFC, and continuity RFCs keep continuation paths | Repository owner, through RFC review and merge | Implicit mode inference; universal adapter; automatic migration to managed | Sections 1-6 |
+| 2026-09-15 | Session execution mode is an explicit, persisted, per-binding contract; the Desktop RFC keeps product flows, and continuity RFCs keep continuation paths | Repository owner, through RFC review and merge | Implicit mode inference; universal adapter; automatic migration to managed | Sections 1-6 |
 
 No other decision is approved. Recommendations in Section 13 remain proposals.
 
