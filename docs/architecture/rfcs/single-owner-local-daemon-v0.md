@@ -64,10 +64,13 @@ Config/update APIs and managed Agent runtimes require separate accepted slices.
 ## 4. Current-system contract
 
 The supported local entry point is `loopx dashboard`, which serves browser/PWA
-Workspace and status projection through the existing Chat service. Its identity
-and readiness checks do not establish a unified profile or OS-managed daemon.
-[Status service readiness](../../development/status-service-readiness.md) remains
-a bounded read-only prerequisite.
+Workspace and status projection through the existing Chat service. Its launcher
+checks Chat capability, release identity and matching configuration; it does not
+probe the status `/?readiness=1` endpoint. These identity/configuration checks do
+not establish a unified profile or OS-managed daemon. A consumer requiring
+[status service readiness](../../development/status-service-readiness.md) must
+qualify that bounded read-only prerequisite separately by probing the endpoint
+and inspecting its typed readiness state; HTTP 200 alone does not prove readiness.
 
 The retired native client's two-service ownership repair at `b8670eb5` and
 [#3931](https://github.com/huangruiteng/loopx/pull/3931) remain historical evidence
