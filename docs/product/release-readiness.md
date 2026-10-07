@@ -199,6 +199,10 @@ The public GitHub release timeline starts at `v0.1.3`. Earlier work should be
 treated as pre-public bootstrap for the local control plane, installer, update
 path, and canary route rather than as a user-facing release baseline.
 
+These entries describe their tagged release contracts, not current host setup.
+Keep historical host lists tied to versioned evidence; use the
+[installation guide](../guides/installing-loopx.md) for supported hosts today.
+
 - `v0.1.3` on 2026-07-02 14:45 +08:00: initial public stable-channel release
   at commit `10509b06`. This release made LoopX explainable as a no-clone,
   local-first control plane for long-running AI agents: install, update,
@@ -222,11 +226,12 @@ path, and canary route rather than as a user-facing release baseline.
   Code gets matching skill entries, legacy prompt shims are retired, and the
   rich workflow skills remain available for implicit LoopX behavior.
 - `v0.1.8` on 2026-07-04 16:53 +08:00: deterministic host-loop activation
-  release at the matching `v0.1.8` tag. This release gives new agent hosts an explicit
+  release at the matching `v0.1.8` tag. This release gave new agent hosts an explicit
   `agent-onboard` contract for choosing `codex-app`, `codex-cli`,
-  `claude-code`, `pi`, `manual`, or `other-agent`, rejects ambiguous inputs such as
-  `codex`, and makes `/loopx <task>` activate or gate the correct host loop
-  after todo writeback.
+  `claude-code`, `manual`, or `other-agent`, rejected ambiguous inputs such as
+  `codex`, and made `/loopx <task>` activate or gate the correct host loop
+  after todo writeback. The [tagged host-type contract](https://github.com/loopx-project/loopx/blob/c0c3fd0bc311903c8619a74e5c215dc843945728/loopx/host_loop_activation.py#L14)
+  did not include OpenCode or Pi; Codex App is now retired.
 - `v0.1.9` on 2026-07-05 21:45 +08:00: real auto-research and agent-scoped
   evidence release at the matching `v0.1.9` tag. This release removes fake
   auto-research demo metrics, makes the KNN preset use a real benchmark
