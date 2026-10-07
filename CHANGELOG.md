@@ -42,6 +42,10 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - Removed the implicit OpenCode connector for visible `generic-cli` host-mode
   plans. A generic visible identity now fails closed; explicit Pi still uses
   `pi_goal_loop` with the generic-cli Turn adapter.
+- Removed the automated Frontstage Pages workflow, its GitHub stargazer-history
+  fetch/render helpers, the README star-history image, and workflow-only smokes.
+  Presentation sources, local builds, static exports, and browser validation
+  remain available; hosted Pages publication is no longer a repository check.
 
 - Removed the unused synthetic `loopx.visible_governance` projection and its
   dedicated smoke. It had no product or CLI consumer; existing status, quota,
