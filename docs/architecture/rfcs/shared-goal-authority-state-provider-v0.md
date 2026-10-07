@@ -47,11 +47,13 @@ separately. Three is a delivery plan, not a guaranteed total PR count.
 
 ## Observation retirement checkpoint (2026-09-24)
 
-[Current delivery inventory](../../reference/reviewed-coordination-promotion.md)
-separates merged code, open PRs and qualification gates. This delivery removes
-the obsolete Python observation writer and TS observation commit path; it does
-not implement executor liveness or event-writer binding. There is one writable
-shadow lineage, still default-off and subject to explicit bootstrap.
+[Promotion and recovery operations](../../reference/reviewed-coordination-promotion.md)
+describe reviewed preview, execution and recovery boundaries. This delivery
+removes the obsolete Python observation writer and TS observation commit path.
+The old configuration and read interfaces, including the observation CLI, are
+removed; existing observation files are left untouched. It does not implement
+executor liveness or event-writer binding. There is one writable shadow lineage,
+still default-off and subject to explicit bootstrap.
 
 ## Current implementation checkpoint
 
@@ -2165,7 +2167,7 @@ exercises every completed stage claim of this RFC through the real
 `loopx/control_plane/testing/authority_e2e_ladder.py` (row registry, runners,
 the `loopx_shared_goal_authority_e2e_report_v0` JSON report, exit policy, and
 privacy scan), `loopx/control_plane/testing/authority_e2e_fixtures.py` (goal
-workspaces, CLI runners, the observation-lock window, candidate read-back), the
+workspaces, CLI runners, candidate read-back), the
 read-only TypeScript probe
 `tests/control_plane_ts/authority_store_readback_probe.ts`, the pytest
 projection `tests/control_plane/test_shared_goal_authority_e2e.py`, and the
@@ -2178,8 +2180,8 @@ Per stage, this increment implements:
   provider; `s0.nokv_live_matrix` requires the same rows plus
   `restored_lineage_fails_closed` and identical file/NoKV outcomes on a live
   NoKV stack.
-- Stage 1: `s1.cli_document_decodes_through_ts_store` writes three
-  observations through the product CLI (`todo add`, `task-lease acquire`,
+- Stage 1: `s1.cli_document_decodes_through_ts_store` captures three
+  transactions through the product CLI (`todo add`, `task-lease acquire`,
   `todo update`) and reads them back through `FileAuthorityStore` with
   `loadAuthority`, paged `scanCommitted`, and `readReceipt`: cursor `3`, the
   three operation ids in order, and the first receipt found.
@@ -2191,7 +2193,8 @@ Per stage, this increment implements:
 - Stage 2B: `s2b.postgresql_conformance_live` runs the PostgreSQL integration
   test file under node's TAP reporter and requires at least nine passes, zero
   failures, and zero skips.
-- Stage 2C parity half: ten `s2c2.*` rows drive one explicitly enabled
+- Stage 2C parity half: the registered `s2c2.*` rows (see the current ladder's
+  row registry) drive one explicitly enabled
   `coordination.runtime_shadow` goal through the public CLI and assert only
   through `coordination-shadow status|drain`, `coordination-shadow
   bootstrap|inspect|qualify|read-candidate|rollback` and `migrate-state`,

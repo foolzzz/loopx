@@ -25,9 +25,10 @@
 ## 旧观测写入退役（2026-09-24）
 
 同时删除旧 Python 提交后 observer 与 TS observation 提交链，保留现有事务 outbox
-作为唯一捕获 owner；source adapter 不再二次采样生成另一份历史。旧配置可识别、
-不生效、可显式清理。这是删除已被替代的路径，不代表其余 Python 业务 writer 或
-reference executor 已退役。[交付清单与操作](../../reference/reviewed-coordination-promotion.zh-CN.md)。
+作为唯一捕获 owner；source adapter 不再二次采样生成另一份历史。旧配置与读取接口
+（包括 observation CLI）已移除，既有 observation 文件保留不动。
+这是删除已被替代的路径，不代表其余 Python 业务 writer 或 reference executor 已退役。
+[晋升与恢复操作指南](../../reference/reviewed-coordination-promotion.zh-CN.md)。
 
 ## canonical collection 分页检查点（2026-09-23）
 
