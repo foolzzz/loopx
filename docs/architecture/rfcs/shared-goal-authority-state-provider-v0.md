@@ -2151,7 +2151,7 @@ binding, reusing an epoch, or authorizing an unproved holder.
 Delivery boundary, stated explicitly and accepted by the owner on 2026-09-01:
 this slice is the RFC's reference implementation with deterministic and
 live-example evidence. No LoopX production entry point constructs the executor
-yet - the modules are coverage-only in the visible governance ledger. This
+yet; the modules remain coverage-only reference contracts. This
 acceptance allows the cohesive reference-contract slice to merge after its
 correctness, rebase, and review gates pass; it does not promote it to a shipped
 capability. A real caller requires the reviewed shared-mode migration,

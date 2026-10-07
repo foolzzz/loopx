@@ -1695,8 +1695,8 @@ head schema 版本化
 获得新 store binding、重用 epoch，或授权一个无 receipt 证明的 holder。
 
 交付边界，明确声明且已于 2026-09-01 获 owner 接受：本切片是 RFC 的参考实现，
-附确定性与 live 示例证据。尚无 LoopX 生产入口构造该 executor——这些模块在
-visible governance 台账中属 coverage-only。该接受允许内聚的 reference-contract
+附确定性与 live 示例证据。尚无 LoopX 生产入口构造该 executor——这些模块
+仍属 coverage-only 参考合同。该接受允许内聚的 reference-contract
 切片在正确性、rebase 与 review 门禁通过后合入；并不把它晋升为已 ship capability。
 真实 caller 依赖下文经评审的 shared-mode migration、本地 writer
 围栏、authorization publisher、provider binding、projection 翻转、rollback 与

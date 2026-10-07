@@ -16,6 +16,12 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the unused synthetic `loopx.visible_governance` projection and its
+  dedicated smoke. It had no product or CLI consumer; existing status, quota,
+  task-lease, and decision-scope contracts remain unchanged.
+
 ## [2.1.0] - 2026-10-07
 
 ### Changed
