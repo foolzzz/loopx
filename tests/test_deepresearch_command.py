@@ -1013,11 +1013,12 @@ def test_report_generation_is_serialized_with_run_rotation(tmp_path: Path) -> No
 def test_skill_facade_installs_for_skill_facade_surfaces(tmp_path: Path) -> None:
     from loopx.slash_command_install import install_slash_commands
 
-    # The facade spec is host-generic: every skill-facade surface (gemini,
-    # cursor, and agy once its surface PR merges) installs it from the same
-    # specs list, so proving one surface proves the wiring.
-    home = tmp_path / "gemini-home"
-    payload = install_slash_commands(execute=True, surfaces=["gemini"], gemini_home=str(home))
+    # Claude Code installs the shared deepresearch facade spec without
+    # requiring a model invocation or provisioning a host adapter.
+    home = tmp_path / "claude-home"
+    payload = install_slash_commands(
+        execute=True, surfaces=["claude-code"], claude_home=str(home)
+    )
     assert payload["ok"] is True
     skill = home / "skills" / "loopx-deepresearch" / "SKILL.md"
     assert skill.is_file()
