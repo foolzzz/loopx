@@ -16,6 +16,8 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-07
+
 ### Changed
 
 - Retired the Full Public Smokes GitHub workflow and its workflow-only smoke.
