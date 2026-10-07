@@ -74,7 +74,7 @@ The contributor cockpit at `/developers/projections` retains static contract
 exploration, projection diffing, fixture rules, and component examples. It
 loads no live status source and grants no write authority.
 
-Hosted Pages aliases are static redirects. `/frontstage/` goes to the public
+Exported static aliases are redirects. `/frontstage/` goes to the public
 case directory, `/frontstage/developer/` to contributor tools, and the old Ops
 path to the Personal Workspace guide. Hosted redirects discard all query
 parameters; they never open or load a visitor's local workspace. Public

@@ -742,14 +742,9 @@ Current investment is organized through the
 benchmark evidence, operator surface and IM integration, shared-goal cross-host
 coordination, and an explicitly staged architecture and research incubator.
 
-## Star History
+## Repository Trends
 
 <a href="https://trendshift.io/repositories/102379"><img src="https://trendshift.io/api/badge/repositories/102379" alt="loopx-project/loopx on Trendshift" width="220" height="48"></a>
-
-<p align="center">
-  <a href="https://github.com/loopx-project/loopx/stargazers"><img src="https://loopx-project.github.io/loopx/site-assets/star-history.svg" alt="LoopX GitHub star history from verified snapshots" width="800"></a><br>
-  <sub>Generated every six hours from GitHub's official stargazer timestamps using a repository-authorized workflow. A snapshot is published only when the fetched rows match GitHub's current star count; GitHub's image cache may delay refreshes.</sub>
-</p>
 
 ## License
 

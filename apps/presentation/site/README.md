@@ -62,7 +62,8 @@ separate static URLs and reciprocal language alternates.
 
 The build discovers canonical editorial URLs for `sitemap-pages.xml` and writes
 `sitemap.xml`, which also references the three MkDocs sitemaps. The complete
-index is ready only after the Pages workflow builds the documentation. Submit
+index is ready only after local MkDocs builds supply the documentation sitemaps.
+The repository no longer runs an automated Pages publication workflow. Submit
 `https://loopx-project.github.io/loopx/sitemap.xml` in the verified Search Console
 property after deployment. The Google-issued verification file
 `public/google5a493c86e5bde9bc.html` is copied unchanged to the site root; keep it
@@ -77,17 +78,40 @@ referral signal without sending query strings or adding tracking identifiers to 
 conversion attribution. Search Console access and indexing are external steps;
 a successful build does not establish ranking or traffic improvement.
 
-Run `npm run smoke:seo` and `node scripts/analytics-smoke.mjs` after a local build (the browser smoke uses the dashboard Playwright dependency). The Pages workflow also runs it on
-the complete artifact with `--with-docs`. It checks static content, route-specific
+Run `npm run smoke:seo` and `node scripts/analytics-smoke.mjs` after a local build
+(the browser smoke uses the dashboard Playwright dependency). Run the SEO smoke
+on a complete local export with `--with-docs` after building documentation.
+It checks static content, route-specific
 metadata, sitemap targets and public asset paths. Preview with `npm run preview`.
+
+To assemble and validate the full local export, run from the repository root
+(after installing the dashboard/site dependencies and `docs/requirements-docs.txt`):
+
+```bash
+node examples/export-frontstage-share-bundle.mjs --base /loopx/
+uv run --extra test mkdocs build --strict --site-dir /tmp/loopx-frontstage-share-bundle/site/docs
+uv run --extra test mkdocs build --strict --config-file docs/book/mkdocs.zh.yaml --site-dir /tmp/loopx-frontstage-share-bundle/site/docs/book
+uv run --extra test mkdocs build --strict --config-file docs/book/mkdocs.en.yaml --site-dir /tmp/loopx-frontstage-share-bundle/site/docs/book/en
+node examples/export-frontstage-share-bundle.mjs --restore-case-pages
+node apps/presentation/site/scripts/seo-smoke.mjs /tmp/loopx-frontstage-share-bundle/site --with-docs
+node examples/dev-book-browser-smoke.mjs
+```
+
+The exporter and local postprocessors default to the same bundle directory.
+`LOOPX_PUBLIC_SITE_DIR` overrides the Developer Book browser smoke's site root;
+other postprocessors accept the exported site directory as their first argument.
+These commands build and inspect local files; they do not deploy a website.
 
 ## Google Analytics 4
 
-Set the GitHub repository variable `LOOPX_GA_MEASUREMENT_ID` to the website's
-real GA4 web stream ID (`G-…`). The Pages workflow injects measurement into
-canonical public pages after all builds. An unset variable disables analytics;
-PR artifacts and localhost previews do not send production events. Remove the
-variable and redeploy to disable it. No ID or GA API secret is hard-coded.
+For an explicitly hosted export, set the environment variable
+`LOOPX_GA_MEASUREMENT_ID` to the website's GA4 web stream ID (`G-…`) when running
+`node scripts/add-analytics.mjs <exported-site-dir>` after all builds. This local
+postprocessor adds measurement to canonical public pages; it does not publish
+the artifact. An unset variable disables analytics. Keep it unset for previews.
+To disable analytics in an existing export, rerun the postprocessor with the
+variable unset, then replace the hosted artifact if applicable. No ID or GA API
+secret is hard-coded.
 
 In the GA4 web stream, disable **Enhanced measurement**: this integration sends
 explicit pageviews and conversion-intent events, including during MkDocs instant

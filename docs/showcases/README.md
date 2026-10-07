@@ -110,8 +110,9 @@ npm run export:frontstage-share
 This writes `/tmp/loopx-frontstage-share-bundle` with the static
 [public homepage](https://loopx-project.github.io/loopx/), compiled dashboard, a
 sanitized `goal_channel_projection_v0` status fixture, direct `/frontstage/`
-static-route support, and a manifest. GitHub Pages publishes this generated
-artifact, not live registry files or local status exports. The interactive
+static-route support, and a manifest. This artifact can be previewed locally
+or hosted explicitly; the repository no longer publishes it through a Pages
+workflow. It contains no live registry files or local status exports. The interactive
 dashboard route remains an exporter compatibility surface, not a promoted
 public entry. New users should start from the homepage; public cases,
 efficiency evidence, and the public boundary come from this directory, while

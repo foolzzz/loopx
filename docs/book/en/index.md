@@ -78,7 +78,7 @@ versioned or optional functionality, not the default shape of every contribution
 
 - Source format: Markdown
 - Site generator: MkDocs Material
-- Hosting: GitHub Pages
+- Delivery: local static builds, previews, and exports
 - LoopX release anchor: `v2.1.0`
 - Runtime prerequisites: Python 3.11+ and Node.js 22.22.3+
 

@@ -45,7 +45,7 @@ evidence.
 ## Public Artifact
 
 The interactive HTML page is a static public artifact. It can be opened directly
-from the repository or hosted as part of the Frontstage Pages bundle. It is not
+from the repository or previewed as part of the local Frontstage static bundle. It is not
 a runnable hardware benchmark and should not be presented as a reproducible
 EDA workflow.
 
