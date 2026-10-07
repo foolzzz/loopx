@@ -1,7 +1,8 @@
-"""Small no-tools decision probes; oracles are not exposed to the model.
+"""Deterministic corpus and response-contract checks for PR review.
 
-These test review reasoning on supplied evidence, not repository investigation.
-Live execution is opt-in and uses the existing bounded provider transport.
+These check decision-procedure wiring, positive controls, and oracle separation.
+They do not execute a live model or prove live review reasoning or repository
+investigation behavior.
 """
 
 from __future__ import annotations
