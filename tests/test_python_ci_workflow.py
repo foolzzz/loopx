@@ -405,3 +405,9 @@ def test_chat_bundle_qualifies_installed_wheel_and_sdist_before_upload() -> None
     assert browser.index("npm run smoke:personal-workspace-packaged") < browser.index("actions/upload-artifact")
     assert "continue-on-error" not in producer
     assert producer.count("PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/chat-playwright") == 2
+    source_browser = producer.split("name: Qualify the actual compiled UI", 1)[1].split("name: Qualify installed Chat", 1)[0]
+    assert 'find "$PLAYWRIGHT_BROWSERS_PATH" -type f -name chrome-headless-shell' in source_browser
+    assert 'export LOOPX_CHROME_HEADLESS_SHELL' in source_browser
+    assert 'test -n "$LOOPX_CHROME_HEADLESS_SHELL"' in source_browser
+    assert '"$LOOPX_CHROME_HEADLESS_SHELL" >> "$GITHUB_ENV"' in source_browser
+    assert source_browser.index('export LOOPX_CHROME_HEADLESS_SHELL') < source_browser.index("npm run smoke:personal-workspace-packaged")

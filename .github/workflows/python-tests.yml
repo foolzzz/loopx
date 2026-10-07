@@ -108,6 +108,9 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/chat-playwright
         run: |
           ./node_modules/.bin/playwright install --with-deps chromium
+          export LOOPX_CHROME_HEADLESS_SHELL="$(find "$PLAYWRIGHT_BROWSERS_PATH" -type f -name chrome-headless-shell -print -quit)"
+          test -n "$LOOPX_CHROME_HEADLESS_SHELL"
+          printf 'LOOPX_CHROME_HEADLESS_SHELL=%s\n' "$LOOPX_CHROME_HEADLESS_SHELL" >> "$GITHUB_ENV"
           npm run smoke:personal-workspace-packaged
           npm run smoke:chat-upgrade
       - name: Qualify installed Chat in wheel and rebuilt sdist
