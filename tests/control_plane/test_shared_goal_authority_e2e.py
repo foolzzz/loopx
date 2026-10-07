@@ -23,7 +23,6 @@ GATED_ROW_IDS = ("s2b.postgresql_conformance_live",)
 PENDING_ONLY_ROW_ID = "s2c2.sustained_parity_soak"
 PENDING_ROW_IDS = (PENDING_ONLY_ROW_ID,)
 CHEAP_DETERMINISTIC_ROW_ID = "s0.file_matrix_twelve_rows"
-FULL_LADDER_VARIABLE = "LOOPX_LADDER_FULL"
 # The Stage 2C parity half: every row below is executable through the public
 # CLI and the shadow management interfaces. They carry the ``stage2c_e2e``
 # marker so CI runs them in the stage2c correctness job with the other real
