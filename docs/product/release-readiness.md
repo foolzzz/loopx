@@ -415,8 +415,7 @@ path, and canary route rather than as a user-facing release baseline.
   [#2193](https://github.com/huangruiteng/loopx/pull/2193),
   [#2199](https://github.com/huangruiteng/loopx/pull/2199),
   [#2202](https://github.com/huangruiteng/loopx/pull/2202)). New-user
-  onboarding is protected by deterministic lifecycle canaries and repeated
-  one-arm Doubao qualification of the actual default packet, while CLI output
+  onboarding is protected by deterministic lifecycle canaries, while CLI output
   budgets and release outcome contracts make semantic regressions visible
   before promotion ([#2144](https://github.com/huangruiteng/loopx/pull/2144),
   [#2148](https://github.com/huangruiteng/loopx/pull/2148),
@@ -683,7 +682,7 @@ loopx canary release-qualification \
 The `exact_release_commit_qualification_manifest_v0` contract requires the
 same Git commit, Git tree id, package version, and version tag across pytest,
 Ruff, mypy, risk-based canary, full-public, install/upgrade/host,
-public-boundary, and actual-default one-arm Doubao receipts. The command also
+and public-boundary receipts. The command also
 checks the current checkout and rejects dirty or rebased source. It only
 reduces existing bounded receipts: it does not execute tests, call a provider,
 move refs, create tags, or publish a release.
@@ -922,11 +921,6 @@ also record:
   promotion-readiness/public-boundary checks pass on the exact release commit?
 - Did `loopx canary release-qualification` confirm that every required compact
   receipt matches the same clean commit, Git tree, package version, and tag?
-- Did the low-frequency live model gate run against the actual default
-  agent-facing packet with at least two repeats? Record the model id, behavior
-  decisions checked, call count, failures, and skips, but never retain raw
-  prompts, packets, responses, credentials, or local paths. This remains a
-  local/manual release gate rather than ordinary CI.
 - If the release claims benchmark or long-horizon outcome improvement, did a
   matched stable-versus-candidate outcome baseline pass? If no outcome claim is
   made, state that this expensive gate was not required rather than implying it

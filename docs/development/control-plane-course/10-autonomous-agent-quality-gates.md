@@ -211,45 +211,14 @@ loopx canary smoke-suite --suite full-public --jobs 4 --timeout-seconds 120
 它适合主干、每日或手动运行，不应成为每个文档 patch 的同步阻塞项。保护质量不等于
 把最宽的测试频率提高到每次保存文件。
 
-## 真实模型门：常规 one-arm，必要时才 pair
+## 模型行为与确定性回归的边界
 
-确定性测试能证明 packet 有哪些字段、状态优先级如何、CLI 是否可执行，却不能完全证明
-真实 agent 会如何理解一份压缩后的默认载荷。这个剩余风险才交给模型行为验证。
+本 fork 已退役 Doubao 资格适配器和 live 命令。保留的 provider-neutral
+packet、portfolio 与 oracle 合同使用调用方提供的 actor；普通测试使用 scripted
+actor 验证 source 对齐、独立 oracle 和安全边界。这些结果不证明真实模型会正确行动。
 
-常规 onboarding profile 使用 **actual-default one-arm**：
-
-```text
-candidate checkout 的正式 packet builder
-  -> deterministic oracle 先检查真实 packet
-  -> 仅脱敏本地绝对路径
-  -> Doubao 2.1 actor
-  -> scenario-specific semantic verifier
-  -> bounded receipt / mismatch code
-```
-
-产品默认切换时，实际行为与测试输入一起切换。不保留一条已经退休的产品实现，仅为了
-长期充当第二臂。常规 portfolio 覆盖正常接入、agent identity、goal selection、selected
-todo、peer routing、same-agent continuation、final human gate、healthy continuation 和
-projection repair；每个场景重复两次，所有重复都要通过。
-
-这些场景不应一律只做 packet interpretation。当结论是“agent 必须真的调用工具”时，
-portfolio 使用 scenario-owned 的 hermetic actor：selected Todo 执行目标 read，replan 执行
-evidence-log read，scoped gate 在呈现非阻塞 notice 后执行 successor，capability bridge
-则先执行原 blocked Todo 的真实任务侧 callsite，再在同一 heartbeat 执行 quota 投影的
-re-entry 命令；只有 quota 重新选中原 Todo，且没有 repair Todo、turn settlement 或
-durable capability grant，才算通过。第四种场景里，等待或更新 monitor fallback、在
-quota 前绕过 gate、验证前 re-entry、或读取错误目标，都必须失败。四个 actor 只共享已证明的 tool decoding 和隔离 CLI 机制；
-各自的 Goal fixture、合法动作状态机和 semantic oracle 保持独立，不引入通用 scenario
-runner。
-
-双臂只在两类问题中合理：
-
-1. 临时验证一个敏感改动是否与明确 baseline 语义等价；
-2. 发布明确声称 benchmark 或长程 outcome 提升，需要 matched stable/candidate baseline。
-
-冷路径恢复、字段存在、schema 与 scheduler precedence 不进入常规 Doubao portfolio；
-这些可确定判断的规则留在 deterministic gate。真实模型调用也不进入普通 CI，避免让
-每个 PR 依赖凭证、网络、provider 延迟与服务稳定性。
+真实 CLI 和隔离 shell 回归另行验证工具执行、持久写回、quota spend 与隔离。
+模型行为证据若由外部调用方提供，必须明确其来源与范围，不能用 fixture 通过结果代替。
 
 ## Agent-facing 热路径与诊断冷路径
 
@@ -260,7 +229,7 @@ runner。
 2. 被省略细节有显式 drill-down 命令；
 3. action signature 与状态语义没有漂移；
 4. CLI budget 显示输出确实收敛，而不是把重复文本搬到另一处；
-5. actual-default model portfolio 中的真实 agent 行为仍正确。
+5. 独立 source oracle 与 scripted actor 覆盖路由和语义；真实模型理解情况单独标明。
 
 冷路径不会天然降低接入效果。真正的风险是把 agent 作决定所需的信息也当成“诊断噪声”
 一起移走。因此 owner review 应逐项解释字段为什么可移除，而不是只展示字符数下降。
@@ -455,7 +424,7 @@ else:
 4. low-frequency actual-default model portfolio：验证真实 agent 仍能选对身份、goal、todo，
    并尊重 human gate。
 
-若 deterministic oracle 已失败，不应继续花费 Doubao 调用；若模型失败，也不能直接推断
+若 deterministic oracle 已失败，不应继续花费 模型 调用；若模型失败，也不能直接推断
 产品回归，先区分 semantic mismatch、actor transport、provider timeout 和 verifier bug。
 
 ### 核心代码领读：实际默认 Packet 如何进入模型门
@@ -518,7 +487,7 @@ if contract.get("decision", contract.get("route")) != spec.expected_route:
 - `git diff --check`；
 - 首屏变化时的 owner preview。
 
-它不需要 Doubao、full-public fleet 或 outcome baseline。若文档描述了新的控制面规则，
+它不需要 模型、full-public fleet 或 outcome baseline。若文档描述了新的控制面规则，
 则还要对照 canonical protocol 或 focused test，防止文档把不存在的能力写成已交付事实。
 
 ### 核心代码领读：Diff 如何选择最小门禁
@@ -644,7 +613,7 @@ agent-scope invariant，不是某份固定 JSON。
 第三层让 focused smoke 经由 `build_quota_should_run` 验证最终路由，防止纯 selector 正确、
 integration 却漏传 facts。第四层把 surface 登记进 quality catalog 和 risk-based canary。
 
-这类确定性重构不运行 Doubao。模型可以判断 packet 是否易于理解，却不应决定
+这类确定性重构不运行 模型。模型可以判断 packet 是否易于理解，却不应决定
 `blocking_handoff_gate` 和 `vision_acceptance_gap` 谁优先。将模型层明确记为
 `not_applicable(reason)`，比为了“测试层数完整”而增加随机调用更严格。
 
@@ -752,7 +721,7 @@ outcome baseline 可以消费 readiness receipt，但不能反过来用一个分
 
 1. 为什么 characterization fixture 不能授予当前行为正确性？
 2. `not_applicable` 与 `deferred` 的 owner 语义有什么不同？
-3. 为什么常规 Doubao gate 不保留退休产品路径作为第二臂？
+3. 为什么常规 模型 gate 不保留退休产品路径作为第二臂？
 4. output budget 通过后，为什么还要检查 semantic field ledger？
 5. monitor + gate + replan 同时成立时，哪一层拥有最终 scheduler authority？
 6. 为什么旧 commit 的全绿测试不能给新 tag 背书？

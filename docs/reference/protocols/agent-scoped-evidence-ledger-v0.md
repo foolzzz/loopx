@@ -221,17 +221,11 @@ progress writeback is a separately validated state transition. The delivery
 receipt proves context delivery, while the semantic delta proves use of that
 context. Neither receipt is allowed to impersonate the other.
 
-The live behavior qualification tests that causal handoff through an actual
-function-tool conversation rather than a testing-only output field. A Doubao
-actor receives the shipped host-loop task body and chooses the quota
-command against a hermetic public-safe Goal. The harness runs that command
-through the real LoopX CLI, returns its actual context/action packet, and asks
-the actor to choose the next real tool action. The actor independently qualifies
-the selected typed observation, then executes the real `refresh-state` command.
+Deterministic CLI regressions verify the causal handoff from quota projection
+through source inspection to evidence-bound `refresh-state` and settlement.
 Evidence-log-only, prose-only, pre-quota, equivalent-fingerprint, and ungrounded
-successor actions do not pass. Only temporary fixture state may change, and the
-receipt stores bounded command digests and typed outcomes rather than prompts,
-packets, or output.
+successor actions do not prove the required semantic delta. Tests use temporary
+fixture state; provider prompts and responses are not acceptance evidence.
 
 ## Privacy Boundary
 

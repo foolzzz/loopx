@@ -55,7 +55,6 @@ scanning a chronological list.
 - [`ark_managed_agent_goal_continuity_qualification_v0`](ark-managed-agent-goal-continuity-qualification-v0.md): Ark Managed Agent goal continuity qualification v0
 - [`ark_managed_agent_issue_fix_qualification_v0`](ark-managed-agent-issue-fix-qualification-v0.md): Ark Managed Agent issue-fix qualification v0
 - [`decision_context_advisory_provider_v0`](decision-context-advisory-provider-v0.md): extension-backed, read-only advisory recall for Decision Context
-- [`computer_use_runtime_v0`](computer-use-runtime-v0.md): Computer-use runtime v0
 - [`host_integration_surface_v0`](host-integration-surface-v0.md): Host integration surface v0
 - [`host_mode_plan_v0`](host-mode-plan-v0.md): Host mode plan v0
 - [`local_agent_launch_plan_v1`](local-agent-launch-plan-v1.md): Local agent launch plan v1

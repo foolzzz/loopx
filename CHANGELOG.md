@@ -21,6 +21,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - Removed the unused synthetic `loopx.visible_governance` projection and its
   dedicated smoke. It had no product or CLI consumer; existing status, quota,
   task-lease, and decision-scope contracts remain unchanged.
+- Removed the bundled Doubao model-behavior actors and live qualification
+  commands, including Claude/Doubao and host-prompt probes. Provider-neutral
+  packet/oracle tests and real CLI/shell regressions remain.
+- Removed `doubao_actual_default` from the exact release qualification
+  manifest's required receipt set and summary schemas; the remaining release
+  checks still fail closed. Retired receipts are rejected as unknown ids.
+- Removed the computer-use runtime protocol, schemas, independent validator,
+  fixture smoke, catalog references, and canary registration.
 
 ## [2.1.0] - 2026-10-07
 

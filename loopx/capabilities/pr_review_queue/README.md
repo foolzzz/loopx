@@ -867,19 +867,9 @@ packet's typed required cases. The checker validates this completeness only,
 never the truth of their contents.
 
 Behavioral qualification lives in `tests/capabilities/test_pr_review_behavior.py`:
-paired synthetic cases include valid designs as well as counterexamples. The optional
-live no-tools test uses the existing Doubao transport with a runtime-injected key:
-
-```bash
-LOOPX_REVIEW_LIVE_TEST=1 python -m pytest -q tests/capabilities/test_pr_review_behavior.py -k live
-```
-
-The default model is `doubao-seed-evolving`; `LOOPX_MODEL_BEHAVIOR_MODEL` can
-explicitly select another allowlisted model for comparative qualification.
-
-It sends only public synthetic cases, never repository contents or credentials in
-the prompt. Ordinary tests never contact the provider. These bounded decision tests
-do not establish model-wide reliability or replace a real repository review.
+paired synthetic cases include valid designs as well as counterexamples. These
+deterministic contract tests do not establish model-wide reliability or replace
+a real repository review.
 
 The packet should let a reviewer move through PRs in order:
 

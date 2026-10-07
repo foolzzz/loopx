@@ -82,35 +82,11 @@ Deterministic tests own exact full-versus-compact parity, cold-path restoration,
 schema shape, and the character budget. The real-scale regression must exceed
 the default budget before compaction and remain within it afterward.
 
-Model qualification is one-arm and actual-default. The shipped
-`actual_default_model_behavior_portfolio_v0` sends the CLI hot-path projection,
-not the unprojected in-memory decision, to the Doubao actor. Its independent
-source oracle must still observe the expected selected todo, user gate,
-execution obligation, scheduler route, and vision/replan behavior on every
-repeat. The planning-horizon scenario additionally starts from fixed typed
-facts, validates the complete strategic relation chain independently of the
-producer, and requires bounded model readback of the horizon before selected
-work. Removing the horizon, breaking a middle relation, or drifting both the
-producer and compact packet fails before provider spend. A dedicated
-compaction-regression scenario must exceed the JSON hot-path
-budget before projection, fit within the budget afterward, preserve the exact
-source-derived semantic contract, and preserve the model's route. Two additional
-over-budget scenarios repeat clean selected-work and blocking-gate contracts
-under omitted diagnostic noise. Bounded contrast results require those pairs to
-remain invariant, while blocking versus non-blocking user action and selected
-work versus required vision replan remain distinguishable. Exact helper
-traversal, omitted counts, warning references, deduplication, and peer-route
-shape remain deterministic projection-test responsibilities. The old full
-packet is not retained as a permanent second product contract; paired mode is
-reserved for explicit differential diagnosis.
+The provider-neutral `actual_default_model_behavior_portfolio_v0` accepts
+caller-supplied actors and checks the CLI hot-path projection against independent
+source oracles. Scripted fixture results prove harness and semantic invariants;
+they do not establish live model or tool behavior. The bundled Doubao adapter
+and live qualification commands have been removed.
 
-The portfolio also includes a future-primary scenario: a typed P0 monitor whose
-window is not due remains visible as unavailable higher-priority work while the
-actual-default model must execute the selected ready fallback. This qualifies
-model obedience to the projection; deterministic tests separately cover the
-legacy case where a sticky primary survives and the packet must still expose
-fallback actions.
-
-Live receipts may retain only bounded scenario outcomes and digests. Packets,
-prompts, raw model responses, credentials, and conversations remain outside the
-repository.
+Packets, prompts, raw responses, credentials, and conversations remain outside
+the repository.

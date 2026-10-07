@@ -496,7 +496,7 @@ are true:
 4. No effect abstraction remains test-only.
 5. Maintainability, import-graph, CLI output, and hot-path interface ratchets
    pass without new exceptions.
-6. Doubao/model-behavior shadow qualification covers changed agent-facing
+6. Provider-neutral model-behavior fixture qualification covers changed agent-facing
    packets.
 
 Phases:
@@ -531,7 +531,7 @@ Phases:
   exceptions.
 - Focused M6 audit suite: 172 passed across quota parity, status re-export,
   heartbeat support, effect interpreter/program/turn families, CLI output
-  budget/differential, import boundaries, model-behavior/Doubao shadow, and
+  budget/differential, import boundaries, model-behavior fixture coverage, and
   turn driver/executor.
 - `loopx canary quality-audit`: `ready=true`, `gap_count=0`, `drift_count=0`.
 
@@ -877,7 +877,7 @@ For every runtime replacement:
 - focused pytest covers the new seam and parity with the old path;
 - a thin public smoke exercises the real CLI or host path;
 - CLI output budget regression stays green;
-- model-behavior / Doubao shadow qualification covers agent-facing packet
+- provider-neutral model-behavior fixture qualification covers agent-facing packet
   changes;
 - canary premerge includes `core-control-plane` and `canary-runner` profiles.
 

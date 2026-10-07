@@ -202,4 +202,3 @@ def test_untyped_successor_is_rejected_before_todo_mutation(
         )
 
     assert state_path.read_text(encoding="utf-8") == before
-
