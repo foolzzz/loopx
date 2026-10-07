@@ -87,8 +87,8 @@ does not grant benchmark runner or private-evidence authority. When the current 
 `change_quality_qualification`, the onboarding packet also lists
 `loopx-change-quality` as an active project skill; deliver that workflow or its
 equivalent self-contained prepare-packet instructions. Then read back the
-integration mode, loaded skill ids, and source revision. Do not assume a Codex,
-Claude, or OpenCode directory layout for an unknown host. Loading the quality
+integration mode, loaded skill ids, and source revision. Do not assume a Codex or
+Claude directory layout for an unknown host. Loading the quality
 skill does not activate it; the current goal policy controls activation.
 
 If the host has no skill system, inject the equivalent `SKILL.md` instructions

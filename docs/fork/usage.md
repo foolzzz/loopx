@@ -114,7 +114,7 @@ Not supported by the dispatcher:
 - `turn run-once` also has `dsh` and `generic-cli` hosts, but agent files
   accept only `claude-code` and `codex-cli`, so the dispatcher cannot launch
   them, and they record no usage.
-- Upstream host integrations (Codex App, Claude Code `/loop`, OpenCode and
+- Upstream host integrations (Codex App, Claude Code `/loop` and
   the other `/loopx` surfaces) run their own host-managed loops or
   controllers. The role dispatcher does not launch them.
 
@@ -178,8 +178,8 @@ Choices and guards:
   default.
 - **Skills and slash commands.** By default, the installer also writes LoopX
   workflow skills into `~/.codex/skills`, plus command entries for its
-  supported hosts, including Codex, Claude Code and OpenCode. Claude Code and
-  OpenCode get `/loopx`; Codex uses `$loopx` or `/skills`. The role workflow
+  supported hosts, including Codex and Claude Code. Claude Code
+  gets `/loopx`; Codex uses `$loopx` or `/skills`. The role workflow
   in this guide does not need them.
   `LOOPX_INSTALL_SKILL=0` and `LOOPX_INSTALL_SLASH_COMMANDS=0` skip them, and
   `loopx doctor` then reports its skill checks as missing, which is expected.

@@ -189,7 +189,7 @@ loopx start-goal --guided --project . --goal-text "Your long-running objective"
 
 Keep `.loopx/` and `.local/` ignored. From your agent host,
 drive the goal with `/loopx <task>` (Codex App/CLI), `/loopx` + `/loop`
-(Claude Code), the goal bridge (OpenCode), or the Pi goal extension.
+(Claude Code), or the Pi goal extension.
 
 ### 5.2 Command cheat sheet
 

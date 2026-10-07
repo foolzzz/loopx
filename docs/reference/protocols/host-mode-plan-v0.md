@@ -69,11 +69,10 @@ run the desired mode.
 ## Visible Host Identity
 
 A coarse `visible_session` capability cannot distinguish Codex CLI, Claude Code,
-or another generic visible host such as OpenCode or Pi. The planner therefore fails
+or another generic visible host such as Pi. The planner therefore fails
 closed for `visible_tui` unless an explicit, catalog-registered `host_identity`
 is supplied (`--host-identity`: `codex-cli`, `claude-code`, `generic-cli`, or
-the `opencode` / `pi` aliases). With no
-identity, the visible option reports `connector_id=null`,
+`pi`). With no identity, the visible option reports `connector_id=null`,
 `host_resolution=identity_required`, `turn_mapping.host=null`,
 `capability_ready=false`, a blocking reason naming the missing identity, and a
 stop-first next step; no Codex CLI default is fabricated. An unregistered
@@ -82,11 +81,11 @@ identity similarly yields `connector_id=null` with
 separately typed `host_resolution` field so the `connector_id` field only ever
 carries real runtime connector catalog ids.
 With an identity, the typed mapping is used: `codex-cli` -> `codex_cli_tui`,
-`claude-code` -> `claude_code_loop`, `generic-cli` -> `opencode_goal_loop`
-(the OpenCode visible goal loop runs through the generic-cli Turn host;
-`--host-identity opencode` is accepted as an alias for the same mapping), and
-`pi` -> `pi_goal_loop` (Pi also runs through the generic-cli Turn host while
-keeping its own connector identity). Every
+`claude-code` -> `claude_code_loop`, and `pi` -> `pi_goal_loop` (Pi runs
+through the generic-cli Turn host while keeping its own connector identity).
+`generic-cli` remains a valid headless identity, but has no default visible
+connector and fails closed for `visible_tui` unless a supplied catalog registers
+one. Every
 emitted connector id must exist in the runtime connector catalog; an identity
 with no registered catalog connector fails closed instead of emitting a dynamic
 string.

@@ -27,7 +27,7 @@ loopx project-skill install \
   --execute
 ```
 
-Use `claude-code` or `opencode` for those surfaces. This controls discovery,
+Use `claude-code` for Claude Code. This controls discovery,
 not activation. Preview goal policy before applying:
 
 ```bash

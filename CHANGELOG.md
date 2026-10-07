@@ -32,6 +32,16 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - Removed the SWE-Marathon, LHTB and DeepSWE public research pages, homepage
   research cards, study metadata and share-bundle exports without redirects.
   The provider-neutral benchmark toolkit, CLI and managed skill remain available.
+- Removed OpenCode (including OpenCode 2), Kiro CLI, Gemini CLI, and Cline
+  host integrations: activation profiles and aliases, goal bridge/worker,
+  Chat endpoint, installer targets, command packs, and project-skill surfaces.
+  Removed `opencode2-goal-worker`, `--with-goal-bridge`, `--opencode-home`,
+  `--gemini-home`, and Chat/Dashboard `--kiro-cli-bin`. The default slash-command
+  installation now targets Codex and Claude Code only. Codex CLI/app-server,
+  Claude Code, Cursor Agent, Pi, dsh, Ark and custom runner routes remain.
+- Removed the implicit OpenCode connector for visible `generic-cli` host-mode
+  plans. A generic visible identity now fails closed; explicit Pi still uses
+  `pi_goal_loop` with the generic-cli Turn adapter.
 
 - Removed the unused synthetic `loopx.visible_governance` projection and its
   dedicated smoke. It had no product or CLI consumer; existing status, quota,

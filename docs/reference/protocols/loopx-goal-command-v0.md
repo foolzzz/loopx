@@ -26,9 +26,6 @@ When the user provides text after `/loopx`, the host should:
      Goal. The Goal runtime owns continuation and terminal evaluation; do not
      wrap its inner iterations in LoopX Turn or resubmit at phase boundaries.
    - `claude-code`: arm LoopX with `/loopx <task>`, then run native `/loop`.
-   - `opencode`: call `loopx_goal_activate` from the installed LoopX OpenCode
-     bridge; the bridge gates idle continuation and timer wakes through
-     `quota should-run` and completes only on validated terminal no-follow-up.
    - `traex-cli`: set the visible TraeX TUI to `/goal <task_body>` through the
      TraeX visible-goal renderer while quota remains bound to the generic
      `generic_cli` runtime profile. TraeX `/goal` requires

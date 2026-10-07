@@ -96,7 +96,7 @@ owner 的分布式清理事务。LoopX 需要源拥有的生命周期身份，�
 ### 非目标
 
 - 改变面向人的 `goal_id`，或把 instance ID 放进 state path。
-- 迁移 Codex、Pi、OpenCode 或其他 host 的底层 runtime 目录。
+- 迁移 Codex、Pi 或其他 host 的底层 runtime 目录。
 - 合并多个 active-state candidate。
 - 将 timestamp、路径、内容相等、全局投影或 host 记录当作身份依据。
 - 把外部 provider 的物理删除作为安全边界。
@@ -295,7 +295,7 @@ activation 不可用，直到既有 owner 能机械排除。相同 OS principal 
 | Todo／coordination／lease | Head/provider binding、work mutation、claim/renew/reclaim、receipt |
 | Handoff／inbox／outbox | Request、receiver adoption、accepted artifact、result delivery、historical readback |
 | Goal Channel／Lark／heartbeat | Connection、迟到 inbound/outbound event、wake admission |
-| Pi／OpenCode／其他第一方 host | Host action、execution binding、quota/state writeback |
+| Pi／其他第一方 host | Host action、execution binding、quota/state writeback |
 
 维护一个 private 穷尽 owner inventory：稳定 locator、revision、content digest、
 observed typed reference、cleanup support。排序后的 inventory 和 owner revision

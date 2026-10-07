@@ -369,7 +369,7 @@ dsh 片段**，把通道可见的有界历史与当前消息交给它，并返�
 | 路线 | 形态 | 代价与风险 |
 | --- | --- | --- |
 | A. turn-backed 管家传输（**已落地**） | 每个管家 chat turn 通过受治理 Turn 解析出的同一个执行档位，在托管宿主上执行一次有界受治理片段，把有界会话历史作为上下文 | 无双工流式、无跨 turn 宿主会话，每个 turn 都是新 segment；工具／沙箱权威由通道固定为只读，单 turn 上限即通道自身的硬超时 |
-| B. ACP 或 stdio 适配 | 当托管宿主暴露此类接口时，复用 ACP stdio 适配路径（Kiro CLI chat 端点已走此路） | 传输成本最低，但依赖上游接口，目前没有已交付证据 |
+| B. ACP 或 stdio 适配 | 当托管宿主暴露此类接口时，复用 ACP stdio 适配路径 | 传输成本最低，但依赖上游接口，目前没有已交付证据 |
 | C. codex 端点绑定 operator provider | 让 Codex app-server 直接以 operator provider 启动，保留现有传输与工具面 | 保留流式，但必须证明会话不再以个人登录认证；provider 配置成为宿主状态权威，需要单独 gate |
 
 选型规则：优先 A，因为它复用 LoopX 已经验证过的 Turn 权威、typed host failure、

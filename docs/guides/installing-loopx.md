@@ -134,7 +134,7 @@ them:
 loopx slash-commands --install
 ```
 
-The default command-facade set covers Codex, Claude Code, and OpenCode. Other
+The default command-facade set covers Codex and Claude Code. Other
 surfaces remain explicit; inspect `loopx slash-commands --help` before enabling
 one. Host integration changes command discovery only. It does not grant LoopX
 permission to write a repository, contact external systems, or bypass a user
