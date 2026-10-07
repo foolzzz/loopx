@@ -92,7 +92,7 @@ host integration seams currently centered on:
 - `loopx/cli_commands/host_mode_plan.py`; and
 - `docs/integrations/runtime-connector-catalog.md`.
 
-Host integration spans Codex, Claude Code, OpenCode, DeepSeek Harness, and
+Host integration spans Codex, Claude Code, Pi, DeepSeek Harness, and
 other runtime providers. Provider-specific implementation remains with the
 relevant contributors and repository maintainers, while shared status, quota,
 todo, scheduler, and Turn contracts remain outside the Lark appointment. These

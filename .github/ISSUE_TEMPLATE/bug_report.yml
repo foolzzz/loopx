@@ -46,7 +46,6 @@ body:
       options:
         - Codex CLI
         - Claude Code
-        - OpenCode
         - Custom or external worker
         - Not host-specific
         - Other
