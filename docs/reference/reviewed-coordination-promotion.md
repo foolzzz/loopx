@@ -128,7 +128,7 @@ partition markers. Sequence allocation requests no transaction rows; drain uses
 the compact rows. Existing full diagnostic reads retain their default contract.
 No transport limit, stored population or transaction validation is weakened.
 A pending outbox still blocks promotion; use the existing bounded
-`authority-shadow drain --goal-id example-goal --budget-seconds 60` operation
+`coordination-shadow drain --goal-id example-goal --budget-seconds 60` operation
 and inspect its result before retrying preview.
 
 ## Product and rollout boundary

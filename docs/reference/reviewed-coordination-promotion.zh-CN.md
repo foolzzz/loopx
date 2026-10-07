@@ -100,7 +100,7 @@ provider revision、receipt 内容和初始 projection 必须全部一致。
 projection digest 和 partition marker；分配序号不返回事务行，drain 使用紧凑行。
 原有完整诊断读取保持默认合同，不提高传输上限、不减少持久数据，也不省略链校验。
 若 outbox 尚未结清，晋升仍会拒绝。先执行并检查既有的有界 drain：
-`authority-shadow drain --goal-id example-goal --budget-seconds 60`。
+`coordination-shadow drain --goal-id example-goal --budget-seconds 60`。
 
 ## 交付边界
 

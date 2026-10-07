@@ -32,7 +32,7 @@ removed together. Existing runtime-shadow outbox rules remain the sole capture
 owner; source adapters do not resample into a second authority. Old settings
 are recognizable, inactive and explicitly clearable. This is deletion of an
 obsolete path, not a claim that remaining Python business writers or the
-reference executor are retired. [Delivery inventory and transition](ledger/shared-goal-authority-state-provider-v0/2026-09-24-observation-retirement.md).
+reference executor are retired. [Delivery inventory and transition](../../reference/reviewed-coordination-promotion.md).
 
 ## Cross-RFC execution priority (2026-09-16)
 

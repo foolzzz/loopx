@@ -43,6 +43,16 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   `tests/architecture/test_cli_command_module_ownership.py`, collected by
   pytest. Existing line budgets and registration ownership assertions are
   unchanged.
+- Removed the retired `local_authority_shadow` post-commit observation feature:
+  its Goal settings/catalog entry, `--local-authority-shadow-file` and
+  `--clear-local-authority-shadow` options, the `.record` runtime method, and
+  historical observation reads. Configuration summaries no longer contain
+  `local_authority_shadow`; state migration no longer returns
+  `authority_shadow_seeds`. Existing observation files are left untouched.
+- Removed the `authority-shadow` CLI. Transaction-bound outbox recovery and
+  status now use `coordination-shadow drain` and `coordination-shadow status`.
+  Active runtime-shadow capture, qualification, promotion, provider defaults,
+  transaction schemas and persisted lineage identities are unchanged.
 
 ## [2.1.0] - 2026-10-07
 
