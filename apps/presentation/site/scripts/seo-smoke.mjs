@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const directory = resolve(process.argv[2] ?? fileURLToPath(new URL("../dist", import.meta.url)));
 const origin = "https://loopx-project.github.io/loopx/";
 const titles = new Set();
-for (const [path, subject] of [["", "long-running"], ["benchmarks/swe-marathon/", "SWE-Marathon"], ["benchmarks/lhtb/", "LHTB"]]) {
+for (const [path, subject] of [["", "long-running"]]) {
   const html = await readFile(resolve(directory, path, "index.html"), "utf8");
   const title = html.match(/<title>(.*?)<\/title>/s)?.[1];
   assert(title?.toLowerCase().includes(subject.toLowerCase()), `${path}: descriptive title`);
@@ -35,6 +35,9 @@ for (const [path, subject] of [["", "long-running"], ["benchmarks/swe-marathon/"
 }
 const sitemap = await readFile(resolve(directory, "sitemap-pages.xml"), "utf8");
 const locations = [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1]);
+for (const route of ["swe-marathon", "lhtb", "deepswe/behavior-discovery", "deepswe-sol"]) {
+  assert(!locations.includes(`${origin}benchmarks/${route}/`), "retired research URL is absent from the sitemap");
+}
 assert.equal(new Set(locations).size, locations.length, "no duplicate sitemap URLs");
 assert(locations.includes(origin) && locations.includes(`${origin}blog/zh/`));
 for (const url of locations) {
@@ -47,4 +50,4 @@ if (process.argv.includes("--with-docs")) {
   const index = await readFile(resolve(directory, "sitemap.xml"), "utf8");
   for (const [, url] of index.matchAll(/<loc>(.*?)<\/loc>/g)) await access(resolve(directory, url.slice(origin.length)));
 }
-console.log(`SEO publication: three prerendered routes, ${locations.length} canonical sitemap targets, assets and metadata passed`);
+console.log(`SEO publication: prerendered homepage, ${locations.length} canonical sitemap targets, assets and metadata passed`);

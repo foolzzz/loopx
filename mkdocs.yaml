@@ -10,7 +10,6 @@ exclude_docs: |
   /README.md
   archive/**
   book/**
-  research/long-horizon-agent-benchmarks/*.json
   showcases/**/*.html
   showcases/showcase-animation-prototype.html
   showcases/showcase-catalog.json

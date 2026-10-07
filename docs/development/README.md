@@ -69,7 +69,7 @@ not need these documents to start LoopX.
 | Quota and spend semantics / Quota 与 spend 语义 | [Quota allocation](../quota-allocation.md) |
 | Model-behavior shadow qualification / 模型行为影子验证 | [Model behavior qualification v0](../reference/protocols/model-behavior-qualification-v0.md) |
 | Release promotion / 发布晋级 | [Release readiness](../product/release-readiness.md) |
-| Benchmark research / Benchmark 研究 | [Benchmark workspace](https://github.com/huangruiteng/loopx/blob/main/benchmark/README.md) · [Research RFC](../architecture/rfcs/long-horizon-harness-benchmark-research-program-v0.md) |
+| Benchmark research / Benchmark 研究 | [Research RFC](../architecture/rfcs/long-horizon-harness-benchmark-research-program-v0.md) |
 
 ## Change Loop / 变更闭环
 

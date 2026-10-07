@@ -9,14 +9,15 @@ removed. Keep compatibility redirects for existing bookmarks.
 
 | Surface | Purpose | Entry |
 | --- | --- | --- |
-| Homepage | Product overview, research and case discovery | Hosted `/` |
+| Homepage | Product overview and case discovery | Hosted `/` |
 | Personal Workspace | Goals, Tasks, Chat, outputs and reports | `loopx dashboard` |
 | Product demo | Workspace video and operating guide | `docs/guides/personal-workspace-user-guide/` |
-| Research | SWE-Marathon and DeepSWE behavior analysis | `benchmarks/` links from the homepage |
 | Case directory | Catalog cases, interactive pages and evidence boundaries | `docs/showcases/index.en.html` and `index.html` |
 | Projection developer tools | Static contracts, projection diffing and fixture examples | `/developers/projections` |
 
 ## Compatibility
+
+Historical study pages are removed without compatibility redirects.
 
 In the dashboard app, `/frontstage` redirects to the public case directory;
 `mode=developer` and `/frontstage/developer` redirect to contributor tools.

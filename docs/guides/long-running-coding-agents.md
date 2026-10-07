@@ -113,6 +113,6 @@ for waiting, budgets and continuation.
 
 For examples rather than setup, explore the
 [public application scenarios](https://loopx-project.github.io/loopx/blog/application-scenarios/)
-and [long-horizon terminal study](https://loopx-project.github.io/loopx/benchmarks/lhtb/).
-Study results have task, model and budget limits; they do not guarantee a gain
+and [provider-neutral evidence contracts](../../loopx/capabilities/benchmark_toolkit/README.md).
+Case evidence is specific to its environment; it does not guarantee outcomes
 on every project.

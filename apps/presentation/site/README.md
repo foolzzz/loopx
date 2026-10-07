@@ -25,16 +25,8 @@ relying on a hand-maintained allowlist. They fail when a translation, index
 entry, language alternate, counterpart link, or paired article section is
 missing.
 
-The Chinese DeepSWE × Sol research brief is a static page at
-`public/benchmarks/deepswe-sol/`, linked from the homepage research collection.
-It uses the shared editorial tokens and ships through the same public-directory
-copy as the Blog. Its historical results and mechanism explanations cite the
-immutable v1 archive; editing the brief must not rewrite that archive or restore
-withdrawn scores. The article works without JavaScript and has stable section
-anchors for other articles to cite.
-
 The Chinese application-scenarios article at `public/blog/zh/application-scenarios/`
-links the three research briefs with comparable summaries. Its full text and
+introduces three product scenarios. Its full text and
 initial PR-state example are static HTML; `presentation.js` progressively adds
 presentation typography, section navigation, and the synthetic state selector.
 These controls stay hidden when JavaScript is unavailable. No real repository
@@ -61,8 +53,7 @@ APIs.
 
 ## Search publication
 
-`npm run build` compiles the browser app and prerenders the homepage and the
-SWE-Marathon/LHTB briefs from the same React components. Each route ships its
+`npm run build` compiles the browser app and prerenders the homepage from the same React component. The homepage ships its
 own body, title, description, canonical URL and social metadata before any
 JavaScript executes. The shared metadata module also updates translated titles
 and descriptions when readers switch language. The English URL is canonical;

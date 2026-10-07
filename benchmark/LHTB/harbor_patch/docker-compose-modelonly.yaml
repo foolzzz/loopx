@@ -1,8 +1,0 @@
-services:
-  main:
-    networks:
-      - lhtb-modelonly
-
-networks:
-  lhtb-modelonly:
-    external: true

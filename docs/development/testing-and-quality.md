@@ -879,14 +879,13 @@ or incomplete arm fails closed and cannot automatically promote a release.
 必须使用小规模 stable-release-vs-candidate manifest，并匹配任务语义、runner、模型、
 reasoning、timeout 与重复次数。任一不匹配或不完整都 fail closed，且不能自动发布。
 
-Current benchmark studies follow the
-[research RFC](../architecture/rfcs/long-horizon-harness-benchmark-research-program-v0.md)
-and live in the repository-level [benchmark workspace](https://github.com/huangruiteng/loopx/blob/main/benchmark/README.md).
-Legacy release reducers are archived and no longer form an active CLI or release
-qualification surface.
+Benchmark study design follows the
+[research RFC](../architecture/rfcs/long-horizon-harness-benchmark-research-program-v0.md).
+Benchmark-native runners, frozen studies and legacy release reducers are not
+bundled in this repository; toolkit boundary checks remain active.
 
-当前 benchmark 研究遵循上述 RFC，并在仓库级 `benchmark/` 工作区中沉淀。旧 release
-reducer 已归档，不再属于 active CLI 或 release qualification surface。
+Benchmark 研究设计遵循上述 RFC。原生 runner、冻结实验与旧 release reducer 不再
+随仓库提供；toolkit 边界检查继续保留。
 
 ## Risk-Based Review / 按风险审阅
 

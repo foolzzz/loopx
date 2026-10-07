@@ -189,7 +189,7 @@ def main() -> None:
             revert_of="event_superseded_public",
             status="eligible",
             summary="Quota allowed one bounded rollout event-log slice.",
-            artifact_refs=["benchmark/deepswe/README.md"],
+            artifact_refs=["docs/research/README.md"],
             details={"open_agent_todo_count": 2},
         )
         append_rollout_event(log_path, event)
@@ -253,7 +253,7 @@ def main() -> None:
             "--summary",
             "Compact case result reduced to public-safe failure attribution.",
             "--artifact-ref",
-            "benchmark/deepswe/README.md",
+            "docs/research/README.md",
         )
         assert result_event["event_kind"] == "compact_case_result", result_event
         assert result_event["lane"]["lane_id"] == "product-capability", result_event

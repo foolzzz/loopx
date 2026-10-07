@@ -38,12 +38,9 @@ complete queued Web or Connector messages. It never starts a replacement
 runtime. Host session ids, message bodies, and response files remain
 owner-local.
 
-The retired benchmark result/writeback layer is preserved for source
-archaeology under
-[`deprecate/benchmark-legacy/`](https://github.com/huangruiteng/loopx/blob/main/deprecate/benchmark-legacy/README.md).
-New benchmark work should start from the
-[`benchmark/`](https://github.com/huangruiteng/loopx/blob/main/benchmark/README.md) research workspace and keep runner and
-verifier semantics benchmark-native.
+Benchmark runners and verifiers remain externally owned. Reuse the
+[provider-neutral toolkit](../../loopx/capabilities/benchmark_toolkit/README.md)
+for bounded permission and public-safe evidence contracts.
 
 ## Validation
 

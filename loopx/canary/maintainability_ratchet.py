@@ -502,13 +502,7 @@ def collect_compatibility_facades(repository_root: Path) -> list[dict[str, Any]]
 
 
 def _is_benchmark_module_path(path: Path) -> bool:
-    normalized = path.as_posix()
-    parts = normalized.split("/")
-    return (
-        normalized.startswith("benchmark/")
-        or normalized.startswith("deprecate/benchmark-legacy/")
-        or "benchmark_toolkit" in parts
-    )
+    return "benchmark_toolkit" in path.parts
 
 
 def module_metric_baseline(baseline_path: Path) -> dict[str, dict[str, int]]:

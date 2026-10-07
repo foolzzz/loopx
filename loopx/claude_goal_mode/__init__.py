@@ -16,9 +16,6 @@ NOT use ``/goal``, which judges completion from the transcript). Pieces:
 - ``scripts/connect.py``      — project-scoped connect + install
 - ``plugin`` assets           — ``.claude-plugin/plugin.json``, ``commands/loopx.md``,
                                 ``hooks/hooks.json`` (the optional gate)
-
-The retired benchmark-only baseline contract is kept under
-``deprecate/benchmark-legacy`` and is no longer a LoopX runtime module.
 """
 
 __all__: list[str] = []

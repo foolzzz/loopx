@@ -9,7 +9,6 @@ from .quality_surface_catalog import (
     build_quality_surface_catalog_audit as _build_quality_surface_catalog_audit,
 )
 from .package_profiles import PACKAGE_QUALIFICATION_PROFILES
-from .path_scope import partition_active_canary_paths
 from .release_profiles import RELEASE_PROMOTION_PROFILE
 
 
@@ -399,7 +398,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             "refactor",
             "quota.py",
             "status.py",
-            "benchmark/",
             "benchmark_toolkit",
             "loopx/",
             "examples/",
@@ -1225,7 +1223,6 @@ CURRENT_REPO_PROFILES: tuple[dict[str, Any], ...] = (
             "benchmark toolkit",
             "benchmark research",
             "loopx/capabilities/benchmark_toolkit",
-            "benchmark/",
             "examples/benchmark",
         ),
         "checks": [
@@ -1678,10 +1675,7 @@ def build_catalog_canary_plan(
     surfaces = surfaces or []
     requested_families = {_slug(family) for family in (families or []) if family.strip()}
     requested_profiles = {_slug(profile) for profile in (profiles or []) if profile.strip()}
-    active_changed_files, excluded_changed_files = partition_active_canary_paths(
-        changed_files
-    )
-    selector_blob = _selector_blob(active_changed_files, surfaces)
+    selector_blob = _selector_blob(changed_files, surfaces)
     selector_supplied = bool(changed_files or surfaces)
     max_checks = max(1, max_checks_per_family)
     max_profile_checks = max(1, max_checks_per_profile)
@@ -1724,7 +1718,7 @@ def build_catalog_canary_plan(
 
     selected_domain_profiles: list[dict[str, Any]] = []
     for profile in packet["domain_profiles"]:
-        reasons = _domain_selection_reasons(profile, active_changed_files, surfaces)
+        reasons = _domain_selection_reasons(profile, changed_files, surfaces)
         if requested_domain_profiles and _slug(str(profile.get("id") or "")) not in requested_domain_profiles:
             continue
         if requested_catalog_profiles and not requested_domain_profiles:
@@ -1751,8 +1745,6 @@ def build_catalog_canary_plan(
         "executes_checks": False,
         "selection_inputs": {
             "changed_files": changed_files,
-            "active_scan_changed_files": active_changed_files,
-            "excluded_changed_files": excluded_changed_files,
             "surfaces": surfaces,
             "families": families or [],
             "profiles": profiles or [],

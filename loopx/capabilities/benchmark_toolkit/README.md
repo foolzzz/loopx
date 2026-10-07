@@ -177,27 +177,13 @@ The runner must still attest those boundaries independently. Platforms without t
 required Linux namespace primitives must use an equivalent runner-owned isolation
 boundary instead of silently falling back to the ambient host.
 
-The runnable source example is
-[`benchmark/deepswe/run_native_codex_goal.py`](../../../benchmark/deepswe/run_native_codex_goal.py).
-Its `--preflight-only` mode proves a live Codex initialize/thread/Goal attachment
-without invoking a model. Full mode starts one turn and waits for a correlated
-terminal event, then keeps draining Codex-owned continuation turns until the Goal
-leaves `active`. The same total timeout covers the full Goal lifecycle. Add
-`--isolate`, `--isolation-work-dir`, and `--private-root` to make this envelope the
-real process path; `--profile-root` adds the optional per-run formal profile. The
-launcher performs recovery, pre-launch rebase, and `finally` restoration around
-both preflight and full Goal modes.
-
-The same adapter publishes `public_trajectory_summary_v0` from the compact
-`native_codex_goal_turn_receipt_v0` lifecycle fields. The benchmark toolkit owns
-the strict reducer because public/private evidence reduction is already part of
-this capability; the DeepSWE research adapter is its first active caller. The
-summary carries only typed counts, status labels, and content-free notification
-kind counts. It never reopens event payloads, and it marks message and tool-call
+External runners can compose the native Goal adapter and namespace envelope.
+The toolkit owns the strict `public_trajectory_summary_v0` reducer because
+public/private evidence reduction belongs to this capability. The summary
+carries only typed counts, status labels, and content-free notification kind
+counts. It never reopens event payloads, and marks message and tool-call
 semantics unavailable rather than guessing them. Missing, malformed, or
-inconsistent lifecycle facts fail closed. The similarly named archived reducer
-under `deprecate/benchmark-legacy/` is historical evidence, not a dependency or
-compatibility entry point for this native-runner contract.
+inconsistent lifecycle facts fail closed.
 
 ### Formal installed profile and skill discovery
 
@@ -1368,10 +1354,6 @@ loopx benchmark candidate-source-boundary <paths...> --require-clean --format js
 All commands are local and no-upload by default. `benchmark-toolkit` grants no model,
 Docker, runner, upload, submission, publication, or production authority.
 
-The active benchmark research program and current public-safe practice live under
-[`benchmark/`](https://github.com/loopx-project/loopx/blob/main/benchmark/README.md). Retired implementations, superseded runners, and dated research
-packets are retained under [`deprecate/benchmark-legacy/`](https://github.com/loopx-project/loopx/blob/main/deprecate/benchmark-legacy/README.md)
-for source archaeology only.
-Immutable experiment snapshots follow the canonical
-[archive placement rules](../../../benchmark/README.md#archive-placement),
-which permit explicitly identified, inert snapshots in `benchmark/`.
+Benchmark-native runners, frozen studies and historical execution archives are
+not distributed in this repository. External runners may use this toolkit's
+provider-neutral contracts without granting execution or publication authority.

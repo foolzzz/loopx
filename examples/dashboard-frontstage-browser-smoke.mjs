@@ -43,13 +43,11 @@ async function assertAnchorInView(page, id) {
     // equality, so the assertion matches what the reader actually sees.
     const finalSection = section.closest("main")?.lastElementChild;
     const finalSectionVisible = finalSection?.contains(section) && rect.bottom <= innerHeight;
-    const header = document.querySelector(".bm-topbar")?.getBoundingClientRect();
-    const headerBottom = header?.bottom ?? 0;
     const reveal = section.closest(".reveal-block");
     // Chromium can leave a few pixels above the viewport after fragment
     // alignment and font reflow; the heading must still be fully visible.
-    return (!header || Math.abs(header.top) < 2) && top >= -8 && (top < 80 || finalSectionVisible) &&
-      (!heading || (heading.top >= Math.max(0, headerBottom) && heading.bottom < innerHeight)) &&
+    return top >= -8 && (top < 80 || finalSectionVisible) &&
+      (!heading || (heading.top >= 0 && heading.bottom < innerHeight)) &&
       (!reveal || getComputedStyle(reveal).opacity === "1");
   }, id, { timeout: 4000 }).catch(async (error) => {
     const viewport = await page.locator(`[id="${id}"]`).evaluate((section) => ({
@@ -68,10 +66,15 @@ try {
     await new Promise((done) => setTimeout(done, 200));
   }
   browser = await chromium.launch({ headless: true });
+  for (const route of ["swe-marathon", "lhtb", "deepswe/behavior-discovery", "deepswe-sol"]) {
+    const response = await fetch(`${publicOrigin}/loopx/benchmarks/${route}/`);
+    assert.equal(response.status, 404, `Retired research URL has no static fallback: ${route}`);
+  }
+  console.log("Retired research routes: four static HTTP 404 responses, no fallback: ok");
   // Crawlers and readers without JavaScript receive actual route content.
   const staticContext = await browser.newContext({ javaScriptEnabled: false });
   const staticPage = await staticContext.newPage();
-  for (const [path, subject] of [["", "long-running"], ["benchmarks/swe-marathon/", "SWE-Marathon"], ["benchmarks/lhtb/", "LHTB"]]) {
+  for (const [path, subject] of [["", "long-running"]]) {
     await staticPage.goto(`${publicOrigin}/loopx/${path}`);
     assert.match(await staticPage.title(), new RegExp(subject, "i"));
     assert(await staticPage.locator("h1").isVisible(), "primary heading is visible without JavaScript");
@@ -84,7 +87,7 @@ try {
   // reflow correction and its cancellation when a reader scrolls away.
   const font = await readFile(resolve(dashboard, "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2"));
   for (const width of [1440, 390]) {
-    for (const [path, id] of [["", "learn"], ["benchmarks/swe-marathon/", "mechanism"]]) {
+    for (const [path, id] of [["", "learn"]]) {
       for (const userScrolls of [false, true]) {
         const fontContext = await browser.newContext({ reducedMotion: "reduce", viewport: { width, height: 900 } });
         const fontPage = await fontContext.newPage();
@@ -129,10 +132,8 @@ try {
         await new Promise((done) => setTimeout(done, 250));
         await route.continue();
       });
-      for (const path of ["", "benchmarks/swe-marathon/"]) {
-        const anchors = path
-          ? ["top", "summary", "background", "mechanism", "zstd", "official-comparison", "boundary", "sources"]
-          : ["top", "main", "product", "workflow", "showcases", "explore", "learn", "quickstart"];
+      for (const path of [""]) {
+        const anchors = ["top", "main", "product", "workflow", "showcases", "explore", "learn", "quickstart"];
         for (const lang of ["en", "zh"]) {
           for (const id of anchors) {
             await entry.goto("about:blank");
@@ -192,16 +193,6 @@ try {
       await assertAnchorInView(entry, "top");
       await entry.getByRole('link', { name: 'LoopX home', exact: true }).click();
       assert.equal(new URL(entry.url()).searchParams.get("lang"), "zh", "home link must preserve language");
-      await entry.goto(`${publicOrigin}/loopx/benchmarks/swe-marathon/#mechanism`);
-      await entry.getByRole("button", { name: "中文", exact: true }).click();
-      await assertAnchorInView(entry, "mechanism");
-      await entry.locator('.bm-footer a[href="#top"]').click();
-      await assertAnchorInView(entry, "top");
-      await entry.goBack();
-      assert.equal(new URL(entry.url()).hash, "#mechanism");
-      await entry.locator('.bm-home-link').click();
-      await entry.locator("#explore").waitFor();
-      assert.equal(new URL(entry.url()).searchParams.get("lang"), "zh");
       assert.deepEqual(entryErrors, [], "fragment entry must not raise runtime errors");
       console.log(`Fragment/history matrix: ${width}px, ${reducedMotion}: ok`);
       await entryContext.close();
@@ -249,7 +240,7 @@ try {
       await page.locator("#explore").waitFor();
       assert.equal(await page.locator("html").getAttribute("lang"), lang === "zh" ? "zh-CN" : "en");
       assert.equal(await page.locator('a[href*="deprecated"], a[href*="frontstage/"]').count(), 0);
-      const expected = ["docs/guides/personal-workspace-user-guide/", `benchmarks/swe-marathon/${lang === "zh" ? "?lang=zh" : ""}`, `benchmarks/lhtb/${lang === "zh" ? "?lang=zh" : ""}`, "benchmarks/deepswe/behavior-discovery/", "benchmarks/deepswe-sol/", `docs/showcases/index${lang === "en" ? ".en" : ""}.html`];
+      const expected = ["docs/guides/personal-workspace-user-guide/", `docs/showcases/index${lang === "en" ? ".en" : ""}.html`];
       assert.deepEqual(await page.locator("#explore .resource-card").evaluateAll((links) => links.map((a) => a.getAttribute("href"))), expected.map((path) => `/loopx/${path}`));
       if (width === 390) {
         await page.getByRole("button", { name: "Open navigation" }).click();
@@ -264,7 +255,7 @@ try {
       assert.ok(await page.locator("#explore .resource-card").first().evaluate((a) => a === document.activeElement));
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "horizontal overflow");
       await page.screenshot({ path: resolve(output, `explore-${lang}-${width}.png`) });
-      // Follow the actual research and case links; the guide is built by MkDocs later.
+      // Follow the actual product and case links; the guide is built by MkDocs later.
       for (let i = process.env.LOOPX_PUBLIC_SITE_DIR ? 0 : 1; i < expected.length; i++) {
         await page.goto(`${publicOrigin}/loopx/${expected[i]}`);
         await page.locator("h1").first().waitFor();
@@ -274,7 +265,7 @@ try {
   if (process.env.LOOPX_PUBLIC_SITE_DIR) {
     // Check the assembled publication, including the separately built books.
     const checked = new Set();
-    for (const path of ["", "?lang=zh", "benchmarks/swe-marathon/", "benchmarks/lhtb/", "benchmarks/lhtb/?lang=zh", "benchmarks/deepswe/behavior-discovery/", "benchmarks/deepswe-sol/", "docs/showcases/index.html", "docs/showcases/index.en.html", "docs/guides/personal-workspace-user-guide/", "docs/book/", "docs/book/en/", "blog/", "blog/zh/"]) {
+    for (const path of ["", "?lang=zh", "docs/showcases/index.html", "docs/showcases/index.en.html", "docs/guides/personal-workspace-user-guide/", "docs/book/", "docs/book/en/", "blog/", "blog/zh/"]) {
       await page.goto(`${publicOrigin}/loopx/${path}`);
       await page.locator("h1").first().waitFor();
       const links = await page.locator("a[href]").evaluateAll((links) => links.map((link) => link.href));

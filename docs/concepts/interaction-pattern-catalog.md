@@ -2807,8 +2807,7 @@ state says it is countable.
 
 **Validation**
 
-- `benchmark/README.md`
-- `benchmark/deepswe/README.md`
+- `loopx/capabilities/benchmark_toolkit/README.md`
 - `examples/benchmark-candidate-source-boundary-smoke.py`
 - `examples/benchmark-run-permission-policy-smoke.py`
 

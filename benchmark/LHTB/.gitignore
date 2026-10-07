@@ -1,9 +1,0 @@
-.env
-.generated/*
-!.generated/.gitkeep
-runs/*
-!runs/.gitkeep
-reports/*
-!reports/.gitkeep
-__pycache__/
-*.pyc

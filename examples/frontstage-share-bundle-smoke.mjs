@@ -127,20 +127,9 @@ run(process.execPath, [
 const siteDir = resolve(outDir, "site");
 assertExists(resolve(siteDir, "index.html"));
 assertExists(resolve(siteDir, "frontstage/index.html"));
-assertExists(resolve(siteDir, "benchmarks/swe-marathon/index.html"));
-assertExists(resolve(siteDir, "benchmarks/lhtb/index.html"));
-assertExists(resolve(siteDir, "benchmarks/deepswe/behavior-discovery/index.html"));
-// Static research articles must remain readable and navigable in the shipped
-// bundle without falling back to the homepage SPA.
-for (const route of ["benchmarks/deepswe-sol/"]) {
-  const pagePath = resolve(siteDir, route, "index.html");
-  const html = await readFile(pagePath, "utf8");
-  if (!/<h1\b/.test(html) || html.includes('<div id="root">') || html.includes("<script")) {
-    throw new Error(`Research article must ship static content: ${route}`);
-  }
-  for (const match of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
-    const target = match[1].split(/[?#]/)[0];
-    if (target && !nonBundleReferencePattern.test(target)) assertRelativeReferenceExists(pagePath, target);
+for (const route of ["swe-marathon", "lhtb", "deepswe/behavior-discovery", "deepswe-sol"]) {
+  if (existsSync(resolve(siteDir, "benchmarks", route, "index.html"))) {
+    throw new Error(`Retired research route must not ship: ${route}`);
   }
 }
 // Editorial pages must ship their text and locale navigation without an SPA
@@ -240,25 +229,6 @@ if (publishedInstaller !== canonicalInstaller) {
 }
 const homepageSource = await readFile(resolve(repoRoot, "apps/presentation/site/src/App.tsx"), "utf8");
 const homepageStyles = await readFile(resolve(repoRoot, "apps/presentation/site/src/styles.css"), "utf8");
-const benchmarkHtml = await readFile(resolve(siteDir, "benchmarks/swe-marathon/index.html"), "utf8");
-if (benchmarkHtml === homepageHtml || !benchmarkHtml.includes("<h1")) {
-  throw new Error("SWE-Marathon must publish its own prerendered research content");
-}
-const lhtbHtml = await readFile(resolve(siteDir, "benchmarks/lhtb/index.html"), "utf8");
-if (lhtbHtml === homepageHtml || !lhtbHtml.includes("<h1")) {
-  throw new Error("LHTB must publish its own prerendered research content");
-}
-const deepSweBehaviorHtml = await readFile(
-  resolve(siteDir, "benchmarks/deepswe/behavior-discovery/index.html"),
-  "utf8",
-);
-const canonicalDeepSweBehaviorHtml = await readFile(
-  resolve(repoRoot, "benchmark/deepswe/behavior-discovery/index.html"),
-  "utf8",
-);
-if (deepSweBehaviorHtml !== canonicalDeepSweBehaviorHtml) {
-  throw new Error("DeepSWE behavior article route must be byte-identical to the reviewed standalone source");
-}
 for (const sourceContract of [
   "Get started",
   "开始使用",
@@ -275,7 +245,6 @@ for (const sourceContract of [
   "跨越 200+ 小时，依然清晰可读。",
   "Prefer the shell? Install LoopX manually.",
   "Developer book",
-  "benchmarks/swe-marathon/",
   "Pi",
 ]) {
   if (!homepageSource.includes(sourceContract) && !homepageStyles.includes(sourceContract)) {
@@ -369,9 +338,6 @@ if (manifest.base !== "/loopx/") {
 }
 if (
   manifest.homepage_entry !== "site/index.html" ||
-  manifest.swe_marathon_brief_entry !== "site/benchmarks/swe-marathon/index.html" ||
-  manifest.lhtb_brief_entry !== "site/benchmarks/lhtb/index.html" ||
-  manifest.deepswe_behavior_article_entry !== "site/benchmarks/deepswe/behavior-discovery/index.html" ||
   manifest.frontstage_entry !== "site/frontstage/index.html" ||
   manifest.installer_entry !== "site/install.sh"
 ) {
@@ -379,18 +345,6 @@ if (
 }
 if (manifest.content_sources?.public_homepage !== "apps/presentation/site") {
   throw new Error(`manifest homepage source mismatch: ${JSON.stringify(manifest.content_sources)}`);
-}
-if (manifest.content_sources?.swe_marathon_brief !== "benchmark/swe-marathon") {
-  throw new Error(`manifest benchmark brief source mismatch: ${JSON.stringify(manifest.content_sources)}`);
-}
-if (manifest.content_sources?.lhtb_brief !== "benchmark/LHTB/studies/five-arm-gpt56sol-max") {
-  throw new Error(`manifest LHTB brief source mismatch: ${JSON.stringify(manifest.content_sources)}`);
-}
-if (
-  manifest.content_sources?.deepswe_behavior_article !==
-  "benchmark/deepswe/behavior-discovery/index.html"
-) {
-  throw new Error(`manifest DeepSWE behavior source mismatch: ${JSON.stringify(manifest.content_sources)}`);
 }
 if (manifest.content_sources?.installer_script !== "scripts/install-from-github.sh") {
   throw new Error(`manifest installer source mismatch: ${JSON.stringify(manifest.content_sources)}`);
@@ -462,14 +416,4 @@ if (!readmeText.includes("docs/showcases/showcase-catalog.json")) {
 if (!readmeText.includes("frontstage/")) {
   throw new Error("share bundle README must publish the frontstage showcase entry");
 }
-if (!readmeText.includes("benchmarks/swe-marathon/")) {
-  throw new Error("share bundle README must publish the SWE-Marathon research brief entry");
-}
-if (!readmeText.includes("benchmarks/lhtb/")) {
-  throw new Error("share bundle README must publish the LHTB research brief entry");
-}
-if (!readmeText.includes("benchmarks/deepswe/behavior-discovery/")) {
-  throw new Error("share bundle README must publish the DeepSWE behavior article entry");
-}
-
 console.log("frontstage-share-bundle-smoke: ok");

@@ -28,7 +28,6 @@
     .takeaway{font-size:22px!important;line-height:1.65;color:var(--ink);letter-spacing:-.02em}
     .loop-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:24px 0}.loop-row>div{padding:16px;border:1px solid var(--border);background:var(--surface);border-radius:6px;font-size:14px}.loop-row b{display:block;color:var(--ink)}.loop-row span{display:block;font-size:12px;margin-top:8px}
     .comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}.comparison>div{border:1px solid var(--border);border-radius:12px;padding:24px;background:var(--surface)}.comparison strong{display:block;font-size:32px;letter-spacing:-.04em;margin:12px 0}.comparison p{font-size:14px;margin:0}
-    .study-signal{margin:32px 0;padding:28px 0 4px;border-top:1px solid var(--border);scroll-margin-top:24px}.study-signal h3{margin:0 0 12px}.study-signal .study-setting{font-size:12px;margin-bottom:16px}.study-signal p{margin-bottom:16px}.study-signal .signal-boundary{font-size:14px}.study-signal .study-link{font-size:14px;margin-bottom:0}.presenting .study-signal .study-setting{font-size:14px}.presenting .study-signal .signal-boundary,.presenting .study-signal .study-link{font-size:17px}
     .stage-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}.state-demo{border:1px solid var(--border);border-radius:12px;padding:24px;background:var(--surface)}.state-demo dl{display:grid;grid-template-columns:110px 1fr;gap:12px 20px;margin:0}.state-demo dt{font-size:12px;color:var(--body);padding-top:3px}.state-demo dd{margin:0;font-size:15px;color:var(--ink)}
     .small-note{font-size:12px!important;color:var(--body)}.layers{margin:24px 0;border-top:1px solid var(--border)}.layer{display:grid;grid-template-columns:150px 1fr;gap:24px;border-bottom:1px solid var(--border);padding:18px 0;font-size:14px}.layer b{color:var(--ink)}
     .evolution{counter-reset:step;list-style:none!important;padding:0!important}.evolution li{counter-increment:step;display:grid;grid-template-columns:40px 1fr;gap:16px;padding:20px 0;border-bottom:1px solid var(--border);margin:0}.evolution li::before{content:"0" counter(step);font:500 14px var(--font-mono);color:var(--blue);padding-top:4px}.evolution b{display:block}.evolution span{display:block;font-size:14px;margin-top:6px}
@@ -55,7 +54,7 @@
   </div>
   <div class="article-layout">
     <aside class="toc"><details open><summary>本文目录</summary><nav aria-label="文章目录">
-      <a href="#map">三类工作</a><a href="#complex">01 把复杂任务做完</a><a href="#benchmark">Benchmark 给的提醒</a><a href="#exploration">02 在探索中找路</a><a href="#employee">03 持续承担交付</a><a href="#layers">状态与能力怎样分工</a><a href="#evolution">下一步怎样演进</a><a href="#sources">公开依据</a>
+      <a href="#map">三类工作</a><a href="#complex">01 把复杂任务做完</a><a href="#exploration">02 在探索中找路</a><a href="#employee">03 持续承担交付</a><a href="#layers">状态与能力怎样分工</a><a href="#evolution">下一步怎样演进</a><a href="#sources">公开依据</a>
     </nav></details></aside>
     <article class="prose">
       <section id="map">
@@ -77,60 +76,6 @@
         </div>
         <p>LoopX 的作用，是让目标和验收缺口跨轮次保持连续，让新证据进入下一步决策。模型负责实现与判断，领域验证器负责检验结果；控制面记录哪些结果被接受、哪些工作仍未完成。</p>
         <p>适合它的任务，通常会经历多轮验证、等待或交接。短小、一次会话就能验收的工作，现有 Agent 可能已经足够，新增控制面需要证明自身开销值得。</p>
-      </section>
-
-      <section id="benchmark">
-        <h2>Benchmark：从 LHTB 看长程工作，再看三个补充信号</h2>
-        <p>先看跨领域长程任务中的恢复与回退，再用三项软件工程研究补充续跑、交付和验证行为。四项研究的任务、模型设置与统计口径不同，应分别理解；现有结果还不足以概括 LoopX 的普遍增益。</p>
-
-        <div class="study-signal" id="benchmark-lhtb">
-          <h3>LHTB：比 Plain 和原生 Goal 多做成了什么？</h3>
-          <p class="study-setting">GPT-5.6 Sol / max · 46 个匹配任务 · 每题每臂一条有效运行</p>
-          <p><strong>LHTB 考什么：</strong>Long-Horizon Terminal-Bench 要求 Agent 在有状态的容器中，跨数百个有依赖的终端动作完成工作。46 题覆盖九类：软件与逆向工程、科学计算、地球/气候/能源、多模态、研究复现、系统/性能/安全、游戏、APEX 专业工作流、逻辑谜题。比如迁移旧框架、复现论文、完成投行交付或逐步玩 2048。<a href="../../../benchmarks/lhtb/?lang=zh#categories">类别与代表任务 →</a></p>
-          <p><strong>怎样评分：</strong>隐藏验证器检查最终产物或可重放结果，给出 0–1 的 Reward；本研究以 ≥ 0.95 计为通过。平均进展与完整验收分别报告。</p>
-          <div class="table-scroll"><table class="benchmark-table"><caption>LHTB：LoopX Heartbeat 与两种基线</caption><thead><tr><th scope="col">执行方式</th><th scope="col">平均 Reward</th><th scope="col">通过 / 46</th></tr></thead><tbody>
-            <tr><th scope="row">Plain</th><td>0.4218</td><td>7</td></tr>
-            <tr><th scope="row">原生 Goal</th><td>0.4475</td><td>4</td></tr>
-            <tr><th scope="row">LoopX Heartbeat（1.0.3）</th><td>0.4948</td><td>7</td></tr>
-          </tbody></table></div>
-          <p><strong>观察：</strong>相对 Plain，LoopX 均分增加 0.0731（17.3%），逐题为 17 胜、13 平、16 负，通过数相同；相对原生 Goal，均分增加 0.0473（10.6%），为 23 胜、13 平、10 负，通过数从 4 到 7。胜负按公开原始分数严格比较；均分提升不代表每题都更强。</p>
-          <p><strong>哪些题更受益：</strong>按任务要求做事后分组，研究复现/建模（4 题）相对 Plain / Goal 的平均差为 +0.2802 / +0.2179；逻辑谜题（4 题）为 +0.2739 / +0.1374。去掉 Tabular，研究组仍正向。Sokoban 能保留已解关卡，Rush Hour 要记录并复查长路线，Tabular 要反复实验与验证——这是值得检验的适用条件。</p>
-          <p><strong>哪里没有清晰优势：</strong>多模态（6 题）为 −0.0034 / +0.0058，科学计算与仿真（7 题）为 +0.0161 / +0.0099。游戏组不能一概而论：2048 提升，Snake 却低于 Plain；APEX 法律事项低于 Goal，DuckDB 更是 0 对约 0.770。持续推进不能替代感知、领域判断与正确性验收。</p>
-          <p><strong>Insight：</strong>优先关注“能验证下一步，也能保留有效进展”的任务。全体逐题差值中位数，对 Plain 为 0、对 Goal 约 0.0003，均分收益集中。分组每类仅 4–7 题，且不是官方逐题分类；题目结构只提供解释假设，尚不能确认实际收益来自哪种机制。<a href="../../../benchmarks/lhtb/?lang=zh#task-types">九组的样本量、胜平负、敏感性与题目原文 →</a></p>
-          <p class="signal-boundary"><strong>范围：</strong>这里的 LoopX 是实验中的 1.0.3 fresh-exec Heartbeat。运行设置不同，且包含更长时限的替代 trial，没有重复 seed。LoopX 记录成本 $551.73，高于 Plain / Goal 的估算 $212.97 / $344.25；计费口径也不一致，尚不能宣称同预算效率优势。</p>
-          <p class="study-link"><a href="../../../benchmarks/lhtb/?lang=zh">研究全文：两种基线、正反案例、46 题矩阵与历史参照 →</a></p>
-        </div>
-
-        <div class="study-signal" id="benchmark-marathon">
-          <h3>SWE-Marathon：续跑要补上真实缺口</h3>
-          <p class="study-setting">GPT-5.6 Sol / high · 15 个匹配任务 · 3 个保留模式，每格运行 1 次 · 超时系数 0.3</p>
-          <p><strong>观察：</strong>原生 Goal 完成 4/15，Heartbeat 完成 5/15；两组总成本从 $533 增至 $830，约多 56%。</p>
-          <p><strong>Insight：</strong>zstd 个案中，续跑补充了可见测试之外的验收；excel 个案多次续跑仍未完成。值得追查的是下一轮补了什么缺口，以及这份收益是否值得新增成本。</p>
-          <p class="signal-boundary"><strong>范围：</strong>每格只有一次运行，多项机制同时变化。已有个案收益，也有无效续跑；尚不能确认稳定增益或成本优势。</p>
-          <p class="study-link"><a href="../../../benchmarks/swe-marathon/?lang=zh">研究全文：结果、成本与正反个案 →</a></p>
-        </div>
-
-        <div class="study-signal" id="benchmark-sol">
-          <h3>DeepSWE × Sol：完成差异要拆开看</h3>
-          <p class="study-setting">脚本默认 GPT-5.6 Sol / xhigh · 113 个任务 · 历史 best-valid 汇总</p>
-          <p><strong>观察：</strong>裸 Codex、原生 Goal、Heartbeat 分别完成 54、60、70 题。Heartbeat 比 Goal 多 10 题，但默认时间窗口也更长。</p>
-          <p><strong>Insight：</strong>源码把“继续执行”与“有效交付”分开处理：worktree 中有代码，收集器仍可能拿到空补丁。应分别检查恢复、补丁交付与独立验收，再追查它们对完成差异的贡献。</p>
-          <p class="signal-boundary"><strong>范围：</strong>每任务取最佳有效结果，非单次通过率；预算不同，尝试次数和成本未完整披露。合入未复验成绩，不能视为同预算净增益。</p>
-          <p class="study-link"><a href="../../../benchmarks/deepswe-sol/">研究全文：历史结果、恢复与交付机制 →</a></p>
-        </div>
-
-        <div class="study-signal" id="benchmark-flash">
-          <h3>DeepSWE × V4 Flash max：让反例改变实现</h3>
-          <p class="study-setting">DeepSeek V4 Flash / max + Codex · 冻结 113 题 · 按相同 hint 条件比较 Goal 与 LoopX</p>
-          <p><strong>观察：</strong>LoopX 的按题平均 feature 覆盖高约 2 个百分点。两组均有 hint 的事后长时切片中，完成数从 12/29 增至 14/29，累计耗时少 16.4%。</p>
-          <p><strong>Insight：</strong>精选案例里的差别在于，失败反例是否被保留，外部契约能否推翻实现假设。验证的价值要体现在修复与复验上，而不只是增加检查次数。</p>
-          <p class="signal-boundary"><strong>范围：</strong>覆盖不等于成功率；长时切片为事后分组，耗时包含成功与失败运行。局部发现不能外推为总体提升或等质量加速。</p>
-          <p class="study-link"><a href="../../../benchmarks/deepswe/behavior-discovery/">研究全文：需求覆盖、行为案例与长时切片 →</a></p>
-        </div>
-
-        <p class="takeaway">让进度可恢复，让已有成果可保留，再检查续跑是否补上了验收缺口。</p>
-        <p>四项研究提供了局部正向观察，也暴露了回退、成本和归因问题。下一步需要在匹配预算和重复实验中，分别验证恢复、回滚、交付与反例驱动修复的收益。</p>
-        <p class="small-note">SWE-Marathon 与 DeepSWE × Sol 已撤回的 SSH Goal、Codex CLI 成绩和结论均不用于这里的比较。</p>
       </section>
 
       <section id="exploration">
@@ -197,10 +142,6 @@
         <h2>公开依据与延伸阅读</h2>
         <p class="small-note">技术内容仅据公开仓库材料整理。源码与数据引用固定到本次读取修订；历史实验使用其自身版本。本页没有新增实验结果。</p>
         <ol class="source-list">
-          <li><a href="../../../benchmarks/lhtb/?lang=zh">LHTB：与 Plain、原生 Goal 的对比</a>；<a href="https://github.com/huangruiteng/loopx/blob/d60813451609ad28b2855fe7acda9a4701740c40/benchmark/LHTB/studies/five-arm-gpt56sol-max/data.json">46 题公开聚合数据</a>；<a href="https://github.com/huangruiteng/loopx/blob/d60813451609ad28b2855fe7acda9a4701740c40/benchmark/LHTB/studies/five-arm-gpt56sol-max/README.md">实验设置与范围</a>；<a href="https://github.com/huangruiteng/loopx/blob/d60813451609ad28b2855fe7acda9a4701740c40/apps/presentation/site/src/lhtb-copy.json">简报中的机制与正反案例</a>；<a href="https://zli12321.github.io/LHTB/index.html">LHTB 官方说明</a>。研究贡献者见原文。</li>
-          <li><a href="../../../benchmarks/swe-marathon/?lang=zh">SWE-Marathon：持续自我验证</a>；<a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/swe-marathon/README.md">设置、正反个案与局限</a>；<a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/swe-marathon/data.json">公开聚合数据</a>。贡献者与案例来源见研究原文。</li>
-          <li><a href="../../../benchmarks/deepswe-sol/">DeepSWE × Sol：从继续执行到有效交付</a>。独立研究简报，含 113 任务历史结果、机制图与固定修订的一手来源；研究归档贡献：<a href="https://github.com/huangruiteng/loopx/pull/4502">@gwh6669999，#4502</a>。</li>
-          <li><a href="../../../benchmarks/deepswe/behavior-discovery/">DeepSWE × V4 Flash max：从提示到行为</a>；<a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/deepswe/behavior-discovery/README.md">披露范围</a>；<a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/deepswe/behavior-discovery/index.html">固定修订的图表、案例与指标</a>。</li>
           <li><a href="https://github.com/huangruiteng/loopx/blob/ed1a8269ef2f12ad8863a04254d5d17021fa8100/loopx/capabilities/explore/README.md">Explore：证据图、规划与权限边界</a>。</li>
           <li><a href="https://github.com/huangruiteng/loopx/blob/ed1a8269ef2f12ad8863a04254d5d17021fa8100/docs/product/use-cases/auto-research/decentralized-auto-research-showcase.md">Auto Research：公开蓝图与命令路径</a>。</li>
           <li><a href="https://github.com/huangruiteng/loopx/blob/ed1a8269ef2f12ad8863a04254d5d17021fa8100/loopx/capabilities/issue_fix/docs/state-kernel-domain-state-case-study.zh-CN.md">PR / Issue Fix：State Kernel 与领域状态如何协同</a>。</li>
