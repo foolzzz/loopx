@@ -58,32 +58,19 @@ def register_slash_commands_command(
             "codex",
             "codex-cli",
             "claude-code",
-            "opencode",
-            "gemini",
-            "gemini-cli",
             "cursor",
             "cursor-agent",
             "zcode",
             "z-code",
             "agy",
             "antigravity",
-            "kiro",
-            "kiro-cli",
             "pi",
         ],
         help=(
             "Host surface to install. Repeatable. Defaults to static command facades "
-            "for Codex, Claude Code, and OpenCode. `gemini`, `cursor`, `zcode`, "
-            "`agy`, `kiro-cli`, `pi` are opt-in: they write into those hosts' own "
+            "for Codex and Claude Code. `cursor`, `zcode`, "
+            "`agy`, `pi` are opt-in: they write into those hosts' own "
             "homes only when requested."
-        ),
-    )
-    parser.add_argument(
-        "--with-goal-bridge",
-        action="store_true",
-        help=(
-            "Also install or uninstall the executable OpenCode goal bridge. Requires "
-            "an effective OpenCode surface and explicit opt-in."
         ),
     )
     parser.add_argument(
@@ -93,10 +80,6 @@ def register_slash_commands_command(
     parser.add_argument(
         "--claude-home",
         help="Claude Code home for skill installation. Defaults to CLAUDE_HOME or ~/.claude.",
-    )
-    parser.add_argument(
-        "--gemini-home",
-        help="Gemini CLI home for skill installation. Defaults to GEMINI_HOME or ~/.gemini.",
     )
     parser.add_argument(
         "--cursor-home",
@@ -111,10 +94,6 @@ def register_slash_commands_command(
         "--zcode-agents-home",
         dest="zcode_home",
         help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--opencode-home",
-        help="OpenCode config directory. Defaults to OPENCODE_CONFIG_DIR or ~/.config/opencode.",
     )
     parser.add_argument(
         "--pi-project",
@@ -145,8 +124,8 @@ def handle_slash_commands_command(
     if args.inspect:
         if args.surface != ["pi"]:
             raise ValueError("--inspect requires exactly --surface pi")
-        if args.dry_run or args.with_goal_bridge:
-            raise ValueError("--inspect cannot be combined with --dry-run or --with-goal-bridge")
+        if args.dry_run:
+            raise ValueError("--inspect cannot be combined with --dry-run")
         payload = inspect_pi_installations(pi_project=args.pi_project)
         print_payload(payload, output_format(args), render_pi_installation_markdown)
         return 0 if payload["ok"] else 1
@@ -154,14 +133,11 @@ def handle_slash_commands_command(
         payload = install_slash_commands(
             execute=bool((args.install or args.uninstall) and not args.dry_run),
             uninstall=bool(args.uninstall),
-            with_goal_bridge=bool(args.with_goal_bridge),
             surfaces=args.surface,
             cli_bin=args.cli_bin,
             include_legacy_aliases=not bool(args.no_legacy_aliases),
             codex_home=args.codex_home,
             claude_home=args.claude_home,
-            opencode_home=args.opencode_home,
-            gemini_home=args.gemini_home,
             cursor_home=args.cursor_home,
             zcode_home=getattr(args, "zcode_home", None),
             pi_project=args.pi_project,

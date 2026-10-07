@@ -220,7 +220,6 @@ def _formal_install_environment(
             # non-interactive Goal worker and would mutate that tree after its
             # installer readback was written.
             "LOOPX_INSTALL_SLASH_COMMANDS": "0",
-            "LOOPX_INSTALL_OPENCODE": "0",
             "LOOPX_INSTALL_CLAUDE": "0",
             "LOOPX_SKILL_DEDUPE_OTHER_ROOT": "0",
         }

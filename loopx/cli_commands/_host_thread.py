@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 
-from ..kiro_cli_goal_mode import KIRO_CLI_AGENT_TYPE, KIRO_CLI_SESSION_ID_ENV
 
 # Host surface -> the environment variable that host exports for its own
 # session/thread id. A binding is only durable if the host guarantees the id, so
@@ -12,7 +11,6 @@ from ..kiro_cli_goal_mode import KIRO_CLI_AGENT_TYPE, KIRO_CLI_SESSION_ID_ENV
 # another host's variable.
 HOST_THREAD_ID_ENV: dict[str, str] = {
     "codex-cli-tui": "CODEX_THREAD_ID",
-    KIRO_CLI_AGENT_TYPE: KIRO_CLI_SESSION_ID_ENV,
 }
 
 

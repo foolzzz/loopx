@@ -11,7 +11,6 @@ import argparse
 from collections.abc import Callable
 
 from ..chat_server import DEFAULT_CHAT_HOST, DEFAULT_CHAT_PORT
-from ..kiro_cli_goal_mode import KIRO_CLI_BIN
 from ..paths import default_public_scan_root
 from .support_control_agent_runtime import register_agent_runtime_arguments
 from .support_control_chat_endpoint import register_chat_endpoint_command
@@ -25,6 +24,7 @@ def register_chat_and_dashboard_commands(
         "chat",
         help="Open the local Goal Studio and review Agent-proposed LoopX Todos.",
     )
+    register_agent_runtime_arguments(chat_parser)
     chat_parser.add_argument(
         "--goal-id", help="Goal to select when the local workspace opens."
     )
@@ -32,7 +32,6 @@ def register_chat_and_dashboard_commands(
         "--host", default=DEFAULT_CHAT_HOST, help="Loopback bind host."
     )
     chat_parser.add_argument("--port", type=int, default=DEFAULT_CHAT_PORT)
-    register_agent_runtime_arguments(chat_parser, kiro_cli_bin=KIRO_CLI_BIN)
     chat_parser.add_argument(
         "--startup-timeout-seconds",
         type=float,
@@ -100,6 +99,7 @@ def register_chat_and_dashboard_commands(
         "dashboard",
         help="Start the local LoopX dashboard, status service, and Chat service.",
     )
+    register_agent_runtime_arguments(dashboard_parser)
     dashboard_parser.add_argument(
         "--goal-id", help="Goal to select when the local workspace opens."
     )
@@ -107,7 +107,6 @@ def register_chat_and_dashboard_commands(
         "--host", default=DEFAULT_CHAT_HOST, help="Loopback bind host."
     )
     dashboard_parser.add_argument("--port", type=int, default=DEFAULT_CHAT_PORT)
-    register_agent_runtime_arguments(dashboard_parser, kiro_cli_bin=KIRO_CLI_BIN)
     dashboard_parser.add_argument(
         "--assets-dir",
         help="Optional LoopX Chat web bundle directory. Defaults to packaged assets.",

@@ -99,13 +99,10 @@ def build_goal_start_contract(
             "host_surfaces": {
                 "codex-cli": "visible Codex CLI `/goal <task_body>`",
                 "claude-code": "Claude Code native `/loop` after `/loopx <task>` arms LoopX",
-                "opencode": "OpenCode `loopx_goal_activate`",
                 "pi": "Pi `loopx_goal_activate`",
-                "gemini-cli": "agent-driven Gemini CLI loop; every turn enters through quota should-run",
                 "cursor-agent": "agent-driven cursor-agent loop; every turn enters through quota should-run",
                 "zcode": "agent-driven ZCode loop; turns enter through quota should-run",
                 "agy": "agy native /goal loop with schedule wakes; quota entry advisory",
-                "kiro-cli": "Kiro CLI native /goal loop; quota entry advisory",
                 "deepseek-harness-native": "DeepSeek Harness same-session plugin driver; every turn enters through quota should-run",
                 "ark-managed-agent": "one-shot Goal",
                 "manual": "external scheduler or manual quota/status loop",
@@ -215,7 +212,7 @@ Rules:
 2. Capability: only `selected_capability_route`; run entry/admission and its later `capability show`; never infer from text/URLs. Capability state owns facts; generic Todos schedule.
 3. Todos: {todo_rule}.
 4. Writeback: current Todo evidence + next executable Todo, then `{refresh_command}` and quota readback. Chat/model summaries are not durable state.
-5. Host loop: after Todo write, activate missing/unknown/stale/type-changed CLI/TraeX `/goal`, Claude `/loop`, OpenCode bridge, Ark one-shot, or custom gate. Else surface the exact pasteable gate; never claim autonomy.
+5. Host loop: after Todo write, activate missing/unknown/stale/type-changed CLI/TraeX `/goal`, Claude `/loop`, Pi extension, Ark one-shot, or custom gate. Else surface the exact pasteable gate; never claim autonomy.
 6. Run the returned typed `quota_guard`; finish one bounded segment with validation + LoopX writeback or an exact blocker. Setup/planning/claim is not delivery.
 7. Optional features: need, preview, explicit apply. Respect private data, credentials, destructive git, production authority, and review rules.{fine_rule}
 """

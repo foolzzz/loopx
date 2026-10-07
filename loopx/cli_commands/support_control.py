@@ -30,7 +30,6 @@ from ..heartbeat_prompt import (
     project_heartbeat_agent_input,
     render_heartbeat_prompt_markdown,
 )
-from ..kiro_cli_goal_mode import KIRO_CLI_BIN
 from ..paths import default_public_scan_root
 from ..presentation.renderers.status_markdown import render_status_markdown
 from ..registry import (
@@ -522,7 +521,6 @@ def handle_support_control_command(
                 goal_id=getattr(args, "goal_id", None),
                 codex_bin=getattr(args, "codex_bin", "codex"),
                 claude_bin=getattr(args, "claude_bin", "claude"),
-                kiro_cli_bin=getattr(args, "kiro_cli_bin", KIRO_CLI_BIN),
                 lark_cli_bin=getattr(args, "lark_cli_bin", None),
                 assets_dir=Path(args.assets_dir).expanduser().resolve()
                 if getattr(args, "assets_dir", None)
@@ -565,7 +563,6 @@ def handle_support_control_command(
                 goal_id=args.goal_id,
                 codex_bin=args.codex_bin,
                 claude_bin=args.claude_bin,
-                kiro_cli_bin=getattr(args, "kiro_cli_bin", KIRO_CLI_BIN),
                 lark_cli_bin=args.lark_cli_bin,
                 startup_timeout_sec=max(0.1, float(args.startup_timeout_seconds)),
                 idle_timeout_sec=max(0.1, float(args.idle_timeout_seconds)),

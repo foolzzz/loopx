@@ -23,11 +23,6 @@ from .control_plane.turn_driver.host_binding import (
     MANAGED_TURN_HOST,
     managed_executor_binding,
 )
-from .kiro_cli_goal_mode import (
-    KIRO_CLI_CHAT_ADAPTER_KIND,
-    KIRO_CLI_CHAT_AGENT_ID,
-    KIRO_CLI_CHAT_DISPLAY_NAME,
-)
 
 
 def managed_host_capability(runtime_root: Path | None = None) -> dict[str, Any]:
@@ -71,7 +66,6 @@ def builtin_chat_endpoints(
     *,
     codex_bin: str,
     claude_bin: str,
-    kiro_cli_bin: str,
     runtime_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Return the built-in endpoints, managed host included."""
@@ -99,27 +93,6 @@ def builtin_chat_endpoints(
             "interrupt": True,
             "tool_calls": True,
             "trust_scope": "read_only",
-            "source": "builtin",
-        },
-        {
-            # Kiro CLI ships an ACP stdio agent (`kiro-cli acp`), so it is
-            # reachable through the existing ACP adapter without a new
-            # transport. It is a built-in row rather than something the owner
-            # must hand-register, because LoopX already owns the host's facts;
-            # `available` stays a live PATH probe so an uninstalled host renders
-            # as needing configuration instead of failing at session open.
-            "agent_id": KIRO_CLI_CHAT_AGENT_ID,
-            "display_name": KIRO_CLI_CHAT_DISPLAY_NAME,
-            "adapter_kind": KIRO_CLI_CHAT_ADAPTER_KIND,
-            "available": bool(shutil.which(kiro_cli_bin)),
-            "streaming": True,
-            "resume": True,
-            "interrupt": True,
-            "tool_calls": True,
-            # Kiro owns its persistent permission rules. LoopX cancels
-            # interactive ACP permission requests, but cannot turn an existing
-            # host-level `allow` rule into a read-only sandbox.
-            "trust_scope": "workspace_write",
             "source": "builtin",
         },
         {

@@ -136,10 +136,6 @@ COMMAND_GROUPS: list[dict[str, object]] = [
                 "purpose": "Use installed slash skills for `/loopx`; enable the adapter only when native `/loop` should be gated by LoopX.",
             },
             {
-                "command": "OpenCode goal bridge",
-                "purpose": "Opt into `--with-goal-bridge`, then use `loopx_goal_activate` to bind the quota-gated bridge.",
-            },
-            {
                 "command": "Other agent or shell",
                 "purpose": "Use a CLI, task, automation, heartbeat, or scheduler hook; otherwise drive LoopX manually.",
             },
@@ -379,7 +375,6 @@ MANPAGE_COMMAND_HELP_ONLY = frozenset(
         "lark-inbox",
         "migrate-state",
         "ml-experiment",
-        "opencode2-goal-worker",
         "operator-gate",
         "pr-review",
         "promotion-gate",
@@ -479,7 +474,6 @@ def render_concise_help(program: str = "loopx") -> str:
             "Run the loop:",
             "  Codex CLI      keep visible TUI; run loopx codex-cli-bootstrap-message.",
             "  Claude Code    use installed /loopx skills; adapter only for gated native /loop.",
-            "  OpenCode       opt into the goal bridge, then use loopx_goal_activate.",
             "  Other agents   need a CLI/task/automation/loop hook, or run LoopX manually.",
             "",
             "Global options: --registry PATH   --runtime-root PATH   --format markdown|json",

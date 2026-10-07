@@ -20,7 +20,6 @@ from .pi_goal_mode.installation import (
     _pi_runtime_path,
 )
 from .slash_command_files import (
-    front_matter as _front_matter,
     install_skill_facade as _install_skill_facade,
     managed_marker as _managed_marker,
     retire_managed_file as _retire_managed_file,
@@ -47,8 +46,6 @@ def _openai_skill_metadata(*, command: str, display_name: str, short_description
             "",
         ]
     )
-
-
 
 
 def _loopx_start_goal_arguments_instruction(
@@ -389,24 +386,10 @@ def _claude_home(value: str | None = None) -> Path:
     return Path(raw).expanduser()
 
 
-
-
 def _cursor_home(value: str | None = None) -> Path:
     """Cursor CLI reads MCP servers from CURSOR_HOME/mcp.json (default ~/.cursor)."""
     raw = value or os.environ.get("CURSOR_HOME") or str(Path.home() / ".cursor")
     return Path(raw).expanduser()
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _normalize_surfaces(surfaces: list[str] | None) -> list[str]:
@@ -826,14 +809,12 @@ def install_slash_commands(
                 }
             )
 
-
     if "agy" in effective_surfaces:
         # Antigravity CLI discovers global skills from the fixed
         # ~/.gemini/antigravity-cli/skills root using the documented flat
         # layout (one <name>.md per skill). The official docs describe no home
         # override, so LoopX offers none: installs target exactly that path,
-        # and the root belongs to agy alone (Gemini CLI reads ~/.gemini/skills),
-        # so the managed skill surfaces never collide across different hosts.
+        # and the root belongs to agy alone.
         _install_skill_facade(
             specs=_command_prompt_specs_for_host(
                 cli_bin=cli_bin,
@@ -849,7 +830,6 @@ def install_slash_commands(
             uninstall=uninstall,
             flat=True,
         )
-
 
     if "cursor" in effective_surfaces:
         # Cursor reads SKILL.md from CURSOR_HOME/skills (its skill roots also
@@ -902,7 +882,6 @@ def install_slash_commands(
             uninstall=uninstall,
             invoke_prefix="$",
         )
-
 
     if "pi" in effective_surfaces:
         extension_path = _pi_extension_path(pi_extension_root, scope=pi_scope)

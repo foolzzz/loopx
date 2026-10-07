@@ -3,7 +3,7 @@
  *
  * Mirrors the backend rule in `loopx/chat_actions.py`: the family token must be
  * the whole id or end at a `-` delimiter. A substring match displayed an
- * unrelated `kiroscope-worker` as "Kiro CLI" even after the backend correctly
+ * unrelated `codexplorer` as "Codex" even after the backend correctly
  * kept it independent, which is wrong owner attribution wherever the label is
  * rendered — diagnostics, run timelines, evidence and report cards.
  *
@@ -15,7 +15,6 @@
 export const AGENT_FAMILY_ROOTS = [
   "codex",
   "claude",
-  "kiro",
   "trae",
   "coco",
   "openai",

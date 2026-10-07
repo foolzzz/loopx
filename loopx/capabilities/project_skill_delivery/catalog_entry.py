@@ -23,7 +23,7 @@ PROJECT_SKILL_DELIVERY_CATALOG_ENTRY: dict[str, Any] = {
     "status": "active-preview",
     "real_world_anchor": (
         "one release-owned skill delivered into selected projects for "
-        "Codex, Claude Code, or OpenCode"
+        "Codex, Claude Code, or Pi"
     ),
     "user_value": (
         "Keep capability skills out of global agent configuration while "
