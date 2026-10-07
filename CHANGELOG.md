@@ -18,6 +18,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Removed
 
+- Retired the Release Artifacts workflow, its package identity/checksum script,
+  and workflow-only validation. Automatic wheel/sdist asset upload, package
+  attestations, and optional PyPI publication are no longer provided. Installed
+  Chat wheel/sdist HTTP and browser validation now run in the existing frontend
+  qualification CI; local release readiness remains available.
+- Retired the scheduled Update Notes workflow, draft generator, generator-only
+  smoke, and automation guide. Historical notes and their public-boundary smoke
+  remain available.
 - Removed the native desktop client, Tauri shell, signed update/repair/rollback
   UI, desktop release workflows, and their bundling, signing, feed, and validation
   helpers. Use `loopx dashboard` for the browser/PWA workspace; Settings and
@@ -80,14 +88,6 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   `historical_only` field; status `config` reports active runtime-shadow settings.
   Active runtime-shadow capture, qualification, promotion, provider defaults,
   transaction schemas and persisted lineage identities are unchanged.
-- Retired the Release Artifacts workflow, its package identity/checksum script,
-  and workflow-only validation. Automatic wheel/sdist asset upload, package
-  attestations, and optional PyPI publication are no longer provided. Installed
-  Chat wheel/sdist HTTP and browser validation now run in the existing frontend
-  qualification CI; local release readiness remains available.
-- Retired the scheduled Update Notes workflow, draft generator, generator-only
-  smoke, and automation guide. Historical notes and their public-boundary smoke
-  remain available.
 
 ## [2.1.0] - 2026-10-07
 
