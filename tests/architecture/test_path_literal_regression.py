@@ -24,7 +24,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BUDGET_PATH = Path(__file__).with_name("fixtures") / "path_literal_budget.json"
 SHELL_SUFFIXES = {".sh", ".bash", ".zsh", ".ps1"}
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"} | SHELL_SUFFIXES
-PROSE_ROOTS = {"docs", "benchmark", "deprecate", "examples", "tests", "regression"}
+PROSE_ROOTS = {"docs", "examples", "tests", "regression"}
 EXCLUDED_PARTS = {"tests", "test", "testing", "__tests__", "smoke", "smokes", "node_modules"}
 PATH_LITERAL = re.compile(r"(?<![\w.-])\.(?:loopx|codex)(?![\w.-])")
 QUOTED = r'''"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`'''
@@ -228,7 +228,6 @@ def test_detector_ignores_prose_and_unrelated_names(path: str, source: str) -> N
         "packages/provider/__tests__/probe.ts", "packages/provider/src/probe.test.ts",
         "apps/src/probe.spec.tsx", "scripts/path-smoke.py", "examples/probe.py",
         "regression/probe.py", "scripts/smoke/probe.py",
-        "benchmark/frozen/probe.py", "deprecate/benchmark-legacy/probe.py",
         "docs/probe.py", "README.md", "loopx/paths.py",
     ],
 )

@@ -20,7 +20,7 @@ from loopx.capabilities.benchmark_toolkit import (  # noqa: E402
 
 PRIVATE_ROOT = "/private/example/project/.local/private-benchmark-jobs/job-a"
 ALLOWED_SOURCES = [
-    "benchmark/deepswe/README.md",
+    "docs/research/README.md",
     "examples/benchmark-candidate-source-boundary-smoke.py",
     ".local/goals/loopx-meta/ACTIVE_GOAL_STATE.md",
     f"{PRIVATE_ROOT}/paired_comparison.compact.json",
