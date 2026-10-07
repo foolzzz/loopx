@@ -69,13 +69,10 @@ def build_slash_command_catalog(
                 "host_loop_activation_by_agent_type": {
                     "codex-cli": "set visible Codex CLI TUI `/goal <task_body>`",
                     "claude-code": "arm LoopX with `/loopx <task>`, then run native `/loop`",
-                    "opencode": "call `loopx_goal_activate`",
                     "pi": "call `loopx_goal_activate`",
-                    "gemini-cli": "drive the loop from the agent's own turns; enter every turn through quota should-run",
                     "cursor-agent": "drive the loop from the agent's own turns; enter every turn through quota should-run",
                     "zcode": "drive the loop from the agent's turns; enter through quota should-run",
                     "agy": "native /goal + schedule wakes; quota entry advisory",
-                    "kiro-cli": "native /goal loop; quota entry advisory",
                     "manual": "wire an external scheduler or run quota/status manually",
                     "other-agent": "use the custom host loop driver declared by `loopx agent-onboard`",
                 },

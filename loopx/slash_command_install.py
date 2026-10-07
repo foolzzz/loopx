@@ -11,11 +11,6 @@ from typing import Any
 from .paths import DEFAULT_PROJECT_REGISTRY, codex_home_path
 
 from .agy_goal_mode import agy_home as _agy_home
-from .kiro_cli_goal_mode import (
-    SKILLS_ROOT_LABEL as _KIRO_SKILLS_ROOT_LABEL,
-    kiro_home as _kiro_home,
-)
-from .opencode_goal_mode import plugin_source, runtime_source
 from .pi_goal_mode import extension_source as pi_extension_source
 from .pi_goal_mode import runtime_source as pi_runtime_source
 from .pi_goal_mode.installation import (
@@ -38,10 +33,6 @@ from .slash_commands import build_slash_command_catalog
 from .zcode_goal_mode import zcode_home as _zcode_home
 
 SCHEMA_VERSION = "loopx_slash_command_install_v0"
-OPENCODE_GOAL_DEPENDENCIES = {
-    "@opencode-ai/plugin": ">=1.17.15 <2",
-    "opencode-goal-plugin": "0.7.0",
-}
 
 
 def _openai_skill_metadata(*, command: str, display_name: str, short_description: str) -> str:
@@ -58,31 +49,6 @@ def _openai_skill_metadata(*, command: str, display_name: str, short_description
     )
 
 
-def _opencode_command_body(spec: dict[str, Any]) -> str:
-    return "\n\n".join(
-        [
-            _front_matter(
-                fields={
-                    "description": str(spec["description"]),
-                    "agent": "build",
-                }
-            ),
-            _managed_marker(command=str(spec["command"]), surface="opencode-command"),
-            f"Treat this as the LoopX `{spec['command']}` OpenCode command.",
-            (
-                "The exact current host is OpenCode. On OpenCode 1, pass "
-                "`--host-surface opencode` and use `loopx_goal_activate` from the "
-                "returned host-loop activation packet. On OpenCode 2, pass "
-                "`--host-surface opencode2` and run the returned "
-                "`loopx opencode2-goal-worker` command with the heartbeat packet values."
-            ),
-            "\n".join(str(item) for item in spec["instructions"]),
-            (
-                "Keep public/private boundaries intact and do not perform external "
-                "writes unless the active LoopX state or owner explicitly authorizes them."
-            ),
-        ]
-    ) + "\n"
 
 
 def _loopx_start_goal_arguments_instruction(
@@ -179,7 +145,7 @@ def _command_prompt_specs(*, cli_bin: str, include_legacy_aliases: bool) -> list
             "argument_hint": "[--fine-grained] [--capability-route issue-fix] [task text]",
             "instructions": [
                 "Visible command arguments: `$ARGUMENTS`.",
-                "Identify the exact current host surface (codex-cli-tui, opencode, opencode2, traex-cli, pi, gemini-cli, cursor-agent, zcode, agy, kiro-cli, deepseek-harness, or ark-managed-agent).",
+                "Identify the exact current host surface (codex-cli-tui, claude-code, traex-cli, pi, cursor-agent, zcode, agy, deepseek-harness, or ark-managed-agent).",
                 _loopx_start_goal_arguments_instruction(
                     cli_bin=cli_bin,
                     host_surface=None,
@@ -423,10 +389,6 @@ def _claude_home(value: str | None = None) -> Path:
     return Path(raw).expanduser()
 
 
-def _gemini_home(value: str | None = None) -> Path:
-    """Gemini CLI reads user skills from GEMINI_HOME/skills (default ~/.gemini)."""
-    raw = value or os.environ.get("GEMINI_HOME") or str(Path.home() / ".gemini")
-    return Path(raw).expanduser()
 
 
 def _cursor_home(value: str | None = None) -> Path:
@@ -435,182 +397,16 @@ def _cursor_home(value: str | None = None) -> Path:
     return Path(raw).expanduser()
 
 
-def _opencode_home(value: str | None = None) -> Path:
-    raw = value or os.environ.get("OPENCODE_CONFIG_DIR")
-    if not raw:
-        config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-        raw = str(Path(config_home) / "opencode")
-    return Path(raw).expanduser()
 
 
-def _strip_jsonc_comments(content: str) -> str:
-    output: list[str] = []
-    index = 0
-    in_string = False
-    escaped = False
-    while index < len(content):
-        char = content[index]
-        next_char = content[index + 1] if index + 1 < len(content) else ""
-        if in_string:
-            output.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            index += 1
-            continue
-        if char == '"':
-            in_string = True
-            output.append(char)
-            index += 1
-            continue
-        if char == "/" and next_char == "/":
-            output.extend((" ", " "))
-            index += 2
-            while index < len(content) and content[index] not in "\r\n":
-                output.append(" ")
-                index += 1
-            continue
-        if char == "/" and next_char == "*":
-            output.extend((" ", " "))
-            index += 2
-            while index < len(content):
-                if index + 1 < len(content) and content[index : index + 2] == "*/":
-                    output.extend((" ", " "))
-                    index += 2
-                    break
-                output.append("\n" if content[index] == "\n" else " ")
-                index += 1
-            continue
-        output.append(char)
-        index += 1
-    return "".join(output)
 
 
-def _strip_jsonc_trailing_commas(content: str) -> str:
-    output: list[str] = []
-    index = 0
-    in_string = False
-    escaped = False
-    while index < len(content):
-        char = content[index]
-        if in_string:
-            output.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            index += 1
-            continue
-        if char == '"':
-            in_string = True
-            output.append(char)
-            index += 1
-            continue
-        if char == ",":
-            lookahead = index + 1
-            while lookahead < len(content) and content[lookahead].isspace():
-                lookahead += 1
-            if lookahead < len(content) and content[lookahead] in "]}":
-                index += 1
-                continue
-        output.append(char)
-        index += 1
-    return "".join(output)
 
 
-def _opencode_plugin_name(plugin: Any) -> str | None:
-    if isinstance(plugin, str):
-        return plugin
-    if (
-        isinstance(plugin, list)
-        and plugin
-        and isinstance(plugin[0], str)
-    ):
-        return plugin[0]
-    return None
 
 
-def _opencode_direct_goal_plugin_conflicts(root: Path) -> tuple[list[str], list[str]]:
-    conflicts: list[str] = []
-    invalid: list[str] = []
-    goal_plugins = {
-        "opencode-goal-plugin",
-        "@heimoshuiyu/opencode-goal-plugin",
-        "@prevalentware/opencode-goal-plugin",
-    }
-    for name in ("opencode.json", "opencode.jsonc"):
-        path = root / name
-        if not path.exists():
-            continue
-        try:
-            content = path.read_text(encoding="utf-8")
-            if path.suffix == ".jsonc":
-                content = _strip_jsonc_trailing_commas(_strip_jsonc_comments(content))
-            payload = json.loads(content)
-        except (json.JSONDecodeError, OSError):
-            invalid.append(str(path))
-            continue
-        if not isinstance(payload, dict):
-            invalid.append(str(path))
-            continue
-        plugins = payload.get("plugin") or []
-        if isinstance(plugins, str):
-            plugins = [plugins]
-        if not isinstance(plugins, list):
-            invalid.append(str(path))
-            continue
-        plugin_names = [
-            name
-            for plugin in plugins
-            if (name := _opencode_plugin_name(plugin)) is not None
-        ]
-        if any(
-            plugin == package or plugin.startswith(f"{package}@")
-            for plugin in plugin_names
-            for package in goal_plugins
-        ):
-            conflicts.append(str(path))
-    return conflicts, invalid
 
 
-def _target_package_dependencies(
-    path: Path,
-    dependencies: dict[str, str],
-    *,
-    execute: bool,
-) -> str:
-    if path.exists():
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return "blocked_invalid_user_package_json"
-        if not isinstance(payload, dict):
-            return "blocked_invalid_user_package_json"
-        current = payload.get("dependencies")
-        if current is None:
-            current = {}
-        if not isinstance(current, dict):
-            return "blocked_invalid_user_package_json"
-        wanted = {**current, **dependencies}
-        if wanted == current:
-            return "unchanged"
-        payload["dependencies"] = wanted
-        status = "updated" if execute else "would_update"
-    else:
-        payload = {"private": True, "dependencies": dependencies}
-        status = "created" if execute else "would_create"
-    if execute:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2) + "\n",
-            encoding="utf-8",
-        )
-    return status
 
 
 def _normalize_surfaces(surfaces: list[str] | None) -> list[str]:
@@ -618,24 +414,22 @@ def _normalize_surfaces(surfaces: list[str] | None) -> list[str]:
     normalized: list[str] = []
     for surface in requested:
         if surface == "all":
-            candidates = ["codex", "claude-code", "opencode"]
+            candidates = ["codex", "claude-code"]
         elif surface == "codex":
             candidates = ["codex"]
         elif surface == "codex-cli":
             candidates = ["codex"]
-        elif surface in {"gemini-cli", "gemini-code"}:
-            candidates = ["gemini"]
         elif surface in {"cursor-agent", "cursor-cli"}:
             candidates = ["cursor"]
         elif surface in {"zcode", "z-code"}:
             candidates = ["zcode"]
         elif surface in {"agy", "antigravity", "antigravity-cli"}:
             candidates = ["agy"]
-        elif surface in {"kiro", "kiro-cli", "kirocli"}:
-            candidates = ["kiro-cli"]
         else:
             candidates = [surface]
         for candidate in candidates:
+            if candidate not in {"codex", "claude-code", "cursor", "zcode", "agy", "pi"}:
+                raise ValueError(f"unsupported slash command surface: {surface}")
             if candidate not in normalized:
                 normalized.append(candidate)
     return normalized
@@ -800,19 +594,15 @@ def install_slash_commands(
     *,
     execute: bool,
     uninstall: bool = False,
-    with_goal_bridge: bool = False,
     surfaces: list[str] | None = None,
     cli_bin: str = "loopx",
     include_legacy_aliases: bool = True,
     codex_home: str | None = None,
     claude_home: str | None = None,
-    opencode_home: str | None = None,
-    gemini_home: str | None = None,
     cursor_home: str | None = None,
     zcode_home: str | None = None,
     zcode_agents_home: str | None = None,
     agy_home: str | None = None,
-    kiro_home: str | None = None,
     pi_project: str | None = None,
     pi_scope: str = "project",
     pi_user_home: str | None = None,
@@ -821,12 +611,9 @@ def install_slash_commands(
     effective_surfaces = _normalize_surfaces(surfaces)
     codex_root = _codex_home(codex_home)
     claude_root = _claude_home(claude_home)
-    opencode_root = _opencode_home(opencode_home)
-    gemini_root = _gemini_home(gemini_home)
     cursor_root = _cursor_home(cursor_home)
     zcode_root = _zcode_home(zcode_home or zcode_agents_home)
     agy_root = _agy_home(agy_home)
-    kiro_root = _kiro_home(kiro_home)
     if pi_scope not in {"project", "user"}:
         raise ValueError("pi_scope must be 'project' or 'user'")
     pi_project_root = Path(pi_project or ".").expanduser().resolve()
@@ -836,19 +623,6 @@ def install_slash_commands(
     )
     installed: list[dict[str, Any]] = []
 
-    if with_goal_bridge and "opencode" not in effective_surfaces:
-        installed.append(
-            {
-                "surface": "opencode",
-                "host_surfaces": ["opencode"],
-                "mechanism": "opencode_goal_bridge",
-                "command": "/goal",
-                "path": None,
-                "status": "blocked_goal_bridge_requires_opencode_surface",
-                "invoke_as": [],
-                "reason": "Select --surface opencode when using --with-goal-bridge.",
-            }
-        )
 
     codex_reconciliation = None
     if "codex" in effective_surfaces:
@@ -1052,27 +826,6 @@ def install_slash_commands(
                 }
             )
 
-    if "gemini" in effective_surfaces:
-        # Gemini CLI discovers user skills from GEMINI_HOME/skills. Files are
-        # written directly, not through `gemini skills install --consent`: that
-        # command copies from a git URL or an existing local path and the host
-        # owns the copy, so LoopX would lose the managed marker, the per-file
-        # status and the dry run that every other surface reports — and it would
-        # need the `gemini` binary on PATH to install a file it already has.
-        _install_skill_facade(
-            specs=_command_prompt_specs_for_host(
-                cli_bin=cli_bin,
-                include_legacy_aliases=include_legacy_aliases,
-                host_surface="gemini-cli",
-            ),
-            installed=installed,
-            skills_dir=gemini_root / "skills",
-            surface="gemini",
-            host_surfaces=["gemini-cli"],
-            mechanism="gemini_cli_skills",
-            execute=execute,
-            uninstall=uninstall,
-        )
 
     if "agy" in effective_surfaces:
         # Antigravity CLI discovers global skills from the fixed
@@ -1097,30 +850,6 @@ def install_slash_commands(
             flat=True,
         )
 
-    if "kiro-cli" in effective_surfaces:
-        # Kiro CLI discovers global skills from <KIRO_HOME>/skills/<name>/SKILL.md
-        # (workspace skills live in .kiro/skills), and exposes every discovered
-        # skill as a `/<skill-name>` slash command. KIRO_HOME is the host's own
-        # override for that global root, so the resolver honours it: installing
-        # into ~/.kiro while the active profile lives elsewhere would report a
-        # success the running host never discovers. A same-named user prompt in
-        # .kiro/prompts wins over a skill by Kiro's own resolution order; the
-        # installer never touches the prompt directories.
-        _install_skill_facade(
-            specs=_command_prompt_specs_for_host(
-                cli_bin=cli_bin,
-                include_legacy_aliases=include_legacy_aliases,
-                host_surface="kiro-cli",
-            ),
-            installed=installed,
-            skills_dir=kiro_root / "skills",
-            surface="kiro-cli",
-            host_surfaces=["kiro-cli"],
-            mechanism="kiro_cli_skills",
-            execute=execute,
-            uninstall=uninstall,
-            invoke_prefix="/",
-        )
 
     if "cursor" in effective_surfaces:
         # Cursor reads SKILL.md from CURSOR_HOME/skills (its skill roots also
@@ -1174,209 +903,6 @@ def install_slash_commands(
             invoke_prefix="$",
         )
 
-    if "opencode" in effective_surfaces:
-        # OpenCode reads global skills from OPENCODE_CONFIG_DIR/skills. The
-        # static command facade below stays as it is — a command is something
-        # the user types, a skill is something the model can reach for itself.
-        opencode_specs = _command_prompt_specs_for_host(
-            cli_bin=cli_bin,
-            include_legacy_aliases=include_legacy_aliases,
-            host_surface="opencode",
-        )
-        _install_skill_facade(
-            specs=opencode_specs,
-            installed=installed,
-            skills_dir=opencode_root / "skills",
-            surface="opencode",
-            host_surfaces=["opencode"],
-            mechanism="opencode_skills",
-            execute=execute,
-            uninstall=uninstall,
-        )
-        commands_dir = opencode_root / "commands"
-        plugin_path = opencode_root / "plugins" / "loopx-goal.js"
-        runtime_path = opencode_root / "loopx" / "goal-bridge-runtime.mjs"
-        package_path = opencode_root / "package.json"
-        plugin_content = plugin_source()
-        runtime_content = runtime_source()
-
-        bridge_preflight_blocked = False
-        if with_goal_bridge and not uninstall:
-            conflicts, invalid_configs = _opencode_direct_goal_plugin_conflicts(opencode_root)
-            if invalid_configs:
-                installed.append(
-                    {
-                        "surface": "opencode",
-                        "host_surfaces": ["opencode"],
-                        "mechanism": "opencode_goal_bridge",
-                        "command": "/goal",
-                        "path": str(plugin_path),
-                        "status": "blocked_invalid_opencode_config",
-                        "invoke_as": [],
-                        "reason": (
-                            "Repair the listed OpenCode JSON/JSONC config before installing "
-                            "the bridge so direct plugin conflicts can be checked safely."
-                        ),
-                        "invalid_configs": invalid_configs,
-                    }
-                )
-                bridge_preflight_blocked = True
-            elif conflicts:
-                installed.append(
-                    {
-                        "surface": "opencode",
-                        "host_surfaces": ["opencode"],
-                        "mechanism": "opencode_goal_bridge",
-                        "command": "/goal",
-                        "path": str(plugin_path),
-                        "status": "blocked_conflicting_direct_plugin",
-                        "invoke_as": [],
-                        "reason": (
-                            "Remove direct goal-plugin registration from the listed "
-                            "OpenCode config, then rerun installation. The bridge imports "
-                            "the pinned plugin and both must not be loaded independently."
-                        ),
-                        "conflicts": conflicts,
-                    }
-                )
-                bridge_preflight_blocked = True
-            else:
-                user_owned_bridge_paths = [
-                    str(path)
-                    for path, content in (
-                        (plugin_path, plugin_content),
-                        (runtime_path, runtime_content),
-                    )
-                    if _target_status(path, content, execute=False)
-                    == "skipped_user_file"
-                ]
-                if user_owned_bridge_paths:
-                    installed.append(
-                        {
-                            "surface": "opencode",
-                            "host_surfaces": ["opencode"],
-                            "mechanism": "opencode_goal_bridge",
-                            "command": "/goal",
-                            "path": str(plugin_path),
-                            "status": "blocked_user_owned_bridge_file",
-                            "invoke_as": [],
-                            "reason": (
-                                "Move or rename the listed user-owned OpenCode bridge "
-                                "files before installing LoopX so no partial bridge or "
-                                "dependency update is applied."
-                            ),
-                            "conflicts": user_owned_bridge_paths,
-                        }
-                    )
-                    bridge_preflight_blocked = True
-
-            if not bridge_preflight_blocked:
-                package_status = _target_package_dependencies(
-                    package_path,
-                    OPENCODE_GOAL_DEPENDENCIES,
-                    execute=False,
-                )
-                if package_status == "blocked_invalid_user_package_json":
-                    installed.append(
-                        {
-                            "surface": "opencode",
-                            "host_surfaces": ["opencode"],
-                            "mechanism": "opencode_goal_dependencies",
-                            "command": "/goal",
-                            "path": str(package_path),
-                            "status": package_status,
-                            "invoke_as": [],
-                        }
-                    )
-                    bridge_preflight_blocked = True
-
-        if with_goal_bridge and not bridge_preflight_blocked:
-            if uninstall:
-                for mechanism, path in (
-                    ("opencode_goal_bridge", plugin_path),
-                    ("opencode_goal_bridge_runtime", runtime_path),
-                ):
-                    installed.append(
-                        {
-                            "surface": "opencode",
-                            "host_surfaces": ["opencode"],
-                            "mechanism": mechanism,
-                            "command": "/goal",
-                            "path": str(path),
-                            "status": _retire_status(path, execute=execute),
-                            "invoke_as": ["/goal", "loopx_goal_activate"],
-                        }
-                    )
-                installed.append(
-                    {
-                        "surface": "opencode",
-                        "host_surfaces": ["opencode"],
-                        "mechanism": "opencode_goal_dependencies",
-                        "command": "/goal",
-                        "path": str(package_path),
-                        "status": "preserved_shared_dependencies",
-                        "invoke_as": [],
-                    }
-                )
-            else:
-                package_status = _target_package_dependencies(
-                    package_path,
-                    OPENCODE_GOAL_DEPENDENCIES,
-                    execute=execute,
-                )
-                installed.append(
-                    {
-                        "surface": "opencode",
-                        "host_surfaces": ["opencode"],
-                        "mechanism": "opencode_goal_dependencies",
-                        "command": "/goal",
-                        "path": str(package_path),
-                        "status": package_status,
-                        "invoke_as": [],
-                    }
-                )
-                if package_status == "blocked_invalid_user_package_json":
-                    bridge_preflight_blocked = True
-                else:
-                    for mechanism, path, content in (
-                        ("opencode_goal_bridge_runtime", runtime_path, runtime_content),
-                        ("opencode_goal_bridge", plugin_path, plugin_content),
-                    ):
-                        installed.append(
-                            {
-                                "surface": "opencode",
-                                "host_surfaces": ["opencode"],
-                                "mechanism": mechanism,
-                                "command": "/goal",
-                                "path": str(path),
-                                "status": _target_status(path, content, execute=execute),
-                                "invoke_as": ["/goal", "loopx_goal_activate"],
-                            }
-                        )
-
-        if not bridge_preflight_blocked:
-            for spec in opencode_specs:
-                path = commands_dir / f"{spec['name']}.md"
-                status = (
-                    _retire_status(path, execute=execute)
-                    if uninstall
-                    else _target_status(
-                        path,
-                        _opencode_command_body(spec),
-                        execute=execute,
-                    )
-                )
-                installed.append(
-                    {
-                        "surface": "opencode",
-                        "host_surfaces": ["opencode"],
-                        "mechanism": "opencode_commands",
-                        "command": spec["command"],
-                        "path": str(path),
-                        "status": status,
-                        "invoke_as": [str(spec["command"])],
-                    }
-                )
 
     if "pi" in effective_surfaces:
         extension_path = _pi_extension_path(pi_extension_root, scope=pi_scope)
@@ -1467,7 +993,6 @@ def install_slash_commands(
         "schema_version": SCHEMA_VERSION,
         "operation": "uninstall" if uninstall else "install",
         "execute": execute,
-        "with_goal_bridge": with_goal_bridge,
         "requested_surfaces": surfaces or ["all"],
         "effective_surfaces": effective_surfaces,
         "catalog_schema_version": build_slash_command_catalog(
@@ -1478,16 +1003,10 @@ def install_slash_commands(
             "codex_prompt_dir": None,
             "codex_skill_dir": str(codex_root / "skills") if "codex" in effective_surfaces else None,
             "claude_skill_dir": str(claude_root / "skills") if "claude-code" in effective_surfaces else None,
-            "gemini_skill_dir": str(gemini_root / "skills") if "gemini" in effective_surfaces else None,
             "cursor_skill_dir": str(cursor_root / "skills") if "cursor" in effective_surfaces else None,
             "cursor_mcp_path": str(cursor_root / "mcp.json") if "cursor" in effective_surfaces else None,
             "zcode_skill_dir": str(zcode_root / "skills") if "zcode" in effective_surfaces else None,
             "agy_skill_dir": str(agy_root / "skills") if "agy" in effective_surfaces else None,
-            "kiro_cli_skill_dir": str(kiro_root / "skills") if "kiro-cli" in effective_surfaces else None,
-            "opencode_skill_dir": str(opencode_root / "skills") if "opencode" in effective_surfaces else None,
-            "opencode_command_dir": str(opencode_root / "commands") if "opencode" in effective_surfaces else None,
-            "opencode_plugin_path": str(opencode_root / "plugins" / "loopx-goal.js") if "opencode" in effective_surfaces and with_goal_bridge else None,
-            "opencode_package_path": str(opencode_root / "package.json") if "opencode" in effective_surfaces and with_goal_bridge else None,
             "pi_scope": pi_scope if "pi" in effective_surfaces else None,
             "pi_extension_path": str(_pi_extension_path(pi_extension_root, scope=pi_scope)) if "pi" in effective_surfaces else None,
             "pi_runtime_path": str(_pi_runtime_path(pi_extension_root)) if "pi" in effective_surfaces else None,
@@ -1504,16 +1023,10 @@ def install_slash_commands(
             "Codex does not currently support user-defined native top-level slash commands; use explicit skill invocation through `$loopx` or `/skills`.",
             "Explicit LoopX command-facade skills use agents/openai.yaml policy allow_implicit_invocation=false and remain distinct from richer workflow skills such as loopx-project.",
             "Claude Code discovers user skills from CLAUDE_HOME/skills and exposes each skill name as a slash command.",
-            "Gemini CLI discovers user skills from GEMINI_HOME/skills with the same SKILL.md front matter; files are written directly because `gemini skills install` copies from a git URL or an existing local path and hands the copy to the host, which would lose the managed marker, per-file status and dry-run reporting every other surface has.",
             "Cursor discovers skills from CURSOR_HOME/skills and has no user-defined slash commands, so the cursor surface installs the skill facade and registers the LoopX MCP server in CURSOR_HOME/mcp.json; run `cursor-agent mcp enable loopx` once to approve it.",
             "ZCode discovers user skills from ZCODE_HOME/skills (default ~/.zcode/skills) and exposes each skill for invocation via `$skill-name` or Settings -> Skills.",
             "Antigravity CLI discovers global skills from the fixed ~/.gemini/antigravity-cli/skills root using the documented flat layout (one <name>.md per skill); the agy surface is opt-in and offers no home override because the host documents none.",
-            f"Kiro CLI discovers global skills from {_KIRO_SKILLS_ROOT_LABEL}/<name>/SKILL.md (default ~/.kiro/skills) and exposes each as a `/<skill-name>` slash command; the kiro-cli surface is opt-in and resolves KIRO_HOME so install and uninstall target the profile the running host reads. Kiro resolves .kiro/prompts and KIRO_HOME/prompts before skills, so a same-named user prompt shadows the managed skill.",
-            "OpenCode discovers global skills from OPENCODE_CONFIG_DIR/skills in addition to the static command facade; a command is typed by the user, a skill can be reached by the model itself.",
-            "The default all surface installs only OpenCode's static command facade; the executable goal bridge requires --with-goal-bridge.",
             f"The Pi surface is opt-in and installs the self-contained goal extension and its loop runtime into {pi_target_note}; it is not part of the default all surface.",
-            "The OpenCode goal bridge uses Bun-managed config-directory dependencies and must replace any direct goal-plugin registration.",
-            "OpenCode bridge uninstall preserves package.json dependencies because they may be shared by user-owned local plugins.",
             "Uninstall is fail-closed: it retires only files carrying the LoopX managed marker and leaves user-owned files in place.",
         ],
     }
@@ -1532,30 +1045,18 @@ def render_slash_command_install_markdown(payload: dict[str, Any]) -> str:
     codex_prompt_dir = payload.get("summary", {}).get("codex_prompt_dir")
     codex_skill_dir = payload.get("summary", {}).get("codex_skill_dir")
     claude_skill_dir = payload.get("summary", {}).get("claude_skill_dir")
-    gemini_skill_dir = payload.get("summary", {}).get("gemini_skill_dir")
     cursor_skill_dir = payload.get("summary", {}).get("cursor_skill_dir")
     zcode_skill_dir = payload.get("summary", {}).get("zcode_skill_dir")
-    kiro_cli_skill_dir = payload.get("summary", {}).get("kiro_cli_skill_dir")
-    opencode_command_dir = payload.get("summary", {}).get("opencode_command_dir")
-    opencode_plugin_path = payload.get("summary", {}).get("opencode_plugin_path")
     if codex_prompt_dir:
         lines.append(f"- codex prompts: `{codex_prompt_dir}`")
     if codex_skill_dir:
         lines.append(f"- codex skills: `{codex_skill_dir}`")
     if claude_skill_dir:
         lines.append(f"- claude skills: `{claude_skill_dir}`")
-    if gemini_skill_dir:
-        lines.append(f"- gemini skills: `{gemini_skill_dir}`")
     if cursor_skill_dir:
         lines.append(f"- cursor skills: `{cursor_skill_dir}`")
     if zcode_skill_dir:
         lines.append(f"- zcode skills: `{zcode_skill_dir}`")
-    if kiro_cli_skill_dir:
-        lines.append(f"- kiro-cli skills: `{kiro_cli_skill_dir}`")
-    if opencode_command_dir:
-        lines.append(f"- opencode commands: `{opencode_command_dir}`")
-    if opencode_plugin_path:
-        lines.append(f"- opencode bridge: `{opencode_plugin_path}`")
     pi_extension_path = payload.get("summary", {}).get("pi_extension_path")
     if pi_extension_path:
         lines.append(f"- pi extension: `{pi_extension_path}`")
