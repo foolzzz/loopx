@@ -158,10 +158,9 @@ def test_cli_visible_mode_fails_closed_without_host_identity() -> None:
         assert visible["recommended_next_steps"][0]["kind"] == "stop", visible
 
 
-def test_cli_visible_mode_maps_opencode_to_goal_loop_connector() -> None:
+def test_cli_visible_mode_maps_pi_to_goal_loop_connector() -> None:
     for identity_arg, expected_host in [
-        ("generic-cli", "generic-cli"),
-        ("opencode", "generic-cli"),
+        ("pi", "generic-cli"),
     ]:
         proc = run_cli(
             "--format",
@@ -179,13 +178,13 @@ def test_cli_visible_mode_maps_opencode_to_goal_loop_connector() -> None:
         assert proc.returncode == 0, (identity_arg, proc.stderr)
         payload = json.loads(proc.stdout)
         assert payload["selected_capability_ready"] is True, payload
-        assert payload["selected_connector_id"] == "opencode_goal_loop", payload
+        assert payload["selected_connector_id"] == "pi_goal_loop", payload
         assert payload["selected_turn_mapping"]["host"] == expected_host, payload
         assert f"--host {expected_host}" in payload["next_preview_command"], payload
         visible = next(
             option for option in payload["mode_options"] if option["mode"] == "visible_tui"
         )
-        assert visible["connector_id"] == "opencode_goal_loop", visible
+        assert visible["connector_id"] == "pi_goal_loop", visible
         assert visible["host_resolution"] == "resolved", visible
 
 
@@ -293,7 +292,7 @@ def main() -> int:
     test_cli_markdown_explains_benefits()
     test_cli_visible_mode_preserves_host_identity()
     test_cli_visible_mode_fails_closed_without_host_identity()
-    test_cli_visible_mode_maps_opencode_to_goal_loop_connector()
+    test_cli_visible_mode_maps_pi_to_goal_loop_connector()
     test_cli_shell_service_fails_closed_without_adapter_and_validator()
     test_cli_fails_closed_on_bad_intent()
     test_cli_rejects_dsh_as_a_visible_host_identity()

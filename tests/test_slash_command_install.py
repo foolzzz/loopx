@@ -47,8 +47,7 @@ def test_host_materialization_installs_generated_loopx_entry_skill(
         "status": "created",
         "metadata_status": "created",
     }
-    # A plain scalar, not `name: "loopx"`: hosts such as Kiro CLI keep the quote
-    # characters verbatim and would expose the skill as `/"loopx"`.
+    # Keep simple identifiers as plain YAML scalars across host readers.
     assert "name: loopx\n" in skill_text
     assert 'name: "loopx"' not in skill_text
     assert "ark-managed-agent" in skill_text
@@ -258,57 +257,6 @@ def test_codex_install_retires_managed_metadata_beside_user_owned_skill(
     )
 
 
-def test_opencode_install_writes_commands_bridge_and_pinned_dependencies(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        codex_home=str(tmp_path / "codex"),
-        claude_home=str(tmp_path / "claude"),
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is True
-    command = opencode_home / "commands" / "loopx.md"
-    plugin = opencode_home / "plugins" / "loopx-goal.js"
-    runtime = opencode_home / "loopx" / "goal-bridge-runtime.mjs"
-    package = opencode_home / "package.json"
-    assert "--host-surface opencode" in command.read_text(encoding="utf-8")
-    assert "createLoopxGoalPlugin" in plugin.read_text(encoding="utf-8")
-    runtime_text = runtime.read_text(encoding="utf-8")
-    assert "quota" in runtime_text
-    assert "terminal_no_followup" in runtime_text
-    package_text = package.read_text(encoding="utf-8")
-    assert '"opencode-goal-plugin": "0.7.0"' in package_text
-    assert '"@opencode-ai/plugin": ">=1.17.15 <2"' in package_text
-    assert _row(payload, "opencode_goal_bridge")["status"] == "created"
-
-
-def test_default_and_all_surfaces_install_only_static_opencode_commands(
-    tmp_path: Path,
-) -> None:
-    for surfaces in (None, ["all"]):
-        opencode_home = tmp_path / ("default" if surfaces is None else "all")
-        payload = install_slash_commands(
-            execute=True,
-            surfaces=surfaces,
-            codex_home=str(tmp_path / "codex"),
-            claude_home=str(tmp_path / "claude"),
-            opencode_home=str(opencode_home),
-        )
-
-        assert payload["effective_surfaces"] == ["codex", "claude-code", "opencode"]
-        assert payload["with_goal_bridge"] is False
-        assert (opencode_home / "commands" / "loopx.md").exists()
-        assert not (opencode_home / "plugins" / "loopx-goal.js").exists()
-        assert not (opencode_home / "loopx" / "goal-bridge-runtime.mjs").exists()
-        assert not (opencode_home / "package.json").exists()
-
-
 def test_claude_install_routes_global_risks_to_focused_cli(tmp_path: Path) -> None:
     claude_home = tmp_path / "claude"
     install_slash_commands(
@@ -328,235 +276,6 @@ def test_claude_install_routes_global_risks_to_focused_cli(tmp_path: Path) -> No
         assert expected in skill_text
         assert "This command is read-only" in skill_text
         assert "global-summary" not in skill_text
-
-
-def test_opencode_static_uninstall_preserves_installed_bridge(tmp_path: Path) -> None:
-    opencode_home = tmp_path / "opencode"
-    install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    payload = install_slash_commands(
-        execute=True,
-        uninstall=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is True
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    assert (opencode_home / "plugins" / "loopx-goal.js").exists()
-    assert (opencode_home / "loopx" / "goal-bridge-runtime.mjs").exists()
-    assert (opencode_home / "package.json").exists()
-
-
-def test_opencode_bridge_uninstall_retires_managed_files_and_keeps_package(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    payload = install_slash_commands(
-        execute=True,
-        uninstall=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is True
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    assert not (opencode_home / "plugins" / "loopx-goal.js").exists()
-    assert not (opencode_home / "loopx" / "goal-bridge-runtime.mjs").exists()
-    assert (opencode_home / "package.json").exists()
-    assert _row(payload, "opencode_goal_dependencies")["status"] == (
-        "preserved_shared_dependencies"
-    )
-
-
-def test_opencode_install_fails_closed_for_direct_goal_plugin_registration(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    opencode_home.mkdir()
-    (opencode_home / "opencode.jsonc").write_text(
-        '{"plugin": ["opencode-goal-plugin"]}\n',
-        encoding="utf-8",
-    )
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        codex_home=str(tmp_path / "codex"),
-        claude_home=str(tmp_path / "claude"),
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is False
-    assert _row(payload, "opencode_goal_bridge")["status"] == (
-        "blocked_conflicting_direct_plugin"
-    )
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    assert not (opencode_home / "plugins" / "loopx-goal.js").exists()
-    assert not (opencode_home / "package.json").exists()
-
-
-def test_opencode_install_fails_closed_for_tuple_goal_plugin_registration(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    opencode_home.mkdir()
-    (opencode_home / "opencode.json").write_text(
-        '{"plugin": [["opencode-goal-plugin", {"maxTurns": 20}]]}\n',
-        encoding="utf-8",
-    )
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is False
-    assert _row(payload, "opencode_goal_bridge")["status"] == (
-        "blocked_conflicting_direct_plugin"
-    )
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    assert not (opencode_home / "plugins" / "loopx-goal.js").exists()
-    assert not (opencode_home / "package.json").exists()
-
-
-@pytest.mark.parametrize(
-    "relative_path",
-    ["plugins/loopx-goal.js", "loopx/goal-bridge-runtime.mjs"],
-)
-def test_opencode_bridge_preflight_blocks_user_owned_bridge_without_partial_writes(
-    tmp_path: Path,
-    relative_path: str,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    user_file = opencode_home / relative_path
-    user_file.parent.mkdir(parents=True)
-    user_file.write_text("// user-owned bridge file\n", encoding="utf-8")
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is False
-    bridge = _row(payload, "opencode_goal_bridge")
-    assert bridge["status"] == "blocked_user_owned_bridge_file"
-    assert bridge["conflicts"] == [str(user_file)]
-    assert user_file.read_text(encoding="utf-8") == "// user-owned bridge file\n"
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    other_bridge = (
-        opencode_home / "loopx" / "goal-bridge-runtime.mjs"
-        if relative_path == "plugins/loopx-goal.js"
-        else opencode_home / "plugins" / "loopx-goal.js"
-    )
-    assert not other_bridge.exists()
-    assert not (opencode_home / "package.json").exists()
-
-
-def test_opencode_bridge_preflight_blocks_all_writes_for_invalid_config(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    opencode_home.mkdir()
-    (opencode_home / "opencode.jsonc").write_text("{ invalid\n", encoding="utf-8")
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is False
-    assert _row(payload, "opencode_goal_bridge")["status"] == (
-        "blocked_invalid_opencode_config"
-    )
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    assert not (opencode_home / "plugins" / "loopx-goal.js").exists()
-    assert not (opencode_home / "package.json").exists()
-
-
-def test_goal_bridge_requires_an_effective_opencode_surface(tmp_path: Path) -> None:
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["codex"],
-        codex_home=str(tmp_path / "codex"),
-        opencode_home=str(tmp_path / "opencode"),
-    )
-
-    assert payload["ok"] is False
-    assert _row(payload, "opencode_goal_bridge")["status"] == (
-        "blocked_goal_bridge_requires_opencode_surface"
-    )
-    assert not (tmp_path / "opencode").exists()
-
-
-def test_opencode_bridge_preflight_blocks_all_writes_for_invalid_package(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    opencode_home.mkdir()
-    package = opencode_home / "package.json"
-    package.write_text("[]\n", encoding="utf-8")
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is False
-    assert _row(payload, "opencode_goal_dependencies")["status"] == (
-        "blocked_invalid_user_package_json"
-    )
-    assert not (opencode_home / "commands" / "loopx.md").exists()
-    assert not (opencode_home / "plugins" / "loopx-goal.js").exists()
-    assert package.read_text(encoding="utf-8") == "[]\n"
-
-
-def test_opencode_install_ignores_commented_jsonc_goal_plugin(
-    tmp_path: Path,
-) -> None:
-    opencode_home = tmp_path / "opencode"
-    opencode_home.mkdir()
-    (opencode_home / "opencode.jsonc").write_text(
-        """{
-  // \"plugin\": [\"opencode-goal-plugin\"],
-  \"plugin\": [],
-}
-""",
-        encoding="utf-8",
-    )
-
-    payload = install_slash_commands(
-        execute=True,
-        with_goal_bridge=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-
-    assert payload["ok"] is True
-    assert (opencode_home / "plugins" / "loopx-goal.js").exists()
 
 
 def test_pi_install_writes_self_contained_extension_into_project(
@@ -804,7 +523,7 @@ def test_pi_install_does_not_touch_default_all_surfaces(tmp_path: Path) -> None:
         pi_project=str(tmp_path),
     )
 
-    assert payload["effective_surfaces"] == ["codex", "claude-code", "opencode"]
+    assert payload["effective_surfaces"] == ["codex", "claude-code"]
     assert payload["summary"]["pi_extension_path"] is None
     assert payload["summary"]["pi_runtime_path"] is None
     assert not (tmp_path / ".pi" / "extensions" / "loopx-goal.ts").exists()
@@ -895,39 +614,13 @@ def test_pi_install_retires_managed_extension_on_uninstall(tmp_path: Path) -> No
     assert _row(payload, "pi_goal_extension_runtime")["status"] == "retired_managed_file"
 
 
-def test_gemini_surface_writes_skill_files_gemini_cli_can_discover(tmp_path: Path) -> None:
-    """Gemini CLI reads user skills from GEMINI_HOME/skills with the same
-    SKILL.md front matter as Claude Code, so the facade must land there."""
-    gemini_home = tmp_path / "gemini"
-    payload = install_slash_commands(
-        execute=True,
-        surfaces=["gemini"],
-        gemini_home=str(gemini_home),
-    )
-    assert payload["ok"] is True
-    assert payload["effective_surfaces"] == ["gemini"]
-
-    skill = gemini_home / "skills" / "loopx" / "SKILL.md"
-    assert skill.exists()
-    body = skill.read_text(encoding="utf-8")
-    assert body.startswith("---")
-    assert "name: loopx\n" in body
-
-    row = _row(payload, "gemini_cli_skills")
-    assert row["surface"] == "gemini"
-    assert row["host_surfaces"] == ["gemini-cli"]
-
-
 @pytest.mark.parametrize(
     ("surface", "home_argument", "skill_relative", "host_surface"),
     [
         ("claude-code", "claude_home", "skills/loopx/SKILL.md", "claude-code"),
-        ("gemini", "gemini_home", "skills/loopx/SKILL.md", "gemini-cli"),
         ("agy", "agy_home", "skills/loopx.md", "agy"),
-        ("kiro-cli", "kiro_home", "skills/loopx/SKILL.md", "kiro-cli"),
         ("cursor", "cursor_home", "skills/loopx/SKILL.md", "cursor-agent"),
         ("zcode", "zcode_home", "skills/loopx/SKILL.md", "zcode"),
-        ("opencode", "opencode_home", "skills/loopx/SKILL.md", "opencode"),
     ],
 )
 def test_installed_loopx_skill_binds_its_exact_host_surface(
@@ -951,23 +644,6 @@ def test_installed_loopx_skill_binds_its_exact_host_surface(
         assert "--host-surface codex-cli-tui" not in body
 
 
-def test_gemini_uninstall_keeps_user_files(tmp_path: Path) -> None:
-    """Uninstall removes only what LoopX manages — a skill the user wrote
-    under the same name must survive."""
-    gemini_home = tmp_path / "gemini"
-    install_slash_commands(execute=True, surfaces=["gemini"], gemini_home=str(gemini_home))
-
-    mine = gemini_home / "skills" / "my-own-skill" / "SKILL.md"
-    mine.parent.mkdir(parents=True, exist_ok=True)
-    mine.write_text("---\nname: my-own-skill\n---\nhand written\n", encoding="utf-8")
-
-    install_slash_commands(
-        execute=True, uninstall=True, surfaces=["gemini"], gemini_home=str(gemini_home)
-    )
-    assert not (gemini_home / "skills" / "loopx" / "SKILL.md").exists()
-    assert mine.exists(), "user-owned skill must not be removed"
-
-
 def test_cursor_surface_installs_skills(tmp_path: Path) -> None:
     """Cursor discovers SKILL.md from CURSOR_HOME/skills — the same format the
     other hosts use — so the facade lands there too, not only as MCP."""
@@ -979,19 +655,6 @@ def test_cursor_surface_installs_skills(tmp_path: Path) -> None:
     assert skill.exists()
     assert "name: loopx\n" in skill.read_text(encoding="utf-8")
     assert _row(payload, "cursor_skills")["host_surfaces"] == ["cursor-agent"]
-
-
-def test_opencode_surface_installs_skills_next_to_commands(tmp_path: Path) -> None:
-    """OpenCode reads global skills from OPENCODE_CONFIG_DIR/skills. The typed
-    command facade must stay — the two are different invocation paths."""
-    opencode_home = tmp_path / "opencode"
-    install_slash_commands(
-        execute=True,
-        surfaces=["opencode"],
-        opencode_home=str(opencode_home),
-    )
-    assert (opencode_home / "skills" / "loopx" / "SKILL.md").exists()
-    assert (opencode_home / "commands" / "loopx.md").exists()
 
 
 def test_cursor_surface_merges_mcp_and_leaves_other_servers(tmp_path: Path) -> None:
@@ -1032,18 +695,15 @@ def test_cursor_surface_reports_unreadable_config_instead_of_overwriting(
     assert (cursor_home / "mcp.json").read_text(encoding="utf-8") == "{ this is not json"
 
 
-def test_gemini_and_cursor_are_opt_in_not_part_of_all(tmp_path: Path) -> None:
+def test_cursor_is_opt_in_not_part_of_all(tmp_path: Path) -> None:
     """`all` must not start writing into homes of CLIs the user may not have —
-    the two new surfaces are opt-in, the same way `pi` is."""
+    Cursor is opt-in, the same way `pi` is."""
     payload = install_slash_commands(
         execute=False,
         surfaces=["all"],
-        gemini_home=str(tmp_path / "g"),
         cursor_home=str(tmp_path / "c"),
     )
-    assert "gemini" not in payload["effective_surfaces"]
     assert "cursor" not in payload["effective_surfaces"]
-    assert not (tmp_path / "g").exists()
     assert not (tmp_path / "c").exists()
 
 
@@ -1256,3 +916,33 @@ def test_marker_retires_after_user_edits_the_entry_and_dry_run_writes_nothing(
     )
     assert _row(payload, "cursor_mcp_server")["status"] == "skipped_user_owned_mcp_entry"
     assert json.loads(config.read_text(encoding="utf-8"))["mcpServers"]["loopx"] == entry
+
+
+@pytest.mark.parametrize("surfaces", [None, ["all"]])
+def test_default_install_contains_only_codex_and_claude(tmp_path: Path, surfaces) -> None:
+    codex_home = tmp_path / "codex"
+    claude_home = tmp_path / "claude"
+    payload = install_slash_commands(
+        execute=True,
+        surfaces=surfaces,
+        codex_home=str(codex_home),
+        claude_home=str(claude_home),
+    )
+    assert payload["effective_surfaces"] == ["codex", "claude-code"]
+    assert (codex_home / "skills" / "loopx" / "SKILL.md").is_file()
+    assert (claude_home / "skills" / "loopx" / "SKILL.md").is_file()
+    assert {row["surface"] for row in payload["installed"]} <= {"codex", "claude-code"}
+
+
+@pytest.mark.parametrize("surface", ["opencode", "opencode2", "kiro", "kiro-cli", "kirocli", "gemini", "gemini-cli", "gemini-code", "cline"])
+@pytest.mark.parametrize("uninstall", [False, True])
+def test_retired_slash_surfaces_fail_before_writing(tmp_path: Path, surface: str, uninstall: bool) -> None:
+    with pytest.raises(ValueError, match="unsupported slash command surface"):
+        install_slash_commands(
+            execute=True,
+            uninstall=uninstall,
+            surfaces=["codex", surface],
+            codex_home=str(tmp_path / "codex"),
+            claude_home=str(tmp_path / "claude"),
+        )
+    assert not list(tmp_path.iterdir())

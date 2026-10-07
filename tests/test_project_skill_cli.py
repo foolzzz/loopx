@@ -37,7 +37,7 @@ def test_project_skill_cli_installs_multiple_host_surfaces(
         "--surface",
         "claude-code",
         "--surface",
-        "opencode",
+        "pi",
         "--format",
         "json",
     ]

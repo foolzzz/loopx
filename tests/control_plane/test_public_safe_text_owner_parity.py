@@ -79,7 +79,7 @@ def _vision_text(text: str) -> None:
     """Drive the real TypeScript Vision owner through the Python entrypoint."""
 
     build_vision_checkpoint(
-        agent_id="kiro-cli",
+        agent_id="fixture-cli",
         agent_vision=None,
         existing_agent_vision=None,
         vision_unchanged_reason=text,

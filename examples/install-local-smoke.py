@@ -215,7 +215,6 @@ def main() -> int:
             **os.environ,
             "HOME": str(home),
             "CODEX_HOME": str(codex_home),
-            "OPENCODE_CONFIG_DIR": str(home / ".config" / "opencode"),
             "LOOPX_BIN_DIR": str(bin_dir),
             "LOOPX_SHELL_PROFILE": str(profile),
             "LOOPX_INSTALL_SKILL": "1",
@@ -259,12 +258,6 @@ def main() -> int:
         assert "install explicitly per project" in install.stdout, install.stdout
         assert f"codex skills: {codex_home / 'skills'}" in install.stdout, install.stdout
         assert f"claude skills: {home / '.claude' / 'skills'}" in install.stdout, install.stdout
-        assert "loopx OpenCode bridge: skipped (opt-in" in install.stdout, install.stdout
-        opencode_root = home / ".config" / "opencode"
-        assert (opencode_root / "commands" / "loopx.md").is_file()
-        assert not (opencode_root / "plugins" / "loopx-goal.js").exists()
-        assert not (opencode_root / "loopx" / "goal-bridge-runtime.mjs").exists()
-        assert not (opencode_root / "package.json").exists()
 
         wrapper = bin_dir / "loopx"
         assert wrapper.is_symlink(), wrapper
@@ -859,41 +852,6 @@ def main() -> int:
         assert "promotion-readiness evidence is stale" in stale_install.stderr, stale_install.stderr
         assert "age_hours=" in stale_install.stderr, stale_install.stderr
         assert "non-blocking" in stale_install.stderr, stale_install.stderr
-
-        blocked_opencode_root = home / ".config" / "opencode-blocked"
-        blocked_opencode_root.mkdir(parents=True)
-        (blocked_opencode_root / "opencode.jsonc").write_text(
-            "{ invalid\n",
-            encoding="utf-8",
-        )
-        blocked_opencode_install = run_install(
-            {
-                **env,
-                "LOOPX_INSTALL_OPENCODE": "1",
-                "OPENCODE_CONFIG_DIR": str(blocked_opencode_root),
-            },
-            "install-smoke-opencode-blocked",
-            revalidate_extensions=False,
-        )
-        assert (
-            "loopx OpenCode bridge: install attempted; run manually:"
-            in blocked_opencode_install.stdout
-        ), blocked_opencode_install.stdout
-        assert (blocked_opencode_root / "commands" / "loopx.md").is_file()
-        assert not (blocked_opencode_root / "plugins" / "loopx-goal.js").exists()
-        assert not (blocked_opencode_root / "loopx" / "goal-bridge-runtime.mjs").exists()
-        assert not (blocked_opencode_root / "package.json").exists()
-
-        opencode_install = run_install(
-            {**env, "LOOPX_INSTALL_OPENCODE": "1"},
-            "install-smoke-opencode",
-            revalidate_extensions=False,
-        )
-        assert "loopx OpenCode bridge:" in opencode_install.stdout, opencode_install.stdout
-        assert (opencode_root / "commands" / "loopx.md").is_file()
-        assert (opencode_root / "plugins" / "loopx-goal.js").is_file()
-        assert (opencode_root / "loopx" / "goal-bridge-runtime.mjs").is_file()
-        assert (opencode_root / "package.json").is_file()
 
     print("install-local-smoke ok")
     return 0

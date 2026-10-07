@@ -30,9 +30,7 @@ from loopx.host_mode_planner import (
     MODE_SHELL_SERVICE,
     MODE_VISIBLE_TUI,
     SUPPORTED_TURN_HOST_IDENTITIES,
-    VISIBLE_CONNECTOR_OVERRIDES,
     VISIBLE_HOST_CONNECTOR_IDS,
-    VISIBLE_OPENCODE_ALIASES,
     VISIBLE_PI_ALIASES,
     HostModePlanError,
     build_host_mode_plan,
@@ -70,14 +68,16 @@ class TestAgentTypeCatalog:
         types = {t["agent_type"] for t in catalog["canonical_agent_types"]}
         assert "codex-cli" in types
         assert "claude-code" in types
-        assert "opencode" in types
         assert "pi" in types
-        assert "gemini-cli" in types
         assert "cursor-agent" in types
         assert "ark-managed-agent" in types
         assert "other-agent" in types
         assert "manual" in types
-        assert len(types) >= 13
+        assert types == {
+            "ark-managed-agent", "codex-cli", "claude-code", "traex-cli", "pi",
+            "cursor-agent", "zcode", "agy", "deepseek-harness",
+            "deepseek-harness-native", "manual", "other-agent",
+        }
 
         ambiguous = {item["input"]: item["use_one_of"]
                      for item in catalog["ambiguous_inputs"]}
@@ -86,10 +86,8 @@ class TestAgentTypeCatalog:
     @pytest.mark.parametrize("surface,expected", [
         ("codex-cli-tui", "codex-cli"),
         ("claude-code", "claude-code"),
-        ("opencode", "opencode"),
         ("traex", "traex-cli"),
         ("pi", "pi"),
-        ("gemini", "gemini-cli"),
         ("cursor", "cursor-agent"),
         ("shell", "manual"),
         ("http", "other-agent"),
@@ -102,7 +100,6 @@ class TestAgentTypeCatalog:
     def test_normalize_agent_type(self):
         assert normalize_agent_type("codex") == "codex-cli"
         assert normalize_agent_type("pi") == "pi"
-        assert normalize_agent_type("gemini") == "gemini-cli"
         assert normalize_agent_type("traex") == "traex-cli"
 
     def test_host_managed_skill_types(self):
@@ -135,6 +132,7 @@ class TestTurnHostIdentities:
             "codex-cli",
             "claude-code",
             "generic-cli",
+            "pi",
         }
         assert "dsh" not in SUPPORTED_TURN_HOST_IDENTITIES
 
@@ -146,15 +144,11 @@ class TestTurnHostIdentities:
         assert VISIBLE_HOST_CONNECTOR_IDS == {
             "codex-cli": "codex_cli_tui",
             "claude-code": "claude_code_loop",
-            "generic-cli": "opencode_goal_loop",
+            "pi": "pi_goal_loop",
         }
 
-    def test_opencode_and_pi_aliases(self):
-        assert VISIBLE_OPENCODE_ALIASES == {
-            "opencode": "generic-cli", "open-code": "generic-cli",
-            "opencode2": "generic-cli", "opencode-2": "generic-cli"}
+    def test_pi_visible_identity(self):
         assert VISIBLE_PI_ALIASES == {"pi": "generic-cli"}
-        assert VISIBLE_CONNECTOR_OVERRIDES == {"pi": "pi_goal_loop"}
 
 
 # -- Host mode plan routing ---------------------------------------------------
@@ -187,7 +181,6 @@ class TestHostModePlanRouting:
     @pytest.mark.parametrize("host_id,connector", [
         ("codex-cli", "codex_cli_tui"),
         ("claude-code", "claude_code_loop"),
-        ("generic-cli", "opencode_goal_loop"),
     ])
     def test_visible_connector_per_host(self, host_id, connector):
         p = build_host_mode_plan(
@@ -198,12 +191,17 @@ class TestHostModePlanRouting:
         assert p["selected_connector_id"] == connector
         assert p["selected_turn_mapping"]["host"] == host_id
 
-    def test_opencode_pi_alias_routing(self):
-        for alias, connector in (("opencode", "opencode_goal_loop"),
-                                  ("pi", "pi_goal_loop")):
-            p = _plan("watch_each_turn", host_identity=alias)
-            assert p["selected_connector_id"] == connector
-            assert p["selected_turn_mapping"]["host"] == "generic-cli"
+    def test_pi_alias_routing(self):
+        p = _plan("watch_each_turn", host_identity="pi")
+        assert p["host_identity"] == "generic-cli"
+        assert p["selected_connector_id"] == "pi_goal_loop"
+        assert p["selected_turn_mapping"]["host"] == "generic-cli"
+
+    def test_generic_visible_identity_does_not_claim_a_host(self):
+        p = _plan("watch_each_turn", host_identity="generic-cli")
+        assert p["selected_capability_ready"] is False
+        assert p["selected_connector_id"] is None
+        assert p["selected_turn_mapping"]["host"] is None
 
     def test_declared_host_capabilities_make_selected_mode_ready(self):
         visible = build_host_mode_plan(
@@ -363,3 +361,45 @@ class TestPublicSafety:
         assert pkt2["activation_allowed"]
         assert pkt2["activation_state"] == "single_registered_agent_selected"
         assert pkt2["agent_id"] == "solo"
+
+
+@pytest.mark.parametrize("argv", [
+    ["opencode2-goal-worker", "--help"],
+    ["slash-commands", "--with-goal-bridge"],
+    ["slash-commands", "--opencode-home", "fixture"],
+    ["slash-commands", "--gemini-home", "fixture"],
+    ["chat", "--kiro-cli-bin", "fixture"],
+    ["dashboard", "--kiro-cli-bin", "fixture"],
+    ["host-mode-plan", "--goal-id", "fixture", "--intent", "watch_each_turn",
+     "--host-identity", "opencode"],
+])
+def test_retired_host_cli_routes_are_rejected(argv):
+    from loopx.cli import build_parser
+
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(argv)
+    assert exc.value.code == 2
+
+
+def test_retained_chat_runtime_selectors_still_parse():
+    from loopx.cli import build_parser
+
+    for command in ("chat", "dashboard"):
+        args = build_parser().parse_args([
+            command, "--codex-bin", "fixture-codex", "--claude-bin", "fixture-claude",
+        ])
+        assert args.codex_bin == "fixture-codex"
+        assert args.claude_bin == "fixture-claude"
+
+
+def test_builtin_chat_catalog_keeps_retained_hosts(tmp_path, monkeypatch):
+    from loopx.chat_endpoint_catalog import builtin_chat_endpoints
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    rows = builtin_chat_endpoints(
+        codex_bin="fixture-missing-codex", claude_bin="fixture-missing-claude",
+        runtime_root=tmp_path / "runtime",
+    )
+    ids = {row["agent_id"] for row in rows}
+    assert {"codex", "claude-code", "dsh"} <= ids
+    assert not ids & {"opencode", "opencode2", "kiro-cli", "gemini-cli", "cline"}
