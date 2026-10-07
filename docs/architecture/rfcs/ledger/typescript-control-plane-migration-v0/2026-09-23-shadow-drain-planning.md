@@ -11,7 +11,7 @@ Historical transactions and full projections no longer cross this drain RPC.
 The owner is the existing coordination runtime-shadow boundary, with the built-in
 File shadow provider. There is no new capability, extension, configuration, CLI
 flag or persistent format. The internal request/result v0 pair ships together.
-`authority-shadow drain`, inline post-write drain and their existing CLI feedback
+`coordination-shadow drain`, inline post-write drain and their existing CLI feedback
 consume the same planner; frontend configuration does not change because this
 is neither a new setting nor a new user action.
 

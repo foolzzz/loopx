@@ -54,7 +54,7 @@ class ShadowWorkspace:
             for key, value in limits.items()
             for item in ("--" + key.replace("_", "-"), value)
         ]
-        return self.cli("authority-shadow", "drain", *args, success=False)
+        return self.cli("coordination-shadow", "drain", *args, success=False)
 
     def crash(self, window: str, *args: str) -> dict:
         child = subprocess.Popen(
@@ -135,8 +135,8 @@ def workspace(path: Path, *, bootstrap: bool = True) -> ShadowWorkspace:
 CRASH_WORKER = r"""
 import json, pathlib, sys, time
 from loopx.cli import main
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 from loopx.control_plane.todos import active_state_editing
 window, state = sys.argv[1], pathlib.Path(sys.argv[2])
 def pause(payload=None):

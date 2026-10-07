@@ -11,17 +11,13 @@ never reports green while a selected row is unverified.
 ```bash
 python examples/shared-goal-authority-e2e/ladder.py            # exit 1 here: live rows unverified, the soak row pending
 python examples/shared-goal-authority-e2e/ladder.py --allow-unverified --allow-pending
-python examples/shared-goal-authority-e2e/ladder.py --stage 2c1 --report-json ladder-report.json
 python examples/shared-goal-authority-e2e/ladder.py --stage 2c2 --allow-pending --report-json ladder-report.json
 python examples/shared-goal-authority-e2e/ladder.py --list
 ```
 
 The pytest projection is `tests/control_plane/test_shared_goal_authority_e2e.py`;
 there, an unverified row skips as `unverified: <reason>` and a POSIX-only row
-skips on Windows. The `s2c1.retired_observation_upgrade` row is also covered by
-`tests/control_plane/test_local_authority_shadow_cli_e2e.py` and is skipped in
-the default pytest projection; `LOOPX_LADDER_FULL=1` runs it there too. The
-standalone example always runs selected rows. The eleven `s2c2.*` rows run in
+skips on Windows. The standalone example always runs selected rows. The eleven `s2c2.*` rows run in
 the stage2c correctness job alongside real-CLI process-death and recovery suites.
 
 The seven former `s2c1.*` observation-writer rows are retired with that writer.
@@ -35,7 +31,6 @@ and the transaction-bound outbox instead of requiring a second writable history.
 | `s0.file_matrix_twelve_rows` | 0 | store_direct | deterministic | `loopx/control_plane/testing/authority_e2e_file_matrix.py` runs exactly the twelve known file-provider scenario rows against the production executor, all true |
 | `s1.cli_document_decodes_through_ts_store` | 1 | real_cli | deterministic | Explicit bootstrap plus three CLI writes load at cursor `4`; paged `scanCommitted` returns four distinct transactions in source order and `readReceipt` finds the first source write |
 | `s2b.postgresql_conformance_live` | 2b | store_direct | env:postgresql | `postgresql_authority_store.integration.test.ts` under node's TAP reporter: `# pass >= 9`, `# fail 0`, `# skipped 0` |
-| `s2c1.retired_observation_upgrade` | 2c1 | real_cli | deterministic | Old enable rejects without writes; retained settings create no history; explicit clear/configure/bootstrap captures the next source transaction |
 | `s2c2.outbox_prepared_then_committed_entries` | 2c2 | real_cli | deterministic | with the maintenance lock held, `todo add` (Python) and `task-lease acquire` (TypeScript) report `drain_deferred/drain_lock_busy`, `status` shows one `committed_pending` entry per partition with one prepared record and one committed marker on disk; one `drain` delivers both (`delivered=2`), history holds the bootstrap plus two committed receipts from both writer runtimes, and the next write delivers inline at cursor `4` |
 | `s2c2.drain_idempotent` | 2c2 | real_cli | deterministic | three deferred entries: `drain --max-entries 1` delivers one (`pending_after=2`, `budget_exhausted`), the next `drain` delivers two, an idle `drain` reports `nothing_pending` with unchanged cursor, `head_digest` and `provider_revision`; receipts settle sequences 1..3; an idempotent same-key re-acquire carries no capture evidence and adds no transaction |
 | `s2c2.sigkill_between_primary_write_and_drain` | 2c2 | real_cli | deterministic (POSIX) | `todo add` SIGKILLed at `before_replace`, `after_replace` and `before_marker` leaves one prepared-only entry each; `drain` settles it as `abandoned` (no-op, primary unchanged) or `committed_proven_by_readback`, the projection equals the primary, and `inspect` ends `matched` |
@@ -120,7 +115,7 @@ bounded qualification result reports `sustained_parity_verdict=not_evaluated`.
 
 Future ladder rows must use the actual product interfaces:
 
-- `authority-shadow drain` for receipt-verified replay and cursor recovery;
+- `coordination-shadow drain` for receipt-verified replay and cursor recovery;
 - `coordination-shadow inspect / qualify / read-candidate` for comparison,
   bounded historical qualification, and a qualified read from that same head;
 - `coordination-shadow rollback` with an exact revision or unfinished bootstrap

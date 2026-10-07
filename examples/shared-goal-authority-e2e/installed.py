@@ -120,7 +120,7 @@ import loopx, loopx.todos, loopx.control_plane.coordination.shadow_management
 package = pathlib.Path(loopx.__file__).resolve().parent
 resources = {}
 for relative in ['control_plane/coordination/runtime_shadow.ts', 'control_plane/coordination/shadow_management.ts',
-    'control_plane/coordination/file_authority_store.ts', 'control_plane/coordination/local_authority_shadow_identity.ts',
+    'control_plane/coordination/file_authority_store.ts', 'control_plane/coordination/runtime_shadow_identity.ts',
     'control_plane/coordination/legacy_writer_lock_paths.ts',
     'control_plane/work_items/task_lease_acquire.ts',
     'control_plane/runtime/receipt_log_snapshot.ts',
@@ -165,7 +165,7 @@ print(json.dumps({'executable': sys.executable, 'package': str(package),
         require(lease["coordination_runtime_shadow"]["outcome"] == "delivered", f"native lease capture failed: {lease}")
         second = self.sdk_add("installed_python_second_todo_add", "Third installed package mutation.")
         require(second["coordination_runtime_shadow"]["outcome"] == "delivered", f"second Todo capture failed: {second}")
-        drained = self.cli("console_drain", "authority-shadow", "drain", "--goal-id", GOAL)
+        drained = self.cli("console_drain", "coordination-shadow", "drain", "--goal-id", GOAL)
         require(drained.get("pending_after") == 0 and drained.get("prepared_only_after") == 0,
             f"drain left unverified work: {drained}")
         qualified = self.cli("console_qualify_default_policy", "coordination-shadow", "qualify", "--goal-id", GOAL)["qualification"]

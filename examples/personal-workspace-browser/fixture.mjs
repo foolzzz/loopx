@@ -188,7 +188,6 @@ export function goalCapabilityCatalog(multiSubagentConfiguration) {
       fields: [{ key: "coordinator_agent_id", label: "Coordinator Agent", description: "", input_kind: "text", required: false }],
     }),
     multiSubagentCapability({ current: multiSubagentConfiguration }),
-    goalCapability({ availability: "retired", capabilityId: "local_authority_shadow", displayName: "Retired authority observation", fields: [], readOnlyReason: "Clear retired observation config explicitly; bootstrap runtime shadow separately." }),
     goalCapability({
       availability: "experimental_opt_in",
       capabilityId: "reward_memory",
@@ -1213,7 +1212,6 @@ export async function installApi(page, { goalSubagentConfigurationEnabled = true
           "lark_event_inbox",
           "peer_task_coordination",
           "multi_subagent",
-          "local_authority_shadow",
           "reward_memory",
         ],
         capability_catalog: {

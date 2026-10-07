@@ -9,10 +9,10 @@ import {requireJsonObject} from "../runtime_decode.ts";
 import {hasExactAuthorityKeys} from "./authority_store_codec.ts";
 import {FileAuthorityStore} from "./file_authority_store.ts";
 import {
-  commitLocalAuthorityShadowEntry, commitShadowEntryTransaction, loadValidatedShadowLineage, localAuthorityShadowPartitionDigest,
-  ShadowLineageError, type LocalAuthorityShadowDependencies,
-} from "./local_authority_shadow.ts";
-import {MAX_OUTBOX_SEQUENCE, outboxEntryFileName, sha256Digest} from "./local_authority_shadow_outbox.ts";
+  commitRuntimeShadowEntry, commitShadowEntryTransaction, loadValidatedShadowLineage, runtimeShadowPartitionDigest,
+  ShadowLineageError, type RuntimeShadowCandidateDependencies,
+} from "./runtime_shadow_candidate.ts";
+import {MAX_OUTBOX_SEQUENCE, outboxEntryFileName, sha256Digest} from "./runtime_shadow_outbox.ts";
 import {requireShadowCaptureBinding, withShadowMaintenanceLock} from "./shadow_management.ts";
 import {
   LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_REQUEST_SCHEMA, LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_RESULT_SCHEMA,
@@ -77,7 +77,7 @@ async function recordedRequest(r: Selection): Promise<JsonObject> {
   const source = {...requireJsonObject(prepared.source, "outbox source")};
   delete source.previous_lease; // Writer recovery evidence, not the committed source contract.
   const projection = outboxPartitionProjection(prepared.projection, r.goal_id, r.partition);
-  if (r.partition === "todos") ensure(prepared.partition_digest === localAuthorityShadowPartitionDigest("todos", projection),
+  if (r.partition === "todos") ensure(prepared.partition_digest === runtimeShadowPartitionDigest("todos", projection),
     "partition_digest_mismatch");
   return {runtime_root: r.runtime_root, goal_id: r.goal_id,
     entry: {entry_id: r.entry_id, partition: r.partition, seq: r.seq,
@@ -86,7 +86,7 @@ async function recordedRequest(r: Selection): Promise<JsonObject> {
       prepared_at: prepared.prepared_at, committed_at: marker?.committed_at ?? null,
       // This provisional value is resolved under the source lock by the transaction owner.
       resolution: marker === null ? "committed_proven_by_readback" : "committed"},
-    partition_projection: projection, partition_digest: localAuthorityShadowPartitionDigest(r.partition, projection)};
+    partition_projection: projection, partition_digest: runtimeShadowPartitionDigest(r.partition, projection)};
 }
 function result(r: Selection, fields: JsonObject): JsonObject {
   return {schema_version: LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_RESULT_SCHEMA, goal_id: r.goal_id,
@@ -97,7 +97,7 @@ function result(r: Selection, fields: JsonObject): JsonObject {
 
 /** A lost response can be replayed after local cleanup. Only a fully validated
  * lineage and the exact retained byte witnesses can replace missing files. */
-export async function deliverShadowEntry(value: unknown, dependencies: LocalAuthorityShadowDependencies = {}): Promise<JsonObject> {
+export async function deliverShadowEntry(value: unknown, dependencies: RuntimeShadowCandidateDependencies = {}): Promise<JsonObject> {
   let r: Selection;
   try { r = decode(value); } catch {
     throw new EffectRuntimeRequestError("shadow_entry_selection_invalid", "shadow_entry_selection_invalid");
@@ -128,7 +128,7 @@ export async function deliverShadowEntry(value: unknown, dependencies: LocalAuth
     // state under its primary lock through commit. A changed selection rejects.
     const marked = r.committed_sha256 !== null;
     const delivered = marked
-      ? await commitLocalAuthorityShadowEntry(selected.value, dependencies)
+      ? await commitRuntimeShadowEntry(selected.value, dependencies)
       : await commitShadowEntryTransaction(selected.value, dependencies, "derive_from_source");
     const settled = ["delivered", "replayed", "ambiguous_reconciled"].includes(delivered.outcome);
     return result(r, {...delivered, ...(marked && settled

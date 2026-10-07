@@ -97,14 +97,14 @@
       "content_digest_signal": "outbox entry source digest",
       "observed_reference": "goal_id",
       "producer_sites": [
-        "loopx/control_plane/coordination/local_authority_shadow_outbox.ts::beginLeaseOutboxEntry",
+        "loopx/control_plane/coordination/runtime_shadow_outbox.ts::beginLeaseOutboxEntry",
         "loopx/control_plane/todos/handoff_note.py::attach_todo_handoff_note"
       ],
       "consumer_sites": [
         "loopx/control_plane/collaboration/peers.py::read_inbox",
-        "loopx/control_plane/coordination/local_authority_shadow_adapter.py::drain_local_authority_shadow_outbox"
+        "loopx/control_plane/coordination/runtime_shadow_adapter.py::drain_runtime_shadow_outbox"
       ],
-      "effect_boundary": "loopx/control_plane/coordination/local_authority_shadow_adapter.py::drain_local_authority_shadow_outbox",
+      "effect_boundary": "loopx/control_plane/coordination/runtime_shadow_adapter.py::drain_runtime_shadow_outbox",
       "authority_role": "delivery_and_handoff_binding",
       "current_identity_strength": "goal_alias_only",
       "cleanup_support": "outbox_drain_and_handoff_closeout",

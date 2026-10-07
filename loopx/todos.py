@@ -144,7 +144,7 @@ from .control_plane.todos.handoff_mode import (
     enter_todo_ownership_handoff_gate,
     resolve_todo_completion_handoff,
 )
-from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+from .paths import effective_runtime_root
 from .control_plane.coordination.runtime_shadow_writer_adapter import (
     write_captured_todo_state,
     begin_todo_runtime_shadow_capture,

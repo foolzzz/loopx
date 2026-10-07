@@ -141,7 +141,7 @@ def _validation_source(
     """Return the private validation declaration of the todo, if any."""
 
     from .control_plane.coordination.local_authority import read_canonical_todos_if_promoted
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
     from .control_plane.todos.completion_validation import (
         _materialized_todo_item,
         resolve_private_completion_validation_declaration,
@@ -452,7 +452,7 @@ def _accepted_workspace(
     todo_id = str(todo.get("todo_id") or "")
     if not repos or not todo_id or not isinstance(goal, Mapping):
         return None
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
     from .workspace.git_workspace import repos_with_todo_branch
 
     if not repos_with_todo_branch(goal, todo_id, repos):
@@ -547,7 +547,7 @@ def resume_after_accept(*, registry_path: Path, goal_id: str, runtime_root_arg: 
     completion landed but whose resume failed can run it again.
     """
 
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
     from .plan_cards import resume_ready_plan_todos
 
     # The merge (when the todo has a workspace) has already landed here.

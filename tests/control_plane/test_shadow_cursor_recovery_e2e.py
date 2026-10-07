@@ -10,8 +10,8 @@ import subprocess
 import pytest
 
 from shadow_e2e_fixture import REPO, ShadowWorkspace, workspace
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 from loopx.control_plane.coordination.coordination_state_contract_generated import TASK_LEASE_ACQUIRE_REQUEST_SCHEMA
 from loopx.control_plane.work_items.task_lease_acquire_adapter import task_lease_acquire_authority_facts
 
@@ -126,7 +126,7 @@ def test_abandoned_cursor_survives_all_consumers(
     assert qualified['qualified'] is True and qualified['scope'] == 'bounded', qualified
     assert qualified['evidence']['operation_count'] == 3
     assert qualified['sustained_parity_verdict'] == 'not_evaluated'
-    transactions = adapter.read_local_authority_shadow(
+    transactions = adapter.read_runtime_shadow_candidate(
         runtime_root=w.runtime, goal_id=w.goal, scan_limit=100,
     )['proof']['transactions']
     assert len(transactions) == 4 + abandoned
@@ -156,7 +156,7 @@ def test_forged_applied_digest_holds_every_consumer_without_rewriting_bytes(
     else:
         acquire(w, todo, crash=True)
     assert w.drain()['ok'] is True
-    view = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     projection = view['proof']['transactions'][-1]['projection']
     fields = ('handoff_mode', 'todos') if partition == 'todos' else ('leases',)
     snapshot = {key: projection[key] for key in fields}

@@ -148,11 +148,6 @@
   },
   "local_authority_shadow_protocol": {
     "binding_schema": "loopx_coordination_runtime_shadow_binding_v0",
-    "config_schema": "loopx_local_authority_shadow_config_v0",
-    "request_schema": "loopx_local_authority_shadow_request_v0",
-    "projection_schema": "loopx_local_authority_shadow_projection_v0",
-    "evidence_schema": "loopx_local_authority_shadow_evidence_v0",
-    "observation_receipt_schema": "loopx_local_authority_shadow_observation_receipt_v0",
     "outbox_entry_schema": "loopx_local_authority_shadow_outbox_entry_v1",
     "outbox_commit_schema": "loopx_local_authority_shadow_outbox_commit_v1",
     "drain_cursor_schema": "loopx_local_authority_shadow_drain_cursor_v0",

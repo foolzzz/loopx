@@ -29,7 +29,7 @@ def _canonical(tmp_path, records=None, *, events=None, leases=None, native=False
         from loopx.control_plane.coordination.coordination_state_contract import (
             TODO_DOMAIN_RECORD_FIELDS, TODO_DOMAIN_READ_RECORD_SCHEMA_VERSION,
         )
-        from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+        from loopx.control_plane.coordination.authority_projection import canonical_bytes
         for record in projection["todos"]:
             record["schema_version"] = "todo_domain_record_v0"
             record.pop("index", None)

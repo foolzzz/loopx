@@ -114,7 +114,7 @@ CASES = [
          'tests/control_plane/test_shadow_cursor_recovery_e2e.py::test_abandoned_cursor_survives_all_consumers[2-0-todos]'),
     Case('qualification_baseline_digest', ((COORDINATION + 'runtime_shadow.ts', replacement(
         'const digest = marker === null ? null : (marker as JsonObject).partition_digest;',
-        'const digest = marker === null ? localAuthorityShadowHeadDigest(anchor.projection) : (marker as JsonObject).partition_digest;')),),
+        'const digest = marker === null ? runtimeShadowHeadDigest(anchor.projection) : (marker as JsonObject).partition_digest;')),),
          'tests/control_plane/test_shadow_cursor_recovery_e2e.py::test_abandoned_cursor_survives_all_consumers[2-0-leases]'),
     Case('cursor_digest_unchecked', (
         (COORDINATION + 'runtime_shadow.ts', replacement(
@@ -125,10 +125,10 @@ CASES = [
             '      partitionDigest(anchor, r.partition) === r.cursor.last_partition_digest,\n',
             '      anchor.provider_revision === r.cursor.last_provider_revision,\n'))),
          'tests/control_plane/test_shadow_cursor_recovery_e2e.py::test_forged_applied_digest_holds_every_consumer_without_rewriting_bytes[True-todos]'),
-    Case('lineage', ((COORDINATION + 'local_authority_shadow.ts', replacement('  requireLineage(entry.capture_lineage_id === binding.capture_lineage_id, "stale_generation");', '  // DELIBERATE MUTANT: omit active lineage validation.')),),
-         'tests/control_plane_ts/local_authority_shadow_outbox.test.ts', 'self-consistent foreign'),
-    Case('previous_partition', ((COORDINATION + 'local_authority_shadow.ts', replacement('  requireLineage(request.entry.source.previous_partition_digest === digest, "source_partition_continuity_unproved");', '  // DELIBERATE MUTANT: omit previous partition proof.')),),
-         'tests/control_plane_ts/local_authority_shadow_outbox.test.ts', 'missing primary mutation'),
+    Case('lineage', ((COORDINATION + 'runtime_shadow_candidate.ts', replacement('  requireLineage(entry.capture_lineage_id === binding.capture_lineage_id, "stale_generation");', '  // DELIBERATE MUTANT: omit active lineage validation.')),),
+         'tests/control_plane_ts/runtime_shadow_outbox.test.ts', 'self-consistent foreign'),
+    Case('previous_partition', ((COORDINATION + 'runtime_shadow_candidate.ts', replacement('  requireLineage(request.entry.source.previous_partition_digest === digest, "source_partition_continuity_unproved");', '  // DELIBERATE MUTANT: omit previous partition proof.')),),
+         'tests/control_plane_ts/runtime_shadow_outbox.test.ts', 'missing primary mutation'),
     Case('qualification_history', ((COORDINATION + 'runtime_shadow.ts', replacement('    const lineage = await loadValidatedShadowLineage(store, request.runtime_root, request.goal_id, binding);', '    const page = await store.scanCommitted(null, 10000);\n    const lineage = { head: await store.loadAuthority(), transactions: page.transactions,\n      last_sequences: {}, last_applied_sequences: {}, write_classes: ["todo_add"] };')),),
          'tests/control_plane_ts/coordination_runtime_shadow.test.ts', 'observation transaction mixed'),
     Case('management_request_digest', ((COORDINATION + "shadow_management.ts", replacement('if (state.operation.request_digest !== digest) throw new ShadowManagementError("management_operation_identity_mismatch");', 'if (false) throw new ShadowManagementError("management_operation_identity_mismatch");')),),
@@ -156,7 +156,7 @@ CASES.extend([
         "{last_seq: history.size, last_entry_id: last.operation_id",
         "{last_seq: 1, last_entry_id: last.operation_id")),),
         "tests/control_plane/test_shadow_drain_e2e.py::test_public_primary_maps_one_to_one_to_receipts_and_replays_idempotently"),
-    Case("early_committed", ((COORDINATION + "local_authority_shadow_outbox.py", replacement(
+    Case("early_committed", ((COORDINATION + "runtime_shadow_outbox.py", replacement(
         PREPARED_WRITE, PREPARED_WRITE + '''
             durable_write_json(
                 self._directory / entry_file_name(seq, entry_id, "committed"),
@@ -171,17 +171,17 @@ CASES.extend([
 # corresponding row red.
 LADDER_ROW = "tests/control_plane/test_shared_goal_authority_e2e.py::test_ladder_row_passes_or_is_declared_unverified"
 CASES.extend([
-    Case("status_hides_prepared_only", ((COORDINATION + "local_authority_shadow_outbox.py", replacement(
+    Case("status_hides_prepared_only", ((COORDINATION + "runtime_shadow_outbox.py", replacement(
         '            "committed_pending": sum(1 for entry in entries if entry.is_committed),\n'
         '            "prepared_only": sum(1 for entry in entries if not entry.is_committed),',
         '            "committed_pending": len(entries),\n'
         '            "prepared_only": 0,')),),
         LADDER_ROW + "[s2c2.sigkill_between_primary_write_and_drain]"),
     Case("qualification_ignores_drift", ((COORDINATION + "runtime_shadow.ts", replacement(
-        "const matched = localAuthorityShadowHeadDigest(request.projection) === localAuthorityShadowHeadDigest(lineage.head.head);",
+        "const matched = runtimeShadowHeadDigest(request.projection) === runtimeShadowHeadDigest(lineage.head.head);",
         "const matched = true;")),),
         LADDER_ROW + "[s2c2.parity_divergent_detects_foreign_edit]"),
-    Case("replay_counted_as_delivery", ((COORDINATION + "local_authority_shadow_adapter.py", replacement(
+    Case("replay_counted_as_delivery", ((COORDINATION + "runtime_shadow_adapter.py", replacement(
         "                    self._result.replayed += 1\n",
         "                    self._result.delivered += 1\n")),),
         LADDER_ROW + "[s2c2.sigkill_mid_drain]"),
@@ -252,7 +252,7 @@ CASES.extend([
         "    resolved_source = state_file.resolve(strict=False)",
         "    return  # DELIBERATE MUTANT: allow another goal to bypass source authority.\n    resolved_source = state_file.resolve(strict=False)")),),
          "tests/control_plane/test_shadow_writer_variant_e2e.py::test_other_goal_cannot_write_a_protected_goal_source_via_state_override[active_capture]"),
-    Case("cleanup_hides_verified_commit", ((COORDINATION + "local_authority_shadow_adapter.py", replacement(
+    Case("cleanup_hides_verified_commit", ((COORDINATION + "runtime_shadow_adapter.py", replacement(
         "            if self._result.cursor_before is None:\n"
         "                self._result.cursor_before = view.get(\"cursor\")\n"
         "            self._record_view(view)\n",

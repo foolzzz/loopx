@@ -346,22 +346,6 @@ def register_configure_goal_command(subparsers: argparse._SubParsersAction) -> N
         help="Clear coordination.write_scope.",
     )
     configure_goal_parser.add_argument(
-        "--local-authority-shadow-file",
-        action="store_true",
-        help=(
-            "Retired; rejected without writing. Use --coordination-runtime-shadow-file "
-            "and explicit coordination-shadow bootstrap for transaction-bound capture."
-        ),
-    )
-    configure_goal_parser.add_argument(
-        "--clear-local-authority-shadow",
-        action="store_true",
-        help=(
-            "Disable the local authority shadow. This does not delete retained "
-            "candidate observations."
-        ),
-    )
-    configure_goal_parser.add_argument(
         "--coordination-runtime-shadow-file",
         action="store_true",
         help=(

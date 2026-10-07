@@ -104,7 +104,7 @@ def test_public_rollback_preserves_other_goal_and_replays_after_primary_changes(
 
 _DELAYED_WRITER = """
 import json, pathlib, sys, time
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
 from loopx.cli import main
 barrier, release, timing = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
 actual = adapter.effect_runtime_result

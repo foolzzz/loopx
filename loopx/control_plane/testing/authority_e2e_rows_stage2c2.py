@@ -3,7 +3,7 @@
 Every row drives the product through the real ``python -m loopx.cli`` against
 one goal whose ``coordination.runtime_shadow`` capture is explicitly enabled
 and bootstrapped, and asserts only through shipped operator interfaces:
-``authority-shadow status|drain``, ``coordination-shadow bootstrap|inspect|
+``coordination-shadow status|drain``, ``coordination-shadow bootstrap|inspect|
 qualify|read-candidate|rollback`` and ``migrate-state``. Candidate history is
 read back through the retained TypeScript store (the adapter's read RPC). The
 rows add no product path and never read the candidate for a decision.
@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ...file_lock import exclusive_file_lock
-from ..coordination import local_authority_shadow_outbox as shadow_outbox
+from ..coordination import runtime_shadow_outbox as shadow_outbox
 from .authority_e2e_fixtures import (
     REPO_ROOT,
     GoalWorkspace,
@@ -98,7 +98,7 @@ GROWTH_TEXT_TEMPLATE = "Growth workload todo %02d " + "x" * 160
 GROWTH_DELTA_ACCELERATION_ENVELOPE_BYTES = 2048
 EVENT_ONLY_HOLD = "event_log_writer_not_bound"
 CONTINUITY_HOLD = "source_partition_continuity_unproved"
-SHADOW_READ_MODULE = Path("loopx") / "control_plane" / "coordination" / "local_authority_shadow.ts"
+SHADOW_READ_MODULE = Path("loopx") / "control_plane" / "coordination" / "runtime_shadow_candidate.ts"
 SHADOW_READ_REQUEST_SCHEMA = "loopx_coordination_runtime_shadow_outbox_read_v0"
 SHADOW_READ_SCAN_LIMIT = 10_000
 
@@ -108,8 +108,8 @@ SHADOW_READ_SCAN_LIMIT = 10_000
 CRASH_WORKER = r"""
 import json, pathlib, sys, time
 from loopx.cli import main
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 from loopx.control_plane.todos import active_state_editing
 window, state = sys.argv[1], pathlib.Path(sys.argv[2]).resolve()
 def pause():
@@ -220,7 +220,7 @@ def capture_workspace(
         context.root,
         goal_id=unique_goal_id(prefix),
         handoff_mode=handoff_mode,
-        shadow_enabled=False,
+
         runtime_root_binding="cli_override",
     )
     set_runtime_shadow(workspace, enabled=True)
@@ -273,7 +273,7 @@ def deferred(payload: Mapping[str, object], *, label: str) -> JsonObject:
 
 
 def shadow_status(workspace: GoalWorkspace) -> JsonObject:
-    return goal_cli(workspace, "authority-shadow", "status", check=False)
+    return goal_cli(workspace, "coordination-shadow", "status", check=False)
 
 
 def backlog(status: Mapping[str, object], partition: str) -> JsonObject:
@@ -289,7 +289,7 @@ def management_status(status: Mapping[str, object]) -> str:
 
 
 def drain(workspace: GoalWorkspace, *flags: str) -> JsonObject:
-    return goal_cli(workspace, "authority-shadow", "drain", *flags, check=False)
+    return goal_cli(workspace, "coordination-shadow", "drain", *flags, check=False)
 
 
 def inspect(workspace: GoalWorkspace) -> JsonObject:
@@ -331,7 +331,7 @@ def history(workspace: GoalWorkspace) -> list[JsonObject]:
     """Complete candidate history through the TypeScript shadow read over the retained store.
 
     The read runs in an independent node process so the row never imports the
-    Python adapter; it is the same ``readLocalAuthorityShadow`` the product
+    Python adapter; it is the same ``readRuntimeShadowCandidate`` the product
     uses for status and drain proof.
     """
 
@@ -347,9 +347,9 @@ def history(workspace: GoalWorkspace) -> list[JsonObject]:
     request_path = workspace.home / "shadow-read-request.json"
     request_path.write_text(json.dumps(request), encoding="utf-8")
     script = (
-        f"import {{ readLocalAuthorityShadow }} from {json.dumps((REPO_ROOT / SHADOW_READ_MODULE).as_uri())};"
+        f"import {{ readRuntimeShadowCandidate }} from {json.dumps((REPO_ROOT / SHADOW_READ_MODULE).as_uri())};"
         "import { readFile } from 'node:fs/promises';"
-        "process.stdout.write(JSON.stringify(await readLocalAuthorityShadow(JSON.parse(await readFile(process.argv[1], 'utf8')))));"
+        "process.stdout.write(JSON.stringify(await readRuntimeShadowCandidate(JSON.parse(await readFile(process.argv[1], 'utf8')))));"
     )
     completed = subprocess.run(
         [node, "--no-warnings", "--experimental-strip-types", "--input-type=module", "-e", script, str(request_path)],
@@ -1057,7 +1057,6 @@ def row_migration_seeds_and_drains(context: RowContext) -> RowOutcome:
     expect(executed.get("ok") is True and executed.get("wrote_project_registry") is True, "the migration must execute after rollback")
     runtime_goal = _object(_list(executed.get("runtime_goals"), "runtime goals")[0], "runtime goal")
     expect(runtime_goal.get("copied") is True, "the runtime goal directory must be copied")
-    expect(executed.get("authority_shadow_seeds") == [], "a capture-only goal plans no observation seed")
     expect((target.repo / legacy.state_path.name).exists(), "the active state must be copied to the mapped repository")
     carried = _set_target_runtime_shadow(target, enabled=True)
     expect(carried.get("enabled") is False and carried.get("provider") == RUNTIME_SHADOW_PROVIDER, "the migrated goal must carry its disabled capture configuration")

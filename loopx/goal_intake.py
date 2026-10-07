@@ -174,7 +174,7 @@ def create_goal(
     steps["orchestrator_todo"] = {"todo_id": first["todo_id"], "already_exists": bool(first.get("already_exists"))}
 
     try:
-        from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+        from .paths import effective_runtime_root
         from .rollout_event_log import append_rollout_event, build_rollout_event, rollout_event_log_path
 
         rt = effective_runtime_root(registry, runtime_arg)

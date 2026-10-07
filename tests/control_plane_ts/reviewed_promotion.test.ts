@@ -130,8 +130,8 @@ test("a source change between review and execution rejects the old plan without 
     baseline: projection,
     store: new FileAuthorityStore(join(root, "authority-shadow", "file-v0"), "goal-a"),
   };
-  const { commitLocalAuthorityShadowEntry } = await import(
-    "../../loopx/control_plane/coordination/local_authority_shadow.ts"
+  const { commitRuntimeShadowEntry } = await import(
+    "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts"
   );
   const rows = structuredClone(projection.todos) as JsonObject[];
   rows[0].text = "A newer independently committed objective";
@@ -141,7 +141,7 @@ test("a source change between review and execution rejects the old plan without 
     { handoff_mode: "hard_lease", todos: rows },
     { writeClass: "todo_update" },
   );
-  const committed = await commitLocalAuthorityShadowEntry(entry);
+  const committed = await commitRuntimeShadowEntry(entry);
   assert.equal(committed.outcome, "delivered");
   await settleFiles(f, entry, committed);
   const fresh: JsonObject = { ...projection, todos: rows };

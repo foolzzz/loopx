@@ -359,11 +359,6 @@ def capability_configuration_editor(
                 ),
             ],
         },
-        "local_authority_shadow": {
-            "supported_scopes": ["goal"],
-            "writable_scopes": [],
-            "fields": [],
-        },
         "coordination_runtime_shadow": {
             "supported_scopes": ["goal"],
             "writable_scopes": ["goal"],

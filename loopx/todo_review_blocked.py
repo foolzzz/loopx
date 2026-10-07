@@ -92,7 +92,7 @@ _REASON_LIMIT = 300
 
 
 def _runtime_root(registry_path: Path, runtime_root_arg: str | None) -> Path:
-    from .control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from .paths import effective_runtime_root
 
     return effective_runtime_root(registry_path, runtime_root_arg)
 

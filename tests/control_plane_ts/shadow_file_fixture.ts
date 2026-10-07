@@ -8,8 +8,8 @@ import { canonicalAuthorityBytes, canonicalAuthoritySha256 } from "../../loopx/c
 import { TODO_CANONICAL_READ_RECORD_FIELDS } from "../../loopx/control_plane/coordination/coordination_projection.ts";
 import * as schemas from "../../loopx/control_plane/coordination/coordination_state_contract.generated.ts";
 import { FileAuthorityStore } from "../../loopx/control_plane/coordination/file_authority_store.ts";
-import { localAuthorityShadowPartitionDigest } from "../../loopx/control_plane/coordination/local_authority_shadow.ts";
-import { outboxEntryIdentity } from "../../loopx/control_plane/coordination/local_authority_shadow_outbox.ts";
+import { runtimeShadowPartitionDigest } from "../../loopx/control_plane/coordination/runtime_shadow_candidate.ts";
+import { outboxEntryIdentity } from "../../loopx/control_plane/coordination/runtime_shadow_outbox.ts";
 import { bootstrapCoordinationRuntimeShadow } from "../../loopx/control_plane/coordination/runtime_shadow.ts";
 import { requireShadowCaptureBinding } from "../../loopx/control_plane/coordination/shadow_management.ts";
 
@@ -74,7 +74,7 @@ export async function pendingEntry(f: ShadowFixture, seq: number, part: JsonObje
   const sourceBytes = Buffer.from(`primary transaction ${partition}:${seq}\n`);
   if (partition === "todos" && options.resolution !== "abandoned") await writeFile(f.statePath, sourceBytes);
   const source = { kind: partition === "todos" ? "markdown_active_state" : "task_lease_record",
-    previous_partition_digest: localAuthorityShadowPartitionDigest(
+    previous_partition_digest: runtimeShadowPartitionDigest(
       partition,
       options.previousPartitionProjection ?? previousPartition,
     ),
@@ -90,7 +90,7 @@ export async function pendingEntry(f: ShadowFixture, seq: number, part: JsonObje
   const prepared = { schema_version: schemas.LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA, goal_id: "goal-a",
     capture_lineage_id: binding.capture_lineage_id, entry_id: entryId, partition, seq, writer, source,
     source_root_digest: binding.source_root_digest, projection: recordedProjection,
-    partition_digest: partition === "todos" ? localAuthorityShadowPartitionDigest(partition, part) : null, prepared_at: preparedAt };
+    partition_digest: partition === "todos" ? runtimeShadowPartitionDigest(partition, part) : null, prepared_at: preparedAt };
   const preparedBytes = `${JSON.stringify(prepared, null, 2)}\n`;
   await writeFile(join(directory, `${stem}.prepared.json`), preparedBytes);
   const marker = options.marker ?? true;
@@ -104,7 +104,7 @@ export async function pendingEntry(f: ShadowFixture, seq: number, part: JsonObje
       source_root_digest: binding.source_root_digest, prepared_at: preparedAt, committed_at: marker ? committedAt : null,
       prepared_sha256: sha(preparedBytes), committed_sha256: marker ? sha(markerBytes) : null, resolution },
     partition_projection: noOp ? null : part,
-    partition_digest: noOp ? null : localAuthorityShadowPartitionDigest(partition, part) };
+    partition_digest: noOp ? null : runtimeShadowPartitionDigest(partition, part) };
 }
 export async function settleFiles(f: ShadowFixture, request: JsonObject, result: JsonObject, previousDigest: string | null = null): Promise<void> {
   const entry = request.entry as JsonObject;

@@ -232,7 +232,7 @@ def test_handoff_and_native_acquire_serialize_quiescence_and_source_evidence(tmp
             assert refused["error_code"] == "authority_source_changed", refused
             assert "handoff_mode: soft_claim" in ws.state.read_text()
             assert not (lease_dir / f"{todo_id}.json").exists()
-        public(ws, "authority-shadow", "drain")
+        public(ws, "coordination-shadow", "drain")
         inspected = public(ws, "coordination-shadow", "inspect")
         assert inspected["inspection"]["status"] == "matched", inspected
         assert inspected["inspection"]["cursor"] == "2", inspected

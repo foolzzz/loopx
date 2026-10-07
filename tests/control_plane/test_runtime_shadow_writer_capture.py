@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
 from loopx.control_plane.work_items.task_lease import (
     acquire_task_lease,
     release_task_lease,
@@ -106,7 +106,7 @@ def test_runtime_shadow_todo_writer_captures_full_records_and_reuses_one_store(
 
     assert added["coordination_runtime_shadow"]["outcome"] == "delivered"
     assert updated["coordination_runtime_shadow"]["outcome"] == "delivered"
-    view = adapter.read_local_authority_shadow(
+    view = adapter.read_runtime_shadow_candidate(
         runtime_root=runtime_root,
         goal_id=GOAL_ID,
         scan_limit=10,
@@ -144,7 +144,7 @@ def test_runtime_shadow_todo_claim_preserves_claim_write_class(tmp_path: Path) -
     )
 
     assert claimed["coordination_runtime_shadow"]["outcome"] == "delivered"
-    view = adapter.read_local_authority_shadow(
+    view = adapter.read_runtime_shadow_candidate(
         runtime_root=runtime_root,
         goal_id=GOAL_ID,
         scan_limit=10,
@@ -226,7 +226,7 @@ def test_runtime_shadow_native_lease_writers_capture_complete_records(tmp_path: 
     assert renewed["coordination_runtime_shadow"]["outcome"] == "delivered"
     assert transferred["coordination_runtime_shadow"]["outcome"] == "delivered"
     assert released["coordination_runtime_shadow"]["outcome"] == "delivered"
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID)
     lease = view["head"]["leases"][0]
     assert lease["goal_id"] == GOAL_ID
     assert lease["owner"] == "agent-b"

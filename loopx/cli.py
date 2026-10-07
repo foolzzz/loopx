@@ -65,9 +65,7 @@ from .capabilities.periodic_report.post_writeback_hook import (
     build_periodic_report_post_writeback_projection,
     periodic_report_post_writeback_hooks_for_goal,
 )
-from .control_plane.coordination.local_authority_shadow_adapter import (
-    effective_runtime_root,
-)
+from .paths import effective_runtime_root
 from .capabilities.semantic_preference.cli import (
     handle_semantic_preference_command,
     register_semantic_preference_commands,
@@ -119,7 +117,6 @@ from .cli_commands import (
     handle_support_control_command,
     handle_handoff_mode_command,
     handle_task_lease_command,
-    handle_authority_shadow_command,
     handle_version_command,
     handle_host_mode_plan_command,
     handle_worker_bridge_command,
@@ -161,7 +158,6 @@ from .cli_commands import (
     register_support_control_commands,
     register_handoff_mode_command,
     register_task_lease_command,
-    register_authority_shadow_command,
     register_todo_command,
     register_version_command,
     register_host_mode_plan_command,
@@ -333,7 +329,6 @@ def build_parser() -> LoopXArgumentParser:
     register_automation_cadence_command(sub, add_subcommand_format)
     register_authority_archive_command(sub, add_subcommand_format)
     register_task_lease_command(sub, add_subcommand_format)
-    register_authority_shadow_command(sub, add_subcommand_format)
     register_todo_continuation(sub, add_subcommand_format)
     register_handoff_mode_command(sub, add_subcommand_format)
     register_shared_goal_alignment_command(sub, add_subcommand_format)
@@ -916,16 +911,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     if task_lease_result is not None:
         return task_lease_result
-
-    authority_shadow_result = handle_authority_shadow_command(
-        args,
-        registry_path=registry_path,
-        runtime_root_arg=args.runtime_root,
-        output_format=output_format,
-        print_payload=print_payload,
-    )
-    if authority_shadow_result is not None:
-        return authority_shadow_result
 
     continuation_result = handle_todo_continuation(
         args, registry_path=registry_path, runtime_root_arg=args.runtime_root,

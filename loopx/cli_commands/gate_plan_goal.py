@@ -157,7 +157,7 @@ def handle_gate_plan_goal_command(
 ) -> int | None:
     if args.command not in GATE_PLAN_GOAL_COMMANDS:
         return None
-    from ..control_plane.coordination.local_authority_shadow_adapter import effective_runtime_root
+    from ..paths import effective_runtime_root
     from ..gate_threads import gate_view, list_gates, render_gate_markdown, reply_to_gate, resolve_gate
     from ..goal_intake import create_goal, render_goal_create_markdown
     from ..plan_cards import apply_plan, list_plans, propose_plan, read_plan, render_plan_markdown

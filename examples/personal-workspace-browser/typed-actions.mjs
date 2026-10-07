@@ -1000,7 +1000,7 @@ export const typedActionsScenario = {
       if (await page.locator(".personal-capability-editor-status").count()) throw new Error("Editable Goal settings must not show internal editor-contract notices");
       const expectedGoalCapabilities = [
         "变更质量验证", "Goal 复核周期", "探索图谱", "探索 Harness", "飞书事件收件箱",
-        "飞书看板心跳同步", "已退役的 Authority 观测", "自适应子 Agent 容量",
+        "飞书看板心跳同步", "自适应子 Agent 容量",
         "已注册 Peer 任务协调", "周期报告", "Reward Memory 实验",
       ];
       if (JSON.stringify([...goalCapabilityOrder].sort()) !== JSON.stringify(expectedGoalCapabilities.sort())) {
@@ -1011,22 +1011,12 @@ export const typedActionsScenario = {
       const capabilityIndex = (name) => goalCapabilityOrder.indexOf(name);
       if (capabilityIndex("周期报告") >= capabilityIndex("探索 Harness")
         || capabilityIndex("自适应子 Agent 容量") <= capabilityIndex("探索 Harness")
-        || capabilityIndex("自适应子 Agent 容量") >= capabilityIndex("已退役的 Authority 观测")
         || capabilityIndex("自适应子 Agent 容量") >= capabilityIndex("Reward Memory 实验")) {
         throw new Error(`Goal capability maturity ordering drifted: ${JSON.stringify(goalCapabilityOrder)}`);
       }
-      await page.locator(".personal-capability-list").getByRole("button", { name: "已退役的 Authority 观测" }).click();
-      const retiredDetail = page.locator(".personal-capability-detail");
-      await retiredDetail.getByText(/--clear-local-authority-shadow/).waitFor();
-      if (await retiredDetail.getByRole("checkbox").count()
-          || await retiredDetail.getByRole("button", { name: "预览变更", exact: true }).count()) {
-        throw new Error("Retired observation must not expose activation controls");
+      if (goalCapabilityOrder.some(name => name.includes("已退役的 Authority"))) {
+        throw new Error("Removed observation capability remains in Goal settings");
       }
-      await page.screenshot({ path: resolve(outputDir, "retired-observation-settings.png"), fullPage: false, animations: "disabled" });
-      await page.setViewportSize({ width: 390, height: 844 });
-      await retiredDetail.getByText(/--clear-local-authority-shadow/).waitFor();
-      await page.screenshot({ path: resolve(outputDir, "retired-observation-settings-mobile.png"), fullPage: false, animations: "disabled" });
-      await page.setViewportSize(desktopViewport);
       await page.locator(".personal-capability-list").getByRole("button", { name: "周期报告" }).click();
       for (const label of [/^启用$/u, /^报告 Profile/u, /^Goal Channel 路由/u, /^时区/u]) {
         await page.getByLabel(label).waitFor({ state: "visible" });

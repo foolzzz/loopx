@@ -455,7 +455,6 @@ for (const capabilityId of [
   "explore_harness",
   "lark_event_inbox",
   "lark_kanban_heartbeat_sync",
-  "local_authority_shadow",
   "multi_subagent",
   "peer_task_coordination",
   "periodic_report",

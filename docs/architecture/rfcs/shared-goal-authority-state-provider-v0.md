@@ -47,7 +47,7 @@ separately. Three is a delivery plan, not a guaranteed total PR count.
 
 ## Observation retirement checkpoint (2026-09-24)
 
-[Current delivery inventory](ledger/shared-goal-authority-state-provider-v0/2026-09-24-observation-retirement.md)
+[Current delivery inventory](../../reference/reviewed-coordination-promotion.md)
 separates merged code, open PRs and qualification gates. This delivery removes
 the obsolete Python observation writer and TS observation commit path; it does
 not implement executor liveness or event-writer binding. There is one writable
@@ -1600,13 +1600,6 @@ that provider metadata is absent from the logical revision projection. This is
 Stage 1 parity evidence, not provider promotion or a claim that all later
 provider profiles are qualified.
 
-#### Stage 2C observation foundation: retired
-
-The historical post-commit observer has been removed. Existing configuration
-is readable but inactive, enable requests reject, and state migration no longer
-seeds a second observation history. Retained files are not deleted. Use the
-existing transaction-bound runtime shadow after explicit bootstrap; no old
-observation is promoted into evidence. [Transition and compatibility](../../reference/authority-observation-retirement.md).
 
 #### Implementation prerequisite: put local file mode behind the same coordination contract
 
@@ -2198,23 +2191,9 @@ Per stage, this increment implements:
 - Stage 2B: `s2b.postgresql_conformance_live` runs the PostgreSQL integration
   test file under node's TAP reporter and requires at least nine passes, zero
   failures, and zero skips.
-- Stage 2C observation foundation: seven `s2c1.*` rows port the local-shadow CLI
-  E2E and migration assertions and pin the single-lineage guarantee. The configure round trip previews, enables,
-  reads back, and disables the observer; every retained writer family (handoff-mode,
-  todo add/update/complete/supersede/archive-completed,
-  task-lease acquire/renew/transfer) captures with
-  `primary_writeback_preserved`, `provider_to_local_writes=false`, and
-  `candidate_read_for_decision=false`, while an idempotent re-acquire does not
-  observe; default-off goals stay isolated; candidate failure preserves the
-  primary commit; a POSIX SIGKILL in the crash gap loses only that
-  observation; a `--runtime-root` override that differs from
-  `common_runtime_root` keeps two todo adds, task-lease acquire, todo update,
-  and a leased completion in one store identity while the
-  registry root gains neither a candidate lineage nor lease state; and
-  `migrate-state` seeds a fresh lineage without legacy bytes.
 - Stage 2C parity half: ten `s2c2.*` rows drive one explicitly enabled
   `coordination.runtime_shadow` goal through the public CLI and assert only
-  through `authority-shadow status|drain`, `coordination-shadow
+  through `coordination-shadow status|drain`, `coordination-shadow
   bootstrap|inspect|qualify|read-candidate|rollback` and `migrate-state`,
   reading history through the retained TypeScript store. A Python Todo writer
   and a TypeScript lease writer leave prepared records with committed markers
@@ -2442,8 +2421,8 @@ remain reviewable in the same bounded slice.
     `coordination.runtime_shadow` is the sole writable lineage. Its existing
     transaction-bound outbox prepares under the source writer lock and drains
     by stable entry identity. The old `coordination.authority_shadow` writer
-    is removed; historical records remain readable, but cannot qualify capture
-    or promotion. Unsupported event writers still fail closed until their own
+    and its configuration/read interfaces are removed. Retained files are
+    untouched and cannot qualify capture or promotion. Unsupported event writers still fail closed until their own
     transaction boundary is bound; retiring observation does not close that gap.*
 
 ---

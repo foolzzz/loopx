@@ -34,7 +34,7 @@
 
 ## 旧观测退役检查点（2026-09-24）
 
-[当前交付清单](ledger/shared-goal-authority-state-provider-v0/2026-09-24-observation-retirement.zh-CN.md)
+[当前交付清单](../../reference/reviewed-coordination-promotion.zh-CN.md)
 区分已合入、在途 PR 与资格证据。本次删除旧 Python observer 和 TS observation 提交链，
 没有将其冒充 executor 存活保护或 event writer 绑定。只保留一个可写 shadow lineage，
 仍然默认关闭，且必须显式 bootstrap。
@@ -1260,12 +1260,6 @@ legacy-compatible、unknown-key、malformed-list、malformed-nested 与 non-stri
 这些是 Stage 1 parity 证据，不代表 provider promotion，也不代表后续 provider profile
 已经完成资格化。
 
-#### Stage 2C 旧提交后观测：已退役
-
-旧 observer 写入已删除。旧配置可识别但不再启用，重新启用请求被拒绝；目录迁移不再
-重新创建观测历史。保留文件不删除。需要捕获时显式配置并 bootstrap 现有事务绑定
-runtime shadow；旧 observation 不会升级为晋升证据。
-[操作与兼容](../../reference/authority-observation-retirement.md)。
 
 #### 实施前置条件：先让本地文件模式经过同一协调合同
 
@@ -1737,20 +1731,8 @@ CLI runner、observation-lock 窗口、候选回读）、只读 TypeScript 探�
   / API `1`，且不宣称晋升或可用性。
 - Stage 2B：`s2b.postgresql_conformance_live` 在 node TAP reporter 下运行
   PostgreSQL 集成测试文件，要求至少九个 pass、零 fail、零 skip。
-- Stage 2C 观察基础：七个 `s2c1.*` 行移植本地 shadow CLI E2E 与迁移断言，并钉住单一
-  lineage 保证。
-  configure 往返先预览、再开启、回读、最后关闭 observer；每个保留的 writer family
-  （handoff-mode、todo add/update/complete/supersede/
-  archive-completed、task-lease acquire/renew/transfer）都以
-  `primary_writeback_preserved`、`provider_to_local_writes=false`、
-  `candidate_read_for_decision=false` 完成 capture，而幂等 re-acquire 不产生
-  observation；default-off goal 保持隔离；候选失败不推翻主写；POSIX SIGKILL
-  落在崩溃间隙时只丢失该次 observation；`--runtime-root` 与 `common_runtime_root`
-  不同时，两次 todo add、task-lease acquire、todo update 与带 lease 的
-  complete 仍落入同一个 store identity，registry root 既不产生候选 lineage 也不
-  产生 lease 状态；`migrate-state` 在不携带 legacy 字节的前提下建立新 lineage。
 - Stage 2C parity 后半段：十个 `s2c2.*` 行只通过公开 CLI 驱动一个显式开启
-  `coordination.runtime_shadow` 的 goal，并且只经 `authority-shadow status|drain`、
+  `coordination.runtime_shadow` 的 goal，并且只经 `coordination-shadow status|drain`、
   `coordination-shadow bootstrap|inspect|qualify|read-candidate|rollback` 与
   `migrate-state` 断言，历史只经保留的 TypeScript store 读回。Python Todo writer
   与 TypeScript lease writer 各留下 prepared 记录与 committed 标记，一次 drain 恰好
@@ -1927,8 +1909,8 @@ decision authority，并且 caller-visible parity 与 rollback 能在同一有�
     `qualification_holds` 翻为 `[]` 与 `stage` 字面量的改变只在该 PR 内发生。*
 14. 哪条 shadow lineage 保持可写？*本次退役收敛：唯一可写 lineage 为
     `coordination.runtime_shadow`，复用已有的来源锁内 prepare 与稳定 entry identity
-    投递。删除旧 `coordination.authority_shadow` writer；历史记录仍可读，但不能证明
-    捕获或晋升资格。尚未绑定事务边界的事件 writer 继续拒绝，删除观察器不等于关闭
+    投递。删除旧 `coordination.authority_shadow` writer 及其配置与读取入口；保留文件
+    不改写，也不能证明捕获或晋升资格。尚未绑定事务边界的事件 writer 继续拒绝，删除观察器不等于关闭
     事件捕获缺口。*
 
 ---

@@ -11,7 +11,7 @@ from loopx.control_plane.coordination.coordination_state_contract import (
     TODO_DOMAIN_READ_RECORD_SCHEMA_VERSION, TODO_DOMAIN_RECORD_FIELDS,
 )
 from loopx.control_plane.coordination.local_authority import read_canonical_todos_if_promoted
-from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+from loopx.control_plane.coordination.authority_projection import canonical_bytes
 from loopx.control_plane.todos import provider_projection
 
 

@@ -63,11 +63,6 @@ RUNTIME_SHADOW_PROTOCOL_KEYS = (
 )
 LOCAL_AUTHORITY_SHADOW_PROTOCOL_KEYS = (
     "binding_schema",
-    "config_schema",
-    "request_schema",
-    "projection_schema",
-    "evidence_schema",
-    "observation_receipt_schema",
     "outbox_entry_schema",
     "outbox_commit_schema",
     "drain_cursor_schema",

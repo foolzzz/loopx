@@ -12,8 +12,8 @@ import { canonicalAuthorityBytes, canonicalAuthorityObject, canonicalAuthoritySh
 import { indexCoordinationProjectionTodos, validateCoordinationTodoReadModel } from "./coordination_projection.ts";
 import { FileAuthorityStore } from "./file_authority_store.ts";
 import { legacyCoordinationTodoLockPath, legacyCoordinationLeaseLockPath, loadLegacyCoordinationWriterFence } from "./legacy_writer_fence.ts";
-import { loadValidatedShadowLineage, localAuthorityShadowHeadDigest, ShadowLineageError } from "./local_authority_shadow.ts";
-import { readOutboxCursor } from "./local_authority_shadow_outbox.ts";
+import { loadValidatedShadowLineage, runtimeShadowHeadDigest, ShadowLineageError } from "./runtime_shadow_candidate.ts";
+import { readOutboxCursor } from "./runtime_shadow_outbox.ts";
 import {
   bootstrapManagedShadow, rollbackManagedShadow, requireShadowCaptureBinding,
   withShadowMaintenanceLock, ShadowManagementError, requireShadowPrimaryWriteAllowed,
@@ -279,7 +279,7 @@ export async function qualifyCoordinationShadowLineageUnderLocks(
     const binding = await requireShadowCaptureBinding(request.runtime_root, request.goal_id);
     const lineage = await loadValidatedShadowLineage(store, request.runtime_root, request.goal_id, binding);
     const pending = await pendingOutbox(request.runtime_root, request.goal_id, binding, lineage.transactions);
-    const matched = localAuthorityShadowHeadDigest(request.projection) === localAuthorityShadowHeadDigest(lineage.head.head);
+    const matched = runtimeShadowHeadDigest(request.projection) === runtimeShadowHeadDigest(lineage.head.head);
     const missing = required.filter((kind) => !lineage.write_classes.includes(kind));
     const operations = lineage.transactions.slice(1).filter((transaction) => transaction.receipts[0]?.no_op === false).length;
     const qualified = matched && !pending && operations >= minimum && missing.length === 0;
@@ -289,8 +289,8 @@ export async function qualifyCoordinationShadowLineageUnderLocks(
       scope: "bounded", sustained_parity_verified: false, sustained_parity_verdict: "not_evaluated", capture_profile: binding.capture_profile,
       capture_lineage_id: binding.capture_lineage_id, bootstrap_provider_revision: binding.bootstrap_provider_revision,
       provider_revision: lineage.head.provider_revision, cursor: lineage.head.cursor,
-      expected_projection_sha256: localAuthorityShadowHeadDigest(request.projection),
-      observed_projection_sha256: localAuthorityShadowHeadDigest(lineage.head.head),
+      expected_projection_sha256: runtimeShadowHeadDigest(request.projection),
+      observed_projection_sha256: runtimeShadowHeadDigest(lineage.head.head),
       policy: { minimum_operations: minimum, required_event_kinds: required },
       evidence: { bootstrap_verified: true, transaction_lineage_verified: true, operation_count: operations,
         observed_event_kinds: lineage.write_classes, missing_required_event_kinds: missing,

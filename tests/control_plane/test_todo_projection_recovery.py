@@ -17,7 +17,7 @@ from loopx.control_plane.coordination.runtime_shadow import build_todo_runtime_s
 from loopx.control_plane.coordination.coordination_state_contract import (
     TODO_DOMAIN_READ_RECORD_SCHEMA_VERSION, TODO_DOMAIN_RECORD_FIELDS,
 )
-from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+from loopx.control_plane.coordination.authority_projection import canonical_bytes
 from loopx.control_plane.todos import provider_projection, active_state_editing
 from loopx.control_plane.todos.completion_validation_store import (
     persist_completion_validation_declaration,

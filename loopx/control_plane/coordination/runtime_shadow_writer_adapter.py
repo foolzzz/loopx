@@ -8,8 +8,8 @@ from typing import Any
 
 from ...history import load_registry
 from ...registry import find_registry_goal
-from . import local_authority_shadow_outbox as outbox
-from .local_authority_shadow_projection import LEASE_PARTITION
+from . import runtime_shadow_outbox as outbox
+from .authority_projection import LEASE_PARTITION
 from .runtime_shadow import resolve_coordination_runtime_shadow_config
 from .shadow_management import ShadowManagementError, read_shadow_capture_binding, require_shadow_primary_write_allowed
 
@@ -35,8 +35,8 @@ def require_prose_state_write_allowed(
 
     from ...rollout_event_log import load_rollout_events, rollout_event_log_path
     from ..todos.todo_index import MAX_TODO_INDEX_ROLLOUT_EVENTS_PER_GOAL
-    from .local_authority_shadow_adapter import todo_partition_projector
-    from .local_authority_shadow_projection import partition_comparison_view
+    from .runtime_shadow_adapter import todo_partition_projector
+    from .authority_projection import partition_comparison_view
 
     try:
         goal = find_registry_goal(load_registry(registry_path), goal_id)
@@ -83,7 +83,7 @@ def begin_todo_runtime_shadow_capture(
         enabled = active_binding or resolve_coordination_runtime_shadow_config(goal).enabled
         from ...rollout_event_log import load_rollout_events, rollout_event_log_path
         from ..todos.todo_index import MAX_TODO_INDEX_ROLLOUT_EVENTS_PER_GOAL
-        from .local_authority_shadow_adapter import todo_partition_projector
+        from .runtime_shadow_adapter import todo_partition_projector
 
         events = load_rollout_events(
             rollout_event_log_path(runtime_root, goal_id),
@@ -146,10 +146,10 @@ def settle_todo_runtime_shadow_capture(
 ) -> dict[str, Any]:
     """Boundedly drain one transaction capture after releasing the Todo lock."""
 
-    from .local_authority_shadow_adapter import capture_evidence, drain_local_authority_shadow_outbox
+    from .runtime_shadow_adapter import capture_evidence, drain_runtime_shadow_outbox
 
     drain = (
-        drain_local_authority_shadow_outbox(
+        drain_runtime_shadow_outbox(
             registry_path=registry_path,
             runtime_root=runtime_root,
             goal_id=goal_id,
@@ -188,13 +188,13 @@ def settle_lease_runtime_shadow_capture(
         failure=dict(raw["failure"]) if isinstance(raw.get("failure"), Mapping) else None,
         skipped_reason=str(raw["skipped_reason"]) if raw.get("skipped_reason") else None,
     )
-    from .local_authority_shadow_adapter import (
+    from .runtime_shadow_adapter import (
         capture_evidence,
-        drain_local_authority_shadow_outbox,
+        drain_runtime_shadow_outbox,
     )
 
     drain = (
-        drain_local_authority_shadow_outbox(
+        drain_runtime_shadow_outbox(
             registry_path=registry_path,
             runtime_root=runtime_root,
             goal_id=goal_id,

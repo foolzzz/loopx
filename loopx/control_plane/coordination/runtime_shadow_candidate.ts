@@ -1,4 +1,4 @@
-export {ShadowLineageError} from "./local_authority_shadow_identity.ts";
+export {ShadowLineageError} from "./runtime_shadow_identity.ts";
 import {currentGraphTodoIds} from "./source_projection.ts";
 import {verifyPendingEntryFiles, withMarkerlessSourceProof} from "./shadow_entry_evidence.ts";
 import { createHash } from "node:crypto";
@@ -29,36 +29,17 @@ import {
   requireShadowCaptureBinding,
   withShadowMaintenanceLock,
 } from "./shadow_management.ts";
-import { outboxEntryIdentity, ShadowLineageError } from "./local_authority_shadow_identity.ts";
+import { outboxEntryIdentity, ShadowLineageError } from "./runtime_shadow_identity.ts";
 import {
   LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_RESULT_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_EVENT_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_OBSERVATION_RECEIPT_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_PROJECTION_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_READ_RESULT_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_TRANSACTION_PROJECTION_SCHEMA,
   LOCAL_AUTHORITY_SHADOW_TRANSACTION_RECEIPT_SCHEMA,
 } from "./coordination_state_contract.generated.ts";
 
-export {
-  LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_OBSERVATION_RECEIPT_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_PROJECTION_SCHEMA,
-  LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA,
-};
-
-/** Compatibility tombstone for older clients: never open or mint a store. */
-export async function recordLocalAuthorityShadow(_value: unknown): Promise<never> {
-  throw new EffectRuntimeRequestError(
-    "Post-commit observation is retired; configure runtime shadow and explicitly bootstrap its source lineage.",
-    "local_authority_shadow_retired",
-  );
-}
-
-export interface LocalAuthorityShadowDependencies {
+export interface RuntimeShadowCandidateDependencies {
   openStore?: (directory: string, goalId: string) => AuthorityStore;
 }
 
@@ -119,7 +100,7 @@ const REVISION_RETRY_ATTEMPTS = 3;
 
 export type ShadowPartition = (typeof SHADOW_PARTITIONS)[number];
 export type ShadowEntryResolution = (typeof ENTRY_RESOLUTIONS)[number];
-export type LocalAuthorityShadowCommitEntryOutcome =
+export type RuntimeShadowCommitEntryOutcome =
   | "delivered"
   | "replayed"
   | "ambiguous_reconciled"
@@ -167,9 +148,9 @@ export interface CommitEntryRequest {
   partition_digest: string | null;
 }
 
-export interface LocalAuthorityShadowCommitEntryResult extends JsonObject {
+export interface RuntimeShadowCommitEntryResult extends JsonObject {
   schema_version: typeof LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_RESULT_SCHEMA;
-  outcome: LocalAuthorityShadowCommitEntryOutcome;
+  outcome: RuntimeShadowCommitEntryOutcome;
   reason_code: string | null;
   goal_id: string;
   entry_id: string;
@@ -187,7 +168,7 @@ interface ReadRequest {
   receipt_operation_id: string | null;
   runtime_root: string;
   goal_id: string;
-  store_kind: "runtime_shadow" | "legacy_observation";
+  store_kind: "runtime_shadow";
   scan_after_cursor: string | null;
   scan_limit: number;
 }
@@ -349,11 +330,9 @@ function decodeReadRequest(value: unknown): ReadRequest {
     goal_id: requireGoalId(request.goal_id),
     store_kind: request.store_kind === undefined || request.store_kind === "runtime_shadow"
       ? "runtime_shadow"
-      : request.store_kind === "legacy_observation"
-        ? "legacy_observation"
-        : (() => {
+      : (() => {
             throw new EffectRuntimeRequestError(
-              "Local authority shadow read store_kind must be runtime_shadow or legacy_observation",
+              "Runtime shadow candidate read store_kind must be runtime_shadow",
             );
           })(),
     scan_after_cursor: optionalString(request.scan_after_cursor, "scan_after_cursor"),
@@ -399,7 +378,7 @@ function partitionAuthorityIdentityView(partition: ShadowPartition, projection: 
  * cannot prove a source mutation, so writer continuity and final parity use
  * the same identity boundary.
  */
-export function localAuthorityShadowPartitionDigest(
+export function runtimeShadowPartitionDigest(
   partition: ShadowPartition,
   projection: JsonObject,
 ): string {
@@ -409,7 +388,7 @@ export function localAuthorityShadowPartitionDigest(
 }
 
 /** Digest of the fields parity compares; must match Python `head_digest`. */
-export function localAuthorityShadowHeadDigest(head: JsonObject): string {
+export function runtimeShadowHeadDigest(head: JsonObject): string {
   const view = {
     handoff_mode: head.handoff_mode ?? null,
     todos: authorityIdentityTodos(head.todos ?? null),
@@ -439,7 +418,7 @@ function partitionsOf(head: JsonObject | null): JsonObject {
  * drain and qualification read this verified marker for the cursor digest;
  * bootstrap and no-op prefixes retain null, even with a nonempty baseline.
  */
-export function composeLocalAuthorityShadowHead(
+export function composeRuntimeShadowHead(
   current: JsonObject | null,
   goalId: string,
   entry: { partition: ShadowPartition; seq: number },
@@ -547,7 +526,7 @@ function transactionEvent(request: CommitEntryRequest, noOp: boolean): JsonObjec
 
 function commitEntryResult(
   request: CommitEntryRequest,
-  outcome: LocalAuthorityShadowCommitEntryOutcome,
+  outcome: RuntimeShadowCommitEntryOutcome,
   options: {
     reasonCode?: string | null;
     storeIdentity?: string | null;
@@ -555,7 +534,7 @@ function commitEntryResult(
     cursor?: string | null;
     headDigest?: string | null;
   } = {},
-): LocalAuthorityShadowCommitEntryResult {
+): RuntimeShadowCommitEntryResult {
   return {
     schema_version: LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_RESULT_SCHEMA,
     outcome,
@@ -591,7 +570,7 @@ async function reconcileTransactionReceipt(
   request: CommitEntryRequest,
   storeIdentity: string,
   reconciledOutcome: "replayed" | "ambiguous_reconciled",
-): Promise<LocalAuthorityShadowCommitEntryResult> {
+): Promise<RuntimeShadowCommitEntryResult> {
   const result = await store.readReceipt(request.entry.entry_id);
   if (result.status === "found" && transactionReceiptMatches(request, result)) {
     return commitEntryResult(request, reconciledOutcome, {
@@ -621,12 +600,9 @@ async function reconcileTransactionReceipt(
 function openShadowStore(
   runtimeRoot: string,
   goalId: string,
-  storeKind: ReadRequest["store_kind"],
-  dependencies: LocalAuthorityShadowDependencies,
+  dependencies: RuntimeShadowCandidateDependencies,
 ): AuthorityStore {
-  const providerDirectory = storeKind === "legacy_observation"
-    ? join(runtimeRoot, "authority-shadow", "file", goalId)
-    : join(runtimeRoot, "authority-shadow", "file-v0");
+  const providerDirectory = join(runtimeRoot, "authority-shadow", "file-v0");
   return (dependencies.openStore ?? ((directory, id) => new FileAuthorityStore(directory, id, { existingOnly: true })))(
     providerDirectory,
     goalId,
@@ -634,8 +610,8 @@ function openShadowStore(
 }
 
 type CommitAttempt =
-  | { kind: "final"; result: LocalAuthorityShadowCommitEntryResult }
-  | { kind: "retry"; result: LocalAuthorityShadowCommitEntryResult };
+  | { kind: "final"; result: RuntimeShadowCommitEntryResult }
+  | { kind: "retry"; result: RuntimeShadowCommitEntryResult };
 
 export interface ShadowLineageBinding {
   capture_profile: string;
@@ -669,7 +645,7 @@ function validateEntryIdentity(request: CommitEntryRequest, binding: ShadowLinea
     sourceReference(entry, request.partition_digest), entry.capture_lineage_id, entry.source_root_digest),
   "entry_identity_mismatch");
   if (request.partition_projection !== null) {
-    requireLineage(request.partition_digest === localAuthorityShadowPartitionDigest(
+    requireLineage(request.partition_digest === runtimeShadowPartitionDigest(
       entry.partition,
       request.partition_projection,
     ),
@@ -686,7 +662,7 @@ function partitionProjection(head: JsonObject, partition: ShadowPartition): Json
 }
 
 function validateSourceContinuity(request: CommitEntryRequest, previous: JsonObject): void {
-  const digest = localAuthorityShadowPartitionDigest(
+  const digest = runtimeShadowPartitionDigest(
     request.entry.partition,
     partitionProjection(previous, request.entry.partition),
   );
@@ -805,7 +781,7 @@ export async function loadValidatedShadowLineage(
         cursor: transaction.cursor, provider_revision: transaction.provider_revision }), "shadow_qualification_transaction_identity_invalid");
     requireLineage(canonicalAuthorityBytes(transaction.events).equals(canonicalAuthorityBytes([transactionEvent(request, noOp)])),
       "shadow_qualification_event_identity_invalid");
-    const expected = composeLocalAuthorityShadowHead(previous, goalId, request.entry, projection, request.partition_digest);
+    const expected = composeRuntimeShadowHead(previous, goalId, request.entry, projection, request.partition_digest);
     requireLineage(canonicalAuthorityBytes(expected).equals(canonicalAuthorityBytes(transaction.projection)),
       "shadow_qualification_projection_history_invalid");
     validateCoordinationTodoReadModel(transaction.projection, goalId);
@@ -893,7 +869,7 @@ async function attemptCommitEntry(
   if (loaded.status === "missing") {
     return { kind: "final", result: commitEntryResult(request, "failed", { reasonCode: "bootstrap_required" }) };
   }
-  const nextHead = composeLocalAuthorityShadowHead(
+  const nextHead = composeRuntimeShadowHead(
     loaded.status === "loaded" ? loaded.head : null,
     request.goal_id,
     request.entry,
@@ -913,7 +889,7 @@ async function attemptCommitEntry(
     request,
     storeIdentity,
     committed,
-    localAuthorityShadowHeadDigest(nextHead),
+    runtimeShadowHeadDigest(nextHead),
   );
 }
 
@@ -925,10 +901,10 @@ async function attemptCommitEntry(
  * Proven abandoned entries settle their sequence without changing the compared
  * head. Unproved entries remain pending and require explicit recovery.
  */
-export async function commitLocalAuthorityShadowEntry(
+export async function commitRuntimeShadowEntry(
   value: unknown,
-  dependencies: LocalAuthorityShadowDependencies = {},
-): Promise<LocalAuthorityShadowCommitEntryResult> {
+  dependencies: RuntimeShadowCandidateDependencies = {},
+): Promise<RuntimeShadowCommitEntryResult> {
   return await commitShadowEntryTransaction(value, dependencies, "assert_recorded");
 }
 
@@ -937,16 +913,16 @@ export async function commitLocalAuthorityShadowEntry(
  * semantics. No resolution policy is accepted from the RPC caller. */
 export async function commitShadowEntryTransaction(
   value: unknown,
-  dependencies: LocalAuthorityShadowDependencies,
+  dependencies: RuntimeShadowCandidateDependencies,
   resolutionPolicy: "assert_recorded" | "derive_from_source",
-): Promise<LocalAuthorityShadowCommitEntryResult> {
+): Promise<RuntimeShadowCommitEntryResult> {
   const request = decodeCommitEntryRequest(value);
   const plannedProjection = request.partition_projection, plannedDigest = request.partition_digest;
   try {
     return await withShadowMaintenanceLock(request.runtime_root, request.goal_id, async () => {
       const binding = await requireShadowCaptureBinding(request.runtime_root, request.goal_id);
       validateEntryIdentity(request, binding);
-      const store = openShadowStore(request.runtime_root, request.goal_id, "runtime_shadow", dependencies);
+      const store = openShadowStore(request.runtime_root, request.goal_id, dependencies);
       for (let index = 0; index < REVISION_RETRY_ATTEMPTS; index += 1) {
         const active = await requireShadowCaptureBinding(request.runtime_root, request.goal_id);
         requireLineage(active.capture_lineage_id === binding.capture_lineage_id, "stale_generation");
@@ -1024,7 +1000,7 @@ function loadedReadResult(
     result.provider_revision = loaded.provider_revision;
     result.cursor = loaded.cursor;
     result.head = includeHead ? structuredClone(loaded.head) : null;
-    result.head_digest = localAuthorityShadowHeadDigest(loaded.head);
+    result.head_digest = runtimeShadowHeadDigest(loaded.head);
     result.partitions = partitionsOf(loaded.head);
   }
   return result;
@@ -1036,7 +1012,7 @@ function scanTransactionView(transaction: AuthorityStoreCommittedTransaction): J
     cursor: transaction.cursor,
     provider_revision: transaction.provider_revision,
     operation_id: transaction.operation_id,
-    projection_digest: localAuthorityShadowHeadDigest(transaction.projection),
+    projection_digest: runtimeShadowHeadDigest(transaction.projection),
     projection_partitions: partitionsOf(transaction.projection),
     events: structuredClone(transaction.events) as JsonObject[],
     receipts: structuredClone(transaction.receipts) as JsonObject[],
@@ -1067,9 +1043,9 @@ async function appendScanPage(
  * head, its comparison digest, and a page of committed transactions with the
  * projection reduced to its digest so responses stay bounded.
  */
-export async function readLocalAuthorityShadow(
+export async function readRuntimeShadowCandidate(
   value: unknown,
-  dependencies: LocalAuthorityShadowDependencies = {},
+  dependencies: RuntimeShadowCandidateDependencies = {},
 ): Promise<JsonObject> {
   const request = decodeReadRequest(value);
   const base = readResultBase(request.goal_id);
@@ -1078,7 +1054,6 @@ export async function readLocalAuthorityShadow(
     store = openShadowStore(
       request.runtime_root,
       request.goal_id,
-      request.store_kind,
       dependencies,
     );
   } catch {
@@ -1099,10 +1074,10 @@ export async function readLocalAuthorityShadow(
       };
     }
     const result = loadedReadResult(base, identity.store_identity, loaded, request.read_model === "full");
-    if (request.store_kind === "runtime_shadow" && loaded.status === "loaded" && loaded.head.capture_profile !== "file_outbox_v1") {
+    if (loaded.status === "loaded" && loaded.head.capture_profile !== "file_outbox_v1") {
       result.eligible = false;
       result.reason_code = "legacy_lineage_ineligible";
-    } else if (request.store_kind === "runtime_shadow" && loaded.status === "loaded") {
+    } else if (loaded.status === "loaded") {
       const binding = await requireShadowCaptureBinding(request.runtime_root, request.goal_id);
       const lineage = await loadValidatedShadowLineage(store, request.runtime_root, request.goal_id, binding);
       const receipt = request.receipt_operation_id === null ? null :

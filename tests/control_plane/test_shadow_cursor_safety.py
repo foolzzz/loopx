@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 
 
 def valid_cursor() -> dict[str, object]:

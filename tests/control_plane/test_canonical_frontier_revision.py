@@ -63,7 +63,7 @@ def test_complex_canonical_frontier_ack_tracks_only_selectable_material_changes(
             **({"claimed_by": "agent-a"} if index < 15 else {}),
             **({"excluded_agents": ["agent-a"]} if index == 29 else {}),
         })
-    from loopx.control_plane.coordination.local_authority_shadow_projection import canonical_bytes
+    from loopx.control_plane.coordination.authority_projection import canonical_bytes
     from hashlib import sha256
     projection["todo_read_model"].update(todo_count=len(projection["todos"]),
         records_sha256=sha256(canonical_bytes(projection["todos"])).hexdigest())

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as outbox from "../../loopx/control_plane/coordination/local_authority_shadow_outbox.ts";
+import * as outbox from "../../loopx/control_plane/coordination/runtime_shadow_outbox.ts";
 
 const cursor = {
   schema_version: outbox.LOCAL_AUTHORITY_SHADOW_DRAIN_CURSOR_SCHEMA,

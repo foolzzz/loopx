@@ -160,7 +160,7 @@ def todo_workspace_for_validation(
     if not todo_id:
         return None
     from ...workspace.git_workspace import todo_branch, todo_workspace_root
-    from ..coordination.local_authority_shadow_adapter import effective_runtime_root
+    from ...paths import effective_runtime_root
 
     try:
         root = todo_workspace_root(effective_runtime_root(registry_path, runtime_root_arg), goal_id, todo_id)

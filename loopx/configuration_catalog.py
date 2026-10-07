@@ -106,11 +106,6 @@ def build_goal_configuration_catalog(
         if isinstance(feature_summary.get("peer_task_coordination"), Mapping)
         else {}
     )
-    local_authority_shadow = (
-        feature_summary.get("local_authority_shadow")
-        if isinstance(feature_summary.get("local_authority_shadow"), Mapping)
-        else {}
-    )
     coordination_runtime_shadow = (
         feature_summary.get("coordination_runtime_shadow")
         if isinstance(feature_summary.get("coordination_runtime_shadow"), Mapping)
@@ -179,32 +174,6 @@ def build_goal_configuration_catalog(
                     "url": (
                         "https://github.com/loopx-project/loopx/blob/main/"
                         "docs/quota-allocation.md#completed-todo-review-cadence"
-                    ),
-                },
-            },
-            {
-                "feature_id": "local_authority_shadow",
-                "display_name": "Retired post-commit authority observation",
-                "availability": "retired",
-                "default": {"enabled": False},
-                "current": {
-                    "enabled": local_authority_shadow.get("enabled") is True,
-                    "mode": local_authority_shadow.get("mode"),
-                    "status": local_authority_shadow.get("status", "disabled"),
-                },
-                "consider_when": "Clear retained observation configuration before an explicit runtime-shadow bootstrap.",
-                "effect": "No new observations are written. Retained data stays read-only and cannot qualify promotion.",
-                "does_not": ["enable or bootstrap runtime shadow", "delete retained observations", "grant promotion evidence"],
-                "commands": {
-                    "preview_disable": _configure_command(goal_id, "--clear-local-authority-shadow"),
-                    "apply_disable": _configure_command(goal_id, "--clear-local-authority-shadow", execute=True),
-                    "verify": [inspect_command],
-                },
-                "documentation": {
-                    "path": "docs/architecture/rfcs/shared-goal-authority-state-provider-v0.md",
-                    "url": (
-                        "https://github.com/loopx-project/loopx/blob/main/"
-                        "docs/architecture/rfcs/shared-goal-authority-state-provider-v0.md"
                     ),
                 },
             },

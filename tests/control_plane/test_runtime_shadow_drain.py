@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
-from loopx.control_plane.coordination.local_authority_shadow_projection import (
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
+from loopx.control_plane.coordination.authority_projection import (
     head_digest,
     partition_digest,
     text_digest,
@@ -108,7 +108,7 @@ def _record_todo_write(
 
 def _drain(registry: Path, runtime_root: Path, **overrides: object) -> adapter.DrainResult:
     limits = {"max_entries": 20, "budget_seconds": 10, **overrides}
-    return adapter.drain_local_authority_shadow_outbox(
+    return adapter.drain_runtime_shadow_outbox(
         registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID,
         **limits,  # type: ignore[arg-type]
     )
@@ -155,7 +155,7 @@ def test_drain_delivers_each_committed_entry_once_in_order_and_verifies_readback
     assert cursor["last_entry_id"] == captures[-1].outcome.entry_id
     assert cursor["last_partition_digest"] == captures[-1].outcome.partition_digest
 
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=10)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=10)
     assert view["status"] == "loaded"
     head = view["head"]
     assert head["schema_version"] == "loopx_coordination_runtime_shadow_projection_v0"
@@ -211,7 +211,7 @@ def test_drain_replays_when_store_committed_but_cursor_was_not_written(
     assert second.entries[0]["cursor"] == "2"
     assert second.pending_after == 0
     assert second.candidate_readback_verified is True
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=10)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=10)
     assert len(view["scan"]["transactions"]) == 2
 
 
@@ -246,7 +246,7 @@ def test_drain_batch_is_bounded_and_reports_what_it_left(tmp_path: Path) -> None
     assert second.delivered == 1
     assert second.pending_after == 0
     assert (second.cursor_before, second.cursor_after) == ("3", "4")
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID)
     assert view["cursor"] == "4"
     assert view["head"]["partitions"]["todos"]["seq"] == 3
 
@@ -303,7 +303,7 @@ def test_prepared_only_entries_resolve_only_under_a_free_primary_lock(tmp_path: 
     assert result.no_op == 0
     assert result.entries[0]["resolution"] == "committed_proven_by_readback"
     assert result.entries[0]["entry_id"] == proven.outcome.entry_id
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
     assert view["head"]["partitions"]["todos"]["partition_digest"] == proven.outcome.partition_digest
     receipt = view["scan"]["transactions"][1]["receipts"][0]
     assert receipt["resolution"] == "committed_proven_by_readback"
@@ -316,7 +316,7 @@ def test_prepared_only_entries_resolve_only_under_a_free_primary_lock(tmp_path: 
     assert result.no_op == 1
     assert result.entries[0]["resolution"] == "abandoned"
     assert result.entries[0]["entry_id"] == abandoned.outcome.entry_id
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
     assert view["cursor"] == "3"
     assert view["head"]["partitions"]["todos"]["seq"] == 1
     assert view["scan"]["transactions"][2]["events"][0]["kind"] == "source_transaction_abandoned"
@@ -401,7 +401,7 @@ def test_lease_partition_entries_retain_complete_records_at_drain(tmp_path: Path
 
     assert result.ok is True
     assert result.delivered == 1
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
     head = view["head"]
     assert head["todos"] == []
     assert head["handoff_mode"] == "hard_lease"
@@ -414,9 +414,13 @@ def test_lease_partition_entries_retain_complete_records_at_drain(tmp_path: Path
 
 def test_status_reports_backlog_candidate_and_growth_facts(tmp_path: Path) -> None:
     registry, state, runtime_root = _fixture(tmp_path)
-    empty = adapter.local_authority_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
+    empty = adapter.runtime_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
     assert empty["ok"] is True
-    assert empty["config"]["status"] == "disabled"
+    assert empty["config"] == {
+        "enabled": True,
+        "provider": "file_v0",
+        "status": "enabled",
+    }
     assert empty["candidate"]["status"] == "loaded"
     assert empty["candidate"]["cursor"] == "1"
     assert empty["store_bytes"] > 0
@@ -424,11 +428,11 @@ def test_status_reports_backlog_candidate_and_growth_facts(tmp_path: Path) -> No
     assert str(runtime_root) not in json.dumps(empty)
 
     _record_todo_write(registry, state, runtime_root, "Status fact")
-    pending = adapter.local_authority_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
+    pending = adapter.runtime_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
     assert pending["outbox"]["todos"]["committed_pending"] == 1
     assert _drain(registry, runtime_root).delivered == 1
 
-    drained = adapter.local_authority_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
+    drained = adapter.runtime_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
     assert drained["outbox"]["todos"] == {
         "committed_pending": 0,
         "prepared_only": 0,
@@ -443,6 +447,38 @@ def test_status_reports_backlog_candidate_and_growth_facts(tmp_path: Path) -> No
     assert drained["candidate"]["codec_agreement"] is True
     assert drained["candidate"]["head_schema_version"] == "loopx_coordination_runtime_shadow_projection_v0"
     assert drained["store_bytes"] > 0
+
+
+def test_status_ignores_retired_observation_and_does_not_create_lineage(tmp_path: Path) -> None:
+    real = workspace(tmp_path / "repo", bootstrap=False)
+    registry = json.loads(real.registry.read_text(encoding="utf-8"))
+    coordination = registry["goals"][0]["coordination"]
+    del coordination["runtime_shadow"]
+    coordination["authority_shadow"] = {
+        "schema_version": "loopx_local_authority_shadow_config_v0",
+        "mode": "file_one_way",
+    }
+    real.registry.write_text(json.dumps(registry), encoding="utf-8")
+    historical = real.runtime / "authority-shadow" / "file" / GOAL_ID / "authority-store-retired.json"
+    historical.parent.mkdir(parents=True)
+    historical.write_bytes(b"Historical observation is not an active candidate.\n")
+    registry_before = real.registry.read_bytes()
+
+    result = adapter.runtime_shadow_status(
+        registry_path=real.registry, runtime_root=real.runtime, goal_id=GOAL_ID,
+    )
+
+    assert result["config"] == {
+        "enabled": False,
+        "provider": None,
+        "status": "configuration_absent",
+    }
+    assert result["candidate"]["status"] == "missing"
+    assert result["candidate"]["store_kind"] == "runtime_shadow"
+    assert result["store_bytes"] == 0
+    assert not (real.runtime / "authority-shadow" / "file-v0").exists()
+    assert historical.read_bytes() == b"Historical observation is not an active candidate.\n"
+    assert real.registry.read_bytes() == registry_before
 
 
 def test_capture_evidence_v1_reports_measured_facts_only(tmp_path: Path) -> None:
@@ -524,7 +560,7 @@ def test_crash_between_the_two_unlinks_leaves_residue_the_next_drain_reclaims(
     assert summary["invalid"] == "outbox_file_invalid"
     assert len(outbox.retired_residue(_todo_dir(runtime_root))) == 1
     assert summary["committed_pending"] == 0
-    status = adapter.local_authority_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
+    status = adapter.runtime_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
     assert status["ok"] is False
     assert status["outbox"]["todos"]["invalid"] == "outbox_file_invalid"
 
@@ -536,7 +572,7 @@ def test_crash_between_the_two_unlinks_leaves_residue_the_next_drain_reclaims(
     assert (second.delivered, second.replayed) == (0, 1)
     assert "coordination.runtime_shadow.commit_entry" not in calls
     assert list(_todo_dir(runtime_root).iterdir()) == [_todo_dir(runtime_root) / "drain-cursor.json"]
-    view = adapter.read_local_authority_shadow(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=runtime_root, goal_id=GOAL_ID, scan_limit=5)
     assert view["cursor"] == "2"
 
     # A later write mints seq 2 from the cursor, never reusing the retired seq.
@@ -588,7 +624,7 @@ def test_an_orphan_marker_above_the_cursor_is_still_corruption(tmp_path: Path) -
     result = _drain(registry, runtime_root)
     assert result.outcome == "stopped"
     assert result.reason_code == "outbox_file_invalid"
-    status = adapter.local_authority_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
+    status = adapter.runtime_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
     assert status["ok"] is False
     assert status["outbox"]["todos"]["invalid"] == "outbox_file_invalid"
 

@@ -3,8 +3,8 @@
 import type {JsonObject} from "../effect_program.ts";
 import {requireJsonObject} from "../runtime_decode.ts";
 import {hasExactAuthorityKeys} from "./authority_store_codec.ts";
-import {decodeOutboxCursor, OutboxCursorError, MAX_OUTBOX_SEQUENCE} from "./local_authority_shadow_outbox.ts";
-import {readLocalAuthorityShadow, type LocalAuthorityShadowDependencies} from "./local_authority_shadow.ts";
+import {decodeOutboxCursor, OutboxCursorError, MAX_OUTBOX_SEQUENCE} from "./runtime_shadow_outbox.ts";
+import {readRuntimeShadowCandidate, type RuntimeShadowCandidateDependencies} from "./runtime_shadow_candidate.ts";
 import {LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA} from "./coordination_state_contract.generated.ts";
 
 export const SHADOW_DRAIN_PLAN_REQUEST_SCHEMA = "loopx_shadow_drain_plan_request_v0";
@@ -183,11 +183,11 @@ export function planShadowDrain(value: unknown, rawView: unknown): JsonObject {
 /** Same one read RPC as the old proof path, but history never crosses into Python.
  * The caller holds M; taking it again here would deadlock across runtimes. */
 export async function readShadowDrainPlan(value: unknown,
-  dependencies: LocalAuthorityShadowDependencies = {}): Promise<JsonObject> {
+  dependencies: RuntimeShadowCandidateDependencies = {}): Promise<JsonObject> {
   let verifiedView: JsonObject | null = null;
   try {
     const r = decode(value);
-    const view = await readLocalAuthorityShadow({schema_version: LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
+    const view = await readRuntimeShadowCandidate({schema_version: LOCAL_AUTHORITY_SHADOW_READ_REQUEST_SCHEMA,
       runtime_root: r.runtime_root, goal_id: r.goal_id, store_kind: "runtime_shadow", scan_after_cursor: null,
       scan_limit: 10000, receipt_operation_id: null, read_model: "proof"}, dependencies);
     provedTransactions(r, view);

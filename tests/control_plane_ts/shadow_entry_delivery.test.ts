@@ -4,7 +4,7 @@ import {join} from "node:path";
 import test from "node:test";
 import type {JsonObject} from "../../loopx/control_plane/effect_program.ts";
 import {deliverShadowEntry} from "../../loopx/control_plane/coordination/shadow_entry_delivery.ts";
-import {outboxEntryFileName} from "../../loopx/control_plane/coordination/local_authority_shadow_outbox.ts";
+import {outboxEntryFileName} from "../../loopx/control_plane/coordination/runtime_shadow_outbox.ts";
 import {fixture, pendingEntry, settleFiles, sha, todo, entrySelection as selection} from "./shadow_file_fixture.ts";
 
 function entryPath(r: JsonObject, phase: "prepared" | "committed" = "prepared"): string {
@@ -104,7 +104,7 @@ test("concurrent selectors get one commit and the same derived resolution", asyn
 
 for (const state of ["committed", "abandoned", "foreign"] as const) {
   test(`native lease capture recovers ${state} from full source bytes`, async t => {
-    const {beginLeaseOutboxEntry} = await import("../../loopx/control_plane/coordination/local_authority_shadow_outbox.ts");
+    const {beginLeaseOutboxEntry} = await import("../../loopx/control_plane/coordination/runtime_shadow_outbox.ts");
     const {requireShadowCaptureBinding} = await import("../../loopx/control_plane/coordination/shadow_management.ts");
     const {LOCAL_AUTHORITY_SHADOW_COMMIT_ENTRY_REQUEST_SCHEMA: schema} = await import("../../loopx/control_plane/coordination/coordination_state_contract.generated.ts");
     const f = await fixture(t), directory = join(f.root, "goals", "goal-a", "task-leases");

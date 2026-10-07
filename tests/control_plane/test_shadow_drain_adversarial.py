@@ -9,8 +9,8 @@ from loopx.control_plane.effect_runtime import EffectRuntimeRejected
 
 
 from shadow_e2e_fixture import workspace
-from loopx.control_plane.coordination import local_authority_shadow_adapter as adapter
-from loopx.control_plane.coordination import local_authority_shadow_outbox as outbox
+from loopx.control_plane.coordination import runtime_shadow_adapter as adapter
+from loopx.control_plane.coordination import runtime_shadow_outbox as outbox
 
 
 pytestmark = pytest.mark.stage2c_e2e
@@ -34,7 +34,7 @@ def test_cleanup_permission_failure_reports_verified_commit_and_recovers(
         stopped = w.drain()
         assert stopped["ok"] is False and stopped["reason_code"], stopped
         assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
-        view = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+        view = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
         assert len(view["proof"]["transactions"]) == 2  # Baseline and the actual mutation.
         assert stopped["candidate_readback_verified"] is True, stopped
         assert stopped["provider_revision"] == view["provider_revision"], stopped
@@ -45,7 +45,7 @@ def test_cleanup_permission_failure_reports_verified_commit_and_recovers(
     assert recovered["delivered"] == 0, recovered
     assert outbox.read_cursor(directory)["last_seq"] == 1
     assert {path.name for path in directory.iterdir()} == {"drain-cursor.json"}
-    assert adapter.read_local_authority_shadow(
+    assert adapter.read_runtime_shadow_candidate(
         runtime_root=w.runtime, goal_id=w.goal, scan_limit=20,
     )["proof"]["transactions"] == view["proof"]["transactions"]
 
@@ -61,7 +61,7 @@ def test_missing_cursor_cannot_reuse_a_sequence_when_the_next_writer_arrives_fir
     assert result["ok"] is True
     recovered = w.drain()
     assert recovered["ok"] is True, recovered
-    view = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     receipts = [tx["receipts"][0] for tx in view["proof"]["transactions"][1:]]
     assert [receipt["seq"] for receipt in receipts] == [1, 2, 3]
     assert outbox.read_cursor(directory)["last_seq"] == 3
@@ -77,13 +77,13 @@ def test_small_recovery_budget_makes_progress_through_verified_residue(tmp_path:
         assert w.drain()["ok"] is True
     for name, data in residue.items():
         (directory / name).write_bytes(data)
-    before = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    before = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     for left in (2, 1, 0):
         result = w.drain(max_entries="1")
         assert result["ok"] is True, result
         assert result["replayed"] == 1, result
         assert len(outbox.list_entries(directory)) == left
-    after = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    after = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     assert after["proof"]["transactions"] == before["proof"]["transactions"]
 
 
@@ -119,7 +119,7 @@ def test_real_prepare_io_failure_holds_public_primary_before_replace(tmp_path: P
     directory.unlink()
     w.cli("handoff-mode", "set", "--mode", "soft_claim")
     assert w.drain()["ok"] is True
-    view = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     assert view["head"]["handoff_mode"] == "soft_claim"
     assert len(view["proof"]["transactions"]) == 2
     assert view["proof"]["transactions"][1]["receipts"][0]["seq"] == 1
@@ -142,7 +142,7 @@ def test_native_markerless_resolution_requires_source_evidence(
     with pytest.raises(EffectRuntimeRejected, match="shadow_entry_selection_invalid"):
         adapter.effect_runtime_result("coordination.runtime_shadow.commit_entry", request, timeout=15)
     assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
-    view = adapter.read_local_authority_shadow(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
+    view = adapter.read_runtime_shadow_candidate(runtime_root=w.runtime, goal_id=w.goal, scan_limit=20)
     assert len(view["proof"]["transactions"]) == 1
 
 

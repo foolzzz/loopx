@@ -8,7 +8,7 @@ TS 从现有原生验证器取得历史，返回游标、清理与待提交计�
 
 所有者仍是 coordination runtime-shadow，provider 仍是内置 File 影子存储。
 没有新增 capability、扩展、配置、CLI 参数或持久格式；内部 v0 请求与响应随包配套发布。
-`authority-shadow drain`、写入后的内联 drain 和现有 CLI 反馈共用该计划。
+`coordination-shadow drain`、写入后的内联 drain 和现有 CLI 反馈共用该计划。
 这不是新增设置或用户操作，所以无需新增前端配置入口。
 
 Python 保留旧源适配：源数据读回、主写锁与维护锁、文件观测、字节复核、

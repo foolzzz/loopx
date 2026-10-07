@@ -38,11 +38,6 @@ export const COORDINATION_RUNTIME_SHADOW_TODO_READ_REQUEST_SCHEMA = "loopx_coord
 export const COORDINATION_RUNTIME_SHADOW_TODO_READ_RESULT_SCHEMA = "loopx_coordination_runtime_shadow_todo_read_result_v0";
 
 export const LOCAL_AUTHORITY_SHADOW_BINDING_SCHEMA = "loopx_coordination_runtime_shadow_binding_v0";
-export const LOCAL_AUTHORITY_SHADOW_CONFIG_SCHEMA = "loopx_local_authority_shadow_config_v0";
-export const LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA = "loopx_local_authority_shadow_request_v0";
-export const LOCAL_AUTHORITY_SHADOW_PROJECTION_SCHEMA = "loopx_local_authority_shadow_projection_v0";
-export const LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA = "loopx_local_authority_shadow_evidence_v0";
-export const LOCAL_AUTHORITY_SHADOW_OBSERVATION_RECEIPT_SCHEMA = "loopx_local_authority_shadow_observation_receipt_v0";
 export const LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA = "loopx_local_authority_shadow_outbox_entry_v1";
 export const LOCAL_AUTHORITY_SHADOW_OUTBOX_COMMIT_SCHEMA = "loopx_local_authority_shadow_outbox_commit_v1";
 export const LOCAL_AUTHORITY_SHADOW_DRAIN_CURSOR_SCHEMA = "loopx_local_authority_shadow_drain_cursor_v0";
@@ -276,11 +271,6 @@ export const COORDINATION_STATE_CONTRACT = deepFreeze({
   },
   "local_authority_shadow_protocol": {
     "binding_schema": LOCAL_AUTHORITY_SHADOW_BINDING_SCHEMA,
-    "config_schema": LOCAL_AUTHORITY_SHADOW_CONFIG_SCHEMA,
-    "request_schema": LOCAL_AUTHORITY_SHADOW_REQUEST_SCHEMA,
-    "projection_schema": LOCAL_AUTHORITY_SHADOW_PROJECTION_SCHEMA,
-    "evidence_schema": LOCAL_AUTHORITY_SHADOW_EVIDENCE_SCHEMA,
-    "observation_receipt_schema": LOCAL_AUTHORITY_SHADOW_OBSERVATION_RECEIPT_SCHEMA,
     "outbox_entry_schema": LOCAL_AUTHORITY_SHADOW_OUTBOX_ENTRY_SCHEMA,
     "outbox_commit_schema": LOCAL_AUTHORITY_SHADOW_OUTBOX_COMMIT_SCHEMA,
     "drain_cursor_schema": LOCAL_AUTHORITY_SHADOW_DRAIN_CURSOR_SCHEMA,
