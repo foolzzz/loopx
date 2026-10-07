@@ -76,7 +76,6 @@ from .extensions.runtime import (
 from .history import load_registry
 from .chat_completed_todos import CompletedTodoPages, CompletedTodoRequestMixin
 from .chat_gate_thread_api import CHAT_GATE_THREAD_PATH, CHAT_GATE_THREAD_REPLY_PATH, GateThreadRequestMixin
-from .kiro_cli_goal_mode import KIRO_CLI_BIN
 from .paths import resolve_runtime_root, project_registry_path
 from .release_manifest import release_runtime_identity
 from .registry import registry_goals, resolve_state_file
@@ -1451,7 +1450,6 @@ def serve_chat(
     goal_id: str | None = None,
     codex_bin: str = "codex",
     claude_bin: str = "claude",
-    kiro_cli_bin: str = KIRO_CLI_BIN,
     lark_cli_bin: str | None = None,
     startup_timeout_sec: float = 30.0,
     idle_timeout_sec: float = 180.0,
@@ -1520,7 +1518,6 @@ def serve_chat(
         ),
         codex_bin=codex_bin,
         claude_bin=claude_bin,
-        kiro_cli_bin=kiro_cli_bin,
         startup_timeout_sec=startup_timeout_sec,
         idle_timeout_sec=idle_timeout_sec,
         hard_timeout_sec=hard_timeout_sec,

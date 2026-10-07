@@ -114,7 +114,6 @@ Supported surfaces:
 
 - `codex` -> `.agents/skills/loopx-material/`
 - `claude-code` -> `.claude/skills/loopx-material/`
-- `opencode` -> `.opencode/skills/loopx-material/`
 
 Repeat `--surface` to install multiple host-native copies in one transaction.
 Inspect before or after installation:

@@ -22,7 +22,7 @@ from loopx.control_plane.turn_driver.delivery_continuity import (
     DELIVERY_BOUNDARY_IN_FLIGHT,
 )
 
-LANE_AGENT = "kiro-cli"
+LANE_AGENT = "fixture-cli"
 OTHER_AGENT = "codex-main-control"
 
 

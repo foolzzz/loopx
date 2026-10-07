@@ -31,7 +31,6 @@ from .control_plane.goals.configure_goal_service import (
 from .control_plane.runtime.time import now_utc, parse_timestamp
 from .control_plane.scheduler.monitor_todo import monitor_next_due_at
 from .history import load_registry
-from .kiro_cli_goal_mode import KIRO_CLI_CHAT_AGENT_ID
 from .quota import build_quota_should_run
 from .registry import registry_goals
 from .todos import add_goal_todo, update_goal_todo
@@ -47,12 +46,11 @@ _OPAQUE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 # absent from the table resolves to its own id, which only matches an
 # identically named agent — correct as a fallback, wrong as a built-in's only
 # behavior. Matching is bounded at a `-` delimiter, so this table lists family
-# roots rather than free prefixes: `kiro-worker-1` joins the Kiro family while
-# `kiroscope-worker` keeps its own identity. Keep the rule in this one table.
+# roots rather than free prefixes: `codex-worker-1` joins the Codex family while
+# `codexplorer-worker` keeps its own identity. Keep the rule in this one table.
 _AGENT_FAMILY_ROOTS: tuple[tuple[str, str], ...] = (
     ("codex", "codex"),
     ("claude", "claude-code"),
-    ("kiro", KIRO_CLI_CHAT_AGENT_ID),
 )
 _MONITOR_CADENCE = re.compile(
     r"^(?P<count>[1-9][0-9]{0,4})(?P<unit>s|m|h|d)$",
@@ -360,13 +358,13 @@ class ChatActionService(
         """Classify an id into a host family, bounded at a delimiter.
 
         A bare prefix match silently swallowed unrelated operator ids:
-        ``kiroscope-worker`` and ``codexplorer`` are not the Kiro or Codex
+        ``claudelike-worker`` and ``codexplorer`` are not the Claude or Codex
         family, but they matched, and a single false match is enough for
         ``_resolve_goal_agent`` to bind a built-in endpoint to the wrong
         durable identity instead of raising ``agent_binding_required``. The
         family token must therefore be the whole id or end at a ``-``
-        delimiter, which still accepts every documented shape (``kiro``,
-        ``kiro-cli``, ``kiro-worker-1``) because ids are normalized first.
+        delimiter, which still accepts every documented shape (``codex``,
+        ``codex-cli``, ``codex-worker-1``) because ids are normalized first.
         """
         token = value.strip().lower().replace("_", "-")
         for prefix, family in _AGENT_FAMILY_ROOTS:

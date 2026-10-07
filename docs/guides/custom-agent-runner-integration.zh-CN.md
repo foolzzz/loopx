@@ -78,8 +78,7 @@ packet 会返回当前 doctor/install、bootstrap command pack、quota guard 和
 `change_quality_qualification` 时，onboarding packet 会额外把
 `loopx-change-quality` 列为 active project skill；host 需要交付该 workflow，
 或注入等价的自包含 prepare packet 指令。随后 readback integration mode、
-loaded skill ids 和 source revision。不要假设未知 host 采用 Codex、Claude 或
-OpenCode 的目录布局。加载质量 skill 不代表启用，是否生效由当前 goal policy 决定。
+loaded skill ids 和 source revision。不要假设未知 host 采用 Codex 或 Claude 的目录布局。加载质量 skill 不代表启用，是否生效由当前 goal policy 决定。
 
 如果 host 没有 skill 系统，就注入等价的 `SKILL.md` 指令，并保留一段短
 re-entry instruction，要求 Agent：

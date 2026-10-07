@@ -550,7 +550,6 @@ def main() -> int:
         "chapters/02-session-goal-loopx.md",
         "en/chapters/02-session-goal-loopx.md",
         tuple((marker, marker) for marker in (
-            "OpenCode 1/2",
             "Pi",
             "KunlunCode Goal Pro",
             "DeepSeek Harness",

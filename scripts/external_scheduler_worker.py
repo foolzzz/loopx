@@ -519,7 +519,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--runtime-profile",
         default="generic_cli",
         help="Quota runtime profile that emits the local_scheduler hint "
-        "(generic_cli for generic visible CLI loops such as TraeX/OpenCode).",
+        "(generic_cli for generic visible CLI loops such as TraeX/Pi).",
     )
     parser.add_argument("--goal-id", required=True)
     parser.add_argument("--agent-id", required=True)

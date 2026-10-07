@@ -234,7 +234,6 @@ defines these main paths:
 | --- | --- | --- |
 | Codex CLI TUI | Generated bootstrap plus visible `/goal` | Stays visible and interruptible |
 | Claude Code | `/loopx` plus opt-in native `/loop` adapter | Uses the same quota and writeback |
-| OpenCode 1/2 | `/loopx` plus an opt-in Goal bridge or persistent worker | The bridge or worker preserves Host visibility and stop semantics |
 | Pi | Opt-in Goal extension plus `/loopx` | Bindings stay under project `.loopx/` and grant no extra authority |
 | KunlunCode Goal Pro | `loopx-kunluncode` adapter | Completion and quota write back only after strict validation |
 | DeepSeek Harness | Native skill plus same-session Driver or `loopx turn run-once` | Every bounded execution segment still needs independent validation |

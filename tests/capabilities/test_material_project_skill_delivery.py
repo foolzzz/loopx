@@ -177,13 +177,11 @@ def test_project_skill_uninstall_is_preview_first_and_fails_closed(
 def test_generic_delivery_supports_every_registered_surface(
     tmp_path: Path,
 ) -> None:
-    """The old name pinned four surfaces as the supported set; Kiro CLI's
-    workspace skills root joined it, so the assertion is now the registry itself
-    rather than a hand-listed subset that silently misses a new host."""
+    """Exercise managed install and rollback on every registered surface."""
     source = _source(tmp_path)
     project = _project(tmp_path)
     surfaces = PROJECT_SKILL_SURFACES
-    assert "kiro-cli" in surfaces
+    assert surfaces == ("codex", "claude-code", "pi")
 
     preview = install_project_skill(
         project,
@@ -235,7 +233,7 @@ def test_multi_surface_readback_failure_rolls_back_every_target(
 ) -> None:
     source = _source(tmp_path)
     project = _project(tmp_path)
-    surfaces = ("codex", "claude-code", "opencode")
+    surfaces = ("codex", "claude-code", "pi")
     real_inspect = project_skill_delivery.inspect_project_skill
     calls = 0
 
@@ -270,7 +268,7 @@ def test_multi_surface_uninstall_readback_failure_restores_every_target(
 ) -> None:
     source = _source(tmp_path)
     project = _project(tmp_path)
-    surfaces = ("codex", "claude-code", "opencode")
+    surfaces = ("codex", "claude-code", "pi")
     install_project_skill(
         project,
         "loopx-material",
@@ -316,3 +314,18 @@ def test_explicit_project_delivery_rejects_undeclared_scope(tmp_path, scope):
     with pytest.raises(ValueError, match="scope"):
         inspect_project_skill(tmp_path / "project", "example", source_root=source)
     assert not (tmp_path / "project").exists()
+
+
+@pytest.mark.parametrize("surface", ["opencode", "kiro-cli", "gemini-cli", "cline"])
+def test_retired_project_skill_surfaces_are_rejected(tmp_path: Path, surface: str) -> None:
+    source = _source(tmp_path)
+    project = _project(tmp_path)
+    with pytest.raises(ValueError, match="unsupported project skill surfaces"):
+        install_project_skill(
+            project,
+            "loopx-material",
+            surfaces=["codex", surface],
+            execute=True,
+            source_root=source,
+        )
+    assert not (project / ".agents").exists()

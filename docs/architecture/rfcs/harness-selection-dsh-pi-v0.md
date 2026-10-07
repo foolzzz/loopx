@@ -469,7 +469,7 @@ login.
 | Option | Shape | Cost and risk |
 | --- | --- | --- |
 | A. Turn-backed steward transport (**shipped**) | Each steward chat turn runs one bounded governed segment on the managed host through the same execution profile the governed Turn resolves, with bounded chat history as context | No duplex streaming and no cross-turn host session; each turn is a fresh segment. The tool/sandbox authority is pinned read-only by the channel and the per-turn bound is the channel's own hard timeout |
-| B. ACP or stdio adapter | Reuse the ACP stdio adapter path (as the Kiro CLI chat endpoint does) when the managed host exposes such an interface | Lowest transport cost, but depends on an upstream interface that no shipped evidence covers yet |
+| B. ACP or stdio adapter | Reuse the ACP stdio adapter path when the managed host exposes such an interface | Lowest transport cost, but depends on an upstream interface that no shipped evidence covers yet |
 | C. Codex endpoint bound to the operator provider | Start the Codex app-server itself against the operator provider so the existing transport and tool surface stay | Keeps streaming, but must prove the session no longer authenticates with an individual login; the provider config becomes host-state authority and needs its own gate |
 
 Selection rule: prefer A, because it reuses the Turn authority, typed host

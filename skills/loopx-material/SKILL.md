@@ -21,9 +21,9 @@ loopx project-skill install \
   --execute
 ```
 
-Use `--surface claude-code` or `--surface opencode` for those hosts; repeat the
+Use `--surface claude-code` for Claude Code; repeat the
 flag to install multiple host-native copies in one transaction. Managed copies
-live under `.agents/skills/`, `.claude/skills/`, or `.opencode/skills/` and are
+live under `.agents/skills/` or `.claude/skills/` and are
 upgraded or removed through the same CLI. Project-local discovery does not
 itself activate material-store writes; the selected goal still needs explicit
 Material Lifecycle authority.

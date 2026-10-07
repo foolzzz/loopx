@@ -17,11 +17,6 @@ from __future__ import annotations
 from typing import Any
 
 from .agy_goal_mode import agy_activation_extras
-from .kiro_cli_goal_mode import (
-    KIRO_CLI_INSTALL_SURFACE,
-    SKILLS_ROOT_LABEL as KIRO_CLI_SKILLS_ROOT_LABEL,
-    kiro_cli_activation_extras,
-)
 from .zcode_goal_mode import (
     SKILLS_ROOT_LABEL as ZCODE_SKILLS_ROOT_LABEL,
     ZCODE_INSTALL_SURFACE,
@@ -94,15 +89,6 @@ def skill_facade_cli_activation(
     }
 
 
-def gemini_cli_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
-    return skill_facade_cli_activation(
-        commands,
-        cli_bin,
-        host_label="Gemini CLI",
-        host_surface="gemini_cli_agent_loop",
-        install_surface="gemini",
-        skills_root="GEMINI_HOME/skills",
-    )
 
 
 def cursor_agent_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
@@ -155,16 +141,4 @@ def agy_cli_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]
         install_surface="agy",
         skills_root="~/.gemini/antigravity-cli/skills",
         **agy_activation_extras(),
-    )
-
-
-def kiro_cli_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
-    return skill_facade_cli_activation(
-        commands,
-        cli_bin,
-        host_label="Kiro CLI",
-        host_surface="kiro_cli_agent_loop",
-        install_surface=KIRO_CLI_INSTALL_SURFACE,
-        skills_root=KIRO_CLI_SKILLS_ROOT_LABEL,
-        **kiro_cli_activation_extras(),
     )

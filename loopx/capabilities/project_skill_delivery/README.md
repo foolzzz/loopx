@@ -23,7 +23,6 @@ loopx project-skill install \
   --skill <skill-id> \
   --surface codex \
   --surface claude-code \
-  --surface opencode \
   --execute
 ```
 
@@ -33,13 +32,11 @@ loopx project-skill install \
 | --- | --- |
 | `codex` | `.agents/skills/<skill-id>/` |
 | `claude-code` | `.claude/skills/<skill-id>/` |
-| `opencode` | `.opencode/skills/<skill-id>/` |
 | `pi` | `.pi/skills/<skill-id>/` |
 
 These locations follow the host discovery contracts documented by
-[Codex](https://developers.openai.com/codex/skills),
-[Claude Code](https://code.claude.com/docs/en/slash-commands#where-skills-live),
-and [OpenCode](https://opencode.ai/docs/skills/#place-files).
+[Codex](https://developers.openai.com/codex/skills) and
+[Claude Code](https://code.claude.com/docs/en/slash-commands#where-skills-live).
 
 ## Lifecycle
 

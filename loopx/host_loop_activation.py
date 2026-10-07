@@ -8,11 +8,8 @@ from .control_plane.scheduler.execution_context import SchedulerRuntimeProfile
 from .host_loop_activation_skill_facade import (
     agy_cli_activation,
     cursor_agent_activation,
-    gemini_cli_activation,
-    kiro_cli_activation,
     zcode_activation,
 )
-from .kiro_cli_goal_mode import KIRO_CLI_AGENT_TYPE_CATALOG_ENTRY
 from .control_plane.todos.contract import (
     normalize_required_capabilities,
     normalize_todo_claimed_by,
@@ -45,15 +42,11 @@ def scheduler_command_binding_for_agent_type(
         "ark-managed-agent": SchedulerRuntimeProfile.ARK_MANAGED_AGENT_GOAL,
         "codex-cli": SchedulerRuntimeProfile.CODEX_CLI_VISIBLE,
         "claude-code": SchedulerRuntimeProfile.CLAUDE_CODE_VISIBLE,
-        "opencode": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
-        "opencode2": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "traex-cli": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "pi": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
-        "gemini-cli": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "cursor-agent": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "zcode": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "agy": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
-        "kiro-cli": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "deepseek-harness": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
         "deepseek-harness-native": SchedulerRuntimeProfile.GENERIC_CLI_AGENT_LOOP,
     }.get(canonical)
@@ -70,15 +63,11 @@ SUPPORTED_AGENT_TYPES = [
     "ark-managed-agent",
     "codex-cli",
     "claude-code",
-    "opencode",
-    "opencode2",
     "traex-cli",
     "pi",
-    "gemini-cli",
     "cursor-agent",
     "zcode",
     "agy",
-    "kiro-cli",
     "deepseek-harness",
     "deepseek-harness-native",
     "manual",
@@ -121,24 +110,6 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
         "entry": "/loopx <task> then /loop",
         "accepted_inputs": ["claude-code", "claude_code", "claude code", "cc"],
     },
-    "opencode": {
-        "display_name": "OpenCode",
-        "host_loop": "visible OpenCode goal plugin gated by LoopX",
-        "entry": "/loopx <task> with the LoopX OpenCode bridge installed",
-        "accepted_inputs": ["opencode", "open-code", "open_code", "open code"],
-    },
-    "opencode2": {
-        "display_name": "OpenCode 2",
-        "host_loop": "visible OpenCode 2 session driven by the LoopX goal worker",
-        "entry": "/loopx <task> with OpenCode 2 and the LoopX goal worker",
-        "accepted_inputs": [
-            "opencode2",
-            "opencode-2",
-            "opencode_2",
-            "open-code-2",
-            "open code 2",
-        ],
-    },
     "traex-cli": {
         "display_name": "TraeX CLI TUI",
         "host_loop": "visible TraeX /goal gated by LoopX",
@@ -166,21 +137,6 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
             "pi agent",
             "earendil-pi",
             "earendil pi",
-        ],
-    },
-    "gemini-cli": {
-        "display_name": "Gemini CLI",
-        "host_loop": "agent-driven Gemini CLI loop gated by LoopX quota should-run",
-        "entry": "the LoopX skill installed in GEMINI_HOME/skills",
-        "accepted_inputs": [
-            "gemini-cli",
-            "gemini_cli",
-            "gemini cli",
-            "gemini",
-            "gemini-code",
-            "gemini code",
-            "google-gemini",
-            "google gemini",
         ],
     },
     "cursor-agent": {
@@ -213,7 +169,6 @@ AGENT_TYPE_CATALOG: dict[str, dict[str, Any]] = {
         "entry": "the LoopX skill installed in ~/.gemini/antigravity-cli/skills",
         "accepted_inputs": list(AGY_ACCEPTED_INPUTS),
     },
-    "kiro-cli": KIRO_CLI_AGENT_TYPE_CATALOG_ENTRY,
     "deepseek-harness": {
         "display_name": "DeepSeek Harness",
         "host_loop": "DeepSeek Harness headless/automation loop gated by LoopX quota",
@@ -293,17 +248,11 @@ HOST_SURFACE_TO_AGENT_TYPE = {
     "ark_managed_agent": "ark-managed-agent",
     "codex-cli-tui": "codex-cli",
     "claude-code": "claude-code",
-    "opencode": "opencode",
-    "opencode2": "opencode2",
-    "opencode-v2": "opencode2",
-    "opencode_2": "opencode2",
     "traex-cli": "traex-cli",
     "traex-cli-tui": "traex-cli",
     "traex": "traex-cli",
     "pi": "pi",
     "pi-tui": "pi",
-    "gemini-cli": "gemini-cli",
-    "gemini": "gemini-cli",
     "cursor-agent": "cursor-agent",
     "cursor": "cursor-agent",
     "zcode": "zcode",
@@ -311,8 +260,6 @@ HOST_SURFACE_TO_AGENT_TYPE = {
     "agy": "agy",
     "antigravity": "agy",
     "antigravity-cli": "agy",
-    "kiro-cli": "kiro-cli",
-    "kiro": "kiro-cli",
     "deepseek-harness": "deepseek-harness",
     "dsh": "deepseek-harness",
     "deepseek-harness-native": "deepseek-harness-native",
@@ -440,15 +387,11 @@ def _heartbeat_commands(
         "ark-managed-agent": "Ark Managed Agent one-shot Goal activation",
         "codex-cli": "Codex CLI /goal visible TUI loop",
         "claude-code": "Claude Code native /loop gated by LoopX",
-        "opencode": "OpenCode visible goal loop gated by LoopX",
-        "opencode2": "OpenCode 2 visible goal loop driven by the LoopX worker",
         "traex-cli": "TraeX CLI /goal visible TUI loop gated by LoopX",
         "pi": "Pi visible goal loop gated by LoopX",
-        "gemini-cli": "Gemini CLI agent loop gated by LoopX",
         "cursor-agent": "Cursor Agent CLI loop gated by LoopX",
         "zcode": "ZCode agent loop gated by LoopX",
         "agy": "Antigravity CLI agent loop with advisory LoopX quota pacing",
-        "kiro-cli": "Kiro CLI native /goal loop with advisory LoopX quota pacing",
         "deepseek-harness": "DeepSeek Harness automation loop gated by LoopX",
         "deepseek-harness-native": "DeepSeek Harness same-session plugin loop gated by LoopX",
         "manual": "External scheduler or manual shell LoopX poll",
@@ -815,81 +758,8 @@ def _pi_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
     }
 
 
-def _opencode_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
-    return {
-        "host_surface": "opencode_visible_goal_mode",
-        "entry_command_hint": "/loopx <task>",
-        "activation_method": "activate_loopx_opencode_goal_bridge",
-        "activation_input_command": commands["heartbeat_prompt_json"],
-        "setup_command": (
-            f"{cli_bin} slash-commands --install --surface opencode --with-goal-bridge"
-        ),
-        "host_mutation": {
-            "owner": "OpenCode LoopX goal bridge",
-            "host_tool": "loopx_goal_activate",
-            "tool_argument_mapping": {
-                "goalId": "heartbeat_prompt.goal_id",
-                "objective": "heartbeat_prompt.task_body",
-                "agentId": "heartbeat_prompt.agent_id when present",
-                "registryPath": "explicit registry path when present",
-                "availableCapabilities": "declared host capabilities when present",
-            },
-            "cli_can_mutate_directly": False,
-            "missing_host_tool_gate": (
-                "The LoopX OpenCode bridge or loopx_goal_activate tool is unavailable; "
-                "install the OpenCode surface and restart OpenCode before claiming "
-                "autonomous heartbeat support."
-            ),
-        },
-        "activation_steps": [
-            "Install or refresh the LoopX OpenCode surface when needed.",
-            "Run the heartbeat-prompt JSON command after project state and todos are written.",
-            "Call loopx_goal_activate with goalId from goal_id, objective from task_body, and optional agentId, registryPath, or availableCapabilities when those values are present.",
-            "Let the bridge gate every idle continuation and timer wake through LoopX quota should-run.",
-        ],
-        "success_criteria": [
-            "The visible OpenCode session has a LoopX-backed goal bound through loopx_goal_activate.",
-            "Quiet waits make no model call, active work auto-continues, and validated terminal no-follow-up stops the goal.",
-        ],
-    }
 
 
-def _opencode2_activation(commands: dict[str, str], cli_bin: str) -> dict[str, Any]:
-    return {
-        "host_surface": "opencode2_goal_worker_mode",
-        "entry_command_hint": "/loopx <task>",
-        "activation_method": "start_opencode2_goal_worker",
-        "activation_input_command": commands["heartbeat_prompt_json"],
-        "setup_command": None,
-        "host_mutation": {
-            "owner": "LoopX OpenCode 2 goal worker",
-            "host_tool": "opencode2-goal-worker",
-            "tool_argument_mapping": {
-                "goalId": "heartbeat_prompt.goal_id",
-                "directory": "the project directory",
-                "agentId": "heartbeat_prompt.agent_id when present",
-                "registryPath": "explicit registry path when present",
-                "availableCapabilities": "declared host capabilities when present",
-                "taskBody": "heartbeat_prompt.task_body",
-                "sessionId": "an existing OpenCode 2 session id when reattaching",
-            },
-            "cli_can_mutate_directly": True,
-            "missing_host_tool_gate": (
-                "The loopx opencode2-goal-worker command or the opencode2 binary "
-                "is unavailable; install LoopX and OpenCode 2 before claiming "
-                "autonomous heartbeat support."
-            ),
-        },
-        "activation_steps": [
-            "Run the heartbeat-prompt JSON command after project state and todos are written.",
-            "Start the worker from the project directory: loopx opencode2-goal-worker --goal-id <goal_id> --directory . --task-body <task_body>, with --agent-id and --capability flags when those values are present.",
-            "Let the worker create or attach the visible OpenCode 2 session, gate every turn through LoopX quota should-run, and keep quiet waits free of model calls.",
-        ],
-        "success_criteria": [
-            "A visible OpenCode 2 session runs the goal and the worker survives TUI close because it owns the timers.",
-            "Quiet waits make no model call, active work auto-continues, user intervention pauses visibly, and validated terminal no-follow-up stops the worker.",
-        ],
-    }
 
 
 def _traex_activation(commands: dict[str, str]) -> dict[str, Any]:
@@ -1064,24 +934,16 @@ def build_host_loop_activation_packet(
         surface = _codex_cli_activation(commands)
     elif canonical == "claude-code":
         surface = _claude_code_activation(commands, cli_bin)
-    elif canonical == "opencode":
-        surface = _opencode_activation(commands, cli_bin)
-    elif canonical == "opencode2":
-        surface = _opencode2_activation(commands, cli_bin)
     elif canonical == "traex-cli":
         surface = _traex_activation(commands)
     elif canonical == "pi":
         surface = _pi_activation(commands, cli_bin)
-    elif canonical == "gemini-cli":
-        surface = gemini_cli_activation(commands, cli_bin)
     elif canonical == "cursor-agent":
         surface = cursor_agent_activation(commands, cli_bin)
     elif canonical == "zcode":
         surface = zcode_activation(commands, cli_bin)
     elif canonical == "agy":
         surface = agy_cli_activation(commands, cli_bin)
-    elif canonical == "kiro-cli":
-        surface = kiro_cli_activation(commands, cli_bin)
     elif canonical == "deepseek-harness":
         surface = _deepseek_harness_activation(commands)
     elif canonical == "deepseek-harness-native":

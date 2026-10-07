@@ -21,8 +21,6 @@ PROJECT_SKILL_MARKER_SCHEMA_VERSION = "loopx_managed_project_skill_v0"
 PROJECT_SKILL_SURFACE_ROOTS = {
     "codex": Path(".agents") / "skills",
     "claude-code": Path(".claude") / "skills",
-    "kiro-cli": Path(".kiro") / "skills",
-    "opencode": Path(".opencode") / "skills",
     "pi": Path(".pi") / "skills",
 }
 PROJECT_SKILL_SURFACES = tuple(PROJECT_SKILL_SURFACE_ROOTS)

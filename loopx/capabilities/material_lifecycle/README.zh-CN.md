@@ -102,7 +102,6 @@ loopx project-skill install \
 
 - `codex` -> `.agents/skills/loopx-material/`
 - `claude-code` -> `.claude/skills/loopx-material/`
-- `opencode` -> `.opencode/skills/loopx-material/`
 
 重复传入 `--surface`，可以在一个 transaction 中安装多份 host-native 副本。
 安装前后可检查状态：

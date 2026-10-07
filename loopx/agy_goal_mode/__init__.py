@@ -110,8 +110,7 @@ def agy_home(value: str | None = None) -> Path:
     (``skills/<name>.md`` with front matter). The official CLI docs do not
     document any home override, so LoopX exposes none either: installs target
     exactly this path (HOME-relative, which keeps tests hermetic), and the
-    root is shared with no other host (for example, Gemini CLI reads
-    ``~/.gemini/skills``). ``value`` is an internal injection point
+    root is shared with no other host. ``value`` is an internal injection point
     for tests, not a public override.
     """
     raw = value or str(Path.home() / DEFAULT_AGY_HOME)

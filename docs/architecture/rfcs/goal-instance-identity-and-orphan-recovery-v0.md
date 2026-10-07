@@ -110,7 +110,7 @@ against retirement. An identity match is necessary, not an authorization grant.
 ### Non-goals
 
 - Changing the human-facing `goal_id` or placing instance IDs in state paths.
-- Migrating low-level Codex, Pi, OpenCode, or other host runtime directories.
+- Migrating low-level Codex, Pi, or other host runtime directories.
 - Merging multiple active-state candidates.
 - Treating timestamps, paths, content equality, global projections, or host
   records as identity evidence.
@@ -324,7 +324,7 @@ tampering is outside this mixed-version safety model.
 | Todo / coordination / lease | Head/provider binding, work mutation, claim/renew/reclaim and receipts |
 | Handoff / inbox / outbox | Request, receiver adoption, accepted artifact, result delivery and historical readback |
 | Goal Channel / Lark / heartbeat | Connection, delayed inbound/outbound event and wake admission |
-| Pi / OpenCode / other first-party hosts | Host action, execution binding and quota/state writeback |
+| Pi / other first-party hosts | Host action, execution binding and quota/state writeback |
 
 Maintain one private exhaustive owner inventory with stable locator, revision,
 content digest, observed typed reference and cleanup support. Sorted inventory

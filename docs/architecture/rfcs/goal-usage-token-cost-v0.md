@@ -30,8 +30,8 @@ exclusion. As a result:
 - Token and cost capture already exists, but only on the benchmark path, wired
   to one runtime (Codex) and to an external pricing table. It is not reachable
   from the goal runtime's main path.
-- No goal runtime reports LLM usage today. The claude, opencode, and pi goal
-  modes carry no token-telemetry code; "token" identifiers in opencode and pi
+- No goal runtime reports LLM usage today. The claude and pi goal
+  modes carry no token-telemetry code; "token" identifiers in pi
   refer to scheduler identity tokens, not LLM consumption.
 
 The primitives needed to fix this are mostly present (a usage aggregate, a JSON
@@ -161,7 +161,7 @@ The first slice proves the seam end-to-end on one runtime:
 5. Surface the new fields in the existing dashboard (no new dashboard).
 6. Add `tests/control_plane/quota/test_usage_summary.py`.
 
-Adapters for the claude, opencode, and pi goal modes are explicit follow-ups
+Adapters for the claude and pi goal modes are explicit follow-ups
 and are out of scope for this slice, because none of them report usage today
 and each needs its own ingestion mechanism (statusline hook, stdout parsing, or
 bridge IPC). The seam is designed so that adding an adapter does not revisit the
@@ -186,7 +186,7 @@ The slice must prove:
 1. Cost computation location — runtime-reported (recommended) vs core-computed.
 2. Whether model identifiers need any redaction in public surfaces, or whether
    aggregate cost alone is sufficient and model names are treated as public.
-3. Ingestion mechanism and ordering for the claude, opencode, and pi runtimes.
+3. Ingestion mechanism and ordering for the claude and pi runtimes.
 4. Whether to add a dedicated `/usage.json` endpoint or continue surfacing
    through the existing status payload (this RFC assumes the latter).
 5. The duration capture anchor — which run boundary events delimit wall-time.

@@ -16,15 +16,6 @@ from .host_loop_activation import (
 )
 from .history import load_registry
 from .install_contract import NO_CLONE_INSTALL_URL
-from .kiro_cli_goal_mode import (
-    KIRO_CLI_GOAL_CLEAR_COMMAND,
-    KIRO_CLI_GOAL_COMPLETION_TOOL,
-    KIRO_CLI_GOAL_DEFAULT_MAX_ITERATIONS,
-    kiro_cli_goal_invocation,
-)
-from .kiro_cli_goal_mode import (
-    SKILLS_ROOT_LABEL as KIRO_CLI_SKILLS_ROOT_LABEL,
-)
 from .project_prompt import (
     render_available_capability_args,
     render_cli_command_prefix,
@@ -60,21 +51,12 @@ def _surface_install_command(
         return f"{command_prefix} slash-commands --install --surface codex"
     if agent_type == "claude-code":
         return f"{command_prefix} slash-commands --install --surface claude-code"
-    if agent_type == "opencode":
-        return (
-            f"{command_prefix} slash-commands --install --surface opencode "
-            "--with-goal-bridge"
-        )
-    if agent_type == "gemini-cli":
-        return f"{command_prefix} slash-commands --install --surface gemini"
     if agent_type == "cursor-agent":
         return f"{command_prefix} slash-commands --install --surface cursor"
     if agent_type == "zcode":
         return f"{command_prefix} slash-commands --install --surface zcode"
     if agent_type == "agy":
         return f"{command_prefix} slash-commands --install --surface agy"
-    if agent_type == "kiro-cli":
-        return f"{command_prefix} slash-commands --install --surface kiro-cli"
     if agent_type == "pi":
         # The slash-commands installer resolves the Pi extension target through
         # --pi-project; pass the resolved project so the command stays correct
@@ -91,8 +73,6 @@ def _project_skill_surface(agent_type: str) -> str | None:
         return "codex"
     if agent_type == "claude-code":
         return "claude-code"
-    if agent_type == "opencode":
-        return "opencode"
     if agent_type == "pi":
         return "pi"
     return None
@@ -296,14 +276,11 @@ def _bootstrap_pack_command(
     surface_by_type = {
         "codex-cli": "codex-cli-tui",
         "claude-code": "claude-code",
-        "opencode": "opencode",
         "traex-cli": "traex-cli",
         "pi": "pi",
-        "gemini-cli": "gemini-cli",
         "cursor-agent": "cursor-agent",
         "zcode": "zcode",
         "agy": "agy",
-        "kiro-cli": "kiro-cli",
         "deepseek-harness": "deepseek-harness",
         "deepseek-harness-native": "deepseek-harness-native",
         "ark-managed-agent": "ark-managed-agent",
@@ -334,18 +311,10 @@ def _start_instruction(agent_type: str) -> str:
         return "Use `$loopx <task>` or select the LoopX skill from `/skills`; after todos are written, set `/goal <task_body>` in the visible TUI."
     if agent_type == "claude-code":
         return "Run `/loopx <task>` to arm LoopX, then run native `/loop`."
-    if agent_type == "opencode":
-        return "Run `/loopx <task>`; after todo writeback, call `loopx_goal_activate` with the generated heartbeat task body."
     if agent_type == "traex-cli":
         return "Use `$loopx <task>` or select the LoopX skill from `/skills`; after todos are written, set `/goal <task_body>` in the visible TraeX TUI (enable `[features] goals = true` first if goal mode is off)."
     if agent_type == "pi":
         return "Run `/loopx <task>`; after todo writeback, call `loopx_goal_activate` with the generated heartbeat task body."
-    if agent_type == "gemini-cli":
-        return (
-            "Invoke the LoopX skill from `GEMINI_HOME/skills`; after todo writeback, "
-            "carry the generated heartbeat task body as the session objective and "
-            "start every following turn with `quota should-run`."
-        )
     if agent_type == "cursor-agent":
         return (
             "Invoke the LoopX skill from `CURSOR_HOME/skills`; after todo writeback, "
@@ -370,21 +339,6 @@ def _start_instruction(agent_type: str) -> str:
             "bounded wake with the native `schedule` tool (DurationSeconds + "
             "wake Prompt; recurring via MaxIterations) when quota allows more "
             "work."
-        )
-    if agent_type == "kiro-cli":
-        return (
-            f"Run `/loopx <task>` (the LoopX skill installed in "
-            f"`{KIRO_CLI_SKILLS_ROOT_LABEL}`); after todo writeback, bind the "
-            f"objective with the native `{kiro_cli_goal_invocation()}` command, "
-            f"stating the todo's acceptance criteria inside the goal statement "
-            f"because the host derives them from it, and taking N from the "
-            f"remaining quota slots (host default is "
-            f"{KIRO_CLI_GOAL_DEFAULT_MAX_ITERATIONS}; "
-            f"`{KIRO_CLI_GOAL_CLEAR_COMMAND}` cancels). "
-            f"Start every turn and native goal iteration with `quota "
-            f"should-run`, and settle through the built-in "
-            f"`{KIRO_CLI_GOAL_COMPLETION_TOOL}` tool only after LoopX writeback "
-            f"so its completion contract cites the same evidence."
         )
     if agent_type == "deepseek-harness":
         return (

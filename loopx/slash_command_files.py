@@ -22,12 +22,8 @@ def managed_marker(*, command: str, surface: str) -> str:
 def _needs_yaml_quotes(value: str) -> bool:
     """Whether a front-matter scalar must be double-quoted to stay valid YAML.
 
-    Hosts do not agree on how forgiving their front-matter reader is. Kiro CLI
-    keeps the quote characters verbatim, so a quoted `name` turns the skill's
-    own slash command into `/"loopx"`; a strict YAML reader, on the other hand,
-    rejects an unquoted `[task text]` or a value containing `": "`. Quoting only
-    what YAML actually requires satisfies both: identifiers stay plain and
-    ambiguous prose stays quoted.
+    Keep identifiers plain and quote ambiguous prose so strict YAML readers
+    accept punctuation, whitespace, and reserved scalar values.
     """
     if not value or value.strip() != value:
         return True

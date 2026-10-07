@@ -86,17 +86,6 @@ can discover user-installed skills:
 - Claude Code: lightweight user skills under `~/.claude/skills/loopx*`, so the
   command family can appear as Claude Code slash commands without enabling the
   opt-in MCP/hook adapter.
-- OpenCode: static command files under `~/.config/opencode/commands/` expose
-  native `/loopx` slash commands after restart. The executable goal bridge
-  (timer-based idle continuation gated by LoopX quota) requires an explicit
-  `--with-goal-bridge` install. The wrapped goal runtime keeps private restart
-  state under each project's `.opencode/goals/`; add that directory to project
-  ignore rules before using the persistent bridge.
-- OpenCode 2: the same static command files serve OpenCode 2, and the goal
-  loop runs through the persistent `loopx opencode2-goal-worker` process,
-  which drives the session over the OpenCode 2 HTTP API and owns the loop
-  timers, so long runs survive TUI close. OpenCode 1 plugins do not run under
-  OpenCode 2; see `loopx/opencode2_goal_mode/README.md`.
 - Pi: the self-contained goal extension exposes `/loopx` after `/reload` or a
   restart and runs the quota-gated goal loop through `loopx_goal_activate`.
   `loopx slash-commands --install --surface pi` installs it for the current
@@ -154,7 +143,7 @@ integrations that need the lower-level handoff packet can use
 manager or PR review commands, use `loopx slash-commands` to print the current
 canonical command list and fallback CLI shapes.
 
-Use `codex-cli-tui`, `opencode`, or `opencode2` for the corresponding host. When
+Use `codex-cli-tui` for the Codex CLI host. When
 `--host-surface` is omitted, LoopX defaults to `codex-cli-tui`; pass every
 other host explicitly.
 
@@ -656,13 +645,11 @@ Host-native project roots are:
 | --- | --- |
 | Codex | `.agents/skills/` |
 | Claude Code | `.claude/skills/` |
-| OpenCode | `.opencode/skills/` |
 
 Repeat `--surface` to install the same skill for multiple hosts in one
 transaction. The locations follow the host discovery contracts documented by
-[Codex](https://developers.openai.com/codex/skills),
-[Claude Code](https://code.claude.com/docs/en/slash-commands#where-skills-live),
-and [OpenCode](https://opencode.ai/docs/skills/#place-files).
+[Codex](https://developers.openai.com/codex/skills) and
+[Claude Code](https://code.claude.com/docs/en/slash-commands#where-skills-live).
 
 Installing a project skill does not grant domain write authority; the current
 goal/profile/todo must still activate the capability. Use
@@ -745,7 +732,6 @@ the connected project `.gitignore` before committing:
 
 ```gitignore
 .loopx/
-.opencode/goals/
 goals/**/ACTIVE_GOAL_STATE.md
 ```
 

@@ -18,7 +18,7 @@ loopx project-skill install \
   --execute
 ```
 
-Use `--surface claude-code` or `--surface opencode` for those hosts. Skill
+Use `--surface claude-code` for Claude Code. Skill
 discovery does not activate the capability; product behavior remains
 default-off until goal policy enables it.
 

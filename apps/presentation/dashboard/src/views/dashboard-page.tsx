@@ -631,8 +631,6 @@ function personalAgentLabel(agentId: string) {
       return "Codex";
     case "claude":
       return "Claude Code";
-    case "kiro":
-      return "Kiro CLI";
     case "trae":
       return "Trae CLI Agent";
     case "coco":
@@ -651,8 +649,6 @@ function personalAgentCapability(agentId: string, adapterKind?: string | null) {
     case "openai":
     case "anthropic":
       return "管家问答 · 无工具";
-    case "kiro":
-      return "终端编码 · 原生 /goal 循环";
     case "trae":
       return "前端与交互实现";
     case "coco":

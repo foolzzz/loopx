@@ -347,7 +347,7 @@ export function createEphemeralSessionIdentity() {
   }
 }
 
-// Mirrors the OpenCode bridge probe: LoopX quota should-run is the only
+// Quota probe: LoopX quota should-run is the only
 // continuation authority for the visible goal loop.
 export function buildQuotaArgs(binding) {
   const args = []

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject retired App-host guidance in active onboarding documentation."""
+"""Reject retired host guidance in active onboarding documentation."""
 
 from __future__ import annotations
 

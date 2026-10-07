@@ -141,39 +141,18 @@ TURN_HOST_SELECTION_RESOLVED_DEFAULT = "resolved_default"
 VISIBLE_HOST_CONNECTOR_IDS: dict[str, str] = {
     "codex-cli": "codex_cli_tui",
     "claude-code": "claude_code_loop",
-    # OpenCode runs its visible goal loop through the generic-cli Turn host;
-    # parity lives in the selector/catalog mapping, not a new Turn host kind.
-    "generic-cli": "opencode_goal_loop",
-}
-
-# Host identities accepted by the public host-mode planner must own a concrete
-# visible connector. This is deliberately narrower than the Turn driver's
-# SUPPORTED_HOSTS: headless-only built-in hosts such as dsh do not become
-# visible identities merely by registering an execution backend.
-SUPPORTED_TURN_HOST_IDENTITIES = sorted(VISIBLE_HOST_CONNECTOR_IDS)
-
-# Host identities that are valid visible selections but map to the OpenCode
-# goal loop connector rather than their own Turn host kind.
-VISIBLE_OPENCODE_ALIASES: dict[str, str] = {
-    "opencode": "generic-cli",
-    "open-code": "generic-cli",
-    "opencode2": "generic-cli",
-    "opencode-2": "generic-cli",
-}
-
-# Pi runs its visible goal loop through the generic-cli Turn host, same as
-# OpenCode, but keeps its own goal-loop connector identity.
-VISIBLE_PI_ALIASES: dict[str, str] = {
-    "pi": "generic-cli",
-}
-
-# Connector id override for source host identities that alias onto the
-# generic-cli Turn host. The normalized Turn host stays generic-cli while the
-# visible connector keeps naming the real host loop.
-VISIBLE_CONNECTOR_OVERRIDES: dict[str, str] = {
     "pi": "pi_goal_loop",
 }
 
+# The generic-cli identity remains valid for headless previews but has no
+# implicit visible connector. Headless-only dsh does not become a visible
+# identity merely by registering an execution backend.
+SUPPORTED_TURN_HOST_IDENTITIES = sorted({*VISIBLE_HOST_CONNECTOR_IDS, "generic-cli"})
+
+# Pi runs its visible loop through the generic-cli Turn host.
+VISIBLE_PI_ALIASES: dict[str, str] = {
+    "pi": "generic-cli",
+}
 
 CAPABILITY_GUIDANCE = {
     CAP_VISIBLE_SESSION: "A visible session is required so the user can watch, steer, or take over safely.",
@@ -285,7 +264,7 @@ def _turn_plan_command(
     if mode == MODE_VISIBLE_TUI:
         # Visible mode requires an explicit, catalog-registered host identity.
         # Without it, a coarse `visible_session` capability cannot distinguish
-        # Codex CLI, Claude Code, or OpenCode, so claiming any concrete host
+        # Codex CLI, Claude Code, or Pi, so claiming any concrete host
         # would fabricate attribution.
         if not host_identity:
             raise HostModePlanError(
@@ -305,7 +284,7 @@ def _turn_plan_command(
                 field="host_identity",
                 suggestions=sorted(VISIBLE_HOST_CONNECTOR_IDS),
             )
-        turn_host = host_identity
+        turn_host = VISIBLE_PI_ALIASES.get(host_identity, host_identity)
     if turn_host not in SUPPORTED_HOSTS:
         raise HostModePlanError(
             reason=f"unsupported Turn host mapped by {mode}: {turn_host}",
@@ -333,7 +312,7 @@ def _scheduler_context(mode: str, host_identity: str | None = None) -> dict[str,
     execution_mode = meta.get("turn_execution_mode")
     if mode == MODE_VISIBLE_TUI:
         if host_identity in VISIBLE_HOST_CONNECTOR_IDS:
-            turn_host = host_identity
+            turn_host = VISIBLE_PI_ALIASES.get(host_identity, host_identity)
         else:
             # No honest host binding exists without an explicit registered
             # identity; do not project a fabricated host context.
@@ -537,7 +516,6 @@ def _build_mode_option(
     cli_bin: str,
     available_capabilities: list[str] | None,
     host_identity: str | None,
-    connector_override_identity: str | None = None,
 ) -> dict[str, Any]:
     meta = _MODE_METADATA[mode]
     visible_unresolved = (
@@ -582,10 +560,8 @@ def _build_mode_option(
         host_identity=host_identity if host_identity in VISIBLE_HOST_CONNECTOR_IDS else None,
     )
     if mode == MODE_VISIBLE_TUI:
-        connector_id = VISIBLE_CONNECTOR_OVERRIDES.get(
-            connector_override_identity or ""
-        ) or VISIBLE_HOST_CONNECTOR_IDS.get(host_identity or "")
-        effective_turn_host = host_identity if connector_id else None
+        connector_id = VISIBLE_HOST_CONNECTOR_IDS.get(host_identity or "")
+        effective_turn_host = VISIBLE_PI_ALIASES.get(host_identity, host_identity) if connector_id else None
         host_resolution = (
             "resolved"
             if connector_id
@@ -626,7 +602,7 @@ def _build_mode_option(
         "summary": meta["summary"],
         "connector_id": connector_id,
         "host_resolution": host_resolution,
-        "host_identity": host_identity if mode == MODE_VISIBLE_TUI else None,
+        "host_identity": VISIBLE_PI_ALIASES.get(host_identity, host_identity) if mode == MODE_VISIBLE_TUI else None,
         "capability_ready": _mode_capability_ready(mode, host_capabilities, host_identity),
         "required_host_capabilities": list(meta["required_capabilities"]),
         "missing_host_capabilities": _missing_mode_capabilities(mode, host_capabilities),
@@ -776,15 +752,13 @@ def build_host_mode_plan(
     )
     available = _normalize_tokens(available_capabilities)
     normalized_host_identity = None
-    connector_override_identity = None
     if host_identity:
         # Host identities are Turn host kinds and already use dashes
         # (codex-cli, claude-code, generic-cli); normalize case without
-        # converting dashes to underscores. OpenCode and Pi alias onto the
-        # generic-cli Turn host while keeping their own connector identity.
+        # converting dashes to underscores. Pi keeps an explicit visible
+        # identity while its Turn commands use generic-cli.
         raw_identity = str(host_identity).strip().lower()
-        candidate = VISIBLE_OPENCODE_ALIASES.get(raw_identity, raw_identity)
-        candidate = VISIBLE_PI_ALIASES.get(candidate, candidate)
+        candidate = raw_identity
         if candidate not in SUPPORTED_TURN_HOST_IDENTITIES:
             raise HostModePlanError(
                 reason=f"unsupported host_identity: {candidate}",
@@ -792,9 +766,6 @@ def build_host_mode_plan(
                 suggestions=SUPPORTED_TURN_HOST_IDENTITIES,
             )
         normalized_host_identity = candidate
-        connector_override_identity = (
-            raw_identity if raw_identity in VISIBLE_CONNECTOR_OVERRIDES else None
-        )
     # Host-mode planning continues an existing goal; fresh identity creation
     # belongs to the onboarding entry points that opt into that policy.
     identity = _identity_state(
@@ -816,7 +787,6 @@ def build_host_mode_plan(
             cli_bin=cli_bin,
             available_capabilities=available,
             host_identity=normalized_host_identity,
-            connector_override_identity=connector_override_identity,
         )
         for mode in ordered_modes
     ]
@@ -831,7 +801,7 @@ def build_host_mode_plan(
         "agent_id": scoped_agent_id,
         "user_intent": intents,
         "host_capabilities": caps,
-        "host_identity": normalized_host_identity,
+        "host_identity": VISIBLE_PI_ALIASES.get(normalized_host_identity, normalized_host_identity),
         "selected_mode": primary_mode,
         "selected_connector_id": selected["connector_id"],
         "selected_turn_mapping": selected["turn_mapping"],

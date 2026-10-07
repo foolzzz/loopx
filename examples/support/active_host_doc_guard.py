@@ -1,4 +1,4 @@
-"""Guard active docs with an explicit retired App-host denylist."""
+"""Guard active docs against explicit retired host commands."""
 
 from __future__ import annotations
 
@@ -10,6 +10,23 @@ from pathlib import Path
 # identifiers; it does not try to infer whether surrounding prose is historical,
 # negative, or actionable.
 RETIRED_COMMAND_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "retired host selector",
+        re.compile(
+            r"--(?:surface|host-surface|agent-type|host-identity)(?:\s+|=)[`\"']?"
+            r"(?:opencode2?|kiro(?:-cli)?|gemini-cli|cline)(?![-\w])",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "retired host runtime profile",
+        re.compile(
+            r"--runtime-profile(?:\s+|=)[`\"']?"
+            r"(?:opencode(?:2)?_goal|kiro_cli|gemini_cli|cline)(?![-\w])",
+            re.IGNORECASE,
+        ),
+    ),
+    ("retired goal worker", re.compile(r"\bopencode2-goal-worker\b", re.IGNORECASE)),
     ("--codex-app", re.compile(r"--codex-app(?![-\w])", re.IGNORECASE)),
     ("--trae-app", re.compile(r"--trae[-_]app(?![-\w])", re.IGNORECASE)),
     (
@@ -87,6 +104,16 @@ ACTIVE_ONBOARDING_AND_HOST_INTEGRATION_PATHS = (
     "README.zh-CN.md",
     "docs/README.md",
     "docs/guides/getting-started.md",
+    "docs/guides/installing-loopx.md",
+    "docs/guides/custom-agent-runner-integration.md",
+    "docs/guides/custom-agent-runner-integration.zh-CN.md",
+    "docs/integrations/runtime-connector-catalog.md",
+    "docs/reference/protocols/host-mode-plan-v0.md",
+    "loopx/capabilities/material_lifecycle/README.md",
+    "loopx/capabilities/material_lifecycle/README.zh-CN.md",
+    "loopx/capabilities/change_quality/README.md",
+    "skills/loopx-material/SKILL.md",
+    "skills/loopx-change-quality/SKILL.md",
     "docs/guides/long-running-coding-agents.md",
     "docs/guides/newcomer-command-path.md",
     "docs/integration.md",
@@ -121,6 +148,14 @@ def find_retired_app_host_instruction(text: str) -> str | None:
 
 def assert_detector_examples() -> None:
     rejected = (
+        "loopx slash-commands --install --surface opencode",
+        "loopx start-goal --host-surface=opencode2",
+        "loopx agent-onboard --agent-type kiro-cli",
+        "loopx slash-commands --surface gemini-cli",
+        "loopx project-skill install --surface cline",
+        "loopx host-mode-plan --host-identity opencode",
+        "loopx quota should-run --runtime-profile opencode_goal",
+        "loopx opencode2-goal-worker --goal-id sample",
         "loopx heartbeat-prompt --bootstrap --thin --codex-app",
         "loopx heartbeat-prompt --thin --trae_app",
         "loopx agent-onboard --host-surface=trae-app",
@@ -135,6 +170,12 @@ def assert_detector_examples() -> None:
         "在 Trae App 中创建 heartbeat automation。",
     )
     allowed = (
+        "loopx slash-commands --surface codex",
+        "loopx slash-commands --surface claude-code",
+        "loopx slash-commands --surface cursor-agent",
+        "loopx slash-commands --surface pi",
+        "loopx slash-commands --surface omp",
+        "The third-party provider supports OpenCode and Gemini CLI.",
         "Codex App onboarding and automation integration are retired.",
         "Do not restore old App automation or App-specific scheduler configuration.",
         "Use Codex CLI instead of the former App entrypoint.",

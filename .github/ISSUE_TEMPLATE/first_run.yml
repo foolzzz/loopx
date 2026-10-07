@@ -31,10 +31,8 @@ body:
       options:
         - Codex CLI
         - Claude Code
-        - OpenCode
         - TraeX
         - Pi
-        - Gemini CLI
         - Cursor
         - Shell or custom runner
         - Other

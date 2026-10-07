@@ -18,7 +18,6 @@ from loopx.chat_acp import ACPStdioAdapter  # noqa: E402
 from loopx.chat_endpoints import AgentEndpointRegistry  # noqa: E402
 from loopx.chat_runtime import ChatRuntimeController  # noqa: E402
 from loopx.chat_store import ChatSessionStore  # noqa: E402
-from loopx.kiro_cli_goal_mode import KIRO_CLI_CHAT_AGENT_ID  # noqa: E402
 
 
 FAKE_ACP = r'''#!/usr/bin/env python3
@@ -250,106 +249,74 @@ def main() -> None:
         assert restored["session_id"] == session["session_id"]
         second.close()
 
-        # Kiro CLI is a built-in ACP agent, not an owner-registered endpoint:
-        # the capability row must advertise it and `open_session` must reach the
-        # same ACP adapter. Pointing kiro_cli_bin at the fixture keeps this
-        # offline while still proving the built-in route, because a row that
-        # renders in the dashboard but dead-ends at session open is decorative.
-        kiro_store = ChatSessionStore(root / "kiro-runtime")
-        kiro = ChatRuntimeController(
-            store=kiro_store,
+        # Generic registered ACP endpoints retain task execution and recovery.
+        fixture_store = ChatSessionStore(root / "acp-task-runtime")
+        fixture = ChatRuntimeController(
+            store=fixture_store,
             codex_bin="missing-codex-for-fixture",
-            kiro_cli_bin=str(fake),
+            endpoint_registry=endpoint_registry,
         )
-        row = next(
-            item
-            for item in kiro.capabilities()
-            if item["agent_id"] == KIRO_CLI_CHAT_AGENT_ID
-        )
-        assert row["source"] == "builtin", row
-        assert row["adapter_kind"] == "acp", row
-        assert row["display_name"] == "Kiro CLI", row
-        assert row["available"] is True, row
-        assert row["trust_scope"] == "workspace_write", row
-        kiro_session, kiro_resumed = kiro.open_session(
-            goal_id="fixture-goal",
-            agent_id=KIRO_CLI_CHAT_AGENT_ID,
-            work_dir=root,
-            objective="Exercise the built-in Kiro CLI ACP route.",
-            mode="resume_latest",
+        fixture_session, fixture_resumed = fixture.open_session(
+            goal_id="fixture-goal", agent_id="fixture-acp", work_dir=root,
+            objective="Exercise the ACP task route.", mode="resume_latest",
             channel_id="task.fixture-task",
         )
-        assert kiro_resumed is False
-        assert kiro_session["upstream_thread_id"] == "acp:fixture/session"
-        kiro_turn, kiro_created = kiro.submit_turn(
-            session_id=str(kiro_session["session_id"]),
-            client_turn_id="kiro-turn",
-            message="verify execution mode",
-            work_dir=root,
-            objective="Exercise the built-in Kiro CLI ACP route.",
-        )
-        assert kiro_created is True
-        kiro_completed = kiro.wait_for_turn(
-            session_id=str(kiro_session["session_id"]),
-            turn_id=str(kiro_turn["turn_id"]),
-            timeout_sec=3,
-        )
-        assert kiro_completed["status"] == "completed", kiro_completed
-        kiro.close()
+        assert fixture_resumed is False
+        fixture.close()
 
         # Persisted task channels must retain execution mode after process
         # recovery; otherwise the first turn can execute while the next one
         # silently falls back to planning-only instructions.
-        kiro_resumed_controller = ChatRuntimeController(
-            store=kiro_store,
+        fixture_resumed_controller = ChatRuntimeController(
+            store=fixture_store,
             codex_bin="missing-codex-for-fixture",
-            kiro_cli_bin=str(fake),
+            endpoint_registry=endpoint_registry,
         )
-        resumed_session, was_resumed = kiro_resumed_controller.open_session(
+        resumed_session, was_resumed = fixture_resumed_controller.open_session(
             goal_id="fixture-goal",
-            agent_id=KIRO_CLI_CHAT_AGENT_ID,
+            agent_id="fixture-acp",
             work_dir=root,
-            objective="Exercise the resumed Kiro CLI ACP route.",
+            objective="Exercise the resumed ACP route.",
             mode="resume_latest",
             channel_id="task.fixture-task",
         )
         assert was_resumed is True
-        resumed_turn, created = kiro_resumed_controller.submit_turn(
+        resumed_turn, created = fixture_resumed_controller.submit_turn(
             session_id=str(resumed_session["session_id"]),
-            client_turn_id="kiro-resumed-turn",
+            client_turn_id="acp-resumed-turn",
             message="verify execution mode",
             work_dir=root,
-            objective="Exercise the resumed Kiro CLI ACP route.",
+            objective="Exercise the resumed ACP route.",
         )
         assert created is True
-        resumed_completed = kiro_resumed_controller.wait_for_turn(
+        resumed_completed = fixture_resumed_controller.wait_for_turn(
             session_id=str(resumed_session["session_id"]),
             turn_id=str(resumed_turn["turn_id"]),
             timeout_sec=3,
         )
         assert resumed_completed["status"] == "completed", resumed_completed
-        kiro_resumed_controller.close()
+        fixture_resumed_controller.close()
 
         # Goal/manager chat remains planning-only: task execution authority must
         # not leak into ordinary conversation through the shared ACP adapter.
         planning = ChatRuntimeController(
-            store=ChatSessionStore(root / "kiro-planning"),
+            store=ChatSessionStore(root / "acp-planning"),
             codex_bin="missing-codex-for-fixture",
-            kiro_cli_bin=str(fake),
+            endpoint_registry=endpoint_registry,
         )
         planning_session, _ = planning.open_session(
             goal_id="fixture-goal",
-            agent_id=KIRO_CLI_CHAT_AGENT_ID,
+            agent_id="fixture-acp",
             work_dir=root,
-            objective="Exercise the planning-only Kiro CLI ACP route.",
+            objective="Exercise the planning-only ACP route.",
             mode="new",
         )
         planning_turn, created = planning.submit_turn(
             session_id=str(planning_session["session_id"]),
-            client_turn_id="kiro-planning-turn",
+            client_turn_id="acp-planning-turn",
             message="verify planning mode",
             work_dir=root,
-            objective="Exercise the planning-only Kiro CLI ACP route.",
+            objective="Exercise the planning-only ACP route.",
         )
         assert created is True
         planning_completed = planning.wait_for_turn(
@@ -365,8 +332,8 @@ def main() -> None:
         try:
             endpoint_registry.upsert(
                 {
-                    "agent_id": KIRO_CLI_CHAT_AGENT_ID,
-                    "display_name": "Shadow Kiro",
+                    "agent_id": "codex",
+                    "display_name": "Shadow Codex",
                     "command": [str(fake)],
                 }
             )
@@ -378,14 +345,13 @@ def main() -> None:
         # An uninstalled host renders as needing configuration instead of
         # failing at session open.
         unavailable = ChatRuntimeController(
-            store=ChatSessionStore(root / "kiro-missing"),
+            store=ChatSessionStore(root / "codex-missing"),
             codex_bin="missing-codex-for-fixture",
-            kiro_cli_bin="loopx-missing-kiro-cli-for-fixture",
         )
         missing_row = next(
             item
             for item in unavailable.capabilities()
-            if item["agent_id"] == KIRO_CLI_CHAT_AGENT_ID
+            if item["agent_id"] == "codex"
         )
         assert missing_row["available"] is False, missing_row
         unavailable.close()

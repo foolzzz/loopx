@@ -48,7 +48,7 @@ function checkpoint(text: string): void {
   buildVisionCheckpoint({
     schema_version: VISION_REFRESH_REQUEST_SCHEMA,
     phase: "finalize",
-    agent_id: "kiro-cli",
+    agent_id: "fixture-cli",
     agent_vision: null,
     existing_agent_vision: null,
     vision_unchanged_reason: text,

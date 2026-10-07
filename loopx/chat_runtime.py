@@ -43,11 +43,6 @@ from .chat_endpoint_catalog import builtin_chat_endpoints
 from .chat_endpoints import AgentEndpointRegistry
 from .control_plane.turn_driver.host_binding import MANAGED_TURN_HOST
 from .control_plane.turn_driver.execution_profile import managed_execution_profile
-from .kiro_cli_goal_mode import (
-    KIRO_CLI_BIN,
-    KIRO_CLI_CHAT_AGENT_ID,
-    kiro_cli_chat_command,
-)
 from .chat_store import (
     CHAT_SESSION_MODE_ATTACHED,
     TERMINAL_TURN_STATES,
@@ -274,7 +269,6 @@ class ChatRuntimeController:
         store: ChatSessionStore,
         codex_bin: str,
         claude_bin: str = "claude",
-        kiro_cli_bin: str = KIRO_CLI_BIN,
         startup_timeout_sec: float = 30.0,
         idle_timeout_sec: float = 180.0,
         hard_timeout_sec: float = 900.0,
@@ -289,7 +283,6 @@ class ChatRuntimeController:
         # Capture once; the service's startup environment is not session identity.
         self.codex_home = codex_home_path(os.environ.get("LOOPX_CHAT_CODEX_HOME")).resolve()
         self.claude_bin = claude_bin
-        self.kiro_cli_bin = kiro_cli_bin
         self.startup_timeout_sec = startup_timeout_sec
         self.idle_timeout_sec = idle_timeout_sec
         self.hard_timeout_sec = hard_timeout_sec
@@ -335,7 +328,6 @@ class ChatRuntimeController:
         builtins = builtin_chat_endpoints(
             codex_bin=self.codex_bin,
             claude_bin=self.claude_bin,
-            kiro_cli_bin=self.kiro_cli_bin,
             runtime_root=self.store.root.parent,
         )
         return [*builtins, *(endpoint.public_summary() for endpoint in self.endpoint_registry.list())]
@@ -491,16 +483,6 @@ class ChatRuntimeController:
                 work_dir=work_dir,
                 session_id=resume_thread_id,
                 history=history,
-            )
-        if agent_id == KIRO_CLI_CHAT_AGENT_ID:
-            return ACPStdioAdapter.start(
-                command=kiro_cli_chat_command(self.kiro_cli_bin),
-                work_dir=work_dir,
-                resume_thread_id=resume_thread_id,
-                startup_timeout_sec=self.startup_timeout_sec,
-                idle_timeout_sec=self.idle_timeout_sec,
-                hard_timeout_sec=self.hard_timeout_sec,
-                execution_mode=execution_mode,
             )
         endpoint = self.endpoint_registry.get(agent_id)
         if endpoint is not None:

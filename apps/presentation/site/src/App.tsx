@@ -76,7 +76,7 @@ const content = {
       title: "Choose how you want to start.",
       body: "Use your current agent for the guided path, or copy the shell commands for a manual setup.",
       agentTitle: "Agent setup",
-      agentBody: "Give the complete setup prompt to Codex, Claude Code, OpenCode, TraeX, Pi, or another shell-capable agent.",
+      agentBody: "Give the complete setup prompt to Codex, Claude Code, TraeX, Pi, or another shell-capable agent.",
       shellTitle: "Shell setup",
       shellBody: "Install LoopX, check the CLI, and connect the current project yourself.",
       copy: "Copy",
@@ -117,7 +117,7 @@ const content = {
     capabilities: {
       eyebrow: "Across providers, runtimes, and hosts",
       title: "One governed loop across agent runtimes.",
-      body: "Codex, Claude Code, OpenCode, TraeX, Pi, and custom runners can share one stateful goal lifecycle while each agent stays inside an explicit scope.",
+      body: "Codex, Claude Code, TraeX, Pi, and custom runners can share one stateful goal lifecycle while each agent stays inside an explicit scope.",
       items: [
         ["01", "Durable state", "Goals, decisions, todos, claims, quota, run history, and handoffs survive session boundaries."],
         ["02", "Cross-runtime", "Change the executor or host without reconstructing the objective from chat history."],
@@ -185,7 +185,7 @@ const content = {
       title: "选择你的开始方式。",
       body: "让当前 Agent 完成引导式接入，或复制 Shell 命令手动安装。",
       agentTitle: "Agent 接入",
-      agentBody: "把完整设置指令交给 Codex、Claude Code、OpenCode、TraeX、Pi 或其他具备 Shell 能力的 Agent。",
+      agentBody: "把完整设置指令交给 Codex、Claude Code、TraeX、Pi 或其他具备 Shell 能力的 Agent。",
       shellTitle: "Shell 接入",
       shellBody: "手动安装 LoopX、检查 CLI，并连接当前项目。",
       copy: "复制",
@@ -226,7 +226,7 @@ const content = {
     capabilities: {
       eyebrow: "跨 Provider、Runtime 与 Host",
       title: "一套受治理的闭环，连接不同 Agent Runtime。",
-      body: "Codex、Claude Code、OpenCode、TraeX、Pi 与自定义 Runner 可以共享同一套有状态目标生命周期，同时让每个 Agent 保持明确边界。",
+      body: "Codex、Claude Code、TraeX、Pi 与自定义 Runner 可以共享同一套有状态目标生命周期，同时让每个 Agent 保持明确边界。",
       items: [
         ["01", "持久状态", "目标、用户决策、Todo、Claim、Quota、运行历史与交接不会随会话结束而丢失。"],
         ["02", "跨运行时", "更换执行器或 Host 时，无需从聊天记录重建长期目标。"],

@@ -72,7 +72,6 @@ def main() -> int:
     assert {
         "codex-cli",
         "claude-code",
-        "opencode",
         "traex-cli",
         "pi",
         "manual",
@@ -82,7 +81,6 @@ def main() -> int:
     assert ambiguous == {"cli": ["codex-cli", "manual", "other-agent"]}, ambiguous
 
     assert agent_type_for_host_surface("codex-cli-tui") == "codex-cli"
-    assert agent_type_for_host_surface("opencode") == "opencode"
     assert agent_type_for_host_surface("pi") == "pi"
     assert agent_type_for_host_surface("pi-tui") == "pi"
     assert agent_type_for_host_surface("ark-managed-agent") == "ark-managed-agent"
@@ -93,7 +91,6 @@ def main() -> int:
 
     codex_cli = build_host_loop_activation_packet(agent_type="codex-cli", goal_id="demo")
     claude_code = build_host_loop_activation_packet(agent_type="claude-code", goal_id="demo")
-    opencode = build_host_loop_activation_packet(agent_type="opencode", goal_id="demo")
     pi = build_host_loop_activation_packet(agent_type="pi", goal_id="demo")
     ark_managed_agent = build_host_loop_activation_packet(
         agent_type="ark-managed-agent",
@@ -113,9 +110,6 @@ def main() -> int:
     assert codex_cli["activation_method"] == "set_visible_goal", codex_cli
     assert codex_cli["host_mutation"]["host_command"] == "/goal <task_body>", codex_cli
     assert claude_code["host_mutation"]["host_command"] == "/loop", claude_code
-    assert opencode["activation_method"] == "activate_loopx_opencode_goal_bridge", opencode
-    assert opencode["host_mutation"]["host_tool"] == "loopx_goal_activate", opencode
-    assert "--runtime-profile generic_cli" in opencode["commands"]["heartbeat_prompt"], opencode
     assert pi["activation_method"] == "activate_loopx_pi_goal_extension", pi
     assert pi["host_surface"] == "pi_visible_goal_mode", pi
     assert pi["host_mutation"]["host_tool"] == "loopx_goal_activate", pi
@@ -408,21 +402,6 @@ def main() -> int:
         assert cli_prompt["interface_budget"]["mode"] == "visible_goal", cli_prompt
         assert "--turn-instance-id" not in cli_prompt["quota_guard_command"], cli_prompt
         assert "--source visible-goal" in cli_prompt["quota_spend_command"], cli_prompt
-
-        opencode_onboarding = build_agent_onboarding_packet(
-            project=project,
-            agent_type="opencode",
-            goal_id="multi-agent-goal",
-            agent_id="codex-product-capability",
-            cli_bin=cli_bin,
-        )
-        assert "--host-surface opencode" in opencode_onboarding["commands"]["bootstrap_command_pack"]
-        assert opencode_onboarding["commands"]["install_command_facade"].endswith(
-            "--surface opencode --with-goal-bridge"
-        )
-        assert opencode_onboarding["host_loop_activation"]["host_mutation"]["host_tool"] == (
-            "loopx_goal_activate"
-        )
 
         pi_onboarding = build_agent_onboarding_packet(
             project=project,

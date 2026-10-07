@@ -13,7 +13,6 @@ import uuid
 
 from .chat_store import utc_now
 from .file_lock import exclusive_file_lock
-from .kiro_cli_goal_mode import KIRO_CLI_CHAT_AGENT_ID
 
 
 CHAT_ENDPOINT_REGISTRY_SCHEMA_VERSION = "loopx_chat_endpoint_registry_v1"
@@ -26,7 +25,6 @@ RESERVED_AGENT_IDS = {
     "claude-code",
     "anthropic-api",
     "openai-api",
-    KIRO_CLI_CHAT_AGENT_ID,
 }
 SUPPORTED_TRANSPORTS = {"stdio"}
 SUPPORTED_LOCATIONS = {"local", "remote"}

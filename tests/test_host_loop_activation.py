@@ -135,10 +135,16 @@ def test_traex_visible_goal_body_contract_rejects_forbidden_variants(
 def test_host_surfaces_resolve_to_supported_agent_types() -> None:
     assert agent_type_for_host_surface(None) == "codex-cli"
     assert agent_type_for_host_surface("codex-cli-tui") == "codex-cli"
-    assert normalize_agent_type("Open Code") == "opencode"
-    assert agent_type_for_host_surface("opencode") == "opencode"
     assert agent_type_for_host_surface("ark-managed-agent") == "ark-managed-agent"
     for removed in (
+        "opencode",
+        "opencode2",
+        "Open Code",
+        "gemini-cli",
+        "gemini",
+        "kiro-cli",
+        "kiro",
+        "cline",
         "codex-app",
         "codex-app-ssh",
         "chat-box",
@@ -176,7 +182,6 @@ def test_host_surfaces_resolve_to_supported_agent_types() -> None:
         ("ark-managed-agent", "ark_managed_agent_goal"),
         ("codex-cli", "codex_cli"),
         ("claude-code", "claude_code"),
-        ("opencode", "generic_cli"),
         ("traex-cli", "generic_cli"),
         ("pi", "generic_cli"),
     ),
@@ -254,7 +259,6 @@ def test_pi_is_an_exact_host_type_with_visible_goal_extension_activation() -> No
 
 def test_pi_is_not_a_native_goal_host() -> None:
     # Pi's visible loop is extension-driven and gated by LoopX quota, so it is
-    # not part of the native goal host family (like opencode, unlike codex-cli).
     assert scheduler_command_binding_for_agent_type("pi") == {
         "runtime_profile": "generic_cli"
     }
@@ -534,7 +538,6 @@ def test_new_agent_onboarding_defaults_to_fresh_identity() -> None:
         "ark-managed-agent",
         "codex-cli",
         "claude-code",
-        "opencode",
         "manual",
         "other-agent",
     ),
@@ -602,39 +605,8 @@ def test_generic_cli_thin_prompt_embeds_profile_only_in_quota_command() -> None:
     assert prompt["interface_budget"]["within_budget"] is True
 
 
-def test_opencode_activation_uses_bridge_tool_and_generic_cli_quota() -> None:
-    packet = build_host_loop_activation_packet(
-        agent_type="opencode",
-        goal_id="fixture-goal",
-        agent_id="opencode-fixture",
-        registered_agents=["opencode-fixture"],
-    )
-
-    assert packet["host_surface"] == "opencode_visible_goal_mode"
-    assert packet["activation_method"] == "activate_loopx_opencode_goal_bridge"
-    assert packet["host_mutation"]["host_tool"] == "loopx_goal_activate"
-    assert packet["setup_command"].endswith(
-        "--surface opencode --with-goal-bridge"
-    )
-    assert "--runtime-profile generic_cli" in packet["commands"]["heartbeat_prompt"]
 
 
-def test_opencode2_activation_starts_the_goal_worker() -> None:
-    packet = build_host_loop_activation_packet(
-        agent_type="opencode2",
-        goal_id="fixture-goal",
-        agent_id="opencode2-fixture",
-        registered_agents=["opencode2-fixture"],
-    )
-
-    assert packet["host_surface"] == "opencode2_goal_worker_mode"
-    assert packet["activation_method"] == "start_opencode2_goal_worker"
-    assert packet["host_mutation"]["host_tool"] == "opencode2-goal-worker"
-    assert packet["host_mutation"]["cli_can_mutate_directly"] is True
-    assert any(
-        "opencode2-goal-worker" in str(step) for step in packet["activation_steps"]
-    )
-    assert "--runtime-profile generic_cli" in packet["commands"]["heartbeat_prompt"]
 
 
 def test_standard_heartbeat_omits_inactive_visible_goal_host() -> None:

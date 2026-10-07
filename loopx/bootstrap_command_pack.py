@@ -65,15 +65,11 @@ START_GOAL_CAPABILITY_ROUTES = ("issue-fix",)
 START_GOAL_HOST_SURFACES = (
     "codex-cli-tui",
     "claude-code",
-    "opencode",
-    "opencode2",
     "traex-cli",
     "pi",
-    "gemini-cli",
     "cursor-agent",
     "zcode",
     "agy",
-    "kiro-cli",
     "deepseek-harness",
     "deepseek-harness-native",
     "ark-managed-agent",
@@ -1801,8 +1797,8 @@ Host loop activation is part of setup, not a nice-to-have:
 
 If the host loop is already proven current, skip the mutation. If it is missing,
 unknown, or stale, use the command above to obtain `task_body` and activate the
-right host loop: Codex CLI `/goal <task_body>`, Claude Code `/loop`, OpenCode
-bridge, or the custom host-loop gate.
+right host loop: Codex CLI `/goal <task_body>`, Claude Code `/loop`,
+or the custom host-loop gate.
 If this session cannot mutate that
 host surface, report the exact gate; do not claim autonomous setup complete.
 Use `{commands.get("goal_start_agent_onboard_recheck", "")}` only when

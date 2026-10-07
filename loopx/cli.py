@@ -164,10 +164,6 @@ from .cli_commands import (
     register_worker_bridge_commands,
     register_workflow_skills_command,
 )
-from .cli_commands.opencode2_goal_worker import (
-    handle_opencode2_goal_worker_command,
-    register_opencode2_goal_worker_command,
-)
 from .cli_commands.shared_goal_alignment import (
     handle_shared_goal_alignment_command,
     register_shared_goal_alignment_command,
@@ -231,7 +227,6 @@ def build_parser() -> LoopXArgumentParser:
 
     register_first_run_report_command(sub)
 
-    register_opencode2_goal_worker_command(sub)
 
     register_worker_bridge_commands(sub, add_subcommand_format)
 
@@ -395,8 +390,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "first-run-report":
         return handle_first_run_report_command(args, print_payload)
 
-    if args.command == "opencode2-goal-worker":
-        return handle_opencode2_goal_worker_command(args, print_payload)
 
     worker_bridge_result = handle_worker_bridge_command(
         args,

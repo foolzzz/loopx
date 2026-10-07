@@ -120,7 +120,7 @@ Supported filters:
 The command must fail closed on missing `goal_id` or `agent_id`. A vague
 surface value such as `codex` should not silently fall into `other-agent`
 semantics; callers should pass a registered agent id and, when needed, a
-separate host surface such as `codex-cli`, `opencode`, or `claude-code`.
+separate host surface such as `codex-cli`, `pi`, or `claude-code`.
 
 ## Scoping Rules
 
