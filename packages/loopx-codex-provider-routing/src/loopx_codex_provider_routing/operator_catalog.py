@@ -1,283 +1,320 @@
-"""Project owner-supplied model caches and verify isolated Codex App readback."""
+"""Compile explicit CLI model metadata and read back an isolated CLI catalog."""
 
 from __future__ import annotations
 
 import json
 import os
 import selectors
-import stat
 import subprocess
 import tempfile
 import time
-import urllib.request
-from copy import deepcopy
+import tomllib
 from pathlib import Path
 from typing import Any
 
-from .selectors import FAST_MODELS, MODEL_FAMILIES, ROUTES, SLOTS, VISIBLE_SELECTORS
+from .model_metadata import CODEX_VERSION, model_source, read_metadata
+from .operator_runtime import write_private
+from .selectors import MODEL_FAMILIES, ROUTES, VISIBLE_SELECTORS, routing_source
 
-SELECTORS = {slug: route["display_name"] for (slug, route) in ROUTES.items()}
-SELECTORS.update(
-    {model: f"{label} · Auto (legacy id)" for model, label in MODEL_FAMILIES.items()}
-)
-SELECTORS.update(
-    {
-        "ark/deepseek-v4-flash": "Ark · DeepSeek V4 Flash",
-        "deepseek-v4-flash": "Ark · DeepSeek V4 Flash (legacy id)",
-        "deepseek-v4-flash-ga-260731": "Ark · DeepSeek V4 Flash (260731)",
-        "deepseek-v4-pro-ga-260813": "Ark · DeepSeek V4 Pro (260813)",
-    }
-)
-FAST_SELECTORS = set(FAST_MODELS)
-ROUTE_FALLBACK_TAILS = {slug: route["tail"] for (slug, route) in ROUTES.items()}
-EXPECTED_ROUTE_ORDERS = {
-    slug: [f"codex-{slot}" for slot in route["order"]] + route["tail"]
-    for (slug, route) in ROUTES.items()
-}
 AUTO_REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
-
-
-def private_write(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=448)
-    path.parent.chmod(448)
-    temp = path.with_name(path.name + f".tmp.{os.getpid()}")
-    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 384)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp, path)
-        path.chmod(384)
-    finally:
-        temp.unlink(missing_ok=True)
-
-
-def source_model(path: Path, slug: str) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    for model in payload.get("models", []):
-        if isinstance(model, dict) and model.get("slug") == slug:
-            return deepcopy(model)
-    raise RuntimeError(f"model {slug} is absent from {path}")
-
-
-def make_entry(
-    source: dict[str, Any], slug: str, display_name: str, priority: int
-) -> dict[str, Any]:
-    entry = deepcopy(source)
-    entry["slug"] = slug
-    entry["display_name"] = display_name
-    entry["description"] = display_name
-    entry["priority"] = priority
-    entry["visibility"] = "list"
-    entry["upgrade"] = None
-    return entry
-
-
-def make_fast_entry(
-    source: dict[str, Any], slug: str, display_name: str, priority: int
-) -> dict[str, Any]:
-    entry = make_entry(source, slug, display_name, priority)
-    entry["default_service_tier"] = "fast"
-    return entry
 
 
 def read_messages(
     process: subprocess.Popen[str], wanted_id: int, timeout: float
 ) -> dict[str, Any]:
-    selector = selectors.DefaultSelector()
     assert process.stdout is not None
-    selector.register(process.stdout, selectors.EVENT_READ)
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            stderr = process.stderr.read() if process.stderr is not None else ""
-            raise RuntimeError(
-                f"app-server exited before response {wanted_id}: {stderr[:300]}"
-            )
-        events = selector.select(timeout=min(0.2, deadline - time.monotonic()))
-        if not events:
-            continue
-        line = process.stdout.readline()
-        if not line:
-            continue
-        try:
-            message = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(message, dict) and message.get("id") == wanted_id:
-            return message
-    raise TimeoutError(f"app-server response {wanted_id} timed out")
+    with selectors.DefaultSelector() as selector:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("CLI app-server exited before catalog readback")
+            if not selector.select(
+                timeout=min(0.2, max(0, deadline - time.monotonic()))
+            ):
+                continue
+            line = process.stdout.readline()
+            if not line:
+                continue
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(message, dict) and message.get("id") == wanted_id:
+                return message
+    raise TimeoutError("CLI app-server catalog readback timed out")
 
 
-class AppCatalog:
+def render_cli_profile(
+    plan: dict, catalog_path: Path, endpoint: str, env_key: str
+) -> str:
+    """Render only bounded route knobs; permission and tool settings stay host-owned."""
+    provider = plan["provider_id"]
+    lines = [
+        f"model = {json.dumps(plan['model_selector'])}",
+        f"model_provider = {json.dumps(provider)}",
+        f"model_reasoning_effort = {json.dumps(plan['reasoning_effort'])}",
+        f"service_tier = {json.dumps(plan['service_tier'])}",
+        f"model_catalog_json = {json.dumps(str(catalog_path))}",
+        "",
+        f"[model_providers.{json.dumps(provider)}]",
+        'name = "CPA"',
+        f"base_url = {json.dumps(endpoint)}",
+        f"env_key = {json.dumps(env_key)}",
+        'wire_api = "responses"',
+        "requires_openai_auth = false",
+        "supports_websockets = false",
+        "request_max_retries = 0",
+        "stream_max_retries = 0",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+class CLIModelCatalog:
     def __init__(self, runtime):
         self.runtime = runtime
-        settings = runtime.settings
-        self.CODEX_BINARY = settings.paths["codex_binary"]
-        self.ASTRA_CACHE = settings.paths["astra_cache"]
-        self.GPT_CACHE = settings.paths["gpt_cache"]
-        self.ARK_CATALOG = settings.paths["ark_catalog"]
-        self.ARK_PROFILE_CATALOG = settings.paths["ark_profile_catalog"]
+        self.settings = runtime.settings
+        self.CODEX_BINARY = self.settings.paths["codex_binary"]
         self.OUTPUT = runtime.MODEL_CATALOG
-        self.AUTH_DIR = runtime.AUTH_DIR
-        self.SLOTS_FILE = runtime.SLOTS_FILE
-        self.PORT = runtime.PORT
-
-    def ark_source(self, slug: str) -> dict[str, Any]:
-        for path in (self.ARK_CATALOG, self.ARK_PROFILE_CATALOG, self.OUTPUT):
-            try:
-                return source_model(path, slug)
-            except (FileNotFoundError, RuntimeError):
-                continue
-        raise RuntimeError(f"missing cached Ark model: {slug}")
 
     def generate_catalog(self) -> dict[str, Any]:
-        sources = {
-            model: source_model(
-                self.ASTRA_CACHE if model == "gpt-6-astra" else self.GPT_CACHE, model
-            )
-            for model in (*MODEL_FAMILIES, "gpt-5.6-luna")
-        }
+        metadata = read_metadata(self.settings.paths["model_metadata"])
+        active_fallbacks = set(self.settings.data["fallback_routes"])
         entries = []
-        for slug, label in SELECTORS.items():
-            route = ROUTES.get(slug, ROUTES.get(f"auto/{slug}"))
-            if route:
-                source = deepcopy(sources[route["model"]])
-                if slug.removeprefix("fast/").startswith(("auto/", "auto-with-ds/")):
-                    source["default_reasoning_level"] = "high"
-                    source["supported_reasoning_levels"] = [
-                        level
-                        for level in source["supported_reasoning_levels"]
-                        if level["effort"] in AUTO_REASONING_EFFORTS
-                    ]
-            else:
-                source = self.ark_source(
-                    slug if slug.endswith("260813") else "deepseek-v4-flash-ga-260731"
+        for slug, route in ROUTES.items():
+            if route["tail"] and slug not in active_fallbacks:
+                continue
+            source = model_source(metadata, route["model"])
+            if slug.removeprefix("fast/").startswith(("auto/", "auto-with-ds/")):
+                source["default_reasoning_level"] = "high"
+                source["supported_reasoning_levels"] = [
+                    row
+                    for row in source["supported_reasoning_levels"]
+                    if row["effort"] in AUTO_REASONING_EFFORTS
+                ]
+            source.update(
+                slug=slug,
+                display_name=route["display_name"],
+                description=route["display_name"],
+                priority=len(entries) + 1,
+                visibility="list" if slug in VISIBLE_SELECTORS else "hide",
+                upgrade=None,
+                default_service_tier="fast" if slug.startswith("fast/") else None,
+            )
+            if route["tail"]:
+                source.update(additional_speed_tiers=[], service_tiers=[])
+            entries.append(source)
+        for model, label in MODEL_FAMILIES.items():
+            source = model_source(metadata, model)
+            source.update(
+                slug=model,
+                display_name=label,
+                description=label,
+                priority=len(entries) + 1,
+                visibility="hide",
+                upgrade=None,
+                default_service_tier=None,
+            )
+            entries.append(source)
+        if active_fallbacks:
+            for slug in (self.runtime.ARK_MODEL, self.runtime.ARK_PRO_MODEL):
+                source = model_source(metadata, slug)
+                source.update(
+                    priority=len(entries) + 1,
+                    visibility="hide",
+                    upgrade=None,
+                    default_service_tier=None,
                 )
-            entry = make_entry(source, slug, label, len(entries) + 1)
-            entry["visibility"] = "list" if slug in VISIBLE_SELECTORS else "hide"
-            if route and route["tail"]:
-                entry["additional_speed_tiers"] = []
-                entry["service_tiers"] = []
-            entry["default_service_tier"] = "fast" if slug in FAST_SELECTORS else None
-            entries.append(entry)
+                entries.append(source)
         return {"models": entries}
 
-    def cpa_models(self) -> set[str]:
-        request = urllib.request.Request(f"http://127.0.0.1:{self.PORT}/v1/models")
-        with urllib.request.urlopen(request, timeout=3) as response:
-            payload = json.load(response)
-        data = payload.get("data", []) if isinstance(payload, dict) else []
-        return {
-            str(item["id"])
-            for item in data
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
-        }
-
-    def route_traversal_readback(self) -> dict[str, Any]:
-        slots = json.loads(self.SLOTS_FILE.read_text(encoding="utf-8"))
-        priorities: dict[str, dict[str, int]] = {}
-        for slot in SLOTS:
-            auth_name = slots.get(slot)
-            if not isinstance(auth_name, str):
-                raise TypeError(f"missing symbolic OAuth slot {slot.upper()}")
-            auth = json.loads((self.AUTH_DIR / auth_name).read_text(encoding="utf-8"))
-            aliases = {
-                item.get("alias"): item.get("routing-priority")
-                for item in auth.get("model_aliases", [])
-                if isinstance(item, dict)
-                and isinstance(item.get("alias"), str)
-                and isinstance(item.get("routing-priority"), int)
-            }
-            priorities[slot] = aliases
-        rows: dict[str, Any] = {}
-        for route, tail in ROUTE_FALLBACK_TAILS.items():
-            members = sorted(
-                ((f"codex-{slot}", priorities[slot].get(route)) for slot in SLOTS),
-                key=lambda item: (-1 if item[1] is None else -item[1], item[0]),
-            )
-            if any(priority is None for (_, priority) in members):
-                raise RuntimeError(f"missing route priority for {route}")
-            ordered = [member for (member, _) in members] + list(tail)
-            rows[route] = {
-                "entrypoint": "affinity_then_first"
-                if route.removeprefix("fast/").startswith(("auto/", "auto-with-ds/"))
-                or route == "gpt-5.6-luna"
-                else ordered[0],
-                "ordered_candidates": ordered,
-                "fallback_tail": list(tail),
-                "max_cycles": 1,
-            }
-        return rows
-
     def write_catalog(self) -> None:
-        payload = self.generate_catalog()
-        private_write(
-            self.OUTPUT, json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        self.runtime.check_target_boundaries()
+        write_private(
+            self.OUTPUT,
+            json.dumps(self.generate_catalog(), ensure_ascii=False, indent=2) + "\n",
         )
 
-    def app_config(self, home: Path) -> str:
-        return "\n".join(
-            [
-                'model = "auto/gpt-5.6-sol"',
-                'model_provider = "cpa"',
-                'service_tier = "default"',
-                f'model_catalog_json = "{self.OUTPUT}"',
-                "",
-                "[model_providers.cpa]",
-                'name = "CPA · Auto"',
-                f'base_url = "http://127.0.0.1:{self.PORT}/v1"',
-                'wire_api = "responses"',
-                "requires_openai_auth = false",
-                "supports_websockets = false",
-                "request_max_retries = 0",
-                "stream_max_retries = 0",
-                "",
-                "[features]",
-                "fast_mode = true",
-                "",
-                f'[projects."{home}"]',
-                'trust_level = "trusted"',
-                "",
-            ]
+    def launch_plan(self) -> dict:
+        from .contract import compile_cli_plan
+
+        request = json.loads(
+            self.settings.paths["route_plan"].read_text(encoding="utf-8")
         )
+        from .schema_contract import validate_request
+
+        validate_request(request)
+        if request["operation"] != "compile_cli_plan":
+            raise ValueError("route_plan requires a compile_cli_plan request")
+        plan = compile_cli_plan(request["cli_plan"])
+        canonical_input = dict(request["cli_plan"], catalog_source=routing_source())
+        canonical = compile_cli_plan(canonical_input)
+        if (
+            plan["eligible_candidates"] != canonical["eligible_candidates"]
+            or plan["service_tier"] != canonical["service_tier"]
+        ):
+            raise ValueError(
+                "route plan differs from the configured operator routing preset"
+            )
+        if plan["model_selector"] not in {
+            row["slug"] for row in self.generate_catalog()["models"]
+        }:
+            raise ValueError("route selector is absent from the operator catalog")
+        selected = next(
+            row
+            for row in self.generate_catalog()["models"]
+            if row["slug"] == plan["model_selector"]
+        )
+        if plan["reasoning_effort"] not in {
+            row["effort"] for row in selected["supported_reasoning_levels"]
+        } or not set(plan["required_capabilities"]["modalities"]) <= set(
+            selected["input_modalities"]
+        ):
+            raise ValueError(
+                "route plan capabilities differ from explicit CLI metadata"
+            )
+        if (
+            plan["model_selector"].startswith("fast/")
+            and self.runtime.FAST_SELECTOR_PLUGIN is None
+        ):
+            raise ValueError("active Fast selector requires a pinned selector plugin")
+        return plan
+
+    def profile_content(self, catalog_path: Path | None = None) -> str:
+        return render_cli_profile(
+            self.launch_plan(),
+            catalog_path or self.OUTPUT,
+            f"http://127.0.0.1:{self.runtime.PORT}/v1",
+            self.settings.data["cpa_client_env_key"],
+        )
+
+    def write_profile(self, *, install: bool = False) -> None:
+        self.runtime.check_target_boundaries()
+        target = (
+            self.runtime.INSTALLED_PROFILE if install else self.runtime.PROFILE_FILE
+        )
+        if target is None:
+            raise ValueError("profile installation requires explicit codex_home")
+        content = self.profile_content()
+        # Generated output remains the source for installations, never an arbitrary
+        # user profile carrying hooks, MCP or permission overrides.
+        if (
+            install
+            and target.exists()
+            and target.read_text(encoding="utf-8") != content
+        ):
+            raise ValueError(
+                "existing profile differs; retain it and choose a new profile name"
+            )
+        self.write_catalog()
+        write_private(target, content)
 
     def probe(self) -> dict[str, Any]:
-        thread_responses: dict[str, dict[str, Any]] = {}
-        with tempfile.TemporaryDirectory(prefix="cpa-codex-app-model-probe-") as raw:
-            home = Path(raw)
-            home.chmod(stat.S_IRWXU)
-            private_write(home / "config.toml", self.app_config(home))
-            env = os.environ.copy()
-            env["CODEX_HOME"] = str(home)
-            process = subprocess.Popen(
-                [str(self.CODEX_BINARY), "app-server"],
+        """Directory readback only. Never start a thread or submit a model request."""
+        expected = self.generate_catalog()
+        with tempfile.TemporaryDirectory(prefix="cpa-cli-catalog-probe-") as raw:
+            root = Path(raw).resolve()
+            home, codex_home = root / "home", root / "codex"
+            home.mkdir(mode=0o700)
+            codex_home.mkdir(mode=0o700)
+            catalog_path = root / "catalog.json"
+            write_private(catalog_path, json.dumps(expected))
+            profile_name = self.settings.data["profile_name"]
+            profile_content = self.profile_content(catalog_path)
+            write_private(codex_home / (profile_name + ".config.toml"), profile_content)
+            env = {
+                "HOME": str(home),
+                "CODEX_HOME": str(codex_home),
+                "PATH": os.environ.get("PATH", os.defpath),
+                "TMPDIR": str(root),
+            }
+            version = subprocess.run(
+                [str(self.CODEX_BINARY), "--version"],
                 env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            if version.stdout.strip() != "codex-cli " + CODEX_VERSION:
+                raise ValueError("CLI version differs from pinned metadata")
+            # 0.160.0 only accepts --profile on runtime/debug commands, not
+            # app-server. Validate the standalone profile with a no-request
+            # renderer, then project the same bounded fields to app-server argv.
+            parsed = subprocess.run(
+                [
+                    str(self.CODEX_BINARY),
+                    "--profile",
+                    profile_name,
+                    "debug",
+                    "prompt-input",
+                ],
+                env=env,
+                cwd=home,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=15,
+                check=False,
+            )
+            if parsed.returncode != 0:
+                raise RuntimeError(
+                    "CLI independent profile configuration parsing failed"
+                )
+            profile = tomllib.loads(profile_content)
+            argv = [str(self.CODEX_BINARY)]
+            for key in (
+                "model",
+                "model_provider",
+                "model_reasoning_effort",
+                "service_tier",
+                "model_catalog_json",
+            ):
+                argv.extend(["-c", key + "=" + json.dumps(profile[key])])
+            provider = profile["model_provider"]
+            provider_fields = ",".join(
+                key + "=" + json.dumps(value)
+                for key, value in profile["model_providers"][provider].items()
+            )
+            argv.extend(
+                [
+                    "-c",
+                    "model_providers={"
+                    + json.dumps(provider)
+                    + "={"
+                    + provider_fields
+                    + "}}",
+                ]
+            )
+            argv.append("app-server")
+            process = subprocess.Popen(
+                argv,
+                env=env,
+                cwd=home,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 text=True,
                 bufsize=1,
             )
             assert process.stdin is not None
             try:
-                initialize = {
-                    "method": "initialize",
-                    "id": 1,
-                    "params": {
-                        "clientInfo": {
-                            "name": "cpa_model_probe",
-                            "title": "CPA model probe",
-                            "version": "0.1.0",
-                        }
+                for message in (
+                    {
+                        "method": "initialize",
+                        "id": 1,
+                        "params": {
+                            "clientInfo": {
+                                "name": "cpa_cli_catalog_probe",
+                                "version": "0.2.0",
+                            }
+                        },
                     },
-                }
-                process.stdin.write(json.dumps(initialize) + "\n")
-                process.stdin.flush()
-                initialized = read_messages(process, 1, 10)
-                if "error" in initialized:
-                    raise RuntimeError("app-server initialize failed")
+                ):
+                    process.stdin.write(json.dumps(message) + "\n")
+                    process.stdin.flush()
+                if "error" in read_messages(process, 1, 10):
+                    raise RuntimeError("CLI app-server initialization failed")
                 process.stdin.write(
                     json.dumps({"method": "initialized", "params": {}}) + "\n"
                 )
@@ -286,36 +323,25 @@ class AppCatalog:
                         {
                             "method": "model/list",
                             "id": 2,
-                            "params": {"limit": 50, "includeHidden": True},
+                            "params": {"limit": 100, "includeHidden": True},
                         }
                     )
                     + "\n"
                 )
                 process.stdin.flush()
                 response = read_messages(process, 2, 15)
-                for request_id, model in (
-                    (3, "auto/gpt-5.6-sol"),
-                    (4, "fast/auto/gpt-5.6-sol"),
-                    (5, "auto/gpt-6-astra"),
-                    (6, "auto-with-ds/gpt-6-astra"),
-                ):
-                    process.stdin.write(
-                        json.dumps(
-                            {
-                                "method": "thread/start",
-                                "id": request_id,
-                                "params": {
-                                    "model": model,
-                                    "modelProvider": "cpa",
-                                    "cwd": str(home),
-                                    "ephemeral": True,
-                                },
-                            }
-                        )
-                        + "\n"
+                process.stdin.write(
+                    json.dumps(
+                        {
+                            "method": "config/read",
+                            "id": 3,
+                            "params": {"includeLayers": False},
+                        }
                     )
-                    process.stdin.flush()
-                    thread_responses[model] = read_messages(process, request_id, 15)
+                    + "\n"
+                )
+                process.stdin.flush()
+                config_response = read_messages(process, 3, 15)
             finally:
                 process.terminate()
                 try:
@@ -323,103 +349,61 @@ class AppCatalog:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait(timeout=3)
-        if "error" in response:
-            raise RuntimeError("app-server model/list returned an error")
-        data = response.get("result", {}).get("data", [])
-        unexpected_visible = sorted(
-            str(row.get("id"))
-            for row in data
-            if isinstance(row, dict)
-            and not row.get("hidden")
-            and row.get("id") not in SELECTORS
+                process.stdin.close()
+                assert process.stdout is not None
+                process.stdout.close()
+        if "error" in response or "error" in config_response:
+            raise RuntimeError("CLI app-server configuration/catalog readback failed")
+        observed_config = config_response.get("result", {}).get("config", {})
+        config_matches = all(
+            observed_config.get(key) == profile[key]
+            for key in (
+                "model",
+                "model_provider",
+                "model_reasoning_effort",
+                "service_tier",
+                "model_catalog_json",
+            )
+        )
+        observed_provider = observed_config.get("model_providers", {}).get(provider, {})
+        provider_matches = all(
+            observed_provider.get(key) == value
+            for key, value in profile["model_providers"][provider].items()
         )
         rows = {
-            str(row.get("id")): {
-                "displayName": row.get("displayName"),
-                "hidden": row.get("hidden"),
-                "inputModalities": row.get("inputModalities"),
-                "defaultServiceTier": row.get("defaultServiceTier"),
-                "additionalSpeedTiers": row.get("additionalSpeedTiers"),
-                "serviceTiers": row.get("serviceTiers"),
-                "supportedReasoningEfforts": [
-                    effort.get("reasoningEffort")
-                    for effort in row.get("supportedReasoningEfforts", [])
-                    if isinstance(effort, dict)
-                ],
-            }
-            for row in data
-            if isinstance(row, dict) and row.get("id") in SELECTORS
+            row["id"]: row
+            for row in response.get("result", {}).get("data", [])
+            if isinstance(row, dict) and isinstance(row.get("id"), str)
         }
-        missing = sorted(set(SELECTORS) - set(rows))
-        hidden = sorted(
-            key
-            for key, row in rows.items()
-            if bool(row.get("hidden")) != (key not in VISIBLE_SELECTORS)
-        )
-        wrong_display_names = sorted(
-            key
-            for (key, display_name) in SELECTORS.items()
-            if rows.get(key, {}).get("displayName") != display_name
-        )
-        wrong_default_service_tiers = sorted(
-            key
-            for (key, row) in rows.items()
-            if row.get("defaultServiceTier")
-            != ("fast" if key in FAST_SELECTORS else None)
-        )
-        auto_efforts = rows.get("auto/gpt-5.6-sol", {}).get(
-            "supportedReasoningEfforts", []
-        )
-        missing_auto_efforts = sorted(set(AUTO_REASONING_EFFORTS) - set(auto_efforts))
-        live_models = self.cpa_models()
-        cpa_missing = sorted(set(SELECTORS) - live_models)
-        route_traversal = self.route_traversal_readback()
-        route_mismatches = sorted(
-            route
-            for (route, expected) in EXPECTED_ROUTE_ORDERS.items()
-            if route_traversal.get(route, {}).get("ordered_candidates") != expected
-            or route_traversal.get(route, {}).get("max_cycles") != 1
-        )
-        thread_default_service_tiers = {
-            model: payload.get("result", {}).get("serviceTier")
-            if "error" not in payload
-            else {"error": payload.get("error")}
-            for (model, payload) in thread_responses.items()
-        }
-        fast_selector_plugin_active = self.runtime.fast_selector_plugin_ready(
-            port=self.PORT
-        )
+        missing, mismatched = [], []
+        for expected_row in expected["models"]:
+            row = rows.get(expected_row["slug"])
+            if row is None:
+                missing.append(expected_row["slug"])
+            elif (
+                row.get("displayName") != expected_row["display_name"]
+                or row.get("hidden") != (expected_row["visibility"] != "list")
+                or row.get("inputModalities") != expected_row["input_modalities"]
+                or row.get("defaultServiceTier")
+                != expected_row.get("default_service_tier")
+            ):
+                mismatched.append(expected_row["slug"])
+        unexpected = sorted(set(rows) - {row["slug"] for row in expected["models"]})
         return {
-            "schema_version": "cpa_codex_app_model_probe_v1",
-            "codex_binary": str(self.CODEX_BINARY),
-            "catalog_path": str(self.OUTPUT),
-            "expected_selectors": sorted(SELECTORS),
-            "projected_selectors": rows,
-            "visible_selectors": sorted(
-                key for key, row in rows.items() if not row.get("hidden")
-            ),
-            "route_traversal": route_traversal,
-            "missing": missing,
-            "unexpected_visible": unexpected_visible,
-            "hidden": hidden,
-            "wrong_display_names": wrong_display_names,
-            "wrong_default_service_tiers": wrong_default_service_tiers,
-            "missing_auto_efforts": missing_auto_efforts,
-            "cpa_missing": cpa_missing,
-            "route_mismatches": route_mismatches,
-            "thread_default_service_tiers": thread_default_service_tiers,
-            "fast_selector_plugin_active": fast_selector_plugin_active,
-            "passed": not any(
-                (
-                    missing,
-                    unexpected_visible,
-                    hidden,
-                    wrong_display_names,
-                    wrong_default_service_tiers,
-                    missing_auto_efforts,
-                    cpa_missing,
-                    route_mismatches,
-                    not fast_selector_plugin_active,
-                )
-            ),
+            "schema_version": "codex_cli_catalog_readback_v1",
+            "passed": not (missing or mismatched or unexpected)
+            and config_matches
+            and provider_matches,
+            "profile_parsed": True,
+            "config_readback_matches": config_matches,
+            "provider_readback_matches": provider_matches,
+            "model_count": len(rows),
+            "missing": sorted(missing),
+            "mismatched": sorted(mismatched),
+            "unexpected": unexpected,
+            "qualification": "catalog_readback_only",
+            "online_qualification": "held",
+            "source_kind": read_metadata(self.settings.paths["model_metadata"])[
+                "source_kind"
+            ],
         }

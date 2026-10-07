@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from .operator_observations import ObservationMixin
-from .selectors import FAST_MODELS, MODEL_FAMILIES, ROUTES, SLOTS, aliases_for_slot
+from .selectors import ROUTES, SLOTS, aliases_for_slot
+from .operator_settings import reject_symlinks
 
 GPT_MODEL = "gpt-5.6-sol"
 AUTO_MODEL = f"auto/{GPT_MODEL}"
@@ -41,6 +42,7 @@ def yaml_quote(value: str) -> str:
 
 
 def write_private(path: Path, content: str) -> None:
+    reject_symlinks(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=448)
     temp = path.with_name(path.name + f".tmp.{os.getpid()}")
     fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 384)
@@ -62,28 +64,35 @@ class CPAOperator(ObservationMixin):
             setattr(self, name, value)
 
     def check_target_boundaries(self):
-        for directory in (
+        for path in (
             self.RUNTIME_ROOT,
             self.AUTH_DIR,
             self.STATE_DIR,
             self.LOG_DIR,
             self.RUNTIME_TMP_ROOT,
-        ):
-            if directory.is_symlink():
-                raise ValueError("operator directories must not be symbolic links")
-        targets = (
             self.MODEL_CATALOG,
+            self.PROFILE_DIR,
+            self.PROFILE_FILE,
             self.PID_FILE,
             self.SLOTS_FILE,
             self.MANAGEMENT_KEY_FILE,
             self.STATUS_SNAPSHOT_FILE,
             self.RUNTIME_CONFIG,
-        )
-        if any(path.is_symlink() for path in targets):
-            raise ValueError("operator targets must not be symbolic links")
+        ):
+            reject_symlinks(path)
+        if self.INSTALLED_PROFILE is not None:
+            reject_symlinks(self.INSTALLED_PROFILE)
         for name in self.load_slots().values():
-            if (self.AUTH_DIR / name).is_symlink():
-                raise ValueError("credential target must not be a symbolic link")
+            reject_symlinks(self.AUTH_DIR / name)
+
+    def aliases_for_slot(self, slot):
+        active_fallbacks = set(self.settings.data["fallback_routes"])
+        return [
+            entry
+            for entry in aliases_for_slot(slot)
+            if not ROUTES.get(entry["alias"], {}).get("tail")
+            or entry["alias"] in active_fallbacks
+        ]
 
     def check_artifacts(self) -> None:
         if not self.BINARY.is_file():
@@ -91,6 +100,8 @@ class CPAOperator(ObservationMixin):
         actual = sha256(self.BINARY)
         if actual != self.BINARY_SHA256:
             raise RuntimeError(f"pinned CPA checksum mismatch: {actual}")
+        if self.FAST_SELECTOR_PLUGIN is None:
+            return
         if not self.FAST_SELECTOR_PLUGIN.is_file():
             raise RuntimeError(
                 f"missing Fast selector plugin: {self.FAST_SELECTOR_PLUGIN}"
@@ -102,6 +113,7 @@ class CPAOperator(ObservationMixin):
             )
 
     def prepare(self) -> None:
+        self.check_target_boundaries()
         self.check_artifacts()
         for directory in (
             self.RUNTIME_ROOT,
@@ -114,6 +126,8 @@ class CPAOperator(ObservationMixin):
             directory.chmod(448)
 
     def load_ark_key(self, env_file: Path | None) -> str:
+        if not self.settings.data["fallback_routes"]:
+            return ""
         value = os.environ.get("ARK_API_KEY", "").strip()
         if value:
             return value
@@ -155,7 +169,7 @@ class CPAOperator(ObservationMixin):
     def ark_fallback_models(self) -> list[str]:
         lines = []
         for slug, route in ROUTES.items():
-            if not route["tail"]:
+            if slug not in self.settings.data["fallback_routes"]:
                 continue
             lines.extend(
                 [
@@ -182,85 +196,96 @@ class CPAOperator(ObservationMixin):
             port = self.PORT
         if management_secret is None:
             management_secret = self.management_key()
-        return "\n".join(
-            [
-                'host: "127.0.0.1"',
-                f"port: {port}",
-                f"auth-dir: {yaml_quote(str(self.AUTH_DIR))}",
-                "debug: false",
-                "logging-to-file: false",
-                "usage-statistics-enabled: false",
-                "remote-management:",
-                "  allow-remote: false",
-                f"  secret-key: {yaml_quote(management_secret)}",
-                "  disable-control-panel: true",
-                "request-retry: 10",
-                "max-retry-credentials: 0",
-                "max-retry-interval: 65",
-                "force-model-prefix: false",
-                "routing:",
-                '  strategy: "fill-first"',
-                "  session-affinity: true",
-                '  session-affinity-ttl: "1h"',
-                "codex:",
-                "  stream-bootstrap-buffering: true",
-                "  optimize-multi-agent-v2: true",
-                "plugins:",
-                "  enabled: true",
-                f"  dir: {yaml_quote(str(self.PLUGIN_DIR))}",
-                "  configs:",
-                "    fast-selector-tier:",
-                "      enabled: true",
-                "      priority: 100",
-                "openai-compatibility:",
-                '  - name: "volcengine-ark-deepseek-v4-flash"',
-                "    priority: 100",
-                f"    base-url: {yaml_quote(self.ARK_BASE_URL)}",
-                "    disable-cooling: false",
-                "    request-retry: 1",
-                "    api-key-entries:",
-                f"      - api-key: {yaml_quote(ark_key)}",
-                "    models:",
-                *self.ark_fallback_models(),
-                f"      - name: {yaml_quote(self.ARK_MODEL)}",
-                '        alias: "ark/deepseek-v4-flash"',
-                '        display-name: "Ark · DeepSeek V4 Flash"',
-                "        force-mapping: true",
-                "        is-compat: true",
-                "        input-modalities: [text]",
-                "        output-modalities: [text]",
-                "        thinking:",
-                '          levels: ["high", "medium", "low"]',
-                f"      - name: {yaml_quote(self.ARK_MODEL)}",
-                '        alias: "deepseek-v4-flash"',
-                '        display-name: "Ark · DeepSeek V4 Flash (legacy id)"',
-                "        force-mapping: true",
-                "        is-compat: true",
-                "        input-modalities: [text]",
-                "        output-modalities: [text]",
-                "        thinking:",
-                '          levels: ["high", "medium", "low"]',
-                f"      - name: {yaml_quote(self.ARK_MODEL)}",
-                f"        alias: {yaml_quote(self.ARK_MODEL)}",
-                '        display-name: "Ark · DeepSeek V4 Flash (endpoint id)"',
-                "        force-mapping: true",
-                "        is-compat: true",
-                "        input-modalities: [text]",
-                "        output-modalities: [text]",
-                "        thinking:",
-                '          levels: ["high", "medium", "low"]',
-                f"      - name: {yaml_quote(self.ARK_PRO_MODEL)}",
-                f"        alias: {yaml_quote(self.ARK_PRO_MODEL)}",
-                '        display-name: "Ark · DeepSeek V4 Pro"',
-                "        force-mapping: true",
-                "        is-compat: true",
-                "        input-modalities: [text]",
-                "        output-modalities: [text]",
-                "        thinking:",
-                '          levels: ["high", "medium", "low"]',
-                "",
-            ]
-        )
+        lines = [
+            'host: "127.0.0.1"',
+            f"port: {port}",
+            f"auth-dir: {yaml_quote(str(self.AUTH_DIR))}",
+            "debug: false",
+            "logging-to-file: false",
+            "usage-statistics-enabled: false",
+            "remote-management:",
+            "  allow-remote: false",
+            f"  secret-key: {yaml_quote(management_secret)}",
+            "  disable-control-panel: true",
+            "request-retry: 10",
+            "max-retry-credentials: 0",
+            "max-retry-interval: 65",
+            "force-model-prefix: false",
+            "routing:",
+            '  strategy: "fill-first"',
+            "  session-affinity: true",
+            '  session-affinity-ttl: "1h"',
+            "codex:",
+            "  stream-bootstrap-buffering: true",
+            "  optimize-multi-agent-v2: true",
+        ]
+        if self.PLUGIN_DIR is not None:
+            lines.extend(
+                [
+                    "plugins:",
+                    "  enabled: true",
+                    f"  dir: {yaml_quote(str(self.PLUGIN_DIR))}",
+                    "  configs:",
+                    "    fast-selector-tier:",
+                    "      enabled: true",
+                    "      priority: 100",
+                ]
+            )
+        if self.settings.data["fallback_routes"]:
+            if not ark_key:
+                raise ValueError("active fallback routes require an Ark key")
+            lines.extend(
+                [
+                    "openai-compatibility:",
+                    '  - name: "volcengine-ark-deepseek-v4-flash"',
+                    "    priority: 100",
+                    f"    base-url: {yaml_quote(self.ARK_BASE_URL)}",
+                    "    disable-cooling: false",
+                    "    request-retry: 1",
+                    "    api-key-entries:",
+                    f"      - api-key: {yaml_quote(ark_key)}",
+                    "    models:",
+                    *self.ark_fallback_models(),
+                    f"      - name: {yaml_quote(self.ARK_MODEL)}",
+                    '        alias: "ark/deepseek-v4-flash"',
+                    '        display-name: "Ark · DeepSeek V4 Flash"',
+                    "        force-mapping: true",
+                    "        is-compat: true",
+                    "        input-modalities: [text]",
+                    "        output-modalities: [text]",
+                    "        thinking:",
+                    '          levels: ["high", "medium", "low"]',
+                    f"      - name: {yaml_quote(self.ARK_MODEL)}",
+                    '        alias: "deepseek-v4-flash"',
+                    '        display-name: "Ark · DeepSeek V4 Flash (legacy id)"',
+                    "        force-mapping: true",
+                    "        is-compat: true",
+                    "        input-modalities: [text]",
+                    "        output-modalities: [text]",
+                    "        thinking:",
+                    '          levels: ["high", "medium", "low"]',
+                    f"      - name: {yaml_quote(self.ARK_MODEL)}",
+                    f"        alias: {yaml_quote(self.ARK_MODEL)}",
+                    '        display-name: "Ark · DeepSeek V4 Flash (endpoint id)"',
+                    "        force-mapping: true",
+                    "        is-compat: true",
+                    "        input-modalities: [text]",
+                    "        output-modalities: [text]",
+                    "        thinking:",
+                    '          levels: ["high", "medium", "low"]',
+                    f"      - name: {yaml_quote(self.ARK_PRO_MODEL)}",
+                    f"        alias: {yaml_quote(self.ARK_PRO_MODEL)}",
+                    '        display-name: "Ark · DeepSeek V4 Pro"',
+                    "        force-mapping: true",
+                    "        is-compat: true",
+                    "        input-modalities: [text]",
+                    "        output-modalities: [text]",
+                    "        thinking:",
+                    '          levels: ["high", "medium", "low"]',
+                    "",
+                ]
+            )
+        return "\n".join(lines) + "\n"
 
     def read_pid(self) -> int | None:
         try:
@@ -417,7 +442,7 @@ class CPAOperator(ObservationMixin):
                 "disable_cooling": False,
                 "websockets": False,
                 "loopx_slot": slot,
-                "model_aliases": aliases_for_slot(slot),
+                "model_aliases": self.aliases_for_slot(slot),
             }
         )
         write_private(path, json.dumps(data, ensure_ascii=False, separators=(",", ":")))
@@ -592,50 +617,15 @@ class CPAOperator(ObservationMixin):
         self.check_artifacts()
         slots = self.load_slots()
         errors: list[str] = []
+        from .operator_catalog import CLIModelCatalog
+
         if not self.MODEL_CATALOG.is_file():
             errors.append("model-catalog-missing")
-        else:
-            catalog = json.loads(self.MODEL_CATALOG.read_text(encoding="utf-8"))
-            by_slug = {
-                item.get("slug"): item
-                for item in catalog.get("models", [])
-                if isinstance(item, dict) and isinstance(item.get("slug"), str)
-            }
-            expected_modalities = {
-                **{slug: {"text", "image"} for slug in ROUTES},
-                AUTO_MODEL: {"text", "image"},
-                PREFER_A_MODEL: {"text", "image"},
-                PREFER_B_MODEL: {"text", "image"},
-                LUNA_MODEL: {"text", "image"},
-                FAST_AUTO_MODEL: {"text", "image"},
-                FAST_PREFER_A_MODEL: {"text", "image"},
-                FAST_PREFER_B_MODEL: {"text", "image"},
-                "ark/deepseek-v4-flash": {"text"},
-                "deepseek-v4-flash": {"text"},
-                self.ARK_MODEL: {"text"},
-                self.ARK_PRO_MODEL: {"text"},
-            }
-            for model, expected in expected_modalities.items():
-                item = by_slug.get(model)
-                actual = set(item.get("input_modalities", [])) if item else set()
-                if actual != expected:
-                    errors.append(f"model-catalog-modalities:{model}")
-            for model in ROUTES:
-                item = by_slug.get(model) or {}
-                speed_tiers = set(item.get("additional_speed_tiers", []))
-                service_tiers = {
-                    tier.get("id")
-                    for tier in item.get("service_tiers", [])
-                    if isinstance(tier, dict)
-                }
-                if ROUTES[model]["tail"]:
-                    if speed_tiers or service_tiers:
-                        errors.append(f"model-catalog-standard-only:{model}")
-                elif "fast" not in speed_tiers or "priority" not in service_tiers:
-                    errors.append(f"model-catalog-fast-tier:{model}")
-                expected_default = "fast" if model in FAST_MODELS else None
-                if item.get("default_service_tier") != expected_default:
-                    errors.append(f"model-catalog-fast-default:{model}")
+        elif (
+            json.loads(self.MODEL_CATALOG.read_text(encoding="utf-8"))
+            != CLIModelCatalog(self).generate_catalog()
+        ):
+            errors.append("model-catalog-metadata-mismatch")
         for slot in SLOTS:
             name = slots.get(slot)
             if not name or not (self.AUTH_DIR / name).is_file():
@@ -650,7 +640,7 @@ class CPAOperator(ObservationMixin):
             }
             if data.get("priority") != want_priority:
                 errors.append(f"slot-{slot}-priority")
-            expected_aliases = aliases_for_slot(slot)
+            expected_aliases = self.aliases_for_slot(slot)
             if any(entry["alias"] not in alias_entries for entry in expected_aliases):
                 errors.append(f"slot-{slot}-aliases")
             expected_route_priorities = {
@@ -669,28 +659,6 @@ class CPAOperator(ObservationMixin):
                 errors.append(f"slot-{slot}-websocket")
         if errors:
             raise RuntimeError("qualification incomplete: " + ",".join(errors))
-        if self.pid_alive(self.read_pid()):
-            if not self.fast_selector_plugin_ready():
-                raise RuntimeError("runtime Fast selector plugin is not active")
-            models = set(self.fetch_models())
-            required = {
-                *ROUTES,
-                *MODEL_FAMILIES,
-                AUTO_MODEL,
-                GPT_MODEL,
-                PREFER_A_MODEL,
-                PREFER_B_MODEL,
-                LUNA_MODEL,
-                *FAST_MODELS,
-                "ark/deepseek-v4-flash",
-                *self.ARK_LEGACY_MODELS,
-                self.ARK_PRO_MODEL,
-            }
-            missing = sorted(required - models)
-            if missing:
-                raise RuntimeError(
-                    "runtime model catalog missing: " + ",".join(missing)
-                )
-        print(
-            "validate-ok slots=A,B,C models=Sol,Astra auto=A-B-C auto-with-ds=A-B-C-Ark"
-        )
+        # This validation proves local configuration only. Online qualification
+        # requires separately authorized correlated CPA requests.
+        print("validate-ok local-configuration-only online-qualification=held")
