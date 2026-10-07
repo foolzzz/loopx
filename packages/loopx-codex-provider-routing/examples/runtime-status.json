@@ -1,6 +1,6 @@
 {
   "operation": "project_runtime_status",
-  "schema_version": "loopx_codex_provider_routing_request_v0",
+  "schema_version": "loopx_codex_provider_routing_request_v1",
   "status": {
     "account_observations": [
       {
@@ -45,7 +45,10 @@
           "priority": 300,
           "provider": "codex",
           "supports_fast": true,
-          "tool_transports": ["function_call", "custom_tool_call"]
+          "tool_transports": [
+            "function_call",
+            "custom_tool_call"
+          ]
         },
         {
           "id": "codex-b",
@@ -56,7 +59,10 @@
           "priority": 200,
           "provider": "codex",
           "supports_fast": true,
-          "tool_transports": ["function_call", "custom_tool_call"]
+          "tool_transports": [
+            "function_call",
+            "custom_tool_call"
+          ]
         },
         {
           "id": "ark-text",
@@ -66,7 +72,9 @@
           "priority": 100,
           "provider": "openai_compatibility",
           "supports_fast": false,
-          "tool_transports": ["function_call"]
+          "tool_transports": [
+            "function_call"
+          ]
         }
       ],
       "rings": [

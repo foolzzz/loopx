@@ -1,0 +1,192 @@
+{
+  "schema_version": "loopx_codex_provider_routing_request_v1",
+  "operation": "compile_cli_plan",
+  "cli_plan": {
+    "catalog_source": {
+      "profiles": [
+        {
+          "id": "codex-a",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "priority": 300,
+          "provider": "codex",
+          "supports_fast": true,
+          "tool_transports": [
+            "function_call",
+            "custom_tool_call"
+          ]
+        },
+        {
+          "id": "codex-b",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "priority": 200,
+          "provider": "codex",
+          "supports_fast": true,
+          "tool_transports": [
+            "function_call",
+            "custom_tool_call"
+          ]
+        },
+        {
+          "id": "codex-c",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "priority": 100,
+          "provider": "codex",
+          "supports_fast": true,
+          "tool_transports": [
+            "function_call",
+            "custom_tool_call"
+          ]
+        }
+      ],
+      "rings": [
+        {
+          "id": "codex-accounts",
+          "max_cycles": 1,
+          "members": [
+            "codex-a",
+            "codex-b",
+            "codex-c"
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "display_name": "Auto \u00b7 Codex A \u2192 B \u2192 Ark",
+          "entrypoint": "affinity_then_first",
+          "fast_selector": {
+            "display_name": "Auto \u00b7 Fast \u00b7 Codex A \u2192 B",
+            "fallback_policy": "fast_capable_only"
+          },
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "mode": "auto",
+          "reasoning_levels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "ring": "codex-accounts",
+          "slug": "auto/gpt-5.6-sol",
+          "supports_fast": true,
+          "visible": true
+        },
+        {
+          "display_name": "Prefer A \u00b7 Codex A \u2192 B \u2192 Ark",
+          "entrypoint": "codex-a",
+          "fast_selector": {
+            "display_name": "Prefer A \u00b7 Fast \u00b7 Codex A \u2192 B",
+            "fallback_policy": "fast_capable_only"
+          },
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "mode": "preferred",
+          "reasoning_levels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "ring": "codex-accounts",
+          "slug": "codex-a/gpt-5.6-sol",
+          "supports_fast": true,
+          "visible": true
+        },
+        {
+          "display_name": "Prefer B \u00b7 Codex B \u2192 A \u2192 Ark",
+          "entrypoint": "codex-b",
+          "fast_selector": {
+            "display_name": "Prefer B \u00b7 Fast \u00b7 Codex B \u2192 A",
+            "fallback_policy": "fast_capable_only"
+          },
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "mode": "preferred",
+          "reasoning_levels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "ring": "codex-accounts",
+          "slug": "codex-b/gpt-5.6-sol",
+          "supports_fast": true,
+          "visible": true
+        },
+        {
+          "display_name": "Luna \u00b7 Codex A \u2192 B",
+          "entrypoint": "affinity_then_first",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "mode": "auto",
+          "reasoning_levels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "ring": "codex-accounts",
+          "slug": "gpt-5.6-luna",
+          "supports_fast": true,
+          "visible": true
+        },
+        {
+          "alias_for": "auto/gpt-5.6-sol",
+          "candidates": [],
+          "display_name": "Compatibility alias",
+          "input_modalities": [
+            "text",
+            "image"
+          ],
+          "mode": "alias",
+          "reasoning_levels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "slug": "gpt-5.6-sol",
+          "supports_fast": true,
+          "visible": false
+        }
+      ]
+    },
+    "route_id": "native-pool",
+    "routing_revision": "revision-1",
+    "deployment_ref": "synthetic-local",
+    "provider_id": "local-cpa",
+    "model_selector": "auto/gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "service_tier": "default",
+    "required_capabilities": {
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "tool_transport": "custom_tool_call"
+    },
+    "codex_version_requirement": "0.160.0"
+  }
+}

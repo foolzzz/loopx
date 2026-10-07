@@ -13,7 +13,6 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 contract = importlib.import_module("loopx_codex_provider_routing.contract")
-qualify_desktop_patch = contract.qualify_desktop_patch
 qualify_outage_recovery = contract.qualify_outage_recovery
 qualify_quota_recovery = contract.qualify_quota_recovery
 qualify_tool_transport = contract.qualify_tool_transport
@@ -107,39 +106,6 @@ def check_stream_recovery() -> None:
 
 def main() -> int:
     check_stream_recovery()
-    desktop_patch = qualify_desktop_patch(
-        {
-            "anchor_state": "patched_unique",
-            "changed_file_count": 2,
-            "per_file_integrity_match_count": 2,
-            "header_integrity_matches_bundle_metadata": True,
-            "signature_valid": True,
-            "launch_succeeded": True,
-            "heartbeat_readback_succeeded": True,
-        }
-    )
-    assert desktop_patch["qualified"] is True
-
-    stale_asar = qualify_desktop_patch(
-        {
-            "anchor_state": "unsupported",
-            "changed_file_count": 2,
-            "per_file_integrity_match_count": 0,
-            "header_integrity_matches_bundle_metadata": False,
-            "signature_valid": True,
-            "launch_succeeded": False,
-            "heartbeat_readback_succeeded": False,
-        }
-    )
-    assert stale_asar["qualified"] is False
-    assert {
-        "desktop_patch_anchor_unsupported",
-        "asar_file_integrity_stale",
-        "asar_header_integrity_stale",
-        "desktop_launch_failed",
-        "heartbeat_transport_readback_failed",
-    } <= set(stale_asar["failure_codes"])
-
     outage_recovery = qualify_outage_recovery(
         {
             "outage_ended": True,

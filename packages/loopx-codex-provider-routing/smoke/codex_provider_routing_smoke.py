@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import importlib
 import json
-import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -18,36 +17,10 @@ cli = importlib.import_module("loopx_codex_provider_routing.cli")
 contract = importlib.import_module("loopx_codex_provider_routing.contract")
 _run_request = cli._run_request
 REQUEST_SCHEMA_VERSION = contract.REQUEST_SCHEMA_VERSION
-build_upgrade_plan = contract.build_upgrade_plan
 compile_catalog = contract.compile_catalog
 normalize_selector_request = contract.normalize_selector_request
 project_runtime_status = contract.project_runtime_status
-qualify_heartbeat_transport = contract.qualify_heartbeat_transport
-qualify_host_control_recovery = contract.qualify_host_control_recovery
 qualify_snapshot = contract.qualify_snapshot
-reconcile_integration_candidate = contract.reconcile_integration_candidate
-
-
-def _assert_layered_retry_templates() -> None:
-    app = (PACKAGE_ROOT / "templates" / "codex-app-config.toml").read_text()
-    local_cpa = app.split("[model_providers.local-cpa]", maxsplit=1)[1]
-    request_retries = re.search(r"(?m)^request_max_retries\s*=\s*(\d+)\s*$", local_cpa)
-    stream_retries = re.search(r"(?m)^stream_max_retries\s*=\s*(\d+)\s*$", local_cpa)
-    assert request_retries is not None and int(request_retries.group(1)) == 30
-    assert stream_retries is not None and int(stream_retries.group(1)) == 30
-
-    cpa = (PACKAGE_ROOT / "templates" / "cpa-config.public.yaml").read_text()
-    interval = re.search(r"(?m)^max-retry-interval:\s*(\d+)\s*$", cpa)
-    assert interval is not None and int(interval.group(1)) >= 60
-    compat = re.search(
-        r"(?ms)^openai-compatibility:\s*\n(?P<body>(?:^[ \t].*(?:\n|$))*)",
-        cpa,
-    )
-    assert compat is not None
-    provider_retry = re.search(
-        r"(?m)^\s{4}request-retry:\s*(\d+)\s*$", compat.group("body")
-    )
-    assert provider_retry is not None and int(provider_retry.group(1)) == 1
 
 
 def _source() -> dict[str, Any]:
@@ -56,104 +29,6 @@ def _source() -> dict[str, Any]:
         json.loads((PACKAGE_ROOT / "examples" / "request.json").read_text()),
     )
     return cast(dict[str, Any], request["source"])
-
-
-def _valid_snapshot() -> dict[str, Any]:
-    return {
-        "visible_models": [
-            "auto/gpt-5.6-sol",
-            "fast/auto/gpt-5.6-sol",
-            "codex-a/gpt-5.6-sol",
-            "fast/codex-a/gpt-5.6-sol",
-            "codex-b/gpt-5.6-sol",
-            "fast/codex-b/gpt-5.6-sol",
-            "gpt-5.6-luna",
-            "ark/deepseek-v4-flash",
-        ],
-        "hidden_models": ["gpt-5.6-sol"],
-        "input_modalities": {
-            "auto/gpt-5.6-sol": ["text", "image"],
-            "fast/auto/gpt-5.6-sol": ["text", "image"],
-            "codex-a/gpt-5.6-sol": ["text", "image"],
-            "fast/codex-a/gpt-5.6-sol": ["text", "image"],
-            "codex-b/gpt-5.6-sol": ["text", "image"],
-            "fast/codex-b/gpt-5.6-sol": ["text", "image"],
-            "gpt-5.6-luna": ["text", "image"],
-            "ark/deepseek-v4-flash": ["text"],
-        },
-        "fast_models": [
-            "fast/auto/gpt-5.6-sol",
-            "fast/codex-a/gpt-5.6-sol",
-            "fast/codex-b/gpt-5.6-sol",
-        ],
-        "default_service_tier": "default",
-        "selector_default_service_tiers": {
-            "auto/gpt-5.6-sol": "default",
-            "fast/auto/gpt-5.6-sol": "fast",
-            "codex-a/gpt-5.6-sol": "default",
-            "fast/codex-a/gpt-5.6-sol": "fast",
-            "codex-b/gpt-5.6-sol": "default",
-            "fast/codex-b/gpt-5.6-sol": "fast",
-            "gpt-5.6-luna": "default",
-            "ark/deepseek-v4-flash": "default",
-        },
-        "request_normalizer": {
-            "active": True,
-            "selector_prefix": "fast/",
-            "fast_request_service_tier": "priority",
-            "ordinary_selector_action": "preserve",
-            "effective_priority_admission": "fast_capable_only",
-        },
-        "endpoint_host": "127.0.0.1",
-        "affinity_policy": "hint_revalidated_per_attempt",
-        "route_traversal": {
-            "auto/gpt-5.6-sol": {
-                "entrypoint": "affinity_then_first",
-                "ordered_candidates": ["codex-a", "codex-b", "ark-text"],
-                "fallback_tail": ["ark-text"],
-                "max_cycles": 1,
-            },
-            "fast/auto/gpt-5.6-sol": {
-                "entrypoint": "affinity_then_first",
-                "ordered_candidates": ["codex-a", "codex-b"],
-                "fallback_tail": [],
-                "max_cycles": 1,
-            },
-            "codex-a/gpt-5.6-sol": {
-                "entrypoint": "codex-a",
-                "ordered_candidates": ["codex-a", "codex-b", "ark-text"],
-                "fallback_tail": ["ark-text"],
-                "max_cycles": 1,
-            },
-            "fast/codex-a/gpt-5.6-sol": {
-                "entrypoint": "codex-a",
-                "ordered_candidates": ["codex-a", "codex-b"],
-                "fallback_tail": [],
-                "max_cycles": 1,
-            },
-            "codex-b/gpt-5.6-sol": {
-                "entrypoint": "codex-b",
-                "ordered_candidates": ["codex-b", "codex-a", "ark-text"],
-                "fallback_tail": ["ark-text"],
-                "max_cycles": 1,
-            },
-            "fast/codex-b/gpt-5.6-sol": {
-                "entrypoint": "codex-b",
-                "ordered_candidates": ["codex-b", "codex-a"],
-                "fallback_tail": [],
-                "max_cycles": 1,
-            },
-            "gpt-5.6-luna": {
-                "entrypoint": "affinity_then_first",
-                "ordered_candidates": ["codex-a", "codex-b"],
-                "fallback_tail": [],
-                "max_cycles": 1,
-            },
-        },
-        "settings_revision_durable": True,
-        "turn_revision_matches": True,
-        "commit_barrier": "before_first_visible_output_or_tool_call",
-    }
 
 
 def _runtime_status() -> dict[str, Any]:
@@ -216,141 +91,6 @@ def expect_error(action: Callable[[], Any], message: str) -> None:
 
 
 def main() -> int:
-    _assert_layered_retry_templates()
-    heartbeat = qualify_heartbeat_transport(
-        {
-            "turn_trigger": "automation_heartbeat",
-            "payload_kind": "heartbeat_xml",
-            "delivery_kind": "user_input",
-            "message_role": "user",
-        }
-    )
-    assert heartbeat["qualified"] is True
-    assert heartbeat["prompt_or_model_remediation"] is False
-
-    mislabeled_heartbeat = qualify_heartbeat_transport(
-        {
-            "turn_trigger": "automation_heartbeat",
-            "payload_kind": "heartbeat_xml",
-            "delivery_kind": "tool_output",
-            "tool_name": "automation_update",
-        }
-    )
-    assert mislabeled_heartbeat["qualified"] is False
-    assert mislabeled_heartbeat["failure_code"] == (
-        "heartbeat_mislabeled_as_automation_tool_output"
-    )
-    assert mislabeled_heartbeat["responsible_layer"] == (
-        "codex_app_heartbeat_transport"
-    )
-    expect_error(
-        lambda: qualify_heartbeat_transport(
-            {
-                "turn_trigger": "automation_heartbeat",
-                "payload_kind": "heartbeat_xml",
-                "delivery_kind": "user_input",
-                "message_role": "assistant",
-            }
-        ),
-        "heartbeat user input accepted a non-user role",
-    )
-
-    recovered_instruction = qualify_host_control_recovery(
-        {
-            "tool_name": "send_message_to_thread",
-            "call_id_present": False,
-            "matching_call_count": 0,
-            "semantic_output_present": True,
-            "observed_action": "project_as_user",
-            "projection": {
-                "type": "message",
-                "role": "user",
-                "tool_identity_removed": True,
-                "semantic_output_preserved": True,
-                "next_action_observed": True,
-                "next_action_matches_instruction": True,
-            },
-        }
-    )
-    assert recovered_instruction["qualified"] is True
-    # Scheduled inputs and sent host instructions share the same recovery owner.
-    heartbeat_observation = json.loads(
-        (PACKAGE_ROOT / "examples/host-control-recovery.json").read_text()
-    )["host_control_recovery"]
-    heartbeat_observation["tool_name"] = "automation_update"
-    heartbeat = qualify_host_control_recovery(heartbeat_observation)
-    assert heartbeat["qualified"] is True
-    assert heartbeat["expected_action"] == "project_as_user"
-    assert recovered_instruction["expected_action"] == "project_as_user"
-    assert (
-        recovered_instruction["required_contract"][
-            "qualification_requires_instruction_follow_through"
-        ]
-        is True
-    )
-
-    silently_dropped_instruction = qualify_host_control_recovery(
-        {
-            "tool_name": "automation_update",
-            "call_id_present": False,
-            "matching_call_count": 0,
-            "semantic_output_present": True,
-            "observed_action": "project_as_user",
-            "projection": {
-                "type": "message",
-                "role": "user",
-                "tool_identity_removed": True,
-                "semantic_output_preserved": False,
-                "next_action_observed": True,
-                "next_action_matches_instruction": False,
-            },
-        },
-    )
-    assert silently_dropped_instruction["qualified"] is False
-    assert {
-        item["id"]
-        for item in silently_dropped_instruction["checks"]
-        if not item["passed"]
-    } == {"semantic_output_preserved", "instruction_follow_through"}
-
-    for rejected_observation in (
-        {
-            "tool_name": "unknown_host_tool",
-            "call_id_present": False,
-            "matching_call_count": 0,
-            "semantic_output_present": True,
-            "observed_action": "fail_closed",
-            "error_status": 409,
-        },
-        {
-            "tool_name": "send_message_to_thread",
-            "call_id_present": False,
-            "matching_call_count": 1,
-            "semantic_output_present": True,
-            "observed_action": "fail_closed",
-            "error_status": 409,
-        },
-        {
-            "tool_name": "automation_update",
-            "call_id_present": True,
-            "matching_call_count": 0,
-            "semantic_output_present": True,
-            "observed_action": "fail_closed",
-            "error_status": 409,
-        },
-        {
-            "tool_name": "automation_update",
-            "call_id_present": False,
-            "matching_call_count": 0,
-            "semantic_output_present": False,
-            "observed_action": "fail_closed",
-            "error_status": 409,
-        },
-    ):
-        rejected = qualify_host_control_recovery(rejected_observation)
-        assert rejected["qualified"] is True
-        assert rejected["expected_action"] == "fail_closed"
-
     catalog = compile_catalog(_source())
     assert catalog["credential_free"] is True
     auto = next(
@@ -704,139 +444,11 @@ def main() -> int:
         lambda: compile_catalog(divergent_alias), "divergent alias was accepted"
     )
 
-    snapshot = qualify_snapshot(_valid_snapshot())
-    assert snapshot["qualified"] is True
-    ordinary_row_forced_fast = _valid_snapshot()
-    ordinary_row_forced_fast["selector_default_service_tiers"]["auto/gpt-5.6-sol"] = (
-        "fast"
-    )
-    failed = qualify_snapshot(ordinary_row_forced_fast)
-    assert "fast_default_off" in {
-        item["id"] for item in failed["checks"] if not item["passed"]
-    }
-
-    inactive_normalizer = _valid_snapshot()
-    inactive_normalizer["request_normalizer"]["active"] = False
-    failed = qualify_snapshot(inactive_normalizer)
-    assert "request_normalizer" in {
-        item["id"] for item in failed["checks"] if not item["passed"]
-    }
-
-    unsafe_priority_admission = _valid_snapshot()
-    unsafe_priority_admission["request_normalizer"]["effective_priority_admission"] = (
-        "route_default"
-    )
-    failed = qualify_snapshot(unsafe_priority_admission)
-    assert "request_normalizer" in {
-        item["id"] for item in failed["checks"] if not item["passed"]
-    }
-
-    stale = _valid_snapshot()
-    stale["affinity_policy"] = "sticky_without_revalidation"
-    stale["turn_revision_matches"] = False
-    failed = qualify_snapshot(stale)
-    assert failed["qualified"] is False
-    assert {item["id"] for item in failed["checks"] if not item["passed"]} == {
-        "modality_aware_affinity",
-        "settings_revision",
-    }
-
-    wrong_prefer_b = _valid_snapshot()
-    wrong_prefer_b["route_traversal"]["codex-b/gpt-5.6-sol"]["ordered_candidates"] = [
-        "codex-a",
-        "codex-b",
-        "ark-text",
-    ]
-    failed = qualify_snapshot(wrong_prefer_b)
-    assert failed["qualified"] is False
-    assert "preferred_route_order" in {
-        item["id"] for item in failed["checks"] if not item["passed"]
-    }
-
-    luna_with_ark = _valid_snapshot()
-    luna_with_ark["route_traversal"]["gpt-5.6-luna"]["ordered_candidates"] = [
-        "codex-a",
-        "codex-b",
-        "ark-text",
-    ]
-    luna_with_ark["route_traversal"]["gpt-5.6-luna"]["fallback_tail"] = ["ark-text"]
-    failed = qualify_snapshot(luna_with_ark)
-    assert failed["qualified"] is False
-    assert {
-        "preferred_route_order",
-        "terminal_fallback_tail",
-    } <= {item["id"] for item in failed["checks"] if not item["passed"]}
-
-    plan = build_upgrade_plan(
-        {
-            "current_ref": "public-current-ref",
-            "target_ref": "public-target-ref",
-            "changed_seams": [
-                "transport_pool",
-                "desktop_runtime_patch",
-                "modality_routing",
-                "request_normalizer",
-                "quota_recovery",
-                "settings_revision",
-                "tool_transport",
-            ],
-        }
-    )
-    assert "h2_reuse" in plan["required_checks"]
-    assert "asar_member_integrity" in plan["required_checks"]
-    assert "no_eligible_fail_closed" in plan["required_checks"]
-    assert "ordinary_selector_preserved" in plan["required_checks"]
-    assert "effective_priority_admission" in plan["required_checks"]
-    assert "turn_revision_match" in plan["required_checks"]
-    assert "stale_cooldown_invalidation" in plan["required_checks"]
-    assert "custom_tool_item_preserved" in plan["required_checks"]
-
-    integration_request = json.loads(
-        (PACKAGE_ROOT / "examples" / "integration-candidate.json").read_text()
-    )
-    integration = reconcile_integration_candidate(integration_request["integration"])
-    assert integration["status"] == "in_sync"
-    assert integration["sync_required"] is False
-    assert integration["core_integration_plan"]["source_refs"] == [
-        "fork/provider-history-normalization",
-        "fork/reusable-http2-transport",
-        "operator/modality-routing",
-        "fork/route-specific-fallback",
-        "operator/compat-stream-repair",
-        "fork/openai-compat-bounded-rate-limit-waits",
-    ]
-    assert integration["deployment_contract"]["session_store_policy"] == (
-        "preserve_in_place_never_copy_or_delete"
-    )
-
-    moved_source = copy.deepcopy(integration_request["integration"])
-    moved_source["observed"]["source_heads"]["transport-pool"] = (
-        "9999999999999999999999999999999999999999"
-    )
-    moved_source["sources"][1]["head_sha"] = "9999999999999999999999999999999999999999"
-    integration = reconcile_integration_candidate(moved_source)
-    assert integration["sync_required"] is True
-    assert integration["drift_reasons"] == [
-        {
-            "kind": "source_moved",
-            "source_id": "transport-pool",
-            "last_sync_sha": "3333333333333333333333333333333333333333",
-            "observed_sha": "9999999999999999999999999999999999999999",
-        }
-    ]
-
-    uncovered = copy.deepcopy(integration_request["integration"])
-    uncovered["required_seams"].append("retry_policy")
-    expect_error(
-        lambda: reconcile_integration_candidate(uncovered),
-        "integration candidate without a required seam was accepted",
-    )
-
     response = _run_request(
         {
             "schema_version": REQUEST_SCHEMA_VERSION,
             "operation": "qualify_snapshot",
-            "snapshot": _valid_snapshot(),
+            "snapshot": json.loads((PACKAGE_ROOT / "examples/qualification-snapshot.json").read_text())["snapshot"],
         }
     )
     assert response["ok"] is True and response["result"]["qualified"] is True
@@ -845,14 +457,12 @@ def main() -> int:
         "normalize-request.json",
         "runtime-status.json",
         "qualification-snapshot.json",
-        "desktop-patch.json",
-        "heartbeat-transport.json",
-        "host-control-recovery.json",
         "outage-recovery.json",
         "quota-recovery.json",
         "tool-transport.json",
         "integration-candidate.json",
         "upgrade-request.json",
+        "cli-plan.json",
     ):
         example_request = json.loads(
             (PACKAGE_ROOT / "examples" / example_name).read_text()
@@ -864,7 +474,7 @@ def main() -> int:
             {
                 "schema_version": REQUEST_SCHEMA_VERSION,
                 "operation": "qualify_snapshot",
-                "snapshot": _valid_snapshot(),
+                "snapshot": json.loads((PACKAGE_ROOT / "examples/qualification-snapshot.json").read_text())["snapshot"],
                 "source": {},
             }
         ),

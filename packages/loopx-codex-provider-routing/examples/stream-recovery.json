@@ -1,5 +1,5 @@
 {
-  "schema_version": "loopx_codex_provider_routing_request_v0",
+  "schema_version": "loopx_codex_provider_routing_request_v1",
   "operation": "qualify_stream_recovery",
   "stream_recovery": {
     "failure_kind": "sse_idle_timeout",

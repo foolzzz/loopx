@@ -11,5 +11,5 @@
     "outage_ended_observed_at": "2026-09-03T15:00:00Z",
     "post_recovery_probe": "success"
   },
-  "schema_version": "loopx_codex_provider_routing_request_v0"
+  "schema_version": "loopx_codex_provider_routing_request_v1"
 }
