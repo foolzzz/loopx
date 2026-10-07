@@ -825,9 +825,8 @@ def test_deep_research_is_a_registered_capability() -> None:
     assert entry is not None
     assert entry["entry_command"] == "loopx deepresearch start --question <text>"
     boundaries = " ".join(entry["boundaries"])
-    # The ownership question the reviewer asked must be answered in the catalog
-    # itself: how this capability differs from auto-research.
-    assert "auto-research" in boundaries
+    assert "session-scoped ledger" in boundaries
+    assert "explore" in boundaries
     assert entry["next_real_step"]
 
 

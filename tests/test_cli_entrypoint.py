@@ -288,6 +288,31 @@ def test_retired_app_scheduler_commands_are_rejected() -> None:
 		assert command in str(result["stderr"])
 
 
+@pytest.mark.parametrize("command", ["auto-research", "multi-agent"])
+def test_retired_demo_commands_are_rejected(command: str) -> None:
+    selected = run_cli_batch("loopx.entrypoint", [[command, "--help"]])
+    full = run_cli_batch("loopx.cli", [[command, "--help"]])
+
+    assert selected == full
+    assert selected[0]["returncode"] == 2
+    assert selected[0]["stdout"] == ""
+    assert "invalid choice" in str(selected[0]["stderr"])
+
+
+def test_command_catalog_retires_demo_and_preserves_product_commands() -> None:
+    results = run_cli_batch("loopx.entrypoint", [["commands", "--format", "json"]])
+    assert results[0]["returncode"] == 0
+    payload = json.loads(str(results[0]["stdout"]))
+    commands = {
+        row["command"]
+        for group in payload["groups"]
+        for row in group["commands"]
+    }
+    assert {"loopx auto-research", "loopx multi-agent"}.isdisjoint(commands)
+    assert {"loopx workspace", "loopx deepresearch"} <= commands
+    assert any(command.startswith("loopx turn plan ") for command in commands)
+
+
 def test_selected_todo_execution_matches_full_cli(tmp_path: Path) -> None:
 	registry, runtime_root = write_command_fixture(tmp_path)
 	argv = [

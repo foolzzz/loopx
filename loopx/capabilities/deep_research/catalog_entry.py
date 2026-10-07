@@ -87,12 +87,6 @@ DEEP_RESEARCH_CATALOG_ENTRY: dict[str, Any] = {
     ],
     "boundaries": [
         (
-            "Distinct from the auto-research capability: auto-research launches "
-            "role-scoped workers inside a LoopX goal for open exploration; "
-            "deep-research is a single-session, user-facing evidence ledger whose "
-            "truth is the .loopx/deepresearch state, not goal todos."
-        ),
-        (
             "Distinct from the explore capability: explore owns the goal-scoped, "
             "public-safe, cross-session question/finding topology; deep-research "
             "owns this private, session-scoped ledger — raw source locators, claim "
