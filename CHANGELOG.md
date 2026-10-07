@@ -16,6 +16,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- The source path-literal regression guard now decodes JS/TS, shell ANSI-C and
+  PowerShell escapes, folds Python/JS constant additions and joins shell word
+  parts. PowerShell expressions remain unevaluated. Decoded
+  per-file/value budgets still reject new values, duplicates and moved literals;
+  existing test, prose and path-owner exclusions remain unchanged.
+
 ### Removed
 
 - Retired the Release Artifacts workflow, its package identity/checksum script,
