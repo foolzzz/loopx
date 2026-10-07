@@ -2,7 +2,6 @@ from __future__ import annotations
 from ..control_plane.quota.effective_action import EffectiveAction
 
 import argparse
-import json
 import shlex
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -44,16 +43,13 @@ from ..control_plane.todos.durable_completion import (
     read_persisted_todo_record_with_source,
 )
 from ..control_plane.turn_driver import (
-    build_loopx_turn_command_validator,
     build_loopx_turn_plan,
     codex_cli_session_binding,
     load_loopx_turn_plan_from_journal,
-    run_codex_cli_host,
     run_loopx_turn_once,
     selected_turn_todo,
 )
 from ..control_plane.turn_driver.executor import mark_turn_plan_vision_checkpoint_not_required
-from ..control_plane.turn_driver.host_binding import managed_executor_binding
 from ..control_plane.operator_provider import operator_provider_environ
 from ..control_plane.quota.spend_commit import retry_quota_spend_index_conflicts
 from ..quota import spend_quota_slot
@@ -67,11 +63,11 @@ from .turn_decision import (
     registry_goal_uses_role_v1,
     turn_lane_todo_id,
 )
-from .turn_claude_host import (
-    build_claude_code_host_runner,
-    resolve_codex_config_overrides,
+from .turn_host_execution import (
+    build_turn_host_callbacks,
+    project_turn_executor_binding,
+    resolve_turn_host_commands,
 )
-from .turn_dsh_host import build_dsh_host_runner
 from .turn_registration import register_turn_commands as register_turn_commands
 from .turn_inspection import handle_turn_journal_inspection
 from .turn_managed_step import handle_turn_managed_step
@@ -203,42 +199,8 @@ def handle_turn_command(
         # Goal state and machine authentication have different owners. A Goal
         # runtime override must not select a different credential store.
         operator_environ = operator_provider_environ()
-        payload["managed_executor"] = managed_executor_binding(
-            args.host,
-            # The credential a managed Turn authenticates with is this
-            # machine's resolved pair, not whatever the invoking shell happens
-            # to export: the readback above the launch and the launch itself
-            # have to name the same credential.
-            environ=operator_environ,
-            dsh_runner_configured=bool(getattr(args, "dsh_runner", None)),
-            provider=(
-                getattr(args, "dsh_provider", None)
-                if args.host == "dsh"
-                else None
-            ),
-            model=(
-                getattr(args, "dsh_model", None)
-                if args.host == "dsh"
-                else getattr(args, "codex_model", None)
-                if args.host == "codex-cli"
-                else getattr(args, "claude_model", None)
-                if args.host == "claude-code"
-                else None
-            ),
-            reasoning_effort=(
-                getattr(args, "dsh_reasoning_effort", None)
-                if args.host == "dsh"
-                else getattr(args, "codex_reasoning_effort", None)
-                if args.host == "codex-cli"
-                else getattr(args, "claude_effort", None)
-                if args.host == "claude-code"
-                else None
-            ),
-            max_tokens=(
-                getattr(args, "dsh_max_tokens", None)
-                if args.host == "dsh"
-                else None
-            ),
+        payload["managed_executor"] = project_turn_executor_binding(
+            args, environ=operator_environ,
         )
         if (
             args.turn_command == "run-once"
@@ -333,41 +295,7 @@ def handle_turn_command(
             )
             if planned_host.get("kind") != args.host:
                 raise ValueError("--host must match the journaled LoopX Turn plan")
-            if args.host == "generic-cli":
-                if not args.host_command_json:
-                    raise ValueError(
-                        "generic-cli requires --host-adapter-command-json "
-                        "(alias --host-command-json)"
-                    )
-                raw_argv = json.loads(args.host_command_json)
-                if not isinstance(raw_argv, list) or not all(
-                    isinstance(item, str) for item in raw_argv
-                ):
-                    raise ValueError(
-                        "--host-adapter-command-json must be a JSON string array"
-                    )
-            else:
-                if args.host_command_json:
-                    raise ValueError(
-                        f"{args.host} does not accept --host-command-json"
-                    )
-                raw_argv = None
-            if args.validation_command_json:
-                raw_validation_argv = json.loads(args.validation_command_json)
-                if not isinstance(raw_validation_argv, list) or not all(
-                    isinstance(item, str) for item in raw_validation_argv
-                ):
-                    raise ValueError(
-                        "--validation-command-json must be a JSON string array"
-                    )
-                task_validator = build_loopx_turn_command_validator(
-                    raw_validation_argv,
-                    project=project,
-                    timeout_seconds=args.validation_timeout_seconds,
-                    failure_recovery_kind=args.validation_failure_kind,
-                )
-            else:
-                task_validator = None
+            raw_argv, task_validator = resolve_turn_host_commands(args, project=project)
             envelope = (
                 payload.get("turn_envelope")
                 if isinstance(payload.get("turn_envelope"), dict)
@@ -1071,49 +999,12 @@ def handle_turn_command(
                     }
                 )
 
-            host_runner: Callable[[Mapping[str, Any]], dict[str, Any]] | None = None
-            session_binding_resolver = None
-            if args.host == "codex-cli":
-                codex_config_overrides = resolve_codex_config_overrides(
-                    args, runtime_root=runtime_root
-                )
-
-                def run_built_in_host(
-                    request: Mapping[str, Any],
-                ) -> dict[str, Any]:
-                    return run_codex_cli_host(
-                        request,
-                        runtime_root=runtime_root,
-                        project=project,
-                        codex_bin=args.codex_bin,
-                        sandbox=args.codex_sandbox,
-                        model=args.codex_model,
-                        reasoning_effort=args.codex_reasoning_effort,
-                        mcp_server=args.codex_mcp_server_json,
-                        config_overrides=codex_config_overrides,
-                        timeout_seconds=max(1.0, args.timeout_seconds - 5.0),
-                    )
-
-                host_runner = run_built_in_host
-
-                def resolve_built_in_session_binding(
-                    turn_envelope: Mapping[str, Any],
-                ) -> dict[str, str] | None:
-                    return codex_cli_session_binding(runtime_root, turn_envelope)
-
-                session_binding_resolver = resolve_built_in_session_binding
-            elif args.host == "claude-code":
-                host_runner = build_claude_code_host_runner(
-                    args,
-                    project=project,
-                    runtime_root=runtime_root,
-                )
-            elif args.host == "dsh":
-                host_runner = build_dsh_host_runner(
-                    args,
-                    workspace=project,
-                    environ=operator_environ,
-                )
+            host_runner, session_binding_resolver = build_turn_host_callbacks(
+                args,
+                runtime_root=runtime_root,
+                project=project,
+                environ=operator_environ,
+            )
 
             def post_settlement_reward_memory(
                 plan: Mapping[str, Any],
