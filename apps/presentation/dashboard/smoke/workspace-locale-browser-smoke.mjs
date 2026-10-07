@@ -44,6 +44,8 @@ export async function verifyWorkspaceLocales({ browser, url, installApi, outputD
       assert.equal(await page.locator("html").getAttribute("lang"), scenario.expected, scenario.name);
       const label = scenario.expected === "en" ? "Settings" : "设置";
       assert.ok(await page.getByRole("button", { name: label, exact: true }).isVisible(), scenario.name);
+      assert.equal(await page.locator(".personal-update-trigger, #desktop-update-panel").count(), 0,
+        `${scenario.name}: the browser workspace has no native installer controls`);
       if (!scenario.blocked) {
         assert.equal(await page.evaluate(() => localStorage.getItem("loopx-pw-locale")), scenario.stored ?? null,
           `${scenario.name}: detection must not overwrite a saved choice`);

@@ -11,6 +11,30 @@ from loopx import doctor
 from loopx.control_plane.runtime import runtime_projection_route
 
 
+def test_standard_doctor_reports_cli_installation_without_desktop_pairing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "loopx.control_plane.effect_runtime.collect_effect_runtime_readiness",
+        lambda *, deep: {"ready": True, "status": "ready", "deep": deep},
+    )
+
+    result = doctor.collect_doctor()
+
+    assert "desktop_installation" not in result
+    checks = {check["id"] for check in result["checks"]}
+    assert "desktop_app_runtime_pairing" not in checks
+    assert {
+        "command_available",
+        "global_registry_writable",
+        "typescript_effect_runtime_ready",
+    } <= checks
+    assert result["package"]["repo_root"]
+    assert "release_manifest" in result
+    assert "install_freshness" in result
+
+
 @pytest.mark.parametrize(
     "failed_check",
     [None, "typescript_effect_runtime_ready", "representative_cli_imports"],

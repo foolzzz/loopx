@@ -117,7 +117,6 @@ RFC_BILINGUAL_LEGACY_ALLOWLIST = {
     "single-owner-local-daemon-v0.md",
     # Existing mirrors that predate reciprocal language links.
     "cross-session-memory-substrate-v0.md",
-    "desktop-execution-frontends-v0.md",
     "goal-channel-collaboration-v0.md",
     "obelisk-session-evidence-provider-v0.md",
     "post-outcome-memory-utility-attribution-v0.md",
