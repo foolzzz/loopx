@@ -29,10 +29,11 @@ separately. Three is a delivery plan, not a guaranteed total PR count.
 
 The obsolete Python post-commit observer and TS observation commit path are
 removed together. Existing runtime-shadow outbox rules remain the sole capture
-owner; source adapters do not resample into a second authority. Old settings
-are recognizable, inactive and explicitly clearable. This is deletion of an
+owner; source adapters do not resample into a second authority. The old
+configuration and read interfaces, including the observation CLI, are removed;
+existing observation files are left untouched. This is deletion of an
 obsolete path, not a claim that remaining Python business writers or the
-reference executor are retired. [Delivery inventory and transition](../../reference/reviewed-coordination-promotion.md).
+reference executor are retired. [Promotion and recovery operations](../../reference/reviewed-coordination-promotion.md).
 
 ## Cross-RFC execution priority (2026-09-16)
 

@@ -34,9 +34,10 @@
 
 ## 旧观测退役检查点（2026-09-24）
 
-[当前交付清单](../../reference/reviewed-coordination-promotion.zh-CN.md)
-区分已合入、在途 PR 与资格证据。本次删除旧 Python observer 和 TS observation 提交链，
-没有将其冒充 executor 存活保护或 event writer 绑定。只保留一个可写 shadow lineage，
+[晋升与恢复操作指南](../../reference/reviewed-coordination-promotion.zh-CN.md)
+说明审核预览、执行与恢复的边界。本次删除旧 Python observer 和 TS observation 提交链。
+旧配置与读取接口（包括 observation CLI）已移除，既有 observation 文件保留不动。
+这不代表已实现 executor 存活保护或 event writer 绑定。只保留一个可写 shadow lineage，
 仍然默认关闭，且必须显式 bootstrap。
 
 ## 管家规模化的持久化路线（2026-09-16）
@@ -1708,7 +1709,7 @@ retention 决策，不能用一个会制造第二 writer 的诊断 CLI 代替。
 判定的结论：`loopx/control_plane/testing/authority_e2e_ladder.py`（行注册表、
 runner、`loopx_shared_goal_authority_e2e_report_v0` JSON 报告、退出策略与隐私
 扫描）、`loopx/control_plane/testing/authority_e2e_fixtures.py`（goal 工作区、
-CLI runner、observation-lock 窗口、候选回读）、只读 TypeScript 探针
+CLI runner、候选回读）、只读 TypeScript 探针
 `tests/control_plane_ts/authority_store_readback_probe.ts`、pytest 投影
 `tests/control_plane/test_shared_goal_authority_e2e.py`，以及入口
 `examples/shared-goal-authority-e2e/ladder.py`。
@@ -1719,11 +1720,11 @@ CLI runner、observation-lock 窗口、候选回读）、只读 TypeScript 探�
   provider 上恰好十二个共享场景行全为 true；`s0.nokv_live_matrix` 要求 live
   NoKV 栈上同样的行加 `restored_lineage_fails_closed` 全为 true，且 file/NoKV
   逐行结果一致。
-- Stage 1：`s1.cli_document_decodes_through_ts_store` 通过产品 CLI 写入三次
-  observation（`todo add`、`task-lease acquire`、`todo update`），再经
+- Stage 1：`s1.cli_document_decodes_through_ts_store` 先 bootstrap 捕获，再通过产品 CLI 捕获三笔
+  事务（`todo add`、`task-lease acquire`、`todo update`），再经
   `FileAuthorityStore` 的 `loadAuthority`、分页 `scanCommitted` 与
-  `readReceipt` 回读：cursor 为 `3`、三个 operation id 按序一致、首条 receipt
-  可找到。
+  `readReceipt` 回读：cursor 为 `4`、四个不同的 operation id 按来源顺序一致
+  （bootstrap 加三笔业务事务），第二个 operation id 对应的首笔业务写入 receipt 可找到。
 - Stage 2A：`s2a.nokv_live_qualification` 对一个已存在的 workbench 以新铸的
   tenant/goal 运行已合并的 live 资格探针
   （`examples/nokv-authority-store/live-qualification.ts --execute-live`），要求
@@ -1731,7 +1732,8 @@ CLI runner、observation-lock 窗口、候选回读）、只读 TypeScript 探�
   / API `1`，且不宣称晋升或可用性。
 - Stage 2B：`s2b.postgresql_conformance_live` 在 node TAP reporter 下运行
   PostgreSQL 集成测试文件，要求至少九个 pass、零 fail、零 skip。
-- Stage 2C parity 后半段：十个 `s2c2.*` 行只通过公开 CLI 驱动一个显式开启
+- Stage 2C parity 后半段：已注册的 `s2c2.*` 行（见当前验收梯子的行注册表）
+  只通过公开 CLI 驱动一个显式开启
   `coordination.runtime_shadow` 的 goal，并且只经 `coordination-shadow status|drain`、
   `coordination-shadow bootstrap|inspect|qualify|read-candidate|rollback` 与
   `migrate-state` 断言，历史只经保留的 TypeScript store 读回。Python Todo writer
