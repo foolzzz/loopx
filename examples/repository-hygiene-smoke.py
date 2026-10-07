@@ -12,6 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from loopx import __version__  # noqa: E402
 from loopx.contract import scan_public_boundary  # noqa: E402
 
 
@@ -341,6 +342,9 @@ def validate_release_timeline() -> None:
     if not RELEASE_TIMELINE.is_file():
         raise AssertionError(f"missing release timeline: {RELEASE_TIMELINE.relative_to(REPO_ROOT)}")
     timeline = RELEASE_TIMELINE.read_text(encoding="utf-8")
+    current_tag = f"v{__version__}"
+    if f"`{current_tag}`" not in timeline:
+        raise AssertionError(f"release timeline is missing current package version: {current_tag}")
     tags = release_tags()
     if not tags:
         if "on 20" not in timeline:

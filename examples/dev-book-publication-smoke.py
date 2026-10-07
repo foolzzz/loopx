@@ -11,9 +11,6 @@ import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOK = REPO_ROOT / "docs" / "book"
-# The upstream release the book documents. It deliberately differs from the
-# package version; moving the book's baseline means editing this constant.
-BOOK_RELEASE_ANCHOR = "1.2.0"
 CONTROL_PLANE_COURSE = REPO_ROOT / "docs" / "development" / "control-plane-course"
 MKDOCS = REPO_ROOT / "mkdocs.yaml"
 MKDOCS_ZH = BOOK / "mkdocs.zh.yaml"
@@ -65,10 +62,6 @@ COURSE_PAGES = (
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def _version_tuple(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
 
 
 def compact(text: str) -> str:
@@ -467,13 +460,9 @@ def main() -> int:
     assert "/loopx/docs/book/en/" in read(BOOK / "index.md")
     assert "/loopx/docs/book/" in read(BOOK / "en" / "index.md")
 
-    # Every locale's home page and reading guide must name the pinned anchor,
-    # which can never be a later release than the package itself.
-    release_tag = f"v{BOOK_RELEASE_ANCHOR}"
+    # Current release anchors follow the package; historical milestones stay pinned.
     project_version = tomllib.loads(read(REPO_ROOT / "pyproject.toml"))["project"]["version"]
-    assert _version_tuple(BOOK_RELEASE_ANCHOR) <= _version_tuple(project_version), (
-        f"book release anchor {release_tag} is newer than package version {project_version}"
-    )
+    release_tag = f"v{project_version}"
     # Historical migration milestones must not move with the package version.
     migration_baseline_tag = "v0.5.4"
     release_markers = {
