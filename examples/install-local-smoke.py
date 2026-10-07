@@ -278,7 +278,7 @@ def main() -> int:
         assert dashboard_page.is_file(), dashboard_page
         assert action_packet.is_file(), action_packet
         assert not dashboard_node_modules.exists(), dashboard_node_modules
-        assert (release_root / ".github" / "workflows" / "update-notes.yml").is_file(), release_root
+        assert (release_root / "docs" / "update-notes" / "README.md").is_file(), release_root
         assert (release_root / "docs/development/contributor-tasks.md").is_file(), release_root
         assert (release_root / "LICENSE").is_file(), release_root
         release_manifest_path = release_root / "release.json"
