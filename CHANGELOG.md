@@ -39,6 +39,10 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - Retired the `loopx auto-research` and `loopx multi-agent` command trees,
   including installed-build stubs; both now fail as unknown commands. Core
   collaboration, `loopx workspace`, and `loopx deepresearch` remain available.
+- Replaced the standalone CLI module size and command ownership smoke with
+  `tests/architecture/test_cli_command_module_ownership.py`, collected by
+  pytest. Existing line budgets and registration ownership assertions are
+  unchanged.
 
 ## [2.1.0] - 2026-10-07
 
