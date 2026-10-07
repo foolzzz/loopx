@@ -163,7 +163,7 @@ def ensure(previous: Path | None = None) -> None:
         return
     if previous is None or previous.resolve() == OUTPUT.resolve():
         return
-    # A bundled desktop/archive install must not need Node or network merely to
+    # An archive install must not need Node or network merely to
     # carry forward the currently installed delivery's assets.
     with tempfile.TemporaryDirectory(
         prefix=".chat-build-", dir=OUTPUT.parent
@@ -185,7 +185,7 @@ def ensure(previous: Path | None = None) -> None:
 
 
 def release_build(tag: str, repository: str) -> None:
-    # Use the preceding published version, never the latest desktop prerelease
+    # Use the preceding published version, never the latest prerelease
     # or a future release when rebuilding an older tag.
     pages = json.loads(
         subprocess.check_output(

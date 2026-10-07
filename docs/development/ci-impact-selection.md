@@ -15,7 +15,7 @@ author description cannot claim that runtime changes are “just UI”.
 
 The presentation boundary is deliberately small: Dashboard `src/`, `public/`
 and packaged `loopx/web/chat/`, with explicit client-code/image/font extensions.
-Package manifests, Vite/build configuration, native desktop code, backend Python
+Package manifests, Vite/build configuration, backend Python
 and arbitrary JSON are not exempt. Both sides of renames are classified; moving
 runtime code into a UI directory stays full. Symlinks/type changes cannot qualify.
 

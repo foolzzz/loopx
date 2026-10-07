@@ -1,7 +1,7 @@
 # LoopX Design System
 
 This file is the canonical visual design contract for LoopX user interfaces.
-Read it before changing the public website, dashboard, desktop application,
+Read it before changing the public website, dashboard,
 documentation chrome, prototypes, screenshots, or any UI reproduction task.
 
 The visual direction adapts the black-and-white precision, Geist typography,
@@ -19,7 +19,7 @@ LoopX should feel:
 - monochrome by default, with color reserved for state and one controlled hero
   accent;
 - dense enough for operators without becoming visually noisy;
-- consistent across marketing, dashboard, and future desktop surfaces.
+- consistent across marketing and dashboard surfaces.
 
 The interface should read like excellent technical documentation that also
 communicates a confident product.
@@ -60,8 +60,7 @@ preview approval gate still applies.
   Figma file, match that source while using these tokens for unspecified
   details.
 - Do not introduce a second design language for one page or framework.
-- Keep reusable tokens and primitives framework-neutral. React, static HTML,
-  and future desktop applications should express the same system.
+- Keep reusable tokens and primitives framework-neutral. React and static HTML should express the same system.
 
 ## Color
 
@@ -165,7 +164,7 @@ background blocks.
 Use shapes by context:
 
 - marketing CTAs use full pills;
-- application and desktop controls use tight 6px corners;
+- application controls use tight 6px corners;
 - content cards use 12-16px corners.
 
 Default elevation is a 1px hairline and no shadow. Floating menus and modals may

@@ -66,7 +66,7 @@ members can see and address each other -- and installs an **in-space skill**
 that teaches an Agent running inside it to use that space. LoopX's space is the
 Goal execution space: a Goal identity, its registered Agents, the shared work
 graph and each Agent's frontier, that Goal's lane and quota contract. A host
-surface -- a Chat steward session, a CLI, a desktop app, a terminal-space
+surface -- a Chat steward session, a CLI, a browser/PWA workspace, a terminal-space
 provider -- is a *transport inside* that space. It never defines membership.
 
 The same contract is reachable at three layers, and the layers must agree:

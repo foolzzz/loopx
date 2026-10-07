@@ -489,7 +489,7 @@ assert.match(styles, /personal-settings-sidebar[^{]*\{[^}]*overflow-y:\s*auto/, 
 assert.match(i18n, /workspaceLocaleStorageKey = "loopx-pw-locale"/, "Locale persistence uses a stable local key");
 assert.match(i18n, /window\.localStorage\.setItem\(workspaceLocaleStorageKey, nextLocale\)/, "Locale selection persists across reloads");
 assert.match(i18n, /document\.documentElement\.lang = locale/, "The selected locale updates document language metadata");
-assert.match(i18n, /type WorkspaceLocale = "en" \| "zh-CN"/, "Desktop supports English and Simplified Chinese");
+assert.match(i18n, /type WorkspaceLocale = "en" \| "zh-CN"/, "Workspace supports English and Simplified Chinese");
 assert.match(statusSourceSwitcher, /useWorkspaceI18n/, "Status source controls use the workspace locale");
 assert.match(statusSourceSwitcher, /t\("source\.controlPlane"\)/, "Status source controls expose localized accessible labels");
 assert.match(larkSettings, /t\("lark\.apps"\)/, "Lark management exposes localized reusable Apps");

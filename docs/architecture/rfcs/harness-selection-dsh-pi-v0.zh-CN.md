@@ -2,12 +2,12 @@
 
 状态：有证据的实现评估，不是运行时晋级声明。
 范围：[Reliability Diagnostics](./long-running-agent-reliability-diagnostics-governed-delivery-v0.zh-CN.md)
-与 [Desktop Execution Frontends](./desktop-execution-frontends-v0.zh-CN.md) 的共同目标。
+与 [Agent Session Execution Modes](./agent-session-execution-modes-v0.zh-CN.md) 的共同目标。
 [English](./harness-selection-dsh-pi-v0.md)
 
 ## 决策
 
-保留 **DSH 作为 L1 首个事件源**，但不据此宣布它已成为生产 Mode B 的最终首选。
+保留 **DSH 作为 L1 首个事件源**，但不据此宣布它已成为生产 `managed_runtime` 的最终首选。
 Pi 保留为 managed runtime 候选。前者利用已存在的被动 observer 降低验证成本；后者
 必须证明生命周期、provider、崩溃恢复和真实结果，插件事件 fixture 不能替代这些证据。
 本评估不提供缺乏测量依据的评分或性能排名。
@@ -16,7 +16,7 @@ Pi 保留为 managed runtime 候选。前者利用已存在的被动 observer �
 Turn 选择的适配器）与凭据绑定，其出货默认宿主的解析随下文记录的托管栈落地
 （PR #4443 已合并），且显式选择始终优先；管家通道则通过下文的单段 chat 传输抵达它；
 **L1 事件源与会话归属 runtime** 角色仍是 opt-in，不因前者被晋级，仍需本文 C0、
-C1、开销、保留与 Mode B 各行。
+C1、开销、保留与 `managed_runtime` 各行。
 
 ## 托管执行面（2026-09-15）
 
@@ -55,7 +55,7 @@ C1、开销、保留与 Mode B 各行。
 | 默认托管执行宿主 | LoopX Turn 加 `dsh` 宿主适配器，并绑定到运维方提供的模型端点 | 出货默认值：配置了运维方凭据时托管有界 Turn 走 `dsh`，没有凭据时走个体 `codex-cli`；显式 `LOOPX_TURN_HOST` 可改指，显式 `--host` 优先 | 保持类型化 host request/result、独立验证与凭据归属运维方的边界；没有同等或更强的契约不替换 |
 | 管家通道执行器 | 管家回答所依赖的交互式 Chat 传输 | 三层依次决定：本机 `steward_executor` machine-config 命名空间（前端可改，`loopx machine-config describe`/`inspect` 可回读，2026-09-16 落地）、`LOOPX_MANAGER_ENDPOINT`（用于引导或指向未列出的适配器）、出货默认值 `codex`（每台机器一致）；选择托管宿主（`dsh`）时执行器、模型与推理档位一起跟随 | 单段传输的类型化边界（无流式、无跨 turn 宿主会话、沙箱只读）必须持续披露并可回读；任何托管通道都不得依赖个人订阅；该命名空间不保存凭据、不授予任何权限 |
 | 受支持的替代 Turn 宿主 | LoopX Turn 加 `codex-cli` 适配器 | 可显式选择，也是上一行托管默认值在没有 operator 凭据的机器上的解析结果；它属于 `individual` 执行器类型，账落在某个人的 CLI 登录上 | 任何托管通道都不得*静默*依赖某个人的 CLI 订阅：个体宿主只会作为那条凭据解析默认值被走到，并以 `no_operator_credential` 回读，绝不被替换成运维方已选定的宿主 |
-| L1 事件源与会话归属 runtime 候选 | DSH | opt-in，未晋级；有界 Turn 宿主角色见上一行默认值 | 本文 C0、C1、开销、保留与 Mode B 各行被真实执行并通过评审 |
+| L1 事件源与会话归属 runtime 候选 | DSH | opt-in，未晋级；有界 Turn 宿主角色见上一行默认值 | 本文 C0、C1、开销、保留与 `managed_runtime` 各行被真实执行并通过评审 |
 | 可选的可见宿主循环 | Pi | 不是 managed runtime | 先声明按绑定持久化且可回读的会话模式，证明重启下的单执行器行为、"对话不是回执"、宿主本地状态非权威，并提供一条真实宿主重启行 |
 
 ### 可选 Ark 受控 Turn 档位
@@ -206,11 +206,9 @@ LoopX 检查基线为 `bf217e1e01bec79f357c9ecbd580cf2dfa73db8b`：
 - `loopx/capabilities/reliability_diagnostics/{receipt,projection}.py`：独立验证、
   integrity 分类和无控制权限的诊断输出。
 - `loopx/dsh_goal_mode/turn_host_adapter.py`：有界 Turn、session lineage、SDK 调用和
-  失败映射，并不是完整 Desktop 外循环。
+  失败映射，并不是完整 managed 外循环。
 - `loopx/pi_goal_mode/{loopx-goal.ts,pi-goal-loop-runtime.mjs}`：有绑定及 continuation
   行为的可见宿主集成，不是被动 observer。
-- `apps/desktop/loopx-control-plane/src-tauri/src/services.rs`：已有服务进程管理不等于
-  RFC 所要求的完整 managed Agent 生命周期。
 
 dsh 固定版本经历了两步，理解本文需要同时知道这两个状态：今天的 `main` 固定
 `deepseek-harness-sdk==0.1.2a3`；托管栈把该固定版本升到最新发布通道，而不是未发布的
@@ -238,7 +236,7 @@ tag：PyPI 上的 `deepseek-harness-sdk==0.1.5rc1` /
 | --- | --- | --- | --- |
 | 被动观察 | 已有独立 observer entry、三个 session publication hook、首次落盘拒绝 | SDK 提供 subscribe，extensions 还提供干预型 hook | DSH 已有可验证切片；Pi 应优先订阅而非拦截，并证明隔离 |
 | 身份与恢复 | Turn connector 派生 lineage；observer 另外要求精确 goal/session/run | SDK 将 AgentSession 与负责 replacement/resume 的 AgentSessionRuntime 分开 | 两边都要测重启、fork 后身份；有 API 不等于恢复可靠 |
-| 单次有界执行 | 已有 timeout 和失败映射 | 当前 Pi Goal 集成含 continuation/pause | 不允许 native loop 与 Desktop supervisor 同时充当外循环 |
+| 单次有界执行 | 已有 timeout 和失败映射 | 当前 Pi Goal 集成含 continuation/pause | 不允许 native loop 与 LoopX host supervisor 同时充当外循环 |
 | 打包 | 独立 export/bundle、packed smokes | SDK resource loading 会发现 extensions | 检查实际加载的包及 profile；二者都不是 OS 进程隔离 |
 | Provider | connector 版本与 SDK 约束明确 | SDK 暴露 runtime/model 构造 | 同 route/model/tools/budget 验证，harness 选择不代表 provider 兼容 |
 | 数据安全 | producer/consumer 独立校验，共享反事实 | 工具/context hook 可接触和修改原文 | Pi 需补首次落盘安全及负向测试，不能复制 transcript |
@@ -274,7 +272,7 @@ native session publication
   -> integrity receipt + diagnostic projection
   -> 仅供操作者展示
 
-canonical eligibility -> Desktop supervisor -> bounded Turn -> validation/writeback
+canonical eligibility -> LoopX host supervisor -> bounded Turn -> validation/writeback
 ```
 
 诊断不得反向进入 eligibility。`valid` 只代表观察合同通过，不代表任务成功；stall
@@ -295,7 +293,7 @@ loopx reliability-diagnostics status --goal-id <goal-id> --with-receipt --format
 快照；末尾半行仍按无效输入报告，不能悄悄丢掉。命令不激活 observer、不发现绑定、
 不写 ledger、不调用模型，也不改变 Goal/Todo/lease。
 
-这是可执行的读取接口，**不是已交付的 Mode B 面板或 supervisor**。未来面板必须
+这是可执行的读取接口，**不是已交付的 `managed_runtime` 面板或 supervisor**。未来面板必须
 绑定精确 goal/session/run，分别展示观察时间、integrity 与任务状态；多 run 或过期
 goal ledger 不得被标成当前 session 健康。输出只供操作者，不得进入 prompt 或调度。
 现有 CLI 全量 ledger 读取没有大小上限，在引入经过评审的读取预算／快照策略之前，
@@ -314,7 +312,7 @@ goal ledger 不得被标成当前 session 健康。输出只供操作者，不�
    阈值在运行前约定，本次不虚构阈值或性能结果。
 4. **保留／删除**：owner 选择最大年龄／字节、活跃 writer 处理、支持访问、备份范围
    和删除验证。先 dry-run 盘点再删除，不能为满足大小限制截断活跃 ledger。
-5. **Mode B**：在可丢弃 runtime 验证 start/resume/interrupt/close、进程崩溃、过期身份、
+5. **`managed_runtime`**：在可丢弃 runtime 验证 start/resume/interrupt/close、进程崩溃、过期身份、
    重复完成、超时及 provider 失败；同一时间一个 Turn，canonical validation/writeback
    通过后才扣 quota 或请求下一 Turn。
 
@@ -323,13 +321,13 @@ goal ledger 不得被标成当前 session 健康。输出只供操作者，不�
 
 里程碑归属仍由
 [Agent 会话执行模式](./agent-session-execution-modes-v0.zh-CN.md) 决定：本文负责
-L1 observer 这条臂的 C0、C1、开销与保留证据，以及上面针对会话归属 runtime 的 Mode B
+L1 observer 这条臂的 C0、C1、开销与保留证据，以及上面针对会话归属 runtime 的 `managed_runtime`
 验收；M1-M4 接入里程碑与跨前端投影行仍归该文档，本文不定义模式推断，也不定义第二个
 执行器。
 
 ## 后续交付次序
 
-先评审对比结论和 CLI 读取增量；Mode B 面板必须先具备精确 session 读取与有界刷新，
+先评审对比结论和 CLI 读取增量；`managed_runtime` 面板必须先具备精确 session 读取与有界刷新，
 而不是新造一套通用监控。C0/C1 与开销作为单独预算实验，仅把复用修复和安全证据
 提交仓库。删除功能等 retention profile 决定后再做。若 Pi 在相同隔离及生命周期
 验收下具有更低的实测接入／运维成本，或 DSH 无法通过，再调整偏好。
@@ -500,7 +498,7 @@ journal 与配额语义；B 作为上游接口出现时的低成本替代；只�
 | 管家 M1 — 可用的宿主 agent | 通道解析并回报其生效执行器、模型、推理档位与来源，执行器选型不跟随凭据；无法启动的宿主以 typed reason 失败，而不是静默回落到个人登录 | 已交付：带来源与默认规则原因的已选端点、执行器的 `execution_profile`、`executor_kind`、`channel_binding` 读取（PR #4446 与 PR #4443 的 Turn 侧读取；无条件默认值与单段传输随本次变更落地）。上游**会话身份**尚未投影到通道，因此通道回答还无法证明是哪一次会话给出的 |
 | 管家 M2 — 语义续接 | 跨所有已注册运行中 lane 的接收者解析；按来源的 typed 覆盖与新鲜度；报告可以先用目标级里程碑开头，而不是先给覆盖免责声明 | 部分已实现。typed 来源失败与一次真实来源读取已记录在下节；本地 peer directory 已交付。跨目录的 receiver 解析、完整语义请求/回传及可综合的目标级里程碑仍未闭合，不把 source read 等同于 M2 完成 |
 | 管家 M3 — 自动完成一次交流 | 超出或违反通道出站文本契约的已保存回答，按稳定答案身份分片重发；含糊或失败的发送要协调而不是用本地提示替代；回传路径要能跨传输重启存活；富文本要渲染成结构化文本 | 部分缓解。`loopx/extensions/lark/outbound.py` 在超限或载荷不合法时 fail closed，通道只回报这个本地失败、不重新投递已保存的回答；一条回答没有幂等身份，重试可能重复发送；结构化渲染没有保证 |
-| 宿主模式 M0-M1 | 通道的执行器选型与其有界单段执行 | 选型由 PR #4446 覆盖，Turn 侧选型由 PR #4443 覆盖；有界单段执行由上面的 Mode B 验收覆盖。通道本身现在经单段传输抵达托管宿主，因此托管宿主自己的单段执行已可从通道抵达；仍未提供的是跨 turn 宿主连续性——片段不是会话 |
+| 宿主模式 M0-M1 | 通道的执行器选型与其有界单段执行 | 选型由 PR #4446 覆盖，Turn 侧选型由 PR #4443 覆盖；有界单段执行由上面的 `managed_runtime` 验收覆盖。通道本身现在经单段传输抵达托管宿主，因此托管宿主自己的单段执行已可从通道抵达；仍未提供的是跨 turn 宿主连续性——片段不是会话 |
 | 宿主模式 M2-M3 | attached-host 对齐、typed 不可用，以及不做模式推断、不引入第二执行器的模式感知投影 | 部分已实现：通道的托管段传输为每个绑定只保留一个执行器，第二次启动以 typed `managed_host_chat_segment_in_flight` 拒绝，被中断段的回答会被丢弃而不会进入可见历史。通道读回也带上了模式感知投影：引用 Session 自己的 `session_mode` 与 `status`，没有 Session 的通道读作 `unbound`，闭集之外的模式命名为 `unrecognized`，而不是从已解析的执行器反推模式。仍未实现：attached-host 对齐；外部受众仍降级为 `restricted` |
 
 ### 远程来源覆盖的现场验收（2026-09-16）

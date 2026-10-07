@@ -7,8 +7,8 @@
 - **Last normative revision:** 2026-09-07
 - **Implementation baseline:** `b8670eb5`
 - **Related issue:** [#3930](https://github.com/huangruiteng/loopx/issues/3930)
-- **Related contracts:** [Desktop execution frontends](desktop-execution-frontends-v0.md),
-  [current Desktop runtime](../../../apps/desktop/loopx-control-plane/README.md)
+- **Related contracts:** [Agent session execution modes](agent-session-execution-modes-v0.md),
+  [status service readiness](../../development/status-service-readiness.md)
 
 ## Document map and maintenance contract
 
@@ -21,7 +21,7 @@ shipped interface, and merging this document does not enable a daemon.
 ## 1. Decision summary
 
 Give each explicitly configured local service profile one durable lifecycle
-owner: the OS user-service manager. Desktop and CLI request operations through
+owner: the OS user-service manager. Browser consumers and CLI request operations through
 a common lifecycle boundary and attach only after identity and readiness checks.
 
 Recommend a first `loopxd` implementation that supervises the existing status
@@ -36,7 +36,7 @@ quota, gate, evidence, session, or execution authority.
 ## 2. Problem and motivation
 
 A package update can succeed while a stale listener still owns the Chat port.
-Likewise, an open Desktop window does not establish that its services use the
+Likewise, an open Workspace does not establish that its services use the
 selected registry or host context. Independently managed services allow runtime
 identity, configuration, and readiness to diverge.
 
@@ -47,13 +47,13 @@ Required invariants:
 - A lifecycle operation reports success only after the requested state is read back.
 - A failed Chat component cannot make status falsely appear unavailable or healthy.
 - Recovery cannot silently attach to another profile or take over a foreign listener.
-- Closing Desktop does not stop a configured managed service.
+- Closing the browser does not stop a configured managed service.
 
 ## 3. Scope and non-goals
 
 This proposal covers service identity, discovery, readiness, lifecycle receipts,
 component composition, and migration of the two local services. The nearest
-owner is local service lifecycle, currently adapted by Desktop; no new product
+owner is local service lifecycle; no new product
 capability or extension is proposed. Platform service managers are lifecycle
 adapters, not work providers.
 
@@ -63,18 +63,15 @@ Config/update APIs and managed Agent runtimes require separate accepted slices.
 
 ## 4. Current-system contract
 
-At the baseline, Desktop's
-[`services.rs`](../../../apps/desktop/loopx-control-plane/src-tauri/src/services.rs)
-maps status and Chat to `com.loopx.status` and `com.loopx.chat`. On macOS,
-`request_platform_managed_start` checks the relevant LaunchAgent and requests
-`launchctl kickstart` when it is loaded. Desktop tracks separately owned
-children and stops those children on exit.
+The supported local entry point is `loopx dashboard`, which serves browser/PWA
+Workspace and status projection through the existing Chat service. Its identity
+and readiness checks do not establish a unified profile or OS-managed daemon.
+[Status service readiness](../../development/status-service-readiness.md) remains
+a bounded read-only prerequisite.
 
-The [Desktop runtime documentation](../../../apps/desktop/loopx-control-plane/README.md)
-describes release fingerprints, foreign-listener rejection, and ports 8766 and
-8767. [#3931](https://github.com/huangruiteng/loopx/pull/3931) repaired the
-immediate startup/double-owner path while explicitly preserving two services.
-These facts do not establish the profile or unified-daemon contract below.
+The retired native client's two-service ownership repair at `b8670eb5` and
+[#3931](https://github.com/huangruiteng/loopx/pull/3931) remain historical evidence
+only; they do not qualify the daemon contract below.
 
 ## 5. Proposed architecture
 
@@ -85,7 +82,7 @@ OS user-service manager
   loopxd (one configured profile, one composition generation)
     status component -> existing status API
     Chat component   -> existing Chat API
-Desktop / CLI -> authorized lifecycle request + identity/readiness readback
+Browser / CLI -> authorized lifecycle request + identity/readiness readback
 ```
 
 A durable, owner-controlled profile has an opaque `profile_id` and a versioned
@@ -158,7 +155,7 @@ and projection filtering; an identity response is not authentication.
 Use one versioned local operation contract for install/start/reload/stop/rollback.
 An authenticated local adapter checks explicit profile authorization and an
 expected `config_generation` before effects. It serializes mutations per profile.
-Desktop cannot substitute direct spawning when this adapter is unavailable.
+A client cannot substitute direct spawning when this adapter is unavailable.
 
 A durable intent contains `operation_id`, request digest, profile id, expected
 generation, target release, previous deployment reference, and operation kind.
@@ -211,7 +208,7 @@ be used as an automatic fallback for a selected managed profile.
 1. Preflight the selected profile, exact old/new releases, manager permissions,
    endpoint ownership, child-containment support and rollback compatibility.
 2. Persist migration intent and previous service definitions. Serialize concurrent
-   Desktop/update requests; recheck generation immediately before cutover.
+   client/update requests; recheck generation immediately before cutover.
 3. Quiesce incoming mutations through existing admission/drain semantics. If a
    safe bounded drain cannot be demonstrated, abort before disabling old jobs.
 4. Disable old automatic restarts, stop verified old components and read back
@@ -236,7 +233,7 @@ synthetic profiles and disposable service-manager registrations, not live Goals.
 | Claim | Test / evidence | Required result | Boundary |
 | --- | --- | --- | --- |
 | Identity isolation | Same port, wrong profile/context/release and alias-path cases | Typed mismatch; zero takeover | Contract tests plus real listeners |
-| Single owner | Concurrent Desktop launches and direct duplicate daemon start | One composition; shared readback | Real manager and OS lock |
+| Single owner | Concurrent client launches and direct duplicate daemon start | One composition; shared readback | Real manager and OS lock |
 | Ready attach | Cold boot, existing ready instance, close/reopen | Bounded readiness; managed service survives UI exit | Packaged and source install |
 | Partial failure | Kill Chat worker while querying status | Chat failure visible; status remains usable | Real component failure |
 | Crash containment | Kill supervisor during worker execution | No orphan listener; replacement has one owner | Each supported OS adapter |
@@ -258,7 +255,7 @@ retention through versioned profile policy. Report stable reasons including
 `profile_mismatch`, `release_mismatch`, `foreign_listener`, `manager_unavailable`,
 `component_failed`, `operation_conflict`, and `reconciliation_required`.
 
-Desktop shows progress during bounded repair and an actionable error on timeout.
+The operator surface shows progress during bounded repair and an actionable error on timeout.
 CLI update distinguishes package installation from runtime activation. Readiness
 and operation receipts are independently inspectable without a working Chat UI.
 Retention must not silently erase replay protection for accepted operations;
@@ -307,7 +304,7 @@ No maintainer approval recorded. Recommendations remain proposals.
 
 | Evidence | Claim | Baseline / artifact | Result | Boundary |
 | --- | --- | --- | --- | --- |
-| E1 | Two current LaunchAgent labels and managed wake path | `b8670eb5`, Desktop `services.rs` | Source inspected | Not unified-daemon qualification |
+| E1 | Two historical LaunchAgent labels and managed wake path | `b8670eb5`, Desktop `services.rs` | Source inspected | Not unified-daemon qualification |
 | E2 | Immediate startup repair preserves two services | PR #3931 | Merged implementation description | Does not satisfy section 9 |
 
 ## Appendix D: Deferred alternatives

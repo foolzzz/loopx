@@ -517,7 +517,7 @@ advantage 与 sustainable delivery evidence。
    Turn host 与 same-session plugin，其只读 `session/event`、`agent/status`、`agent/error`、
    `session/disposed` hook 让 observer 能在既有打包边界内被证明 non-interfering。Pi 仍是
    对比候选；[共享选型评估](./harness-selection-dsh-pi-v0.zh-CN.md) 保留 DSH 为 L1 首个来源，
-   Mode B 的选择仍取决于生命周期与匹配实跑证据，不构成运行时晋级。
+   `managed_runtime` 的选择仍取决于生命周期与匹配实跑证据，不构成运行时晋级。
 3. 第一份两到四周 offer 默认应停在 L1 diagnostic，还是在进入任何 L3 seam 前增加可选 L2 advisory week？
 4. 第一份 local/private/BYOC deployment pack 应包含哪些 data-retention、deletion 与 support profile？
 5. 第一份 promotion packet 必须使用哪个 benchmark family 与 non-benchmark canary？
@@ -532,9 +532,9 @@ advantage 与 sustainable delivery evidence。
   拥有 benchmark truth、matched arm、C0–C4 evidence 与 research integrity。
 - [Agent Management Observability MVP](../../product/surfaces/agent-management-observability-mvp.md)
   定义 L1/L2 operator surface 复用的 read-only projection posture。
-- [Desktop Execution Frontends](./desktop-execution-frontends-v0.zh-CN.md) 定义 Mode B，即由 LoopX
-  Desktop 启动并监督 Pi 或 `dsh` 的 Managed Agent Runtime。L1 shadow observer 是该模式下
-  Desktop-owned runtime supervisor 之下的被动诊断层：其 integrity receipt 与 read-only projection
+- [Agent Session Execution Modes](./agent-session-execution-modes-v0.zh-CN.md) 定义 `managed_runtime`，即由 LoopX-owned host
+  启动并监督 Pi 或 `dsh` 的 Managed Agent Runtime。L1 shadow observer 是该模式下
+  LoopX-owned runtime supervisor 之下的被动诊断层：其 integrity receipt 与 read-only projection
   是 supervisor 可以投影的输入，observer 本身不获得 supervisor 的任何 authority。
 - [Shared Goal Authority 与 State Provider](./shared-goal-authority-state-provider-v0.zh-CN.md)
   定义只有在 L3/L4 使用 shared coordination 时才需要的 authority/provider boundary。

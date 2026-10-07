@@ -257,7 +257,7 @@ def launch_dashboard(
     if existing_chat == "stale":
         raise RuntimeError(
             f"port {port} is serving LoopX Chat from a different installed runtime; "
-            "stop the old `loopx dashboard` or desktop app, then retry so the "
+            "stop the old `loopx dashboard`, then retry so the "
             "current release can start its matching service."
         )
     if existing_chat == "configuration_mismatch":

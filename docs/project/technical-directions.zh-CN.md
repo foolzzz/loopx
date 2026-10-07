@@ -85,7 +85,7 @@ matched baseline（或显式标为更弱的 baseline）、acceptance criteria、
 
 ## Operator Surface 与 IM Integration
 
-截至 `f1166e81e`，本地管家对话、executor settings、team-plan 确认、attached/managed 基础及部分 Lark vertical 已进入 `main`；统一跨入口执行与恢复仍未完整验收。[#3167](https://github.com/huangruiteng/loopx/pull/3167) 与其集成分支是历史孵化输入，不能代表当前所有前端能力都未交付。以 [Desktop RFC](../architecture/rfcs/desktop-execution-frontends-v0.zh-CN.md)、选定发布包和总纲 S4/S5 的逐入口验收为准。
+截至 `f1166e81e`，本地管家对话、executor settings、team-plan 确认、attached/managed 基础及部分 Lark vertical 已进入 `main`；统一跨入口执行与恢复仍未完整验收。[#3167](https://github.com/huangruiteng/loopx/pull/3167) 与其集成分支是历史孵化输入，不能代表当前所有前端能力都未交付。以 [Agent session RFC](../architecture/rfcs/agent-session-execution-modes-v0.zh-CN.md)、选定发布包和总纲 S4/S5 的逐入口验收为准。
 
 进入 `main` 的 promotion ledger 为：
 
@@ -122,7 +122,7 @@ Run history、status、quota、scheduler state、host session 与 evidence 继�
 | Goal artifact lifecycle projection | Draft / read model | [RFC](../architecture/rfcs/goal-artifact-lifecycle-projection-v0.zh-CN.md) | 先以 read-only 方式推导 milestone 与合法 next transition。 |
 | 结果后 memory utility | Draft / research | [#3214](https://github.com/huangruiteng/loopx/issues/3214) | 只在 verified outcome 后归因；retrieval 与 model judgment 保持 advisory。 |
 | Goal Channel 与 Agent IM/OpenViking 边界 | Draft / integration exploration | [RFC 索引](../architecture/rfcs/README.md) | delivery、durable control state 与 scoped context 分属不同 owner。 |
-| Agent 会话执行模式 | Draft / 跨宿主接入契约 | [RFC](../architecture/rfcs/agent-session-execution-modes-v0.zh-CN.md) | 宿主绑定会话前必须显式声明按绑定模式、保证单执行器与经过验证的回写；桌面产品流程、服务生命周期与延续仍归各自文档。 |
+| Agent 会话执行模式 | Draft / 跨宿主接入契约 | [RFC](../architecture/rfcs/agent-session-execution-modes-v0.zh-CN.md) | 宿主绑定会话前必须显式声明按绑定模式、保证单执行器与经过验证的回写；Web/Lark 入口、服务生命周期与延续仍归各自文档。 |
 
 探索只有在具备真实 caller 或兼容契约、达成一致的最小切片和聚焦 qualification 后，
 才进入 implementation-ready。不能只因 RFC 描述了未来可能性，就加入 speculative

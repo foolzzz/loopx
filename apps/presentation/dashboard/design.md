@@ -90,7 +90,7 @@ LoopX Personal Workspace
     └── owner workspace entry
 ```
 
-## Desktop Shell
+## Workspace Layout
 
 ```text
 ┌────────────────────┬──────────────────────────────────┬──────────────────────┐

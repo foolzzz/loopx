@@ -21,7 +21,7 @@ class ImpactTests(unittest.TestCase):
         for path in ("loopx/cli.py", "loopx/control_plane/goals/vision_checkpoint.ts",
                      "loopx/claude_goal_mode/commands/loopx.md", "tests/test_ui.py",
                      "apps/presentation/dashboard/package-lock.json", "apps/presentation/dashboard/vite.config.ts",
-                     "apps/desktop/src/main.rs", "scripts/ci/impact_plan.py", ".github/workflows/python-tests.yml",
+                     "apps/native/src/main.rs", "scripts/ci/impact_plan.py", ".github/workflows/python-tests.yml",
                      "loopx/web/chat/backend.py", "loopx/web/chat/config.json", "unknown", "docs/build.py"):
             with self.subTest(path=path):
                 self.assertEqual(candidate([Change("M", "loopx/web/chat/index.html"), Change("M", path)])[0], "full")

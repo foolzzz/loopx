@@ -182,8 +182,6 @@ def main() -> int:
     official_repository = "github.repository == 'loopx-project/loopx'"
     owner_gated_workflows = (
         "release-artifacts.yml",
-        "desktop-release-artifacts.yml",
-        "desktop-updater.yml",
         "update-notes.yml",
     )
     for workflow_name in owner_gated_workflows:

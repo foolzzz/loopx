@@ -610,7 +610,7 @@ required before making a stronger commercial claim.
    `session/disposed` hooks let the observer be proven non-interfering inside
    an existing packaged boundary. Pi remains the comparison candidate; the
    [shared harness-selection assessment](./harness-selection-dsh-pi-v0.md)
-   retains DSH for L1 and keeps Mode B selection conditional on lifecycle and
+   retains DSH for L1 and keeps `managed_runtime` selection conditional on lifecycle and
    matched-run evidence; it is not a runtime promotion.
 3. Should the first two-to-four-week offer stop at L1 diagnostics by default,
    or include an optional L2 advisory week before any L3 seam?
@@ -631,10 +631,10 @@ required before making a stronger commercial claim.
   owns benchmark truth, matched arms, C0–C4 evidence, and research integrity.
 - [Agent Management Observability MVP](../../product/surfaces/agent-management-observability-mvp.md)
   defines the read-only projection posture reused by L1/L2 operator surfaces.
-- [Desktop Execution Frontends](./desktop-execution-frontends-v0.md) defines
-  Mode B, the Managed Agent Runtime in which LoopX Desktop launches and
+- [Agent Session Execution Modes](./agent-session-execution-modes-v0.md) defines
+  `managed_runtime`, the Managed Agent Runtime in which a LoopX-owned host launches and
   supervises Pi or `dsh`. The L1 shadow observer is the passive diagnostic
-  layer under that mode's Desktop-owned runtime supervisor: its integrity
+  layer under that mode's LoopX-owned runtime supervisor: its integrity
   receipt and read-only projection are inputs the supervisor may project, and
   the observer acquires none of the supervisor's authority.
 - [Shared Goal Authority and State Provider](./shared-goal-authority-state-provider-v0.md)

@@ -47,8 +47,8 @@ Driver 或 Agent，只消费 session log 的发布事件，并且不进入 Drive
 - [Long-Running Agent Reliability Diagnostics](../../../docs/architecture/rfcs/long-running-agent-reliability-diagnostics-governed-delivery-v0.zh-CN.md)
   拥有这个 capability。本切片是其路线图中记录的 P0 contract checkpoint；`dsh` event source 是
   owner decision 2 的记录答案，C1 run、overhead 报告与 retention profile 在 P0 exit 前仍未完成。
-- [Desktop Execution Frontends](../../../docs/architecture/rfcs/desktop-execution-frontends-v0.zh-CN.md)
-  的 Mode B 是这个 observer 面向的 managed runtime：Desktop-owned runtime supervisor 可以把
+- [Agent Session Execution Modes](../../../docs/architecture/rfcs/agent-session-execution-modes-v0.zh-CN.md)
+  的 `managed_runtime` 是这个 observer 面向的 managed runtime：LoopX-owned runtime supervisor 可以把
   receipt 与 projection 作为诊断输入消费，observer 不持有任何 supervisor authority。
 
 ## 合约

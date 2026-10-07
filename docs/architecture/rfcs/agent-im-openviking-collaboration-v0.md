@@ -112,7 +112,7 @@ Both ingress paths use the same transition contract:
 - command-specific evidence;
 - an accepted, rejected, conflict, or already-applied receipt.
 
-Use the [shared ingress policies](desktop-execution-frontends-v0.md#agent-scoped-bot-ingress-modes)
+Use the [shared ingress policies](goal-channel-collaboration-v0.md#agent-scoped-bot-ingress-modes)
 for Agent messages as well as human-origin events: inbox persists for explicit
 drain, queue schedules subsequent input, and steer targets a supported safe
 point in the active execution. Preserve requested/effective mode, dedupe and

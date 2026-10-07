@@ -10,7 +10,7 @@ Gate、事件、配置和回执仍由控制面事实源拥有。
 - 从 Manager 总览进入单个 Goal，区分正在执行、等待确认、持续观察和已完成工作；
 - 解释为什么界面中的写操作必须经过 typed preview、governed apply 与 verified receipt；
 - 分开判断 Capability 可见性、Goal 配置、Provider readiness 和当前 Turn 可用性；
-- 理解 Goal Channel、周期报告与桌面更新各自增加了什么权限，以及如何停用。
+- 理解 Goal Channel 与周期报告各自增加了什么权限，以及如何停用。
 
 ## 1.0 到底交付了什么
 
@@ -50,8 +50,8 @@ curl -fsS http://127.0.0.1:8767/chat/ >/dev/null
 curl -fsS http://127.0.0.1:8767/status.json
 ```
 
-`loopx dashboard` 同时提供打包后的 Workspace、状态投影和 Agent Chat。若相同版本的桌面壳已经
-启动了服务，它会复用通过 capability fingerprint 验证的进程，而不是启动第二套事实源。端口只是
+`loopx dashboard` 同时提供打包后的 Workspace、状态投影和 Agent Chat。若相同版本的服务已经
+运行，它会复用通过 capability fingerprint 验证的进程，而不是启动第二套事实源。端口只是
 默认值；自动化检查应读取命令输出，不要把默认 URL 当成永久合同。
 
 打开 Workspace 后，先做三项读回：
@@ -171,19 +171,6 @@ loopx periodic-report inspect-profile --preset weekly --format json
 subscription 的 `enabled: true` 与显式 `route_ref` 构成持续投递授权。暂停 Automation、禁用
 profile 或关闭 subscription 会停止对应路径。报告生成成功不等于外部发送成功；Provider、发送
 身份、route 和消息 readback 仍需分别验证。
-
-## 桌面更新与恢复
-
-1.0 的 macOS 桌面更新把 App 与内置 runtime 绑定到同一 revision。旧桌面壳需要一次手动替换；
-之后在 **Recovery & updates** 中显式选择 stable 或 main、安装并重启。
-
-- **验证：** 对照 App 版本、Workspace runtime identity、`loopx --version` 与 `loopx doctor`；
-- **修复：** **Repair this version** 重装当前 App 配套 runtime；
-- **回退：** 有已验证备份时使用 **Restore previous version**，重启后再次核对 identity；
-- **边界：** 更新只能来自固定官方 feed；macOS 使用 updater signature 与 ad-hoc code signing，
-  不应描述为 notarized。回退安装也不承诺逆转未来不兼容的 Goal schema。
-
-浏览器 / PWA 用户继续使用 CLI update 流程。CLI 更新不能修复原生壳的启动器或 updater 缺陷。
 
 ## 1.0 操作验收表
 

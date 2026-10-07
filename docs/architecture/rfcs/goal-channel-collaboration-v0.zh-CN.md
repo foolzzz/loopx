@@ -385,3 +385,280 @@ goal_id + provider + operation + todo_id/gate_id + gate_text_hash + channel_id
 - 本地私有 binding 文件保持 ignored 且 untracked；
 - 公开 packet 不包含 chat id、member id、message id、profile name、本地路径、
   raw provider payload 或凭据。
+
+## Agent 级对话提案
+
+以下共享会话与入口设计仍为提案。归位到本 RFC 不会启用 adapter、替换已交付的
+Goal Channel 行为，也不证明 Web/Lark 收敛。会话身份与模式接入归
+[Agent 会话执行模式](agent-session-execution-modes-v0.zh-CN.md)所有。
+
+## Agent 级 Web 与 Lark 收敛
+
+短期协作产品不是一个独立的状态 Bot。它是 Agent 真实工作会话的第二个前端
+传输：
+
+```text
+LoopX Goal
+  -> Agent A
+       -> working session A (attached or managed)
+            -> Web Chat
+            -> Lark Bot connection A
+  -> Agent B
+       -> working session B (attached or managed)
+            -> Web Chat
+            -> Lark Bot connection B
+```
+
+在 v0 中，每个 Agent 至多有一个活跃的 `lark_bot` 连接。这是一个逻辑上的
+Agent 到连接绑定；它不要求每个 Agent 都有唯一的 Lark 应用凭据。如果本地
+broker 保留显式的 Agent 与频道路由，一个 Bot 应用可以为多个连接服务。
+
+### 一个有序的工作对话
+
+项目 coordinator 的基线入口就是现有的 **Goal → 对话**。已注册 peer 也可以
+承担这份职责；两种选择都不另建 coordinator 对话，也不改变管家的跨 Goal
+职责。[Codex 显式续跑](../../reference/goal-chat-continuation.md)复用输入框、
+旁的开启/暂停/恢复、流式运行与原本地历史，接入共享委派和独立验收的成员
+返回。queue/inbox/steer 保留不同回执；首次配置选择现有执行绑定，不从注册
+推导授权。Lark、其他主力驱动等价和无人值守运行仍需分别资格化。
+
+在实时操控和队列会话模式下，Web 与 Lark 消息进入所选 Agent 会话的同一个
+串行化入口流。每条消息记录 public-safe 的传输元数据，例如 `origin=web` 或
+`origin=lark`，但 origin 不会选择不同的 Agent、对话历史、执行器或 LoopX
+状态机。
+
+会话路由器在投递给运行时之前分配顺序。同时到达的 Web 与 Lark 消息可以等待、
+通过显式控制动作中断，或按会话策略失败关闭；它们绝不能产生两个并发的 Agent
+尝试。响应可以根据连接策略投影到两个 surface，同时保留一个规范序列。
+
+异步 inbox 事件则不同：在被选中的 Agent 排空并解释之前，它仍是 owner-private
+的外部输入。只有被接受的、面向 Agent 的消息或由此产生的持久效果才加入
+工作会话序列。仅做 provider 采集不会创建对话历史、任务权威、Turn 或 quota
+消耗。
+
+### Agent 绑定，而非 Goal 级或运行时专属绑定
+
+Lark 连接绑定到 Goal 内的具体 Agent。如果 Goal 有多个 Agent 而连接没有指明
+其中一个，路由失败关闭。Bot 直接与该工作 Agent 对话；它不会先请 manager
+Agent 分类或转发消息。绑定不硬编码到 Codex：该 Agent 的执行会话今天可以是
+挂接的 Codex App，以后也可以是托管的 Pi/`dsh` 会话。
+
+## Agent 级外部连接器模型
+
+Lark 群入口和 Lark 文档评论是一个 provider-neutral 连接器边界的两个实例。
+连接器把外部源绑定到一个已登记的 Agent，并且只宣称它能实际执行的操作：
+
+```text
+agent_external_connector_v0 = {
+  goal_ref,
+  agent_ref,
+  provider_kind,
+  source_kind,
+  source_ref,             // opaque owner-local reference
+  capture_policy,
+  ingress_policy,
+  response_policy,
+  cursor_ref,
+  lifecycle,
+  capabilities[]
+}
+```
+
+同一个 provider 可以暴露多种 source kind。例如，Lark 群源可以宣称实时投递、
+历史追补、thread 回复和 ACK；而文档评论源可以宣称增量列举、锚点与回复链
+读回、评论回复和已解决状态观察。缺失的能力保持不可用；LoopX 不会通过抓取
+无关 surface 来模拟它们。
+
+Connector capability 还可以暴露类型化的 `permission_requirements`，包含 provider
+身份、精确 scope、发布要求，以及绑定所选 App 的官方修复入口。这些事实由
+provider 扩展拥有；LoopX 内核只负责渲染类型化指引。实时接收、响应写入和历史
+追补是彼此独立的能力，不得压缩成一个笼统的“消息权限”标志。
+
+### 权威材料与协作事件
+
+持久文档与其评论具有不同的权威语义：
+
+- 文档正文被登记为 Goal 权威材料，带有新鲜度、修订、所有者状态和冲突策略；
+- 评论是面向 Agent 的 owner-private 外部输入，它本身不是被接受的需求、Todo
+  变更或仓库事实；以及
+- 纳入一条评论需要一个显式的持久效果，例如 Todo 更新、被接受的设计修订、
+  不跟进理由或 owner gate。
+
+读取正文不会推进评论 cursor。列举评论不会让文档变得权威。与已接受状态冲突的
+评论被记录为待决决策或证据缺口，而不是静默改变 Goal 事实。
+
+### 捕获、重放与确认
+
+每个事件源连接器拥有稳定的 provider 事件 id、增量 cursor 或等价检查点、
+有界的追补策略和幂等键。实时订阅和历史追补进入同一个去重后的 inbox，因此
+在挂接前或停机期间创建的事件不会静默丢失。源可以按 mention、作者、文档、
+评论状态、锚点或已配置的源范围过滤，而不改变其投递模式。
+
+Agent 按以下顺序处理一个被接受的事件：
+
+```text
+capture and deduplicate
+  -> mark processing
+  -> read fresh Goal and authority state
+  -> record durable effect or explicit no-follow-up rationale
+  -> send an optional response through a declared Connector capability
+  -> verify provider readback
+  -> ACK and advance the source cursor
+```
+
+任何 ACK 或 cursor 推进都不得先于持久效果和必需的已验证响应。崩溃会幂等地
+重放同一事件。私有正文、作者、provider id、源引用和评论文本保留在
+owner-local inbox 存储中；状态和 quota 只看到无内容的紧迫性。
+
+### 投递到工作 Agent
+
+连接器捕获与 Agent 投递保持正交。实时群消息可以操控当前工作会话、在其有序
+队列中等待，或唤醒异步 Agent inbox。文档评论通常通过 `async_inbox` 进入，
+但当显式策略允许时，同一事件也可以提交到已验证的实时会话。在所有情况下，
+它都指向已有绑定 Agent，绝不静默启动影子 manager 或全新对话。
+
+### 短期 Goal Channel 桥
+
+现有 Goal Channel 传输可以提供第一条 Lark 投递路径，前提是其 Goal 级连接被
+细化为显式目标 Agent，并路由到该 Agent 已有有序会话。这个桥是增量实现路径，
+不是保留第二个仅 IM 对话生命周期的许可。
+
+如果该 Agent 级提案被接受，它将细化上文“一个 Goal 对应一个 Lark
+绑定”的交互式聊天约束。Goal 级 Kanban、生命周期通知和共享协作工件可以保持
+Goal 级；入站工作对话是 Agent 级的。
+
+<a id="agent-scoped-bot-ingress-modes"></a>
+
+## Agent 级 Bot 入口模式
+
+Agent 到 Bot 的连接与 peer 协作需要同样的三种显式入口语义。用户侧简称
+**inbox**、**queue**、**steer**，保留下述现有词汇。它们表达同一已绑定 Agent 的
+投递意图，不是三个 Agent 或自然语言分类器。本提案将共同策略扩展到 peer 入口，
+不因重命名输入就声称新增 API 或改变已有 adapter：
+
+```text
+agent_bot_ingress_mode_v0 =
+  live_steering
+  | session_queue
+  | async_inbox
+```
+
+三种策略解决不同的可用性条件：
+
+| 模式 | 投递目标 | 可用性模型 | 持久边界 |
+|---|---|---|---|
+| `live_steering` | 已绑定工作会话中指定的当前执行 | 宿主能在声明的安全点采用输入 | 现有会话/事件存储及消费回执；无第二执行器 |
+| `session_queue` | 同一已绑定会话中的后续工作输入 | 当前工作结束或明确交还执行权后再投递 | 按 Agent 与会话键控的 owner-local 持久有序入口队列 |
+| `async_inbox` | 显式排空后的下一个合格 LoopX Agent Turn | 无需 Agent 进程保持存活 | 现有 provider 拥有的事件 inbox 加无内容 quota 紧迫性 |
+
+这细化了此前 queue 的“下次接受输入”表述：把 pending 输入合入当前工作的宿主，
+并不因此实现拟议 queue 语义。变更必须显式资格化，在 opt-in 实现和兼容测试通过前
+保持旧 profile 行为。
+
+沿现有入口身份和接收者范围持久化请求模式、允许的 fallback 和实际投递处置。读回
+区分耐久收件、排队派发、宿主消费和 steer 采用；工作采用/验收仍属于 collaboration/work
+owner。模型正文或 HTTP 成功不是消费回执；未知能力明确失败。前端、CLI、Lark 在
+原工作/对话面展示实际模式、等待原因及结果，不另造一块团队看板。
+
+<a id="delivery-intent-does-not-choose-the-wake-policy"></a>
+
+### 投递意图不决定唤醒策略
+
+Mode 决定输入可以在哪里被消费；binding 已有的续跑 owner 决定是否接纳下一次
+执行机会。以下提议矩阵用于资格化 adapter，不增加第四种入口模式：
+
+| 接收方状态 | 要求行为 |
+| --- | --- |
+| 活跃 turn 或工具未决 | Inbox 等待显式 drain，queue 等待后续 turn；steer 指向精确活跃 generation 和已声明的安全输入边界。收件成功不能证明已提交的模型/工具请求被抢占。 |
+| 空闲或 turn 完成 | 保存符合范围的 inbox/queue 输入；只有配置的续跑 owner 在范围/预算检查后才可接纳新 turn，没有该策略就显示待处理。无活跃目标时 steer 不可用。 |
+| 正在收尾或已中断 | 保留迟到输入/结果身份，不重新打开收尾 turn；收尾后重查。通知不能撤销显式中断，恢复遵循已有 owner 和暂停策略。 |
+| 未加载或断线 | 保存成功不证明 session 在线；仅经资格化的 binding 路径恢复，重验范围与 generation，不支持恢复时保留可行动的待处理/不可用观察。 |
+
+排队不是启动 turn 的承诺，provider trigger 标志也不是 LoopX 准入。多条已收件
+消息可以进入同一合格 turn，但独立工作请求仍保留各自身份和返回义务；这些关系
+由[交接契约](capable-manager-semantic-handoff-v0.zh-CN.md#团队中的请求身份与结果路由)
+拥有，不能把一条传输回执当作 join。
+
+分别投影 ingress 收件回执、实际执行/唤醒观察和工作结果/验收；不能把“消息已存”
+显示成“Agent 正在工作”，也不能把唤醒通知显示成“结果已收到”。通知丢失后，保存的
+输入/结果仍须可经读回发现；重放或重连须按 ingress/result 身份去重应用，不能启动第二个执行器。在已有
+修订输入 fixture 中增加无唤醒策略的空闲输入、收尾竞态、通知合并，以及结果提交到
+通知之间重启。这是设计要求，每种宿主仍需独立资格化。
+
+### 捕获、入口与回复正交
+
+provider 选择与 Agent 投递不得复用同一个过载标志。初始 Lark 群形态是：
+
+```text
+capture_scope: mentions | configured_chat_all
+ingress_mode: live_steering | session_queue | async_inbox
+reply_mode: source_thread | topic_reply | configured_mirror
+```
+
+`capture_scope` 回答哪些 provider 事件合格。`ingress_mode` 回答一个合格事件
+如何到达 Agent。`reply_mode` 回答已验证响应投递到哪里。现有
+`incoming_mode=mentions|all` 只表达捕获范围；它不是会话挂接的证据。
+
+持久 Inbox 范围必须与实际 provider 路由范围一致。即使启用了精确源消息回复，
+`addressed_only` 流也不得投影成 `thread_complete`。`configured_chat_all` 仍是 owner
+的显式选择：它会为领域解释保存已配置会话，但只有 typed question、mention 或
+已验证的 Bot reply 才会激活 `reply_due`。
+
+mention 准入同时绑定已验证 provider profile 返回的 App id 与 Bot open id；渲染后
+的 display name 只是兼容信号，不能成为唯一身份依据。每个被拒绝的 provider event
+都要在 listener health 中保留 `not_addressed`、`topic_mismatch` 等无内容决策原因，
+让“已经看到但未持久化”的事件不再隐藏在一个裸 `ignored` 状态后面。
+
+回退是显式的，默认失败关闭。`live_steering` 连接在会话不可用时可以选择加入
+`session_queue` 或 `async_inbox`，但不得静默启动另一个运行时，也不得把同一
+事件写入多个模式。所选模式、回退决策和去重键产生一个无内容的入口回执。
+
+### 实时操控
+
+`live_steering` 提交到已验证的 Agent 工作会话绑定。它共享 Web 入口串行器、
+上游恢复身份、中断策略、工作区、运行时、信任和能力边界。如果该绑定陈旧、
+模糊、终态或属于另一个 Agent，投递失败关闭。
+
+操控是传输，不是任务权威。当前会话可以消费只读输入而不领取新工作。实质效果仍然需要与
+所采用执行模式相称的最新 LoopX 决策、验证、回写和结算。
+
+Steer 面向当前执行代际及其下一个支持的安全输入点，不等于 interrupt/restart。
+外部工具未返回时，宿主可以耐久接收 pending correction，但不能声称已经采用。
+无法安全注入时明确报告，仅按请求显式 fallback 处理；绝不伪造工具结果来投递纠正。
+失效工具调用需要明确取消处置，其迟到结果对照当前输入版本和执行 fence 对账。
+消息本身不取消所有 peer，也不撤销其权限。
+
+### 会话队列
+
+`session_queue` 是已知 Agent 工作会话的 broker 拥有的缓冲。它保留稳定的事件
+去重、按会话排序、有界大小、过期、背压、取消和崩溃安全派发。它不是 LoopX
+Todo 队列，不得改变 Goal 优先级、认领工作或授予能力。
+
+当前工作结束或明确交还执行权后，broker 通过正常串行化入口提交最旧的合格条目；
+仅有 pending-tool idle 观察不能证明这个边界。缺失
+或被替换的会话需要显式重新绑定或死信决策；它不会把条目静默路由到全新 Agent
+历史。
+
+### 异步 inbox
+
+`async_inbox` 复用现有 Lark 事件 inbox 和 collector，而不是让 Agent 进程保持
+存活。collector 写入 owner-private 的有界事件。LoopX 只投影
+`operator_inbox_urgency_v0`：pending/question/mention/reply 计数、最旧年龄和
+`reply_due`，绝不投影消息正文、发送者、provider id、私有路径或 chat id。
+
+当 `reply_due=true` 时，inbox 通道在下次合格准入时抢占普通推进和 monitor 工作，
+不打断当前执行。被选中的 Agent 排空有界内容，对照最新 Goal 状态解释它，先写入
+任何持久效果，然后发送至多
+一条带 provider readback 的幂等 source-thread 回复，最后才 ACK。仅排空是
+只读的；采集或 ACK 永远不是语义权威。
+
+Goal Topic 兼容运行时目前把 provider 采集、Inbox 文件、Goal Chat 回答、回复
+和 ACK 内联组合在一起。该路径是有用证据，但当它打开通用 Agent 会话或未能
+在绑定 Goal 上登记 inbox 紧迫性时，它不是 Agent 级收敛。实现必须把 provider
+采集与入口策略分开、要求已登记的 Agent id，并且要么通过已验证的工作会话
+绑定提交，要么把 inbox 指针发布到规范 quota 路径。
+
+用同一修订输入 fixture 验证三模式：未决工具、接收方忙碌/离线、消息过期、满队列、
+重复/冲突身份、会话替换、发送方撤权及迟到工具结果。断言实际消费边界和 fallback，
+不能只看消息存在。Inbox drain 不证明工作验收；queue 不改当前工作；steer 不能先于
+宿主回执声称已采用。这些是拟议验收要求，不是所有宿主已支持三模式的证据。
