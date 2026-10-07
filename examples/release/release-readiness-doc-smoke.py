@@ -385,7 +385,7 @@ def main() -> None:
         "explicit_override",
         "## Named Version Contract",
         "LoopX releases are tagged in GitHub",
-        "this fork does not automatically upload package artifacts or publish to PyPI",
+        "this fork does not automatically upload Python wheel/sdist artifacts or publish to PyPI",
         "The version source is `loopx.__version__`, mirrored by `pyproject.toml`",
         "examples/release/release-version-contract-smoke.py",
         "## Compatibility Gate",

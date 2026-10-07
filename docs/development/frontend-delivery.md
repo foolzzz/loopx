@@ -66,9 +66,10 @@ excluded. A repository with no predecessor can bootstrap without history.
 Both wheel and sdist include the verified bundle. A normal package build fails
 if it is absent/stale; editable installation remains available before a frontend
 build. Building a wheel from the sdist requires no Node or network access for the
-frontend. Maintainers can verify both wheel forms outside the checkout and request
-every delivered file through the actual Chat HTTP handler, then run workspace
-browser scenarios against the isolated installed interpreter.
+frontend. The Chat qualification CI verifies both wheel forms outside the
+checkout, requests every delivered file through the actual Chat HTTP handler,
+and runs workspace browser scenarios against the isolated installed interpreter.
+These checks do not upload release assets or publish packages.
 
 ## Upgrade window and rollback
 

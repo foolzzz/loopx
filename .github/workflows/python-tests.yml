@@ -104,10 +104,37 @@ jobs:
       - run: python scripts/chat_bundle.py verify --source
       - name: Qualify the actual compiled UI before saving the artifact
         working-directory: apps/presentation/dashboard
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/chat-playwright
         run: |
           ./node_modules/.bin/playwright install --with-deps chromium
           npm run smoke:personal-workspace-packaged
           npm run smoke:chat-upgrade
+      - name: Qualify installed Chat in wheel and rebuilt sdist
+        env:
+          HOME: ${{ runner.temp }}/chat-package-home
+          CODEX_HOME: ${{ runner.temp }}/chat-package-home/.codex
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME"
+          dist_dir="${RUNNER_TEMP}/chat-dist"
+          installed_env="${RUNNER_TEMP}/chat-installed"
+          python -m pip install --disable-pip-version-check build==1.4.4
+          python -m build --sdist --wheel --outdir "$dist_dir"
+          python -m venv "$installed_env"
+          "$installed_env/bin/python" -m pip install --disable-pip-version-check --no-deps "$dist_dir"/*.whl
+          python scripts/verify_installed_chat.py --python "$installed_env/bin/python"
+          "$installed_env/bin/python" -m pip wheel --no-deps "$dist_dir"/*.tar.gz --wheel-dir "$dist_dir/rebuilt"
+          "$installed_env/bin/python" -m pip install --disable-pip-version-check --force-reinstall --no-deps "$dist_dir"/rebuilt/*.whl
+          python scripts/verify_installed_chat.py --python "$installed_env/bin/python"
+      - name: Exercise the installed Chat page
+        working-directory: apps/presentation/dashboard
+        env:
+          HOME: ${{ runner.temp }}/chat-package-home
+          CODEX_HOME: ${{ runner.temp }}/chat-package-home/.codex
+          LOOPX_PYTHON_BIN: ${{ runner.temp }}/chat-installed/bin/python
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/chat-playwright
+        run: npm run smoke:personal-workspace-packaged
       - uses: actions/upload-artifact@v7
         with:
           name: chat-bundle-${{ github.sha }}

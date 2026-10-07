@@ -143,7 +143,7 @@ option is read-only and accepted only by `update check`.
 ## Named Version Contract
 
 LoopX releases are tagged in GitHub. Release publication is an explicit
-maintainer action; this fork does not automatically upload package artifacts or
+maintainer action; this fork does not automatically upload Python wheel/sdist artifacts or
 publish to PyPI. Each stable promotion still needs one package version name. The
 version source is `loopx.__version__`, mirrored by `pyproject.toml`; the
 expected public tag is `vX.Y.Z` for that version.
