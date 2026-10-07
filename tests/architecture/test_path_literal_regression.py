@@ -35,11 +35,18 @@ SHELL_TOKENS = re.compile(
     + r")|(?P<bare>(?:\\[\s\S]|[^\s\"'`\\;&|()<>])+)"
 )
 POWERSHELL_QUOTED = r'"(?:`[\s\S]|""|[^"`])*"' + r"|'(?:''|[^'])*'"
+POWERSHELL_BARE = r"(?:`[\s\S]|[^\s\"'`;&,|(){}\[\]])"
+POWERSHELL_WORD = (
+    POWERSHELL_BARE + r"+(?:(?:" + POWERSHELL_QUOTED + ")" + POWERSHELL_BARE + r"*)*"
+)
 POWERSHELL_TOKENS = re.compile(
     # PowerShell also has block comments and uses backticks for escaping.
-    r"(?P<comment>(?<![^\s;|(){}\[\]'\"])(?:<\#[\s\S]*?\#>|\#[^\n]*))"
+    # Consume embedded quotes with their word; a completed block is a boundary.
+    r"(?P<comment>(?<![^\s;&,|(){}\[\]'\">=])(?:<\#[\s\S]*?\#>|\#[^\n]*))"
+    # Assignment prefixes are syntax, not the start of a quoted command word.
+    r"|(?P<assignment>(?:\$(?:[\w:]+|\{[^}]*\}))?=)"
     r"|(?P<literal>" + POWERSHELL_QUOTED
-    + r")|(?P<bare>(?:`[\s\S]|[^\s\"'`;|(){}\[\]])+)"
+    + r")|(?P<bare>" + POWERSHELL_WORD + ")"
 )
 
 
@@ -165,6 +172,10 @@ def _regressions(
         ("scripts/probe.ps1", 'Join-Path $HOME ".codex"', 1),
         ("scripts/probe.ps1", 'Write-Output foo#bar/.codex', 1),
         ("scripts/probe.ps1", 'Write-Output foo<#/.codex#>', 1),
+        ("scripts/probe.ps1", 'Write-Output foo"bar"#suffix/.codex', 1),
+        ("scripts/probe.ps1", "Write-Output foo'bar'#suffix/.codex", 1),
+        ("scripts/probe.ps1", 'Write-Output foo=bar"baz"#suffix/.codex', 1),
+        ("scripts/probe.ps1", '$root=".codex"# .loopx', 1),
         ("scripts/probe.ps1", 'Write-Output `#bar/.codex', 1),
         ("scripts/probe.ps1", '$root = "$HOME/foo#bar/.codex" # .loopx', 1),
         ("scripts/probe.ps1", "$root = 'foo#bar/.codex'", 1),
@@ -197,6 +208,13 @@ def test_detector_finds_path_literal_forms(path: str, source: str, count: int) -
         ("scripts/probe.ps1", '$root = "default"#.codex\n# .loopx'),
         ("scripts/probe.ps1", '$root = "default";# .codex'),
         ("scripts/probe.ps1", '# <#\n# ".codex"\n$root = "default"'),
+        ("scripts/probe.ps1", '<# first #><#\n".codex"\n#>\n$root = "default"'),
+        ("scripts/probe.ps1", '<# first #># .codex'),
+        ("scripts/probe.ps1", 'Write-Output foo"bar" #suffix/.codex'),
+        ("scripts/probe.ps1", "Write-Output foo'bar' #suffix/.codex"),
+        ("scripts/probe.ps1", '$root="default"# .codex'),
+        ("scripts/probe.ps1", '$root ="default"# .codex'),
+        ("scripts/probe.ps1", 'Write-Output "default",# .codex'),
     ],
 )
 def test_detector_ignores_prose_and_unrelated_names(path: str, source: str) -> None:
@@ -218,8 +236,9 @@ def test_detector_excludes_nonproduction_sources(path: str) -> None:
     assert _inventory({path: 'root = "~/.loopx"'}) == {}
 
 
-def test_powershell_block_comment_preserves_literal_line_numbers() -> None:
-    source = '<#\nUses ".loopx".\n#>\n$root = ".codex"'
+@pytest.mark.parametrize("comment", ['<#\nUses ".loopx".\n#>', '<# first #><#\n".loopx"\n#>'])
+def test_powershell_block_comment_preserves_literal_line_numbers(comment: str) -> None:
+    source = comment + '\n$root = ".codex"'
     assert [
         line for line, literal in _source_literals("scripts/probe.ps1", source)
         if PATH_LITERAL.search(literal)
