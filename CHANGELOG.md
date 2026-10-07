@@ -205,14 +205,6 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 
 ### Removed
 
-- Removed the repository benchmark workspace, legacy benchmark archive and
-  frozen experiment snapshots, with their archive-only tests and path exclusions.
-  Canary plan selection no longer emits `active_scan_changed_files` or
-  `excluded_changed_files`; `changed_files` is the sole file selector.
-- Removed the SWE-Marathon, LHTB and DeepSWE public research pages, homepage
-  research cards, study metadata and share-bundle exports without redirects.
-  The provider-neutral benchmark toolkit, CLI and managed skill remain available.
-
 - **v0.1 main/side hierarchy migration.** `configure-goal` no longer accepts
   `--ack-automation-prompt-migration`, and the one-time migration module,
   completion receipt, and migration smoke are removed. Goals that still carry

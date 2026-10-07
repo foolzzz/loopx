@@ -1,8 +1,8 @@
 """Public-safe trajectory summaries derived from compact adapter facts.
 
 This module deliberately does not parse task text, event payloads, tool arguments,
-or verifier output.  The first active adapter is the DeepSWE native Codex Goal
-runner, whose compact receipt already contains the lifecycle counters needed here.
+or verifier output. External adapters provide compact receipts containing the
+native Codex Goal lifecycle counters needed here.
 """
 
 from __future__ import annotations
