@@ -49,7 +49,7 @@ try {
       .replace(/<title>[\s\S]*?<\/title>\s*/g, "")
       .replace(/<meta\s+(?:name="description"|property="og:[^"]+")[\s\S]*?>\s*/g, "")
       .replace("</head>", `${head}</head>`)
-      .replace('<div id="root"></div>', () => `<div id="root">${render(key)}</div>`);
+      .replace('<div id="root"></div>', () => `<div id="root">${render()}</div>`);
     const target = resolve(outDir, page.path, "index.html");
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, html);

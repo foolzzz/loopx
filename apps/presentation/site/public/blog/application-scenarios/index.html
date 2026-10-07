@@ -31,7 +31,6 @@
     .takeaway{font-size:22px!important;line-height:1.65;color:var(--ink);letter-spacing:-.02em}
     .loop-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:24px 0}.loop-row>div{padding:16px;border:1px solid var(--border);background:var(--surface);border-radius:6px;font-size:14px}.loop-row b{display:block;color:var(--ink)}.loop-row span{display:block;font-size:12px;margin-top:8px}
     .comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}.comparison>div{border:1px solid var(--border);border-radius:12px;padding:24px;background:var(--surface)}.comparison strong{display:block;font-size:32px;letter-spacing:-.04em;margin:12px 0}.comparison p{font-size:14px;margin:0}
-    .study-signal{margin:32px 0;padding:28px 0 4px;border-top:1px solid var(--border);scroll-margin-top:24px}.study-signal h3{margin:0 0 12px}.study-signal .study-setting{font-size:12px;margin-bottom:16px}.study-signal p{margin-bottom:16px}.study-signal .signal-boundary{font-size:14px}.study-signal .study-link{font-size:14px;margin-bottom:0}.presenting .study-signal .study-setting{font-size:14px}.presenting .study-signal .signal-boundary,.presenting .study-signal .study-link{font-size:17px}
     .stage-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}.state-demo{border:1px solid var(--border);border-radius:12px;padding:24px;background:var(--surface)}.state-demo dl{display:grid;grid-template-columns:110px 1fr;gap:12px 20px;margin:0}.state-demo dt{font-size:12px;color:var(--body);padding-top:3px}.state-demo dd{margin:0;font-size:15px;color:var(--ink)}
     .small-note{font-size:12px!important;color:var(--body)}.layers{margin:24px 0;border-top:1px solid var(--border)}.layer{display:grid;grid-template-columns:150px 1fr;gap:24px;border-bottom:1px solid var(--border);padding:18px 0;font-size:14px}.layer b{color:var(--ink)}
     .evolution{counter-reset:step;list-style:none!important;padding:0!important}.evolution li{counter-increment:step;display:grid;grid-template-columns:40px 1fr;gap:16px;padding:20px 0;border-bottom:1px solid var(--border);margin:0}.evolution li::before{content:"0" counter(step);font:500 14px var(--font-mono);color:var(--blue);padding-top:4px}.evolution b{display:block}.evolution span{display:block;font-size:14px;margin-top:6px}
@@ -58,7 +57,7 @@
   </div>
   <div class="article-layout">
     <aside class="toc"><details open><summary>In this article</summary><nav aria-label="Article contents">
-      <a href="#map">Three kinds of work</a><a href="#complex">01 Finish a complex task</a><a href="#benchmark">Signals from benchmarks</a><a href="#exploration">02 Find a path through exploration</a><a href="#employee">03 Own continuous delivery</a><a href="#layers">How state and capabilities divide responsibility</a><a href="#evolution">How to evolve from here</a><a href="#sources">Public sources</a>
+      <a href="#map">Three kinds of work</a><a href="#complex">01 Finish a complex task</a><a href="#exploration">02 Find a path through exploration</a><a href="#employee">03 Own continuous delivery</a><a href="#layers">How state and capabilities divide responsibility</a><a href="#evolution">How to evolve from here</a><a href="#sources">Public sources</a>
     </nav></details></aside>
     <article class="prose">
       <section id="map">
@@ -80,60 +79,6 @@
         </div>
         <p>LoopX keeps the goal and its acceptance gaps continuous across turns, then carries new evidence into the next decision. The model implements and judges; domain validators check the result; the control plane records which results were accepted and which work remains.</p>
         <p>The best-fitting tasks usually span repeated validation, waiting, or handoffs. Existing agents may already be enough for small work that can be accepted in one session; an added control plane must justify its overhead.</p>
-      </section>
-
-      <section id="benchmark">
-        <h2>Benchmarks: start with LHTB, then three supporting signals</h2>
-        <p>Start with recovery and regression across long-horizon domains, then use three software-engineering studies to examine continuation, delivery, and validation. The four studies differ in tasks, model settings, and measurement rules. Each needs to be read on its own terms; the current evidence does not establish a universal LoopX gain.</p>
-
-        <div class="study-signal" id="benchmark-lhtb">
-          <h3>LHTB: what does LoopX accomplish beyond Plain and native Goal?</h3>
-          <p class="study-setting">GPT-5.6 Sol / max · 46 matched tasks · one effective run per task-arm cell</p>
-          <p><strong>What LHTB tests:</strong> Long-Horizon Terminal-Bench asks an agent to complete hundreds of dependent terminal actions in a stateful container. Its 46 tasks cover nine categories: software and reverse engineering; scientific computing; earth, climate and energy; multimodal work; research reproduction; systems, performance and security; games; APEX professional workflows; and logic puzzles. Examples include framework migration, paper reproduction, investment-banking deliverables and playing 2048. <a href="../../benchmarks/lhtb/?lang=en#categories">Categories and representative tasks →</a></p>
-          <p><strong>How it scores:</strong> hidden verifiers grade final artifacts or replayable outcomes on a 0–1 reward scale. This study counts ≥ 0.95 as solved, reporting average progress and full acceptance separately.</p>
-          <div class="table-scroll"><table class="benchmark-table"><caption>LHTB: LoopX Heartbeat and two baselines</caption><thead><tr><th scope="col">Execution</th><th scope="col">Mean reward</th><th scope="col">Solved / 46</th></tr></thead><tbody>
-            <tr><th scope="row">Plain</th><td>0.4218</td><td>7</td></tr>
-            <tr><th scope="row">Native Goal</th><td>0.4475</td><td>4</td></tr>
-            <tr><th scope="row">LoopX Heartbeat (1.0.3)</th><td>0.4948</td><td>7</td></tr>
-          </tbody></table></div>
-          <p><strong>Observation:</strong> against Plain, LoopX gains 0.0731 mean reward (17.3%), with 17 wins, 13 ties and 16 losses, and the same solve count. Against native Goal, it gains 0.0473 (10.6%), with 23 wins, 13 ties and 10 losses, and 7 solves versus 4. Counts compare published unrounded scores strictly; higher mean reward does not imply better results on every task.</p>
-          <p><strong>Where gains cluster:</strong> in post-hoc groups based on task demands, research/modeling (4 tasks) gains +0.2802 / +0.2179 mean reward over Plain / Goal; logic puzzles (4 tasks) gain +0.2739 / +0.1374. Research stays positive without Tabular. Sokoban retains solved levels, Rush Hour requires a route ledger and replay checks, and Tabular requires experiments and validation—promising conditions to test.</p>
-          <p><strong>Where the advantage is unclear:</strong> multimodal analysis (6 tasks) yields −0.0034 / +0.0058; science and simulation (7 tasks) yield +0.0161 / +0.0099. Games are mixed: 2048 improves, but Snake trails Plain. APEX law trails Goal, and DuckDB scores 0 versus about 0.770. Continuation cannot substitute for perception, domain judgment or correctness checks.</p>
-          <p><strong>Insight:</strong> prioritize tasks where the next step can be checked and useful progress retained. The median paired delta across all tasks is 0 against Plain and about 0.0003 against Goal: mean gains are concentrated. Groups contain only 4–7 tasks and are not an official task mapping. Prompt structure suggests explanations, but does not establish the mechanism behind a trial’s score. <a href="../../benchmarks/lhtb/?lang=en#task-types">Nine groups: counts, wins/ties/losses, sensitivity and task instructions →</a></p>
-          <p class="signal-boundary"><strong>Boundary:</strong> LoopX here is the study’s 1.0.3 fresh-exec Heartbeat. Execution settings differ, replacement trials include longer limits, and there are no repeated seeds. LoopX records $551.73, above the Plain / Goal estimates of $212.97 / $344.25. Accounting also differs; equal-budget efficiency gains are not established.</p>
-          <p class="study-link"><a href="../../benchmarks/lhtb/?lang=en">Full study: two baselines, gains and losses, 46 tasks, and historical context →</a></p>
-        </div>
-
-        <div class="study-signal" id="benchmark-marathon">
-          <h3>SWE-Marathon: continuation must close real gaps</h3>
-          <p class="study-setting">GPT-5.6 Sol / high · 15 matched tasks · 3 retained modes, one run per cell · timeout factor 0.3</p>
-          <p><strong>Observation:</strong> native Goal completed 4/15; Heartbeat completed 5/15. Total cost for the two groups rose from $533 to $830, about 56%.</p>
-          <p><strong>Insight:</strong> in the zstd case, continuation addressed acceptance beyond the visible tests; in the Excel case, repeated continuations still did not finish. The questions worth pursuing are which gap a next run closes and whether that gain justifies the added cost.</p>
-          <p class="signal-boundary"><strong>Boundary:</strong> each cell has one run and several mechanisms change together. There are both useful cases and ineffective continuation; stable gains or cost advantages have not been established.</p>
-          <p class="study-link"><a href="../../benchmarks/swe-marathon/">Full study: results, cost, and positive and negative cases →</a></p>
-        </div>
-
-        <div class="study-signal" id="benchmark-sol">
-          <h3>DeepSWE × Sol: decompose the completion difference</h3>
-          <p class="study-setting">Script default GPT-5.6 Sol / xhigh · 113 tasks · historical best-valid aggregation</p>
-          <p><strong>Observation:</strong> bare Codex, native Goal, and Heartbeat completed 54, 60, and 70 tasks respectively. Heartbeat completed ten more than Goal, but its default time window was also longer.</p>
-          <p><strong>Insight:</strong> the source separates “continue execution” from “deliver a valid result”: even when a worktree contains code, the collector may still receive an empty patch. Recovery, patch delivery, and independent acceptance should be examined separately before attributing their contribution to the completion difference.</p>
-          <p class="signal-boundary"><strong>Boundary:</strong> this is the best valid result per task, not a single-run pass rate; budgets differ, and attempts and cost are not fully disclosed. Unreverified merged scores cannot be treated as a net gain at equal budget.</p>
-          <p class="study-link"><a href="../../benchmarks/deepswe-sol/">Full study (Chinese): historical results, recovery, and delivery mechanics →</a></p>
-        </div>
-
-        <div class="study-signal" id="benchmark-flash">
-          <h3>DeepSWE × V4 Flash max: let counterexamples change the implementation</h3>
-          <p class="study-setting">DeepSeek V4 Flash / max + Codex · frozen 113 tasks · Goal and LoopX compared under the same hint condition</p>
-          <p><strong>Observation:</strong> LoopX had about two percentage points higher feature coverage per task on average. In a post-hoc long-duration slice where both groups had hints, completions rose from 12/29 to 14/29 while cumulative duration fell 16.4%.</p>
-          <p><strong>Insight:</strong> the selected cases differ in whether failure counterexamples are retained and whether external contracts can overturn implementation assumptions. Validation matters when it changes the fix and triggers revalidation—not merely when it adds more checks.</p>
-          <p class="signal-boundary"><strong>Boundary:</strong> coverage is not success rate; the long-duration slice is post-hoc, and elapsed time includes successful and failed runs. Local findings cannot be generalized into an overall gain or equal-quality speedup.</p>
-          <p class="study-link"><a href="../../benchmarks/deepswe/behavior-discovery/">Full study: requirement coverage, behavior cases, and the long-duration slice →</a></p>
-        </div>
-
-        <p class="takeaway">Recover progress, preserve working results, and check whether continuation closes acceptance gaps.</p>
-        <p>The four studies offer local positive observations while exposing regressions, cost, and attribution problems. Matched budgets and repeated experiments should examine recovery, rollback, delivery, and counterexample-driven repair separately.</p>
-        <p class="small-note">Withdrawn SSH Goal and Codex CLI scores and conclusions from SWE-Marathon and DeepSWE × Sol are not used in these comparisons.</p>
       </section>
 
       <section id="exploration">
@@ -200,10 +145,6 @@
         <h2>Public sources and further reading</h2>
         <p class="small-note">The technical content is derived only from public repository material. Source and data links are pinned to the revisions read for this article; historical experiments retain their own versions. This page introduces no new experimental results.</p>
         <ol class="source-list">
-          <li><a href="../../benchmarks/lhtb/?lang=en">LHTB: compared with Plain and native Goal</a>; <a href="https://github.com/huangruiteng/loopx/blob/d60813451609ad28b2855fe7acda9a4701740c40/benchmark/LHTB/studies/five-arm-gpt56sol-max/data.json">public aggregates for 46 tasks</a>; <a href="https://github.com/huangruiteng/loopx/blob/d60813451609ad28b2855fe7acda9a4701740c40/benchmark/LHTB/studies/five-arm-gpt56sol-max/README.md">setup and evidence boundary</a>; <a href="https://github.com/huangruiteng/loopx/blob/d60813451609ad28b2855fe7acda9a4701740c40/apps/presentation/site/src/lhtb-copy.json">mechanisms and cases reported in the brief</a>; <a href="https://zli12321.github.io/LHTB/index.html">official benchmark</a>. See the study for contributor attribution.</li>
-          <li><a href="../../benchmarks/swe-marathon/">SWE-Marathon: continuous self-verification</a>; <a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/swe-marathon/README.md">setup, positive and negative cases, and limitations</a>; <a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/swe-marathon/data.json">public aggregate data</a>. See the study for contributors and case provenance.</li>
-          <li><a href="../../benchmarks/deepswe-sol/">DeepSWE × Sol: from continued execution to valid delivery</a> (Chinese). The standalone brief covers historical results over 113 tasks, mechanism diagrams, and pinned primary sources; research archive contribution: <a href="https://github.com/huangruiteng/loopx/pull/4502">@gwh6669999, #4502</a>.</li>
-          <li><a href="../../benchmarks/deepswe/behavior-discovery/">DeepSWE × V4 Flash max: from hints to behavior</a>; <a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/deepswe/behavior-discovery/README.md">disclosure boundary</a>; <a href="https://github.com/huangruiteng/loopx/blob/56fa3f11b5bbe108e1bf4de254fcbdf74a84a505/benchmark/deepswe/behavior-discovery/index.html">charts, cases, and metrics at the pinned revision</a>.</li>
           <li><a href="https://github.com/huangruiteng/loopx/blob/ed1a8269ef2f12ad8863a04254d5d17021fa8100/loopx/capabilities/explore/README.md">Explore: evidence graphs, planning, and authority boundaries</a>.</li>
           <li><a href="https://github.com/huangruiteng/loopx/blob/ed1a8269ef2f12ad8863a04254d5d17021fa8100/docs/product/use-cases/auto-research/decentralized-auto-research-showcase.md">Auto Research: public blueprint and command path</a>.</li>
           <li><a href="https://github.com/huangruiteng/loopx/blob/ed1a8269ef2f12ad8863a04254d5d17021fa8100/loopx/capabilities/issue_fix/docs/state-kernel-domain-state-case-study.zh-CN.md">PR / Issue Fix: how State Kernel and domain state work together</a> (Chinese).</li>

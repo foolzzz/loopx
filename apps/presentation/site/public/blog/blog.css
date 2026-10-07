@@ -118,8 +118,6 @@ th { color: var(--ink); background: var(--soft); font-weight: 500; }
 .extension-frame { padding: 16px; border: 1px dashed #aaa; border-radius: 6px; }
 .frame-label { display: block; font-size: 12px; margin-bottom: 12px; }
 caption { text-align: left; font-size: 12px; margin-bottom: 12px; color: var(--body); }
-.benchmark-table { font-variant-numeric: tabular-nums; }
-.benchmark-table td:not(:first-child) { white-space: nowrap; }
 @media (max-width: 520px) {
   .diagram { padding: 20px 16px; }
   .diagram-pair { grid-template-columns: 1fr; gap: 12px; }

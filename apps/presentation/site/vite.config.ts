@@ -11,7 +11,7 @@ export default defineConfig({
       // Match static-host directory URLs before Vite's SPA fallback.
       server.middlewares.use((request, _response, next) => {
         const url = new URL(request.url ?? "/", "http://localhost");
-        if ((url.pathname.startsWith("/blog/") || url.pathname.startsWith("/benchmarks/")) && url.pathname.endsWith("/")) {
+        if (url.pathname.startsWith("/blog/") && url.pathname.endsWith("/")) {
           const index = new URL(`./public${url.pathname}index.html`, import.meta.url);
           if (existsSync(fileURLToPath(index))) request.url = `${url.pathname}index.html${url.search}`;
         }
