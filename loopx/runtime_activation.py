@@ -20,7 +20,7 @@ def restart_managed_loopx_services() -> list[str]:
     After ``loopx update`` replaces the installed release, running status/chat
     services still belong to the previous release. Restarting the managed
     LaunchAgents makes them run the new ``loopx`` immediately, so the dashboard
-    and desktop shell keep working without a release-identity mismatch.
+    keeps working without a release-identity mismatch.
     """
     if sys.platform != "darwin":
         return []

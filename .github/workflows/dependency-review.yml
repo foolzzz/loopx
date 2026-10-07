@@ -40,9 +40,3 @@ jobs:
       - name: Review dependency changes
         if: ${{ steps.dependency-review-availability.outputs.available == 'true' }}
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
-        with:
-          # Tauri 2's Linux GTK3/WebKitGTK stack still pins glib 0.18.x.
-          # GHSA-wrw7-89jp-8q8g affects VariantStrIter, which is not called by
-          # this shell or its locked dependency sources. Remove this exact
-          # exception when Tauri moves its Linux runtime to glib >= 0.20.
-          allow-ghsas: GHSA-wrw7-89jp-8q8g
