@@ -70,7 +70,7 @@ try {
   }
   await collect(outDir);
   await writeFile(resolve(outDir, "sitemap-pages.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...urls].sort().map((url) => `  <url><loc>${escape(url)}</loc></url>`).join("\n")}\n</urlset>\n`);
-  // MkDocs supplies the three documentation sitemaps in the Pages workflow.
+  // MkDocs supplies the three documentation sitemaps in the assembled local export.
   const maps = ["sitemap-pages.xml", "docs/sitemap.xml", "docs/book/sitemap.xml", "docs/book/en/sitemap.xml"];
   await writeFile(resolve(outDir, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${maps.map((path) => `  <sitemap><loc>${siteUrl}${path}</loc></sitemap>`).join("\n")}\n</sitemapindex>\n`);
 } finally {

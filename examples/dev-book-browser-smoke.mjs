@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Verify Mermaid rendering from the final assembled GitHub Pages artifact.
+// Verify Mermaid rendering from the assembled local static export.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -11,7 +11,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dashboard = resolve(root, "apps/presentation/dashboard");
 const require = createRequire(resolve(dashboard, "package.json"));
 const { chromium } = require("playwright");
-const site = resolve(root, "output/frontstage-pages/site");
+const site = resolve(root, process.env.LOOPX_PUBLIC_SITE_DIR ?? "/tmp/loopx-frontstage-share-bundle/site");
 
 const server = createServer(async (request, response) => {
   const pathname = new URL(request.url, "http://localhost").pathname;

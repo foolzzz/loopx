@@ -69,7 +69,7 @@ Extension 只是可独立版本化和交付的一种路径。
 
 - 正文格式：Markdown；
 - 站点生成器：MkDocs Material；
-- 在线发布：GitHub Pages；
+- 交付方式：本地静态构建、预览与导出；
 - LoopX 发布锚点：`v2.1.0`；
 - 运行时前提：Python 3.11+ 与 Node.js 22.22.3+。
 

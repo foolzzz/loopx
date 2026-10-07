@@ -162,7 +162,7 @@ for (const locale of ["", "zh/"]) {
       if (nonBundleReferencePattern.test(href)) continue;
       if (href.startsWith("/")) throw new Error("Blog navigation must preserve the hosting base");
       const target = href.split(/[?#]/)[0];
-      // MkDocs pages are built later by the publication workflow.
+      // MkDocs pages are assembled separately after the static export.
       if (target.includes("docs/")) continue;
       assertRelativeReferenceExists(pagePath, target);
     }

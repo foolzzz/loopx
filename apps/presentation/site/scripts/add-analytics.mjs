@@ -1,8 +1,8 @@
-// Run on the fully assembled Pages artifact, after MkDocs and case restoration.
+// Run on the assembled static export, after MkDocs and case restoration.
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const directory = resolve(process.argv[2] ?? "output/frontstage-pages/site");
+const directory = resolve(process.argv[2] ?? "/tmp/loopx-frontstage-share-bundle/site");
 const id = process.env.LOOPX_GA_MEASUREMENT_ID?.trim() ?? "";
 if (id && !/^G-[A-Z0-9]+$/.test(id)) throw new Error("LOOPX_GA_MEASUREMENT_ID must be a GA4 G- measurement ID");
 const marker = /(?:<script\b[^>]*data-loopx-analytics[^>]*><\/script>|<link\b[^>]*data-loopx-analytics[^>]*>)\s*/g;
