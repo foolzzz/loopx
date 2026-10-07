@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 
+import pytest
+
 from loopx.canary.maintainability_ratchet import (
     MODULE_LINE_LIMIT,
     MODULE_METRIC_BASELINE_SCHEMA_VERSION,
@@ -48,11 +50,28 @@ def test_current_repository_debt_is_reviewed_without_line_count_pins() -> None:
     )
     assert "lines" not in baseline["loopx/extensions/lark/goal_topic_runtime.py"]
     assert baseline["loopx/heartbeat_prompt.py"]["lines"] == 1199
-    for relative_path, ceilings in baseline.items():
-        if ceilings.get("lines", MODULE_LINE_LIMIT) > MODULE_LINE_LIMIT:
-            assert module_metrics(REPOSITORY_ROOT / relative_path)["lines"] > (
-                MODULE_LINE_LIMIT
-            )
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "ceilings"),
+    sorted(
+        module_metric_baseline(
+            REPOSITORY_ROOT / "loopx" / "canary" / "module_metric_baseline.json"
+        ).items()
+    ),
+)
+def test_reviewed_module_metrics_stay_within_ceilings(
+    relative_path: str,
+    ceilings: dict[str, int],
+) -> None:
+    metrics = module_metrics(REPOSITORY_ROOT / relative_path)
+
+    for metric, ceiling in ceilings.items():
+        assert metrics[metric] <= ceiling, (
+            f"{relative_path}: {metric}={metrics[metric]} exceeds reviewed ceiling {ceiling}"
+        )
+    if ceilings.get("lines", MODULE_LINE_LIMIT) > MODULE_LINE_LIMIT:
+        assert metrics["lines"] > MODULE_LINE_LIMIT
 
 
 def test_module_metric_baseline_rejects_stale_runtime_defaults(tmp_path: Path) -> None:
