@@ -1720,11 +1720,11 @@ CLI runner、候选回读）、只读 TypeScript 探针
   provider 上恰好十二个共享场景行全为 true；`s0.nokv_live_matrix` 要求 live
   NoKV 栈上同样的行加 `restored_lineage_fails_closed` 全为 true，且 file/NoKV
   逐行结果一致。
-- Stage 1：`s1.cli_document_decodes_through_ts_store` 通过产品 CLI 捕获三笔
+- Stage 1：`s1.cli_document_decodes_through_ts_store` 先 bootstrap 捕获，再通过产品 CLI 捕获三笔
   事务（`todo add`、`task-lease acquire`、`todo update`），再经
   `FileAuthorityStore` 的 `loadAuthority`、分页 `scanCommitted` 与
-  `readReceipt` 回读：cursor 为 `3`、三个 operation id 按序一致、首条 receipt
-  可找到。
+  `readReceipt` 回读：cursor 为 `4`、四个不同的 operation id 按来源顺序一致
+  （bootstrap 加三笔业务事务），第二个 operation id 对应的首笔业务写入 receipt 可找到。
 - Stage 2A：`s2a.nokv_live_qualification` 对一个已存在的 workbench 以新铸的
   tenant/goal 运行已合并的 live 资格探针
   （`examples/nokv-authority-store/live-qualification.ts --execute-live`），要求

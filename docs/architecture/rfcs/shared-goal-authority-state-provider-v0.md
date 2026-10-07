@@ -2180,11 +2180,14 @@ Per stage, this increment implements:
   provider; `s0.nokv_live_matrix` requires the same rows plus
   `restored_lineage_fails_closed` and identical file/NoKV outcomes on a live
   NoKV stack.
-- Stage 1: `s1.cli_document_decodes_through_ts_store` captures three
+- Stage 1: `s1.cli_document_decodes_through_ts_store` bootstraps capture, then
+  captures three
   transactions through the product CLI (`todo add`, `task-lease acquire`,
   `todo update`) and reads them back through `FileAuthorityStore` with
-  `loadAuthority`, paged `scanCommitted`, and `readReceipt`: cursor `3`, the
-  three operation ids in order, and the first receipt found.
+  `loadAuthority`, paged `scanCommitted`, and `readReceipt`: cursor `4`, four
+  distinct operation ids in source order (bootstrap plus three business
+  transactions), and the first business-write receipt found at the second
+  operation id.
 - Stage 2A: `s2a.nokv_live_qualification` runs the merged live qualification
   probe (`examples/nokv-authority-store/live-qualification.ts --execute-live`)
   against an existing workbench with a fresh tenant/goal pair and requires
