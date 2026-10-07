@@ -581,13 +581,20 @@ import sys
 doctor_status = int(os.environ["LOOPX_CANDIDATE_DOCTOR_STATUS"])
 try:
     payload = json.loads(os.environ["LOOPX_CANDIDATE_DOCTOR_JSON"])
-    if not isinstance(payload, dict) or not isinstance(payload.get("checks"), list):
+    if (
+        not isinstance(payload, dict) or type(payload.get("ok")) is not bool
+        or not isinstance(payload.get("checks"), list)
+    ):
         raise ValueError("invalid check envelope")
     if any(
         not isinstance(item, dict) or not isinstance(item.get("id"), str)
+        or type(item.get("ok")) is not bool or type(item.get("required")) is not bool
         for item in payload["checks"]
     ):
         raise ValueError("invalid check row")
+    ids = [item["id"] for item in payload["checks"]]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate check id")
 except (KeyError, ValueError):
     # Never echo malformed JSON, check details or interpreter paths.
     print(
@@ -597,25 +604,23 @@ except (KeyError, ValueError):
     raise SystemExit(1)
 
 required_checks = {
+    "command_available",
+    "typescript_effect_runtime_ready",
     "command_package_same_root",
     "representative_cli_commands",
     "representative_cli_imports",
     "representative_package_paths",
 }
-checks = {
-    str(item.get("id")): item
-    for item in payload.get("checks", [])
-    if isinstance(item, dict)
-}
+checks = {item["id"]: item for item in payload["checks"]}
 missing = sorted(required_checks - checks.keys())
 failed = sorted(
     check_id
     for check_id in required_checks
     if not checks.get(check_id, {}).get("ok")
+    or not checks.get(check_id, {}).get("required")
 )
-known_checks = required_checks | {"command_available", "typescript_effect_runtime_ready"}
 failed_required = sorted({
-    item["id"] if item.get("id") in known_checks else "unrecognized_check"
+    item["id"] if item["id"] in required_checks else "unrecognized_check"
     for item in checks.values()
     if item.get("required") and not item.get("ok")
 })

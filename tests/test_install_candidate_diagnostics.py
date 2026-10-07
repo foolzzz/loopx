@@ -17,6 +17,8 @@ REQUIRED = (
     "representative_cli_commands",
     "representative_cli_imports",
     "representative_package_paths",
+    "command_available",
+    "typescript_effect_runtime_ready",
 )
 
 
@@ -142,7 +144,11 @@ def test_candidate_still_rejects_each_invalid_condition(tmp_path, case):
         exit_code = 7
         expected = "doctor_exit=7"
     elif case == "missing":
-        payload["checks"].pop()
+        payload["checks"] = [
+            row
+            for row in payload["checks"]
+            if row["id"] != "representative_package_paths"
+        ]
         expected = "missing_checks=['representative_package_paths']"
     elif case == "wrong_mode":
         payload["mode"] = "standard"
@@ -153,6 +159,7 @@ def test_candidate_still_rejects_each_invalid_condition(tmp_path, case):
             if case == "runtime"
             else "private-check-id"
         )
+        payload["checks"] = [row for row in payload["checks"] if row["id"] != check_id]
         payload["checks"].append({"id": check_id, "required": True, "ok": False})
         payload["typescript_control_plane"] = {
             "status": "probe_failed",
@@ -218,9 +225,7 @@ def test_optional_failure_does_not_block_candidate(tmp_path):
 def test_unknown_runtime_fields_are_redacted_without_masking_check_failure(tmp_path):
     payload = doctor_payload()
     payload["ok"] = False
-    payload["checks"].append(
-        {"id": "typescript_effect_runtime_ready", "required": True, "ok": False}
-    )
+    payload["checks"][-1]["ok"] = False
     payload["typescript_control_plane"] = {
         "status": {"private-status": True},
         "semantic_probe": ["private-probe"],
@@ -234,3 +239,58 @@ def test_unknown_runtime_fields_are_redacted_without_masking_check_failure(tmp_p
     )
     assert "private-" not in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("field", ["ok", "required"])
+@pytest.mark.parametrize("value", ["false", 1, None, {}, []])
+def test_non_boolean_check_fields_reject_candidate(tmp_path, field, value):
+    payload = doctor_payload()
+    payload["checks"][1][field] = value
+    result, candidate, default = validate_candidate(tmp_path, payload)
+    assert result.returncode == 1
+    assert "doctor output is invalid" in result.stderr
+    assert not candidate.exists()
+    assert os.readlink(default) == "previous-release"
+
+
+@pytest.mark.parametrize("value", ["true", "false", 1, None])
+def test_non_boolean_top_level_success_rejects_candidate(tmp_path, value):
+    payload = doctor_payload()
+    payload["ok"] = value
+    result, _, default = validate_candidate(tmp_path, payload)
+    assert result.returncode == 1
+    assert "doctor output is invalid" in result.stderr
+    assert os.readlink(default) == "previous-release"
+
+
+def test_duplicate_success_cannot_hide_required_failure(tmp_path):
+    payload = doctor_payload()
+    payload["checks"][1]["ok"] = False
+    payload["checks"].append(
+        {"id": "representative_cli_commands", "required": True, "ok": True}
+    )
+    result, candidate, default = validate_candidate(tmp_path, payload)
+    assert result.returncode == 1
+    assert "doctor output is invalid" in result.stderr
+    assert not candidate.exists()
+    assert os.readlink(default) == "previous-release"
+
+
+@pytest.mark.parametrize("check_id", REQUIRED)
+@pytest.mark.parametrize("case", ["missing", "failed", "optional"])
+def test_each_installation_check_is_mandatory(tmp_path, check_id, case):
+    payload = doctor_payload()
+    for row in list(payload["checks"]):
+        if row["id"] != check_id:
+            continue
+        if case == "missing":
+            payload["checks"].remove(row)
+        elif case == "failed":
+            row["ok"] = False
+        else:
+            row["required"] = False
+    result, candidate, default = validate_candidate(tmp_path, payload)
+    assert result.returncode == 1
+    assert check_id in result.stderr
+    assert not candidate.exists()
+    assert os.readlink(default) == "previous-release"
