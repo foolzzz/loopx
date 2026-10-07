@@ -1,11 +1,12 @@
-#!/usr/bin/env python3
+"""Enforce CLI command module budgets and registration ownership."""
+
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 CLI_COMMANDS = ROOT / "loopx" / "cli_commands"
 
 DEFAULT_MAX_LINES = 1000
@@ -53,11 +54,6 @@ ADD_PARSER_RE = re.compile(
 )
 
 
-def require(condition: bool, message: str) -> None:
-    if not condition:
-        raise AssertionError(message)
-
-
 def python_modules() -> list[Path]:
     return sorted(path for path in CLI_COMMANDS.glob("*.py") if path.is_file())
 
@@ -74,20 +70,16 @@ def module_limit(module_name: str) -> int:
     return STARTER_MODULE_LIMITS.get(module_name, DEFAULT_MAX_LINES)
 
 
-def assert_module_size_budgets() -> None:
+def test_module_size_budgets() -> None:
     module_names = {path.name for path in python_modules()}
     stale_budgets = sorted(set(STARTER_MODULE_LIMITS) - module_names)
-    require(
-        not stale_budgets, f"size budgets reference missing modules: {stale_budgets}"
-    )
+    assert not stale_budgets, f"size budgets reference missing modules: {stale_budgets}"
 
     for path in python_modules():
         count = line_count(path)
         limit = module_limit(path.name)
-        require(
-            count <= limit,
-            f"{path.name} has {count} lines, above budget {limit}; "
-            "extract a cohesive command owner before adding more code",
+        assert count <= limit, (
+            f"{path.name} has {count} lines, above budget {limit}; extract a cohesive command owner before adding more code"
         )
 
 
@@ -101,33 +93,21 @@ def command_registrations() -> dict[str, list[str]]:
     return registrations
 
 
-def assert_command_registration_ownership() -> None:
+def test_command_registration_ownership() -> None:
     registrations = command_registrations()
-    require(registrations, "expected at least one CLI add_parser registration")
+    assert registrations, "expected at least one CLI add_parser registration"
 
     duplicate_registrations = {
         command: sorted(set(modules))
         for command, modules in registrations.items()
         if len(set(modules)) > 1
     }
-    require(
-        not duplicate_registrations,
-        f"commands registered by multiple cli_commands modules: {duplicate_registrations}",
+    assert not duplicate_registrations, (
+        f"commands registered by multiple cli_commands modules: {duplicate_registrations}"
     )
 
     for command, expected_module in sorted(STARTER_COMMAND_OWNERS.items()):
         actual_modules = sorted(set(registrations.get(command, [])))
-        require(
-            actual_modules == [expected_module],
-            f"{command} registration owner is {actual_modules}, expected {[expected_module]}",
+        assert actual_modules == [expected_module], (
+            f"{command} registration owner is {actual_modules}, expected {[expected_module]}"
         )
-
-
-def main() -> None:
-    assert_module_size_budgets()
-    assert_command_registration_ownership()
-    print("cli-command-module-size-ownership-command-modularization-smoke: ok")
-
-
-if __name__ == "__main__":
-    main()

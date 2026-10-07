@@ -2,7 +2,7 @@
 
 Refs GH-C06. This group was carved out of `project_lifecycle.py`, which was
 close to the 1000-line default module budget in
-`examples/cli-command-module-size-ownership-command-modularization-smoke.py`.
+`tests/architecture/test_cli_command_module_ownership.py`.
 `refresh-state` is one command and one rule group: its parser flags and its
 dispatch branch move together, so the public invocation is unchanged.
 """

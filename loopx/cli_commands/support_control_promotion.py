@@ -4,7 +4,7 @@ commands.
 Refs GH-C06. This group was carved out of `support_control.py`, which registers
 seven unrelated top-level commands in one module that sits just under the
 1000-line default budget in
-`examples/cli-command-module-size-ownership-command-modularization-smoke.py`.
+`tests/architecture/test_cli_command_module_ownership.py`.
 The two commands are one group -- canary promotion readiness -- so their
 parser flags and their dispatch branches move together and the public
 invocation is unchanged.

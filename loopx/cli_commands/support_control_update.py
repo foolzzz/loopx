@@ -3,7 +3,7 @@
 Refs GH-C06. This group was carved out of `support_control.py`, which registers
 several unrelated top-level commands in one module that sits just under the
 1000-line default budget in
-`examples/cli-command-module-size-ownership-command-modularization-smoke.py`.
+`tests/architecture/test_cli_command_module_ownership.py`.
 
 `update` is one group: it inspects, plans, applies, or rolls back the active
 LoopX installation, and it is the only support-control command that mutates the
