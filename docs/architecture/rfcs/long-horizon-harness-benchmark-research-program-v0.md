@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft, research program |
+| Status | Draft, external research design |
 | Date | 2026-08-16 |
 | Authors | LoopX maintainers |
 | Scope | External capability evidence, benchmark collaboration, harness experiments, and mechanism qualification |
@@ -946,11 +946,10 @@ research target; E4 remains a future promotion gate. A benchmark adapter may be
 technically E1-ready while its study is still C0, and a C2 result is not valid
 when its E2 runtime evidence is incomplete.
 
-The [shared Codex research runtime](../../../benchmark/runtime/RUNTIME.md) is
-the LHTB/SWE-Marathon native bridge checkpoint: it shares trial setup and uses
-product heartbeat, Turn and Goal execution while retaining native verification.
-Synthetic Harbor conformance qualifies this engineering seam only; E3 matched
-studies and E4 cross-benchmark claims remain separate acceptance.
+Benchmark-native research runtimes are external to this repository. They may
+reuse product heartbeat, Turn and Goal execution while retaining native
+verification. Synthetic conformance qualifies an engineering seam only; E3
+matched studies and E4 cross-benchmark claims remain separate acceptance.
 
 Task entry is a separate ablation axis: a runner-seeded execution Todo versus
 model planning through the product's `todo plan` checkpoint. Planning runs
@@ -1186,9 +1185,6 @@ This is a living research RFC, not a frozen benchmark snapshot.
 - [WideSearch repository](https://github.com/ByteDance-Seed/WideSearch)
 - [WideSearch paper](https://arxiv.org/abs/2508.07999)
 - [WideSearch dataset](https://huggingface.co/datasets/ByteDance-Seed/WideSearch)
-- [Benchmark research workspace](https://github.com/huangruiteng/loopx/blob/main/benchmark/README.md)
-- [DeepSWE research practice](https://github.com/huangruiteng/loopx/blob/main/benchmark/deepswe/README.md)
-- [Legacy benchmark archive](https://github.com/huangruiteng/loopx/blob/main/deprecate/benchmark-legacy/README.md)
 - [Hierarchical Agent Stride Control v0](./hierarchical-agent-stride-control-v0.md)
 - [Research Exploration Control Plane v0](./research-exploration-control-plane-v0.md)
 - [Human Attention Wishlist v0](./human-attention-wishlist-v0.md)

@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | Draft，研究计划 |
+| 状态 | Draft，外部研究设计 |
 | 日期 | 2026-08-16 |
 | 作者 | LoopX maintainers |
 | 范围 | 外部能力证据、benchmark 协作、harness 实验与机制 qualification |
@@ -804,10 +804,9 @@ release promise：
 一个 adapter 可以在工程上达到 E1，但其 study 仍然只有 C0；如果 E2 runtime evidence
 不完整，C2 result 也不成立。
 
-[共享 Codex 研究 runtime](../../../benchmark/runtime/RUNTIME.md) 是
-LHTB/SWE-Marathon 原生桥接的工程检查点：共享 trial 初始化，复用产品的
-heartbeat、Turn 和 Goal 执行，并保留原生验证。合成 Harbor conformance
-只验证这条工程路径；E3 matched study 和 E4 跨 benchmark 结论仍需独立验收。
+Benchmark 原生研究 runtime 位于本仓库之外，可复用产品的 heartbeat、Turn 和
+Goal 执行并保留原生验证。合成 conformance 只验证工程路径；E3 matched study
+和 E4 跨 benchmark 结论仍需独立验收。
 
 任务入口是独立的消融轴：runner 预写执行 Todo，或模型通过产品 `todo plan`
 检查点进行规划。规划先于所选执行驱动，复用 Goal planner 和 Todo 增量契约，
@@ -1014,9 +1013,6 @@ promotion 或修改 LoopX default。
 - [WideSearch 仓库](https://github.com/ByteDance-Seed/WideSearch)
 - [WideSearch 论文](https://arxiv.org/abs/2508.07999)
 - [WideSearch 数据集](https://huggingface.co/datasets/ByteDance-Seed/WideSearch)
-- [Benchmark 研究工作区](https://github.com/huangruiteng/loopx/blob/main/benchmark/README.md)
-- [DeepSWE 研究实践](https://github.com/huangruiteng/loopx/blob/main/benchmark/deepswe/README.md)
-- [旧 Benchmark 归档](https://github.com/huangruiteng/loopx/blob/main/deprecate/benchmark-legacy/README.md)
 - [长程 Agent 分层步幅控制 v0](./hierarchical-agent-stride-control-v0.zh-CN.md)
 - [研究型探索控制面 v0](./research-exploration-control-plane-v0.zh-CN.md)
 - [Human Attention Wishlist v0](./human-attention-wishlist-v0.zh-CN.md)

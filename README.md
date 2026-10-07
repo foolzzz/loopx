@@ -9,10 +9,7 @@ The open, local-first control plane for long-horizon agents and personal agent t
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/loopx-project/loopx?filter=v*&display_name=tag)](https://github.com/loopx-project/loopx/releases/latest) [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/XmGgQyCFZd)
 
-[Get started](#try-loopx) · [Workspace](#meet-the-personal-agent-workspace) · [LHTB results](#lhtb-results) · [Docs](https://loopx-project.github.io/loopx/docs/) · [简体中文](README.zh-CN.md)
-
-**[LHTB](https://zli12321.github.io/LHTB/index.html) · 46 tasks · GPT-5.6 Sol:** LoopX 1.0.3 Heartbeat reaches **0.4948 mean reward** — **+17.3% vs Plain Codex**, **+10.6% vs native Codex Goal**.<br>
-<sub><a href="#lhtb-results">Results and pass rates ↓</a></sub>
+[Get started](#try-loopx) · [Workspace](#meet-the-personal-agent-workspace) · [Docs](https://loopx-project.github.io/loopx/docs/) · [简体中文](README.zh-CN.md)
 
 </div>
 
@@ -167,42 +164,7 @@ separates shipped foundations from the next end-to-end acceptance milestones.
 
 ## Evidence
 
-<a id="lhtb-results"></a>
-
-### LHTB: Higher Mean Reward With the Same Model
-
-**LoopX 1.0.3 Heartbeat reaches 0.4948 mean reward across 46 matched tasks:**
-**+17.3% over Plain Codex** and **+10.6% over native Codex Goal**.
-All three use GPT-5.6 Sol, max reasoning effort, and disabled Web Search.
-[Long-Horizon Terminal-Bench](https://zli12321.github.io/LHTB/index.html) goes beyond coding: these tasks span research
-reproduction, scientific simulation, multimodal analysis, professional
-workflows, games, and systems work.
-
-| Execution mode | Mean reward ↑ | Strict pass rate (≥0.95) | Pass rate (≥0.80) |
-| --- | ---: | ---: | ---: |
-| Plain Codex | 0.4218 | 7/46 (15.2%) | 12/46 (26.1%) |
-| Native Codex Goal | 0.4475 | 4/46 (8.7%) | 14/46 (30.4%) |
-| **LoopX 1.0.3 Heartbeat** | **0.4948** | **7/46 (15.2%)** | **15/46 (32.6%)** |
-
-The ≥0.80 threshold is a supplementary, post-hoc view; ≥0.95 remains the
-benchmark's strict solved threshold. No score in this study equals 0.80, so
-these counts also match the study brief's >0.80 view.
-
-Against native Goal, task-level rewards improve on **23**, tie on **13**, and
-regress on **10** tasks. Strict solves match Plain Codex, so the mean gain is
-not a claim that every task improves or that more tasks are fully solved than
-Plain. Mean reward also credits partial progress.
-
-One effective trial per task and mode; designated replacement trials and
-unequal runtime/budgets, including longer budgets for some Heartbeat replacements.
-These are observed system results, not an equal-budget efficiency result or
-an isolated causal estimate of LoopX's effect.
-
-[Interactive results, task comparisons and methodology](https://loopx-project.github.io/loopx/benchmarks/lhtb/)
-· [Five-arm study and limits](benchmark/LHTB/studies/five-arm-gpt56sol-max/README.md)
-· [Public task-level scores](benchmark/LHTB/studies/five-arm-gpt56sol-max/data.json)
-
-Beyond benchmarks, LoopX also has inspectable long-running project evidence.
+LoopX has inspectable long-running project evidence.
 The public OpenViking contribution sequence and the redacted, owner-run
 Auto ML showcase each span **200+ hours of elapsed loop lifetime**, preserving
 bounded turns, decisions, and evidence updates. This measures wall-clock project
@@ -264,21 +226,6 @@ independent reproduction, or a production result.
 These are the three strongest current cases, not the full inventory. Browse the
 [complete Showcase catalog](docs/showcases/README.md) for contributor cases,
 creator dogfooding, reproducible demos, and explicit evidence-strength labels.
-
-### Exploratory Benchmark Studies
-
-- **[SWE-Marathon](https://loopx-project.github.io/loopx/benchmarks/swe-marathon/):**
-  Five execution modes on 15 matched tasks compare self-verification, scores,
-  and cost. More self-verification did not consistently yield higher scores.
-- **[LHTB × LoopX](https://loopx-project.github.io/loopx/benchmarks/lhtb/):**
-  The [results above](#lhtb-results) lead into five execution mechanisms,
-  task-level comparisons, regressions, and exploratory task-type analysis.
-- **[DeepSWE behavior analysis](https://loopx-project.github.io/loopx/benchmarks/deepswe/behavior-discovery/)** (Chinese):
-  Selected cases examine how domain hints relate to requirement retention and
-  verification choices, offering mechanism hypotheses for further testing.
-
-SWE-Marathon and LHTB have one effective trial per task and mode; DeepSWE uses
-selected cases and post-hoc analysis.
 
 More inspectable surfaces:
 

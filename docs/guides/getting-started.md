@@ -1153,10 +1153,8 @@ Start here:
 - [Heartbeat automation prompt](../heartbeat-automation-prompt.md)
 - [Long-task cadence hint](../operations/long-task-cadence-policy.md)
 - [Public/private boundary](../public-private-boundary.md)
-- [Benchmark research workspace](https://github.com/huangruiteng/loopx/blob/main/benchmark/README.md)
 - [Dashboard status contract](../status-data-contract.md)
 - [Codex peer task orchestration](../integrations/codex-subagent-orchestration.md)
-- [DeepSWE research practice](https://github.com/huangruiteng/loopx/blob/main/benchmark/deepswe/README.md)
 
 ## Command Reference
 

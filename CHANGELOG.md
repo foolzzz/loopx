@@ -25,6 +25,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - **Wire change:** `loopx doctor` no longer returns `desktop_installation` or
   the `desktop_app_runtime_pairing` check. CLI installation, release provenance,
   freshness, and managed-service diagnostics remain supported.
+- Removed the repository benchmark workspace, legacy benchmark archive and
+  frozen experiment snapshots, with their archive-only tests and path exclusions.
+  Canary plan selection no longer emits `active_scan_changed_files` or
+  `excluded_changed_files`; `changed_files` is the sole file selector.
+- Removed the SWE-Marathon, LHTB and DeepSWE public research pages, homepage
+  research cards, study metadata and share-bundle exports without redirects.
+  The provider-neutral benchmark toolkit, CLI and managed skill remain available.
+
 - Removed the unused synthetic `loopx.visible_governance` projection and its
   dedicated smoke. It had no product or CLI consumer; existing status, quota,
   task-lease, and decision-scope contracts remain unchanged.
@@ -196,6 +204,14 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   share a project directory are not kept apart.
 
 ### Removed
+
+- Removed the repository benchmark workspace, legacy benchmark archive and
+  frozen experiment snapshots, with their archive-only tests and path exclusions.
+  Canary plan selection no longer emits `active_scan_changed_files` or
+  `excluded_changed_files`; `changed_files` is the sole file selector.
+- Removed the SWE-Marathon, LHTB and DeepSWE public research pages, homepage
+  research cards, study metadata and share-bundle exports without redirects.
+  The provider-neutral benchmark toolkit, CLI and managed skill remain available.
 
 - **v0.1 main/side hierarchy migration.** `configure-goal` no longer accepts
   `--ack-automation-prompt-migration`, and the one-time migration module,

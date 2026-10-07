@@ -344,11 +344,12 @@ changes.
     campaign-to-run dashboard projection are proposed but not implemented.
 - [Long-Horizon Harness Benchmark and Research Program v0](long-horizon-harness-benchmark-research-program-v0.md)
   ([中文版](long-horizon-harness-benchmark-research-program-v0.zh-CN.md))
-  - **RFC status:** Draft, research program.
-  - **Delivery on `main`:** Active research and engineering program.
-  - **Current boundary:** ALE, LHTB, and DeepSWE form the external-validity
-    portfolio; benchmark infrastructure and evidence workflows are being built
-    without treating the research program as a runtime protocol.
+  - **RFC status:** Draft, external research design.
+  - **Delivery on `main`:** Provider-neutral toolkit contracts remain shipped;
+    bundled research runners, frozen snapshots and study pages are removed.
+  - **Current boundary:** ALE, LHTB, and DeepSWE remain proposed external-validity
+    environments. Native runners and study evidence belong outside this repository;
+    the research design is not a runtime protocol.
 - [Long-Running Agent Reliability Diagnostics and Governed Delivery v0](long-running-agent-reliability-diagnostics-governed-delivery-v0.md)
   ([中文版](long-running-agent-reliability-diagnostics-governed-delivery-v0.zh-CN.md))
   - **RFC status:** Draft, product direction and delivery contract.
