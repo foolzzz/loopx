@@ -819,7 +819,6 @@ A change satisfies this contract only when:
 - durable replan ACKs survive neutral scheduler/accounting runs until material
   frontier state changes;
 - `quota.py` consumes the resulting projection instead of storing vision logic;
-- auto-research remains a thin preset over the reusable kernel; and
 - public docs and smokes cover the budget, state machine, and `quota.py`
   boundary without private material.
 

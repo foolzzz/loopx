@@ -577,7 +577,7 @@ hint 只是 policy；只有声明的 scheduler owner 实际执行并 readback �
 
 ### 把 launcher 称为 supervisor agent
 
-Auto Research 的 tmux launcher 只是 host launcher，不是拥有 todo 决策权的 leader agent。可选 peer supervisor 是另一套 proposal-only overlay。
+Host launcher 不拥有 todo 决策权；可选 peer supervisor 是 proposal-only overlay。
 
 ## 课后检查
 
