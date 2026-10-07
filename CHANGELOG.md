@@ -52,7 +52,7 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
 - Removed the `authority-shadow` CLI. Transaction-bound outbox recovery and
   status now use `coordination-shadow drain` and `coordination-shadow status`.
   These responses use `loopx_coordination_shadow_io_cli_v0` and omit the retired
-  `historical_only` field.
+  `historical_only` field; status `config` reports active runtime-shadow settings.
   Active runtime-shadow capture, qualification, promotion, provider defaults,
   transaction schemas and persisted lineage identities are unchanged.
 
