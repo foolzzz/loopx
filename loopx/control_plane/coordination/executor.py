@@ -295,8 +295,8 @@ class CoordinationAuthorityExecutor:
     """Apply normalized coordination commands through one provider CAS.
 
     This executor is the RFC's reference implementation: LoopX's runtime
-    does not construct it yet (coverage-only per the visible governance
-    ledger), and wiring it to a product entry point is a later-stage,
+    does not construct it yet (coverage-only reference contract), and
+    wiring it to a product entry point is a later-stage,
     owner-gated decision.
     """
 
