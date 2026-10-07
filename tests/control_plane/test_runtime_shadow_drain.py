@@ -416,7 +416,11 @@ def test_status_reports_backlog_candidate_and_growth_facts(tmp_path: Path) -> No
     registry, state, runtime_root = _fixture(tmp_path)
     empty = adapter.runtime_shadow_status(registry_path=registry, runtime_root=runtime_root, goal_id=GOAL_ID)
     assert empty["ok"] is True
-    assert empty["config"]["status"] == "configuration_absent"
+    assert empty["config"] == {
+        "enabled": True,
+        "provider": "file_v0",
+        "status": "enabled",
+    }
     assert empty["candidate"]["status"] == "loaded"
     assert empty["candidate"]["cursor"] == "1"
     assert empty["store_bytes"] > 0
@@ -443,6 +447,38 @@ def test_status_reports_backlog_candidate_and_growth_facts(tmp_path: Path) -> No
     assert drained["candidate"]["codec_agreement"] is True
     assert drained["candidate"]["head_schema_version"] == "loopx_coordination_runtime_shadow_projection_v0"
     assert drained["store_bytes"] > 0
+
+
+def test_status_ignores_retired_observation_and_does_not_create_lineage(tmp_path: Path) -> None:
+    real = workspace(tmp_path / "repo", bootstrap=False)
+    registry = json.loads(real.registry.read_text(encoding="utf-8"))
+    coordination = registry["goals"][0]["coordination"]
+    del coordination["runtime_shadow"]
+    coordination["authority_shadow"] = {
+        "schema_version": "loopx_local_authority_shadow_config_v0",
+        "mode": "file_one_way",
+    }
+    real.registry.write_text(json.dumps(registry), encoding="utf-8")
+    historical = real.runtime / "authority-shadow" / "file" / GOAL_ID / "authority-store-retired.json"
+    historical.parent.mkdir(parents=True)
+    historical.write_bytes(b"Historical observation is not an active candidate.\n")
+    registry_before = real.registry.read_bytes()
+
+    result = adapter.runtime_shadow_status(
+        registry_path=real.registry, runtime_root=real.runtime, goal_id=GOAL_ID,
+    )
+
+    assert result["config"] == {
+        "enabled": False,
+        "provider": None,
+        "status": "configuration_absent",
+    }
+    assert result["candidate"]["status"] == "missing"
+    assert result["candidate"]["store_kind"] == "runtime_shadow"
+    assert result["store_bytes"] == 0
+    assert not (real.runtime / "authority-shadow" / "file-v0").exists()
+    assert historical.read_bytes() == b"Historical observation is not an active candidate.\n"
+    assert real.registry.read_bytes() == registry_before
 
 
 def test_capture_evidence_v1_reports_measured_facts_only(tmp_path: Path) -> None:
