@@ -80,6 +80,13 @@ To learn how to use these features, read the [usage guide](docs/fork/usage.md).
   `historical_only` field; status `config` reports active runtime-shadow settings.
   Active runtime-shadow capture, qualification, promotion, provider defaults,
   transaction schemas and persisted lineage identities are unchanged.
+- Retired the Release Artifacts workflow, its package identity/checksum script,
+  and workflow-only validation. Automatic GitHub asset upload, attestations,
+  and optional PyPI publication are no longer provided by this fork. Local
+  release readiness and manual frontend/package validation remain available.
+- Retired the scheduled Update Notes workflow, draft generator, generator-only
+  smoke, and automation guide. Historical notes and their public-boundary smoke
+  remain available.
 
 ## [2.1.0] - 2026-10-07
 

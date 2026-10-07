@@ -142,9 +142,9 @@ option is read-only and accepted only by `update check`.
 
 ## Named Version Contract
 
-LoopX releases are tagged and built from GitHub. The release workflow
-publishes artifacts to GitHub Releases and, when its Trusted Publisher gate
-passes, PyPI; each stable promotion still needs one package version name. The
+LoopX releases are tagged in GitHub. Release publication is an explicit
+maintainer action; this fork does not automatically upload package artifacts or
+publish to PyPI. Each stable promotion still needs one package version name. The
 version source is `loopx.__version__`, mirrored by `pyproject.toml`; the
 expected public tag is `vX.Y.Z` for that version.
 
@@ -164,34 +164,10 @@ Before moving `stable`, maintainers should:
   `loopx update apply` when the check recommends or when they want to
   refresh to the named stable release.
 
-The release workflow builds a wheel and source distribution from the tagged
-commit. Its release assets include a canonical `SHA256SUMS` file, and GitHub
-records build-provenance attestations for both packages and the checksum
-manifest. Verify a downloaded bundle before installation:
-
-```bash
-sha256sum --check SHA256SUMS
-gh attestation verify loopx-X.Y.Z-py3-none-any.whl --repo huangruiteng/loopx
-gh attestation verify loopx-X.Y.Z.tar.gz --repo huangruiteng/loopx
-```
-
-The checksum proves that the downloaded bytes match the release manifest. The
-attestation separately binds those bytes to the repository, workflow, commit,
-and build event; neither mechanism claims that the package is vulnerability
-free.
-
-PyPI publication is an explicit, fail-closed extension of the same build. The
-release workflow publishes only when maintainers have configured all of these:
-
-- a PyPI project named `loopx` with a Trusted Publisher for
-  `huangruiteng/loopx` and `.github/workflows/release-artifacts.yml`;
-- a protected GitHub environment named `pypi` that matches the Trusted
-  Publisher configuration;
-- the repository variable `PYPI_PUBLISH_ENABLED=true`.
-
-Do not add a long-lived PyPI token. Without every condition above, GitHub
-Release packages and their verification material are still produced, while
-the PyPI job remains skipped.
+Local release readiness, version checks, install qualification, and capability
+usage validation remain required. See [Frontend build and delivery](../development/frontend-delivery.md)
+for manual wheel/sdist build and installed-asset verification commands. Retiring
+automated publication does not grant contributors release or promotion authority.
 
 ## Public Release Timeline
 

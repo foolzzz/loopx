@@ -29,14 +29,10 @@ operator-only state are intentionally excluded.
   reader to inspect private state.
 - Treat the note as a summary surface. The source of truth remains public git
   history, LoopX CLI behavior, and shipped docs.
-- Publish on a two-week cadence anchored at the initial public scaffold on
-  2026-05-31.
-- Next expected window: 2026-07-12 to 2026-07-25.
+- The archived notes follow the historical two-week cadence anchored at the
+  initial public scaffold on 2026-05-31.
 
-## Automation
+## Archive Status
 
-See [Biweekly update-note automation](automation.md) for the recommended
-publication path. The short version: `.github/workflows/update-notes.yml` runs
-a separate read-only release-note job that uploads a reviewable draft artifact;
-a human opens a PR when the draft is ready. This is not custom logic inside the
-active LoopX heartbeat.
+The scheduled draft generator has been retired. Existing notes remain as public
+history; new release summaries are prepared and reviewed explicitly.
