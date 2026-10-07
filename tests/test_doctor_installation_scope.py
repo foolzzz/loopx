@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import queue
 import threading
-import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -138,6 +139,49 @@ def test_installation_scope_uses_current_distribution_and_console_script(
     assert observed["deep_checks"]["distribution_root"] == str(distribution_root)
 
 
+def test_source_registry_deadline_returns_while_worker_remains_stalled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text("{}", encoding="utf-8")
+    read_started = threading.Event()
+    release_read = threading.Event()
+    workers: list[threading.Thread] = []
+    results: list[tuple] = []
+
+    def stalled_load(path: Path):
+        assert path == registry_path
+        workers.append(threading.current_thread())
+        read_started.set()
+        release_read.wait()
+        return {}
+
+    monkeypatch.setattr(runtime_projection_route, "load_registry", stalled_load)
+    caller = threading.Thread(
+        target=lambda: results.append(
+            runtime_projection_route._read_source_registry_with_deadline(
+                registry_path, timeout_seconds=0.02
+            )
+        ),
+        daemon=True,
+    )
+    caller.start()
+    try:
+        assert read_started.wait(timeout=10)
+        caller.join(timeout=10)
+        assert not caller.is_alive()
+        assert results == [(None, "source_registry_timeout")]
+        assert workers[0].is_alive()
+        assert workers[0].daemon
+    finally:
+        release_read.set()
+        caller.join(timeout=10)
+        for worker in workers:
+            worker.join(timeout=10)
+            assert not worker.is_alive()
+
+
 def test_runtime_projection_diagnostics_bound_one_stalled_source_and_retry(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -188,42 +232,79 @@ def test_runtime_projection_diagnostics_bound_one_stalled_source_and_retry(
     )
 
     real_load_registry = runtime_projection_route.load_registry
+    stalled_read_started = threading.Event()
     release_stalled_read = threading.Event()
+    source_reads: list[Path] = []
+    workers: list[threading.Thread] = []
+    result_queues: list[queue.Queue] = []
+    read_timeouts: list[float] = []
 
     def load_registry(path: Path):
+        if path in (stalled_registry, healthy_registry):
+            source_reads.append(path)
+            workers.append(threading.current_thread())
         if path == stalled_registry:
-            release_stalled_read.wait(timeout=2)
+            stalled_read_started.set()
+            release_stalled_read.wait()
         return real_load_registry(path)
 
+    class ControlledReadQueue(queue.Queue):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            result_queues.append(self)
+
+        def get(self, block=True, timeout=None):
+            assert block is True
+            read_timeouts.append(timeout)
+            if self is result_queues[0]:
+                # Model only the deliberately stalled read's expired deadline.
+                assert stalled_read_started.wait(timeout=10)
+                return super().get(block=False)
+            # Healthy/released reads complete independently of worker scheduling.
+            return super().get(timeout=10)
+
     monkeypatch.setattr(runtime_projection_route, "load_registry", load_registry)
-    started = time.monotonic()
-    first = runtime_projection_route.collect_runtime_projection_route_diagnostics(
-        registry_path=global_registry,
-        runtime_root=runtime_root,
-        source_registry_read_timeout_seconds=0.02,
+    monkeypatch.setattr(
+        runtime_projection_route,
+        "queue",
+        SimpleNamespace(Queue=ControlledReadQueue, Empty=queue.Empty),
     )
-    elapsed = time.monotonic() - started
+    try:
+        first = runtime_projection_route.collect_runtime_projection_route_diagnostics(
+            registry_path=global_registry,
+            runtime_root=runtime_root,
+            source_registry_read_timeout_seconds=0.02,
+        )
 
-    assert elapsed < 0.5
-    assert first["healthy"] is False
-    assert first["counts"]["unavailable"] == 1
-    assert first["counts"]["single_runtime"] == 1
-    unavailable = next(
-        item for item in first["items"] if item["goal_id"] == "offline-goal"
-    )
-    assert unavailable == {
-        "goal_id": "offline-goal",
-        "status": "unavailable",
-        "reason": "source_registry_timeout",
-    }
-    assert str(tmp_path) not in json.dumps(unavailable)
+        assert first["healthy"] is False
+        assert first["counts"]["unavailable"] == 1
+        assert first["counts"]["single_runtime"] == 1
+        unavailable = next(
+            item for item in first["items"] if item["goal_id"] == "offline-goal"
+        )
+        assert unavailable == {
+            "goal_id": "offline-goal",
+            "status": "unavailable",
+            "reason": "source_registry_timeout",
+        }
+        assert str(tmp_path) not in json.dumps(unavailable)
 
-    release_stalled_read.set()
-    second = runtime_projection_route.collect_runtime_projection_route_diagnostics(
-        registry_path=global_registry,
-        runtime_root=runtime_root,
-        source_registry_read_timeout_seconds=0.2,
-    )
+        release_stalled_read.set()
+        second = runtime_projection_route.collect_runtime_projection_route_diagnostics(
+            registry_path=global_registry,
+            runtime_root=runtime_root,
+            source_registry_read_timeout_seconds=0.2,
+        )
 
-    assert second["counts"]["unavailable"] == 0
-    assert second["counts"]["single_runtime"] == 2
+        assert second["healthy"] is True
+        assert second["counts"]["unavailable"] == 0
+        assert second["counts"]["single_runtime"] == 2
+        assert read_timeouts == [0.02, 0.02, 0.2, 0.2]
+        assert source_reads == [
+            stalled_registry, healthy_registry, stalled_registry, healthy_registry
+        ]
+    finally:
+        release_stalled_read.set()
+        for worker in workers:
+            worker.join(timeout=10)
+            assert not worker.is_alive()
