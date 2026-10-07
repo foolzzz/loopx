@@ -639,6 +639,13 @@ path, and canary route rather than as a user-facing release baseline.
   optional budgets, and a dashboard role board. The fork's releases are
   recorded in [CHANGELOG.md](../../CHANGELOG.md).
 
+- `v2.1.0` prepared on 2026-10-07: fork release metadata and Developer Book
+  anchors advance to `2.1.0`. This release includes breaking state-path, host,
+  CLI and wire removals despite its minor version number; see
+  [CHANGELOG.md](../../CHANGELOG.md). Tag and GitHub release publication remain
+  pending the release owner's confirmation. This preparation entry does not
+  claim a published tag, updated stable ref, PyPI upload or hosted Pages deploy.
+
 When a new public release is promoted, add it here only after the matching tag,
 release note, stable ref, update path, and focused release canary agree.
 
