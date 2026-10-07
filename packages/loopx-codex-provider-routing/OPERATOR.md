@@ -47,7 +47,9 @@ artifacts stay operator-owned and outside the public repository.
 [`examples/cli-plan.json`](examples/cli-plan.json) copied into the private owner
 directory. The operator validates and compiles it to
 `codex_cli_route_launch_plan_v1`, pinning route/revision/deployment,
-provider/model, effort/tier and capabilities. It has no endpoint, path or key. The operator
+provider/model, effort/tier and capabilities. It has no endpoint, path or key. The operator rejects candidate/tier declarations that differ from its fixed
+A/B/C routing preset before writing any artifact. It also cross-checks the selected
+model's effort and modalities against the explicit metadata. The operator
 resolves its owned loopback endpoint and env-key name from trusted local settings.
 
 `paths.model_metadata` points to `codex_cli_model_metadata_v1` with
@@ -102,7 +104,7 @@ managed extension permissions grant a plugin access to them.
 
 `probe` checks CLI 0.160.0 and performs two separate offline checks in an
 isolated home. It first parses the standalone profile with
-`codex --profile NAME --strict-config debug prompt-input`, discarding the prompt
+`codex --profile NAME debug prompt-input`, discarding the prompt
 output without saving it. CLI 0.160.0 `app-server` rejects `--profile`, so the
 operator converts the same allowlisted profile fields to bounded `-c` arguments,
 starts app-server with those overrides and compares `model/list` and `config/read`.
@@ -170,7 +172,10 @@ loopx-cpa-operator --config "$OPERATOR_CONFIG" --execute rollback --snapshot-id 
 Rollback validates integrity and every target before writes. Its allowlist is
 owned slot metadata, registered credential routing fields, generated catalog,
 the configured runtime profile and the explicitly configured installed profile.
-Current OAuth refresh tokens are retained. Newly enrolled credentials remain
+Current OAuth refresh tokens are retained. Credential-routing rollback requires
+the owned CPA process to be stopped before it can restore routing fields; it
+refuses an active or unknown process state before writing. Profile/catalog-only
+snapshots exclude credentials and slot state and do not require stopping CPA. Newly enrolled credentials remain
 stored but are disabled when restoring the prior slot set. If a profile did not
 exist before installation, rollback removes only the generated file whose digest
 still matches; edited files are retained with an actionable failure. Main

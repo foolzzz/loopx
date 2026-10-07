@@ -33,6 +33,16 @@ def main():
     fast = copy.deepcopy(request)
     fast["cli_plan"]["model_selector"] = "fast/auto/gpt-5.6-sol"
     assert cli._run_request(fast)["result"]["service_tier"] == "priority"
+    for field in (
+        "route_id",
+        "routing_revision",
+        "deployment_ref",
+        "provider_id",
+        "model_selector",
+    ):
+        bad = copy.deepcopy(request)
+        bad["cli_plan"][field] += "\n"
+        rejects(bad)
     for field, value in (
         ("deployment_ref", "/private/synthetic"),
         ("provider_id", "../escape"),

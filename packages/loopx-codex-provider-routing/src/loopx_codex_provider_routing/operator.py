@@ -38,7 +38,13 @@ COMMANDS = (
 )
 
 
-def snapshot(runtime: CPAOperator, *, profile_content: str | None = None) -> str:
+def snapshot(
+    runtime: CPAOperator,
+    *,
+    profile_content: str | None = None,
+    profile_target: Path | None = None,
+    include_auth: bool = True,
+) -> str:
     """Snapshot allowlisted artifacts and routing metadata, never host stores."""
     runtime.check_target_boundaries()
     snapshot_id = dt.datetime.now(dt.timezone.utc).strftime(
@@ -47,11 +53,16 @@ def snapshot(runtime: CPAOperator, *, profile_content: str | None = None) -> str
     directory = runtime.STATE_DIR / "operator-backups" / snapshot_id
     reject_symlinks(directory)
     directory.mkdir(parents=True, mode=0o700)
-    targets = [runtime.SLOTS_FILE, runtime.MODEL_CATALOG]
-    targets += [runtime.AUTH_DIR / name for name in runtime.load_slots().values()]
-    targets.append(runtime.PROFILE_FILE)
-    if runtime.INSTALLED_PROFILE is not None:
-        targets.append(runtime.INSTALLED_PROFILE)
+    targets = [runtime.MODEL_CATALOG]
+    if include_auth:
+        targets += [runtime.SLOTS_FILE, runtime.PROFILE_FILE]
+        targets += [runtime.AUTH_DIR / name for name in runtime.load_slots().values()]
+        if runtime.INSTALLED_PROFILE is not None:
+            targets.append(runtime.INSTALLED_PROFILE)
+    elif profile_target is not None:
+        if profile_target not in {runtime.PROFILE_FILE, runtime.INSTALLED_PROFILE}:
+            raise ValueError("profile snapshot target is outside the allowlist")
+        targets.append(profile_target)
     entries, absent_profiles = [], []
     for index, target in enumerate(targets):
         relative = (
@@ -129,6 +140,18 @@ def rollback(runtime: CPAOperator, snapshot_id: str) -> None:
         ):
             raise ValueError("snapshot integrity check failed")
         prepared.append((target, source.read_text()))
+    restores_auth = any(
+        target == runtime.SLOTS_FILE or target.parent == runtime.AUTH_DIR
+        for target, _ in prepared
+    )
+    if restores_auth:
+        pid = runtime.read_pid()
+        if (
+            runtime.PID_FILE.exists() and (pid is None or pid <= 1)
+        ) or runtime.pid_alive(pid):
+            raise RuntimeError(
+                "stop the dedicated CPA credential writer before restoring routing metadata"
+            )
     deletions = []
     for entry in manifest["absent_profiles"]:
         if set(entry) != {"target", "generated_sha256"} or entry["target"] not in {
@@ -309,7 +332,19 @@ def run(argv=None) -> int:
                 raise ValueError("profile installation requires explicit codex_home")
             if target.exists() and target.read_text() != content:
                 raise ValueError("existing profile differs; choose a new profile name")
-        receipt["rollback_snapshot"] = snapshot(runtime, profile_content=content)
+        profile_target = (
+            runtime.INSTALLED_PROFILE
+            if args.command == "install-profile"
+            else runtime.PROFILE_FILE
+            if args.command == "write-profile"
+            else None
+        )
+        receipt["rollback_snapshot"] = snapshot(
+            runtime,
+            profile_content=content,
+            profile_target=profile_target,
+            include_auth=args.command in {"reconcile", "enroll"},
+        )
     captured = io.StringIO()
     # Diagnostics can contain local paths. Public receipts return only typed,
     # symbolic results; raw management data and subprocess output stay local.

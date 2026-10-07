@@ -103,6 +103,8 @@ Run from the repository root:
 uv run --extra test python packages/loopx-codex-provider-routing/smoke/codex_provider_routing_smoke.py
 uv run --extra test python packages/loopx-codex-provider-routing/smoke/schema_contract_smoke.py
 uv run --extra test python packages/loopx-codex-provider-routing/smoke/cli_plan_smoke.py
+# Manual real-CLI acceptance (requires Codex CLI 0.160.0, sends no model request):
+uv run --extra test python packages/loopx-codex-provider-routing/smoke/cli_profile_readback_smoke.py
 uv run --extra test python packages/loopx-codex-provider-routing/smoke/integration_contract_smoke.py
 uv run --extra test python packages/loopx-codex-provider-routing/smoke/recovery_contracts_smoke.py
 uv run --extra test python packages/loopx-codex-provider-routing/smoke/operator_smoke.py
@@ -111,7 +113,7 @@ uv run --extra test loopx check --scan-path packages/loopx-codex-provider-routin
 ```
 
 Tests use synthetic operator state and isolated homes. The independent profile
-is parsed with `codex --profile NAME --strict-config debug prompt-input`; its
+is parsed with `codex --profile NAME debug prompt-input`; its
 prompt output is discarded. Separate `app-server model/list` and `config/read`
 use bounded `-c` overrides. These offline checks do not send a model request.
 Online text/tool/session,

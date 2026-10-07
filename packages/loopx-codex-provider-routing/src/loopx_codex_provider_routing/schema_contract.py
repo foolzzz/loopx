@@ -46,15 +46,15 @@ def nullable(schema: dict[str, Any]) -> dict[str, Any]:
 BOOL = {"type": "boolean"}
 COUNT = {"type": "integer", "minimum": 0}
 POSITIVE = {"type": "integer", "minimum": 1}
-ID = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})[a-z0-9][a-z0-9-]{0,63}$"}
+ID = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})[a-z0-9][a-z0-9-]{0,63}(?![\s\S])"}
 # Keep identifiers symbolic: no path roots, traversal, credentials or free text.
-MODEL = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})(?!.*\.\.)[a-z0-9][a-z0-9./-]{0,127}$"}
-REF = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})(?!.*\.\.)(?!.*(?:\.lock|\.)$)[A-Za-z0-9][A-Za-z0-9._-]{0,191}$"}
-SHA = {"type": "string", "pattern": r"^[0-9a-f]{40}$"}
-CODE = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})[a-z][a-z0-9_]{0,95}$"}
+MODEL = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})(?!.*\.\.)[a-z0-9][a-z0-9./-]{0,127}(?![\s\S])"}
+REF = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})(?!.*\.\.)(?!.*(?:\.lock|\.)$)[A-Za-z0-9][A-Za-z0-9._-]{0,191}(?![\s\S])"}
+SHA = {"type": "string", "pattern": r"^[0-9a-f]{40}(?![\s\S])"}
+CODE = {"type": "string", "pattern": r"^(?!.*\bsk-[A-Za-z0-9_-]{12,})[a-z][a-z0-9_]{0,95}(?![\s\S])"}
 LABEL = {"type": "string", "minLength": 1, "maxLength": 120,
-         "pattern": r"^(?! +$)(?!.*(?:@|[Bb][Ee][Aa][Rr][Ee][Rr] |\bsk-[A-Za-z0-9_-]{12,}|/|\\|\n|\r))[A-Za-z0-9 ·→—()_.:+-]+$"}
-TIMESTAMP = {"type": "string", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z$"}
+         "pattern": r"^(?! +$)(?!.*(?:@|[Bb][Ee][Aa][Rr][Ee][Rr] |\bsk-[A-Za-z0-9_-]{12,}|/|\\|\n|\r))[A-Za-z0-9 ·→—()_.:+-]+(?![\s\S])"}
+TIMESTAMP = {"type": "string", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z(?![\s\S])"}
 PERCENT = {"type": "number", "minimum": 0, "maximum": 100}
 MODALITIES = array(enum("text", "image"), 1, True)
 TRANSPORT = enum("function_call", "custom_tool_call")

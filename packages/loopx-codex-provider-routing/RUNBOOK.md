@@ -41,7 +41,7 @@ opaque route/deployment ref 不是 endpoint/path/env 解析权限；实际映射
 operator 默认 dry-run；每次执行必须显式 `--execute`。先生成 catalog/profile，再显式安装到
 已配置的独立 home。用户逐命令 `codex --profile NAME` opt-in；不会自动修改 LoopX 宿主。
 配置切换只供下一次显式启动使用，不能把旧活动 session 显示成已采用新 route。
-独立 profile 先用 `codex --profile NAME --strict-config debug prompt-input` 做严格解析，
+独立 profile 先用 `codex --profile NAME debug prompt-input` 做解析，
 不保留 prompt 输出。CLI 0.160.0 的 `app-server` 不接受 `--profile`；operator 把同一 profile
 白名单字段转换成受限 argv `-c` overrides，再用 app-server 的 `model/list` 与 `config/read`
 核对。两步均在隔离 HOME/CODEX_HOME 完成，不发送真实模型请求，也不代表 Chat 已接入。
@@ -78,7 +78,7 @@ exactly-once；效果无法确认时 hold，不新建路由专属副作用账本
 | --- | --- | --- |
 | schema/runtime 一致 | 合法请求和输出共同通过，unknown/raw/prompt/private ref 被两边拒绝 | 离线 |
 | 功能关闭 | 未安装或未选 profile 时，无新启动字段、配置改写、网络探测 | 离线 |
-| CLI 配置 | 隔离 HOME，真实 CLI 0.160.0 严格解析独立 profile，受限 -c 的 model/list 与 config/read 核对 model/provider/catalog | 离线，不发模型请求 |
+| CLI 配置 | 隔离 HOME，真实 CLI 0.160.0 解析独立 profile，受限 -c 的 model/list 与 config/read 核对 model/provider/catalog | 离线，不发模型请求 |
 | operator | 合成 state 的 dry-run、白名单、symlink/路径拒绝、snapshot integrity、rollback | 离线，不碰真实 HOME |
 | 原生模型请求 | 锁定 CPA 部署的 text、tool 与原 session 连续性，实际 account/route readback | held：部署和预算 |
 | 原生账号 failover | pre-commit A→B，一次完整回答/工具结果；post-commit 禁止改道和重放 | held：部署和预算 |
@@ -100,6 +100,7 @@ exactly-once；效果无法确认时 hold，不新建路由专属副作用账本
 保留最新 OAuth refresh token；新加入 credential 保留但按旧快照恢复停用状态。
 安装 profile 的回滚只碰那个独立文件，不碰 `config.toml`、`auth.json`、rollouts 或数据库。
 不得为刷新目录删除 session、复制数据库、替换真实 CODEX_HOME 或回滚旧 token。
+恢复凭据路由字段前，必须先停止自己拥有的 CPA writer；运行中或无法确认 PID 的 writer 会在任何写入前阻断回滚。纯 profile/catalog 快照排除凭据与 slot 状态，无须停止 CPA。
 独立 CPA 重启/停止只影响 owner 授权的进程，不改变其他客户端部署。
 
 ## 可观测性与公开边界

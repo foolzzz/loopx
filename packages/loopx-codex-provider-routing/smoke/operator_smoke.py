@@ -323,6 +323,45 @@ class OperatorTests(unittest.TestCase):
             self.settings.paths["model_metadata"], json.dumps(self.metadata())
         )
 
+    def test_auth_rollback_holds_running_or_unknown_writer_before_any_write(self):
+        self.seed()
+        backup = snapshot(self.runtime)
+        write_private(self.runtime.MODEL_CATALOG, '{"new": true}')
+        original = {
+            path: path.read_bytes()
+            for path in (
+                self.runtime.MODEL_CATALOG,
+                self.runtime.SLOTS_FILE,
+                self.runtime.AUTH_DIR / "a.json",
+            )
+        }
+        for pid_content, alive in (("4242", True), ("unknown", False), ("0", False)):
+            write_private(self.runtime.PID_FILE, pid_content)
+            with (
+                patch.object(self.runtime, "pid_alive", return_value=alive),
+                self.assertRaisesRegex(RuntimeError, "credential writer"),
+            ):
+                rollback(self.runtime, backup)
+            self.assertTrue(
+                all(path.read_bytes() == content for path, content in original.items())
+            )
+
+    def test_profile_snapshot_rollback_does_not_touch_live_auth_membership(self):
+        self.seed()
+        self.seed_plan()
+        original = self.runtime.SLOTS_FILE.read_bytes()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            run(["--config", str(self.config), "--execute", "write-profile"])
+        installed = self.runtime.INSTALLED_PROFILE
+        write_private(installed, CLIModelCatalog(self.runtime).profile_content())
+        with patch.object(self.runtime, "pid_alive", return_value=True) as alive:
+            rollback(self.runtime, json.loads(output.getvalue())["rollback_snapshot"])
+            alive.assert_not_called()
+        self.assertFalse(self.runtime.PROFILE_FILE.exists())
+        self.assertTrue(installed.exists())
+        self.assertEqual(self.runtime.SLOTS_FILE.read_bytes(), original)
+
     def test_catalog_uses_versioned_native_metadata(self):
         self.seed_plan()
         catalog = CLIModelCatalog(self.runtime)
