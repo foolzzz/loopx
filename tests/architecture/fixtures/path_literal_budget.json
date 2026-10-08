@@ -1,16 +1,16 @@
 {
-  "description": "Residual raw path literals: per-file, per-literal SHA256 occurrence budgets may only decrease. loopx/paths.py owns path definitions; providers, validation and rendered labels remain counted.",
+  "description": "Residual decoded path values: per-file, per-value SHA256 occurrence budgets may only decrease. loopx/paths.py owns path definitions; providers, validation and rendered labels remain counted.",
   "files": {
     "apps/presentation/dashboard/src/features/personal-workspace/capability-localization.ts": {
-      "a5915284977ac9db163e11369920bb1618fcc9bf1e0ec49cc8c8f0f2655dc87a": 1,
-      "dba433ad28c0f5a5c84a734a65a74b1f44d72a2020a1c06024fcb604036b80ac": 1
+      "f0e0730e1e06ad7381bb01981afebea112ef74bb1bdf6499ea53ebe410570261": 1,
+      "f573e24213fd064357acd0f259fac8ae08c75c2dca5007e978e448de191e83c1": 1
     },
     "apps/presentation/dashboard/src/features/personal-workspace/context-drawer.tsx": {
-      "39bddf02b226b2aa1c3ae0cd467248eef208bb707e8808125a049afdca07066d": 1
+      "d69d3ef3dcc9b79494d6f649465ec90a65a9bb08939d631eecba66ce77589f38": 1
     },
     "apps/presentation/dashboard/src/features/personal-workspace/i18n.tsx": {
-      "3e95d93a639ac910a6563ba53eba28381566743f6af8cbeef2fa65a2b5c376e7": 1,
-      "f8cbe7d331f18296889490dc34af1f13f3ea7846f064e5d9c700a0ab1cf63147": 1
+      "084cf9930b41fac6d6bc02dc9e4a2eef2ea44bbaaa9458022738497057a85aff": 1,
+      "84bfe7080860e8cb635bf7ef50b8e37c6c80e84d18152d99d81cb83a97a0ef27": 1
     },
     "demo/auto_research/demo_e2e.py": {
       "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
@@ -165,7 +165,7 @@
       "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
     },
     "loopx/pi_goal_mode/pi-goal-loop-runtime.mjs": {
-      "7a08afbdd8c00799e20fff7a0d8e249258ce34c1106162ca0295952f16a4f0e7": 1
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
     },
     "loopx/pr_review.py": {
       "cb800a3c3d9cab0b69c8b93ef9dd2df37aed80889f8ca7390a426bc1b24995d1": 1
@@ -197,19 +197,19 @@
       "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
     },
     "packages/dsh-loopx-plugin/src/driver.ts": {
-      "412546b0b3e4a264099e2ce9646a8d68a5aa7d26c6f75fbd8625533fe01fb260": 3
+      "18f2a97b1de76ce00f7b513c00f3b42d521ed5ec88240bcd3d7a474138353269": 3
     },
     "packages/dsh-loopx-plugin/src/goalbar/read-model.ts": {
-      "412546b0b3e4a264099e2ce9646a8d68a5aa7d26c6f75fbd8625533fe01fb260": 1,
-      "c36efd64458a9d595baa5567d86db931245dbc6ea3122db4c5f67fc3dabcfac4": 1
+      "18f2a97b1de76ce00f7b513c00f3b42d521ed5ec88240bcd3d7a474138353269": 1,
+      "981f12335421af0a1e0568161090ea39bf8c6c180d9d25b40e70cce2ea49e86f": 1
     },
     "packages/dsh-loopx-plugin/src/observer.ts": {
-      "a8db926966531eab99df42f5bd19713c4d66a2c59881d4dec9669e744442b62e": 1
+      "f6550baecc63c1925e432e900fe7a304764c2ac1073db95e2f3638b6a7d7b114": 1
     },
     "scripts/semantic_production_scan.mjs": {
-      "412546b0b3e4a264099e2ce9646a8d68a5aa7d26c6f75fbd8625533fe01fb260": 1,
-      "7fe6e447a1e8a7d7592532b269fca9d421bd0edb2d4eac54d0c1554dc8f3ec34": 1
+      "18f2a97b1de76ce00f7b513c00f3b42d521ed5ec88240bcd3d7a474138353269": 1,
+      "34fb32a55338fbb10a587adfe82bc75c3d3be85e089bf61d93da5b0507ddc040": 1
     }
   },
-  "schema_version": 1
+  "schema_version": 2
 }
