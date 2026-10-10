@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+import json
 import os
 import re
 import shlex
@@ -22,8 +23,8 @@ from .self_update_download import run_archive_installer
 
 
 UPDATE_PLAN_SCHEMA_VERSION = "loopx_update_plan_v0"
-DEFAULT_UPDATE_REPO = "loopx-project/loopx"
-DEFAULT_UPDATE_REF = "stable"
+DEFAULT_UPDATE_REPO = "michaelx1993/loopx"
+DEFAULT_UPDATE_REF = "main"
 ROLLBACK_PREVIOUS_ALIAS = "previous"
 SOURCE_VERSION_CHECK_SCHEMA_VERSION = "loopx_source_version_check_v0"
 SOURCE_COMMIT_CHECK_SCHEMA_VERSION = "loopx_source_commit_check_v0"
@@ -875,6 +876,21 @@ def build_update_plan(
     }
 
 
+def _latest_wheel_url(repo: str = DEFAULT_UPDATE_REPO) -> str | None:
+    """Fetch the latest .whl asset URL from a GitHub Release."""
+    api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+    req = Request(api_url, headers={"Accept": "application/vnd.github+json"})
+    try:
+        with urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+        for asset in data.get("assets", []):
+            if asset["name"].endswith(".whl"):
+                return asset["browser_download_url"]
+    except Exception:
+        pass
+    return None
+
+
 def _execute_python_distribution_update(
     payload: dict[str, Any],
     *,
@@ -887,11 +903,21 @@ def _execute_python_distribution_update(
     )
     driver = lifecycle.get("execution_driver")
     package_manager_environment = lifecycle.get("package_manager_environment")
-    install_command = (
-        ["pipx", "upgrade", str(package_manager_environment or "loopx")]
-        if driver == "python_pipx"
-        else [sys.executable, "-m", "pip", "install", "--upgrade", "loopx"]
-    )
+    wheel_url = _latest_wheel_url()
+    if wheel_url:
+        install_target = f"loopx @ {wheel_url}"
+        install_command = (
+            ["pipx", "install", "--force", install_target]
+            if driver == "python_pipx"
+            else [sys.executable, "-m", "pip", "install", "--upgrade", install_target]
+        )
+    else:
+        pkg = str(package_manager_environment or "loopx")
+        install_command = (
+            ["pipx", "upgrade", pkg]
+            if driver == "python_pipx"
+            else [sys.executable, "-m", "pip", "install", "--upgrade", "loopx"]
+        )
     commands = {
         "install": install_command,
         "workflow_skills": [
@@ -998,7 +1024,7 @@ def _execute_python_distribution_update(
     )
     if updated["ok"]:
         updated["recommended_action"] = (
-            "PyPI update and host-material readback passed; use the new LoopX process"
+            "Update and host-material readback passed; use the new LoopX process"
         )
         updated["next_action"] = {
             "kind": "use_updated_runtime",

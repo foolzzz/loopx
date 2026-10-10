@@ -25,8 +25,8 @@ workflow.
   directly in the project directory, one Turn at a time.
 - Closing a goal does not remove the developer worktrees. Use
   `loopx workspace cleanup` for each Todo.
-- `loopx update apply` defaults to upstream (`loopx-project/loopx`), not
-  this fork. Do not run it on a fork install.
+- ~~`loopx update apply` defaults to upstream~~ — fixed, now points to
+  `michaelx1993/loopx`.
 
 ## Deferred (not blocking current use)
 
