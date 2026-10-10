@@ -14,6 +14,7 @@ from .cli_commands.usage import register_usage_commands, handle_usage_command
 from .cli_commands.gate_plan_goal import register_gate_plan_goal_commands, handle_gate_plan_goal_command
 from .cli_commands.agent_config import register_agent_config_commands, handle_agent_config_command
 from .cli_commands.init import register_init_command, handle_init_command
+from .cli_commands.serve import register_serve_command, handle_serve_command
 from .cli_commands.agent_context import register_agent_context, handle_agent_context
 from .cli_commands.todo_continuation import register_todo_continuation, handle_todo_continuation
 from .cli_commands.manager_inbox import register_manager_inbox, handle_manager_inbox
@@ -228,6 +229,8 @@ def build_parser() -> LoopXArgumentParser:
 
     register_init_command(sub, add_subcommand_format)
 
+    register_serve_command(sub, add_subcommand_format)
+
     register_first_run_report_command(sub)
 
 
@@ -385,6 +388,10 @@ def main(argv: list[str] | None = None) -> int:
     init_result = handle_init_command(args, print_payload)
     if init_result is not None:
         return init_result
+
+    serve_result = handle_serve_command(args, print_payload)
+    if serve_result is not None:
+        return serve_result
 
     workflow_skills_result = handle_workflow_skills_command(
         args,

@@ -151,8 +151,7 @@ def _run_init(
         print("  \033[32m✓ Ready\033[0m")
         print()
         print("  Next steps:")
-        print("    loopx dispatch serve    # start the scheduler")
-        print("    loopx dashboard         # open the web UI")
+        print("    loopx serve             # start dashboard")
     else:
         print("  \033[31m✗ Incomplete — check the output above.\033[0m")
     print()
