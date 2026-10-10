@@ -1,6 +1,6 @@
-NO_CLONE_INSTALL_URL = "https://loopx-project.github.io/loopx/install.sh"
+NO_CLONE_INSTALL_URL = "https://raw.githubusercontent.com/michaelx1993/loopx/main/install.sh"
 
-DEFAULT_INSTALL_COMMAND = "python3 -m pip install --upgrade loopx"
+DEFAULT_INSTALL_COMMAND = "curl -fsSL https://raw.githubusercontent.com/michaelx1993/loopx/main/install.sh | bash"
 DEFAULT_WORKFLOW_SKILL_INSTALL_COMMAND = "loopx workflow-skills --install"
 DEFAULT_INSTALL_REPAIR_COMMAND = (
     f"{DEFAULT_INSTALL_COMMAND}\n"

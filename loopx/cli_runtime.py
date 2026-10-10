@@ -40,6 +40,7 @@ _REGISTRY_OPTIONAL_COMMANDS = frozenset(
 		"demo",
 		"doctor",
 		"first-run-report",
+		"init",
 		"goal",
 		"new-project-prompt",
 		"resolve-agent-thread",
