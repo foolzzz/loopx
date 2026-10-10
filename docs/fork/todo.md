@@ -67,8 +67,10 @@ Status as of 2026-10-09 (`main` at `22ea3b05a`, latest release
   recorded, and a retry settles with the option that the retry passes.
 - When the dashboard cannot read a typed gate's option list, it disables that
   gate's decisions. Decide it with `loopx gate resolve --option ...` instead.
-- If `run-once` is killed while its host process keeps running, the goal's
-  single Turn slot can be released early.
+- A goal without a code repository runs its developer and acceptor Turns
+  directly in the project directory, one Turn at a time. If `run-once` is
+  killed while its host process keeps running, that single slot can be
+  released early.
 - Closing a goal does not remove the developer worktrees. Use
   `loopx workspace cleanup` for each Todo.
 - Concurrency in gate settlement has been tested with threads only, not with
