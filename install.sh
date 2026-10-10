@@ -141,5 +141,5 @@ else
 fi
 
 echo ""
-green "  Next: run 'loopx init' to set up providers and agents."
+green "  Next: run 'loopx serve' to start."
 echo ""
