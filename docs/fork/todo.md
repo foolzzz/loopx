@@ -90,15 +90,18 @@ patched version and re-run the tests that cover it.
   historical and point to the current explicit preparation flow.
 - **`loopx update apply` and the upstream installer default to upstream.**
   Their defaults target `loopx-project/loopx` at `--ref stable`, not this
-  fork. Running them replaces a fork install with the upstream product. The
-  [usage guide](usage.md) warns against it, but the defaults themselves still
-  point upstream. Point them at the fork, or make a fork install refuse an
-  upstream source.
+  fork. `update apply` refuses to touch a source checkout, but on a release
+  snapshot install it replaces the fork snapshot with the upstream product.
+  The [usage guide](usage.md) warns against it, but the defaults themselves
+  still point upstream. Point them at the fork, or make a fork snapshot
+  refuse an upstream source.
 - **Typing debt.** CI runs strict `mypy` only on an allowlist of modules in
-  `pyproject.toml`. Running strict `mypy` over all of `loopx/` reports 4,058
-  errors in 517 files. Widen the allowlist module by module.
+  `pyproject.toml`. Running `python -m mypy loopx` (mypy 1.20.2, the
+  repository's strict settings) at `634231c4f` reports 4,058 errors in 517 of
+  1,173 checked files. Widen the allowlist module by module.
 - **Load-sensitive tests.** Several tests and smokes wait on fixed timing
-  windows and fail when the machine is heavily loaded:
+  windows. They have been seen failing while the machine was heavily loaded;
+  whether load is the cause is not proven yet:
   - installer candidate doctor probes ([#114](https://github.com/foolzzz/loopx/issues/114));
   - the release promotion lock windows ([#104](https://github.com/foolzzz/loopx/issues/104));
   - a few subprocess barrier and probe timeouts that pass when re-run on
@@ -136,8 +139,12 @@ patched version and re-run the tests that cover it.
 - Validation gaps:
   - the no-clone check only covers checkouts with a built Chat bundle;
   - CI keeps a set of skipped Python and TypeScript tests;
-  - the `claude-code` host was only unit-tested; no real Turn ran on it;
-  - native Windows and PowerShell paths have not been run;
+  - the `claude-code` host has not run a real-model Turn since the App
+    removal and cleanup batch (earlier real runs are recorded in the
+    [end-to-end pilot report](e2e-pilot-report-v1.md)); this batch only
+    unit-tested it;
+  - native Windows is exercised only by the CI `windows-powershell` job; no
+    other Windows run was done;
   - benchmark runs did not execute;
   - with the Full Public Smokes workflow retired, nothing runs a full public
     smoke sweep automatically.
